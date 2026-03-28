@@ -94,18 +94,31 @@ async def test_recipe_favorites_are_session_scoped(client, repository):
 
     assert response.status_code == 200
     recipe_id = response.json()["id"]
+    assert response.json()["favorite"] is False
 
     listing = await client.get("/api/recipes")
     assert listing.status_code == 200
     assert any(recipe["id"] == recipe_id for recipe in listing.json())
 
+    authed_listing = await client.get("/api/recipes", headers=headers)
+    assert authed_listing.status_code == 200
+    assert any(recipe["id"] == recipe_id and recipe["favorite"] is False for recipe in authed_listing.json())
+
     fetched = await client.get(f"/api/recipes/{recipe_id}")
     assert fetched.status_code == 200
     assert fetched.json()["title"] == "Overnight Oats"
 
+    authed_fetched = await client.get(f"/api/recipes/{recipe_id}", headers=headers)
+    assert authed_fetched.status_code == 200
+    assert authed_fetched.json()["favorite"] is False
+
     scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5")
     assert scaled.status_code == 200
     assert scaled.json()["default_yield"] == 3.0
+
+    authed_scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5", headers=headers)
+    assert authed_scaled.status_code == 200
+    assert authed_scaled.json()["favorite"] is False
 
     favorites = await client.get("/api/recipes/favorites")
     assert favorites.status_code == 401
@@ -122,6 +135,14 @@ async def test_recipe_favorites_are_session_scoped(client, repository):
     assert favorite_update.json()["favorite"] is True
     assert repository.list_saved_favorites(session["user_id"], "recipe")
 
+    authed_listing = await client.get("/api/recipes", headers=headers)
+    assert authed_listing.status_code == 200
+    assert any(recipe["id"] == recipe_id and recipe["favorite"] is True for recipe in authed_listing.json())
+
+    authed_fetched = await client.get(f"/api/recipes/{recipe_id}", headers=headers)
+    assert authed_fetched.status_code == 200
+    assert authed_fetched.json()["favorite"] is True
+
     favorites = await client.get("/api/recipes/favorites", headers=headers)
     assert favorites.status_code == 200
     assert len(favorites.json()) == 1
@@ -133,6 +154,10 @@ async def test_recipe_favorites_are_session_scoped(client, repository):
     assert unfavorite_update.status_code == 200
     assert unfavorite_update.json()["favorite"] is False
     assert repository.list_saved_favorites(session["user_id"], "recipe") == []
+
+    authed_scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5", headers=headers)
+    assert authed_scaled.status_code == 200
+    assert authed_scaled.json()["favorite"] is False
 
     favorites = await client.get("/api/recipes/favorites", headers=headers)
     assert favorites.status_code == 200
