@@ -147,7 +147,7 @@ class SQLiteRepository:
                 CREATE TABLE IF NOT EXISTS saved_favorites (
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
-                    entity_type TEXT NOT NULL CHECK (entity_type IN ('recipe', 'meal_template')),
+                    entity_type TEXT NOT NULL CHECK (entity_type IN ('recipe', 'meal_template', 'food')),
                     entity_id TEXT NOT NULL,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
@@ -486,8 +486,8 @@ class SQLiteRepository:
         entity_id: str,
         favorite_id: str | None = None,
     ) -> dict[str, Any]:
-        if entity_type not in {"recipe", "meal_template"}:
-            raise ValueError("entity_type must be 'recipe' or 'meal_template'.")
+        if entity_type not in {"recipe", "meal_template", "food"}:
+            raise ValueError("entity_type must be 'recipe', 'meal_template', or 'food'.")
 
         identifier = favorite_id or str(uuid4())
         self._ensure_user_exists(user_id)
@@ -530,8 +530,8 @@ class SQLiteRepository:
         params: list[Any] = [user_id]
         entity_type_clause = ""
         if entity_type is not None:
-            if entity_type not in {"recipe", "meal_template"}:
-                raise ValueError("entity_type must be 'recipe' or 'meal_template'.")
+            if entity_type not in {"recipe", "meal_template", "food"}:
+                raise ValueError("entity_type must be 'recipe', 'meal_template', or 'food'.")
             entity_type_clause = " AND entity_type = ?"
             params.append(entity_type)
 
@@ -550,8 +550,8 @@ class SQLiteRepository:
         return self.get_saved_favorite(user_id, entity_type, entity_id) is not None
 
     def remove_favorite(self, *, user_id: str, entity_type: str, entity_id: str) -> None:
-        if entity_type not in {"recipe", "meal_template"}:
-            raise ValueError("entity_type must be 'recipe' or 'meal_template'.")
+        if entity_type not in {"recipe", "meal_template", "food"}:
+            raise ValueError("entity_type must be 'recipe', 'meal_template', or 'food'.")
         with self._lock, self._connection:
             self._connection.execute(
                 """
