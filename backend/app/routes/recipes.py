@@ -25,8 +25,12 @@ async def import_recipe_route(
 
 
 @router.get("", response_model=list[RecipeDefinition])
-async def list_recipes_route(repository: SQLiteRepository = Depends(get_repository)) -> list[RecipeDefinition]:
-    return list_recipes(repository)
+async def list_recipes_route(
+    session: AuthSession | None = Depends(get_current_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> list[RecipeDefinition]:
+    user_id = session.user_id if session is not None else None
+    return list_recipes(repository, user_id=user_id)
 
 
 @router.get("/favorites", response_model=list[RecipeDefinition])
@@ -39,9 +43,12 @@ async def list_favorite_recipes_route(
 
 @router.get("/{recipe_id}", response_model=RecipeDefinition)
 async def get_recipe_route(
-    recipe_id: str, repository: SQLiteRepository = Depends(get_repository)
+    recipe_id: str,
+    session: AuthSession | None = Depends(get_current_session),
+    repository: SQLiteRepository = Depends(get_repository),
 ) -> RecipeDefinition:
-    recipe = get_recipe(repository, recipe_id)
+    user_id = session.user_id if session is not None else None
+    recipe = get_recipe(repository, recipe_id, user_id=user_id)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found.")
     return recipe
@@ -51,11 +58,13 @@ async def get_recipe_route(
 async def scale_recipe_route(
     recipe_id: str,
     factor: float = Path(..., ge=0.1, le=10.0),
+    session: AuthSession | None = Depends(get_current_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> RecipeDefinition:
     if factor not in {1.25, 1.5, 2.0}:
         raise HTTPException(status_code=400, detail="Supported factors are 1.25, 1.5, and 2.0.")
-    recipe = get_recipe(repository, recipe_id)
+    user_id = session.user_id if session is not None else None
+    recipe = get_recipe(repository, recipe_id, user_id=user_id)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found.")
     return scale_recipe(recipe, factor)
