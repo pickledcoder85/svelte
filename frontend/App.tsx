@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 import { calculateMeal, fetchBackendHealth, fetchWeeklyMetrics, importRecipe, searchFoods } from './src/lib/api';
-import { chartPeak, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
+import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
 import { foodMacroLine, selectFoodById } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, scaleMealIngredients } from './src/lib/nutrition';
 import {
@@ -29,9 +29,10 @@ import {
 } from './src/mock-data';
 import type { AppSection, DashboardRange, DashboardSnapshot, FoodItem } from './src/types';
 
-const recipeScales = [1.25, 1.5, 2] as const;
+const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
 const sectionOrder: AppSection[] = ['dashboard', 'foods', 'meals', 'recipes'];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
+const chartHeight = 160;
 
 function toneColor(tone: 'checking' | 'live' | 'demo'): string {
   if (tone === 'live') {
@@ -53,7 +54,8 @@ export default function App(): ReactElement {
   const [syncTone, setSyncTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [syncLabel, setSyncLabel] = useState('Checking backend');
   const [syncDetail, setSyncDetail] = useState('Starting with seeded data.');
-  const [recipeScale, setRecipeScale] = useState<(typeof recipeScales)[number]>(1.5);
+  const [recipeScale, setRecipeScale] = useState<(typeof recipeScales)[number]>(1);
+  const [showScaleOptions, setShowScaleOptions] = useState(false);
   const [foodDraft, setFoodDraft] = useState('yogurt');
   const [foodSearchTerm, setFoodSearchTerm] = useState('yogurt');
   const [foodResults, setFoodResults] = useState<FoodItem[]>(demoFoodResults);
@@ -190,7 +192,6 @@ export default function App(): ReactElement {
     selectedSeries.caloriesConsumed,
     selectedSeries.targetCalories
   );
-  const seriesPeak = chartPeak(selectedSeries.points, selectedSeries.targetCalories);
   const rangeRemaining = remainingCalories(
     selectedSeries.targetCalories,
     selectedSeries.caloriesConsumed
@@ -281,25 +282,31 @@ export default function App(): ReactElement {
                 <MetricTile label="Remaining" value={`${rangeRemaining.toLocaleString()} kcal`} />
               </View>
 
-              <View style={styles.chartCard}>
-                <View style={styles.chartGrid}>
-                  {selectedSeries.points.map((point) => (
-                    <View key={point.label} style={styles.chartColumn}>
-                      <View style={styles.chartTrack}>
-                        <View
-                          style={[
-                            styles.chartBar,
-                            {
-                              height: `${Math.max((point.calories / seriesPeak) * 100, 6)}%` as DimensionValue
-                            }
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.chartValue}>{point.calories}</Text>
-                      <Text style={styles.chartLabel}>{point.label}</Text>
-                    </View>
-                  ))}
+              <View style={styles.quickLogCard}>
+                <View style={styles.quickLogHeader}>
+                  <View>
+                    <Text style={styles.panelEyebrow}>Quick log</Text>
+                    <Text style={styles.quickLogTitle}>Today’s seeded foods</Text>
+                  </View>
+                  <Text style={styles.quickLogHint}>Visible in the dashboard flow</Text>
                 </View>
+                {demoFoodStrip.items.map((item) => (
+                  <View key={item.name} style={styles.listRow}>
+                    <View>
+                      <Text style={styles.listTitle}>{item.name}</Text>
+                      <Text style={styles.listCaption}>{item.serving}</Text>
+                    </View>
+                    <Text style={styles.listMetric}>{item.calories} kcal</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTitle}>Trend line</Text>
+                <LineTrendChart
+                  points={selectedSeries.points}
+                  targetCalories={selectedSeries.targetCalories}
+                />
               </View>
 
               <View style={styles.macroStack}>
@@ -324,19 +331,6 @@ export default function App(): ReactElement {
               </View>
             </View>
 
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Quick log</Text>
-              <Text style={styles.panelTitle}>Today’s seeded foods</Text>
-              {demoFoodStrip.items.map((item) => (
-                <View key={item.name} style={styles.listRow}>
-                  <View>
-                    <Text style={styles.listTitle}>{item.name}</Text>
-                    <Text style={styles.listCaption}>{item.serving}</Text>
-                  </View>
-                  <Text style={styles.listMetric}>{item.calories} kcal</Text>
-                </View>
-              ))}
-            </View>
           </>
         )}
 
@@ -410,21 +404,36 @@ export default function App(): ReactElement {
             <Text style={styles.panelTitle}>{demoMeal.name}</Text>
             <Text style={styles.panelDetail}>Scale the ingredient weights and serving count like you would on mobile.</Text>
 
-            <View style={styles.rangeTabs}>
-              {recipeScales.map((scale) => {
-                const active = scale === recipeScale;
-                return (
-                  <Pressable
-                    key={scale}
-                    style={[styles.rangeTab, active && styles.rangeTabActive]}
-                    onPress={() => setRecipeScale(scale)}
-                  >
-                    <Text style={[styles.rangeTabLabel, active && styles.rangeTabLabelActive]}>
-                      {recipeScaleLabel(scale)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.dropdownWrap}>
+              <Text style={styles.dropdownLabel}>Recipe scale</Text>
+              <Pressable
+                style={styles.dropdownTrigger}
+                onPress={() => setShowScaleOptions((current) => !current)}
+              >
+                <Text style={styles.dropdownValue}>{recipeScaleLabel(recipeScale)}</Text>
+                <Text style={styles.dropdownCaret}>{showScaleOptions ? '▲' : '▼'}</Text>
+              </Pressable>
+              {showScaleOptions ? (
+                <View style={styles.dropdownMenu}>
+                  {recipeScales.map((scale) => {
+                    const active = scale === recipeScale;
+                    return (
+                      <Pressable
+                        key={scale}
+                        style={[styles.dropdownOption, active && styles.dropdownOptionActive]}
+                        onPress={() => {
+                          setRecipeScale(scale);
+                          setShowScaleOptions(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownOptionLabel, active && styles.dropdownOptionLabelActive]}>
+                          {recipeScaleLabel(scale)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
 
             {mealPreview.ingredients.map((ingredient) => (
@@ -518,6 +527,74 @@ function MacroProgress({
       <View style={styles.macroTrack}>
         <View style={[styles.macroFill, { width, backgroundColor: color }]} />
       </View>
+    </View>
+  );
+}
+
+function LineTrendChart({
+  points,
+  targetCalories
+}: {
+  points: { label: string; calories: number }[];
+  targetCalories: number;
+}): ReactElement {
+  const [frameWidth, setFrameWidth] = useState(0);
+  const geometry = useMemo(
+    () => (frameWidth > 0 ? buildTrendChartGeometry(points, targetCalories, frameWidth, chartHeight) : null),
+    [frameWidth, points, targetCalories]
+  );
+
+  return (
+    <View>
+      <View
+        style={styles.lineChartFrame}
+        onLayout={(event) => setFrameWidth(event.nativeEvent.layout.width)}
+      >
+        {geometry ? (
+          <>
+            <View style={[styles.targetGuide, { top: geometry.targetY }]} />
+            {geometry.segments.map((segment) => (
+              <View
+                key={segment.key}
+                style={[
+                  styles.lineSegment,
+                  {
+                    left: segment.centerX - segment.width / 2,
+                    top: segment.centerY - 1.5,
+                    width: segment.width,
+                    transform: [{ rotate: `${segment.angle}deg` }]
+                  }
+                ]}
+              />
+            ))}
+            {geometry.nodes.map((point) => (
+              <View
+                key={point.label}
+                style={[
+                  styles.lineNode,
+                  {
+                    left: point.x - 5,
+                    top: point.y - 5
+                  }
+                ]}
+              />
+            ))}
+          </>
+        ) : (
+          <View style={styles.chartLoading}>
+            <ActivityIndicator size="small" color="#17324d" />
+          </View>
+        )}
+      </View>
+      <View style={styles.lineChartLabels}>
+        {points.map((point) => (
+          <View key={point.label} style={styles.lineChartLabelItem}>
+            <Text style={styles.chartValue}>{point.calories}</Text>
+            <Text style={styles.chartLabel}>{point.label}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={styles.chartTargetCaption}>Target guide: {targetCalories.toLocaleString()} kcal</Text>
     </View>
   );
 }
@@ -707,31 +784,59 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 16
   },
-  chartGrid: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 10,
-    minHeight: 180
+  chartTitle: {
+    color: '#17324d',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 10
   },
-  chartColumn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6
-  },
-  chartTrack: {
-    width: '100%',
-    minHeight: 120,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 999,
-    justifyContent: 'flex-end',
+  lineChartFrame: {
+    height: chartHeight,
+    borderRadius: 18,
+    backgroundColor: '#eef3f8',
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    position: 'relative',
     overflow: 'hidden'
   },
-  chartBar: {
-    width: '100%',
+  chartLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  targetGuide: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#94a3b8',
+    borderStyle: 'dashed'
+  },
+  lineSegment: {
+    position: 'absolute',
+    height: 3,
     backgroundColor: '#0f766e',
     borderRadius: 999,
-    minHeight: 6
+    opacity: 0.9
+  },
+  lineNode: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#17324d',
+    borderWidth: 2,
+    borderColor: '#f8fafc'
+  },
+  lineChartLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 12
+  },
+  lineChartLabelItem: {
+    flex: 1,
+    alignItems: 'center'
   },
   chartValue: {
     color: '#17324d',
@@ -742,8 +847,36 @@ const styles = StyleSheet.create({
     color: '#66778c',
     fontSize: 12
   },
+  chartTargetCaption: {
+    color: '#66778c',
+    marginTop: 10,
+    fontSize: 12
+  },
   macroStack: {
     gap: 12
+  },
+  quickLogCard: {
+    backgroundColor: '#f7f4ef',
+    borderRadius: 20,
+    padding: 14,
+    gap: 4
+  },
+  quickLogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'flex-start'
+  },
+  quickLogTitle: {
+    color: '#17324d',
+    fontSize: 18,
+    fontWeight: '800'
+  },
+  quickLogHint: {
+    color: '#7c8aa5',
+    fontSize: 11,
+    maxWidth: 120,
+    textAlign: 'right'
   },
   macroRow: {
     gap: 8
@@ -786,6 +919,58 @@ const styles = StyleSheet.create({
   },
   searchRow: {
     gap: 10
+  },
+  dropdownWrap: {
+    gap: 8
+  },
+  dropdownLabel: {
+    color: '#6b7b90',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  dropdownTrigger: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  dropdownValue: {
+    color: '#17324d',
+    fontWeight: '800',
+    fontSize: 16
+  },
+  dropdownCaret: {
+    color: '#66778c',
+    fontSize: 12
+  },
+  dropdownMenu: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    overflow: 'hidden'
+  },
+  dropdownOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#edf1f5'
+  },
+  dropdownOptionActive: {
+    backgroundColor: '#17324d'
+  },
+  dropdownOptionLabel: {
+    color: '#17324d',
+    fontWeight: '700'
+  },
+  dropdownOptionLabelActive: {
+    color: '#ffffff'
   },
   searchInput: {
     borderWidth: 1,

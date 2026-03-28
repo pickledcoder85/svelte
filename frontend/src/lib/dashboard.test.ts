@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { demoRangeSeries } from '../mock-data';
-import { chartPeak, remainingCalories, selectRangeSeries } from './dashboard';
+import {
+  buildTrendChartGeometry,
+  chartPeak,
+  remainingCalories,
+  selectRangeSeries
+} from './dashboard';
 
 describe('dashboard helpers', () => {
   it('selects the matching range series', () => {
@@ -16,5 +21,15 @@ describe('dashboard helpers', () => {
   it('uses the larger of the chart points and target as the chart peak', () => {
     expect(chartPeak(demoRangeSeries[0].points, 2100)).toBe(2100);
     expect(chartPeak(demoRangeSeries[1].points, 1000)).toBe(1605);
+  });
+
+  it('builds line chart geometry with connected points and a target guide', () => {
+    const geometry = buildTrendChartGeometry(demoRangeSeries[1].points, 14800, 320, 160);
+
+    expect(geometry.nodes).toHaveLength(7);
+    expect(geometry.segments).toHaveLength(6);
+    expect(geometry.targetY).toBeGreaterThan(0);
+    expect(geometry.targetY).toBeLessThan(160);
+    expect(geometry.segments[0].width).toBeGreaterThan(0);
   });
 });

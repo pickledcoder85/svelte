@@ -70,5 +70,6 @@ export function progressPercent(consumed: number, target: number): number {
 }
 
 export function recipeScaleLabel(multiplier: number): string {
-  return `${multiplier.toFixed(2)}x`;
+  const formatted = multiplier.toFixed(2);
+  return `${formatted.endsWith('00') ? multiplier.toFixed(1) : formatted.replace(/0$/, '')}x`;
 }

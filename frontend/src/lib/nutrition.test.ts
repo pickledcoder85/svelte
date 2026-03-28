@@ -25,5 +25,7 @@ describe('nutrition helpers', () => {
 
   it('formats recipe scale labels', () => {
     expect(recipeScaleLabel(1.25)).toBe('1.25x');
+    expect(recipeScaleLabel(1)).toBe('1.0x');
+    expect(recipeScaleLabel(2)).toBe('2.0x');
   });
 });
