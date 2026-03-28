@@ -45,6 +45,13 @@ import {
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
+import {
+  formatMealPlanCardDate,
+  formatMealPlanCardWeekday,
+  resolveSelectedMealPlanDate,
+  selectMealPlanDay,
+  sortMealPlanDaysByDate
+} from './src/lib/meal-plan';
 import { buildTrackerTotals, buildWeightProgressSummary } from './src/lib/progress';
 import {
   filterFoodsFuzzy,
@@ -183,8 +190,9 @@ export default function App(): ReactElement {
   const [recipeImportError, setRecipeImportError] = useState<string | null>(null);
   const [recipeImportLoading, setRecipeImportLoading] = useState(true);
   const [importedRecipeId, setImportedRecipeId] = useState<string | null>(null);
-  const [mealPlanFocus, setMealPlanFocus] = useState<'Day' | 'Week'>('Day');
   const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>([]);
+  const [selectedMealPlanDate, setSelectedMealPlanDate] = useState<string | null>(null);
+  const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, boolean>>>({});
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
@@ -393,6 +401,16 @@ export default function App(): ReactElement {
         setTrackerStatus('Tracker data unavailable until a backend session is ready');
         setTrackerError('No active tracker session.');
         setExerciseEntries([]);
+        setMealPlanTone('checking');
+        setMealPlanStatus('Meal plan unavailable until a backend session is ready');
+        setMealPlanError('No active tracker session.');
+        setMealPlanDays([]);
+        setSelectedMealPlanDate(null);
+        setMealPlanEatenSlots({});
+        setMealPrepTone('checking');
+        setMealPrepStatus('Meal prep unavailable until a backend session is ready');
+        setMealPrepError('No active tracker session.');
+        setMealPrepTasks([]);
         return;
       }
 
@@ -426,6 +444,9 @@ export default function App(): ReactElement {
         );
 
         setMealPlanDays(mealPlan);
+        setSelectedMealPlanDate((current) =>
+          resolveSelectedMealPlanDate(mealPlan, current)
+        );
         setMealPlanTone('live');
         setMealPlanStatus(
           mealPlan.length > 0
@@ -447,6 +468,8 @@ export default function App(): ReactElement {
 
         setExerciseEntries([]);
         setMealPlanDays([]);
+        setSelectedMealPlanDate(null);
+        setMealPlanEatenSlots({});
         setMealPrepTasks([]);
         setTrackerTone('checking');
         setTrackerStatus('Tracker data unavailable');
@@ -771,6 +794,11 @@ export default function App(): ReactElement {
     () => selectFoodById(logFoodResults, selectedLogFoodId),
     [logFoodResults, selectedLogFoodId]
   );
+  const sortedMealPlanDays = useMemo(() => sortMealPlanDaysByDate(mealPlanDays), [mealPlanDays]);
+  const selectedMealPlanDay = useMemo(
+    () => selectMealPlanDay(sortedMealPlanDays, selectedMealPlanDate),
+    [selectedMealPlanDate, sortedMealPlanDays]
+  );
   const trackerTotals = useMemo(() => buildTrackerTotals(foodLog, exerciseEntries), [exerciseEntries, foodLog]);
   const weightProgress = useMemo(
     () => buildWeightProgressSummary(profileProgress, weightEntries),
@@ -1070,6 +1098,31 @@ export default function App(): ReactElement {
     } finally {
       setMealPrepSavingId(null);
     }
+  }
+
+  function toggleMealPlanMeal(day: MealPlanDay, slotId: string, slotLabel: string) {
+    const currentlyLogged = mealPlanEatenSlots[day.id]?.[slotId] ?? false;
+    setMealPlanEatenSlots((current) => {
+      const nextDayState = { ...(current[day.id] ?? {}) };
+      const nextLogged = !nextDayState[slotId];
+      if (nextLogged) {
+        nextDayState[slotId] = true;
+      } else {
+        delete nextDayState[slotId];
+      }
+
+      const nextState = { ...current };
+      if (Object.keys(nextDayState).length === 0) {
+        delete nextState[day.id];
+      } else {
+        nextState[day.id] = nextDayState;
+      }
+
+      return nextState;
+    });
+
+    setMealPlanTone('live');
+    setMealPlanStatus(`${slotLabel} ${currentlyLogged ? 'unchecked' : 'logged as eaten'} for ${day.label}`);
   }
 
   function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
@@ -1950,9 +2003,9 @@ export default function App(): ReactElement {
         {section === 'meal-plan' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
-            <Text style={styles.panelTitle}>Visual day or week plan</Text>
+            <Text style={styles.panelTitle}>Weekly date cards</Text>
             <Text style={styles.panelDetail}>
-              Keep the meal plan simple and visual so it can drive logging and prep later.
+              Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
             </Text>
 
             <View style={[styles.inlineStatus, { borderColor: toneColor(mealPlanTone) }]}>
@@ -1960,43 +2013,88 @@ export default function App(): ReactElement {
               {mealPlanError ? <Text style={styles.inlineStatusDetail}>{mealPlanError}</Text> : null}
             </View>
 
-            <View style={styles.rangeTabs}>
-              {(['Day', 'Week'] as const).map((focus) => {
-                const active = focus === mealPlanFocus;
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mealPlanDateStrip}
+            >
+              {sortedMealPlanDays.map((day) => {
+                const active = day.plan_date === selectedMealPlanDate;
+                const isToday = day.plan_date === new Date().toISOString().slice(0, 10);
+
                 return (
                   <Pressable
-                    key={focus}
-                    style={[styles.rangeTab, active && styles.rangeTabActive]}
-                    onPress={() => setMealPlanFocus(focus)}
+                    key={day.id}
+                    style={[styles.mealPlanDateCard, active && styles.mealPlanDateCardActive]}
+                    onPress={() => {
+                      setSelectedMealPlanDate(day.plan_date ?? null);
+                      setMealPlanTone('live');
+                      setMealPlanStatus(`Showing ${formatMealPlanCardDate(day.plan_date)} plan`);
+                    }}
                   >
-                    <Text style={[styles.rangeTabLabel, active && styles.rangeTabLabelActive]}>{focus}</Text>
+                    <Text style={[styles.mealPlanDateWeekday, active && styles.mealPlanDateWeekdayActive]}>
+                      {formatMealPlanCardWeekday(day.plan_date)}
+                    </Text>
+                    <Text style={[styles.mealPlanDateLabel, active && styles.mealPlanDateLabelActive]}>
+                      {formatMealPlanCardDate(day.plan_date)}
+                    </Text>
+                    <Text style={[styles.mealPlanDateMeta, active && styles.mealPlanDateMetaActive]}>
+                      {day.label}
+                      {isToday ? ' · Today' : ''}
+                    </Text>
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
 
-            <View style={styles.foodList}>
-              {(mealPlanFocus === 'Day' ? mealPlanDays.slice(0, 1) : mealPlanDays).map((day) => (
-                <View key={day.id} style={styles.detailCard}>
-                  <View style={styles.recipeRowTitleWrap}>
-                    <Text style={styles.detailTitle}>{day.label}</Text>
-                    <Text style={styles.detailSubtitle}>{day.focus}</Text>
+            {selectedMealPlanDay ? (
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.detailTitle}>{selectedMealPlanDay.label}</Text>
+                    <Text style={styles.detailSubtitle}>
+                      {selectedMealPlanDay.focus} · {formatMealPlanCardDate(selectedMealPlanDay.plan_date)}
+                    </Text>
                   </View>
-                  {day.slots.map((slot) => (
-                    <View key={slot.id} style={styles.listRow}>
-                      <View>
-                        <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                        <Text style={styles.listCaption}>{slot.title}</Text>
-                      </View>
-                      <View style={styles.foodRowActions}>
-                        <Text style={styles.listMetric}>{slot.calories} kcal</Text>
-                        <Text style={styles.listCaption}>{slot.prep_status}</Text>
-                      </View>
-                    </View>
-                  ))}
+                  <Text style={styles.detailSubtitle}>
+                    {selectedMealPlanDay.slots.length} planned meal{selectedMealPlanDay.slots.length === 1 ? '' : 's'}
+                  </Text>
                 </View>
-              ))}
-            </View>
+
+                <View style={styles.foodList}>
+                  {selectedMealPlanDay.slots.map((slot) => {
+                    const logged = mealPlanEatenSlots[selectedMealPlanDay.id]?.[slot.id] ?? false;
+
+                    return (
+                      <Pressable
+                        key={slot.id}
+                        style={[styles.listRow, logged && styles.mealPlanLoggedRow]}
+                        onPress={() => toggleMealPlanMeal(selectedMealPlanDay, slot.id, slot.meal_label)}
+                      >
+                        <View style={styles.foodRowCopy}>
+                          <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                          <Text style={styles.listCaption}>{slot.title}</Text>
+                        </View>
+                        <View style={styles.foodRowActions}>
+                          <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
+                            <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
+                              {logged ? '☑' : '☐'}
+                            </Text>
+                          </View>
+                          <Text style={styles.listMetric}>{slot.calories} kcal</Text>
+                          <Text style={styles.listCaption}>{slot.prep_status}</Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>No meal plan saved yet</Text>
+                <Text style={styles.detailSubtitle}>Save a weekly plan to populate the date cards here.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -2634,6 +2732,49 @@ const styles = StyleSheet.create({
   rangeTabLabelActive: {
     color: '#ffffff'
   },
+  mealPlanDateStrip: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  mealPlanDateCard: {
+    minWidth: 96,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#f3f6fb',
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    gap: 4
+  },
+  mealPlanDateCardActive: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  mealPlanDateWeekday: {
+    color: '#6b7b90',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8
+  },
+  mealPlanDateWeekdayActive: {
+    color: '#dbe7f2'
+  },
+  mealPlanDateLabel: {
+    color: '#17324d',
+    fontSize: 18,
+    fontWeight: '800'
+  },
+  mealPlanDateLabelActive: {
+    color: '#ffffff'
+  },
+  mealPlanDateMeta: {
+    color: '#66778c',
+    fontSize: 12
+  },
+  mealPlanDateMetaActive: {
+    color: '#dbe7f2'
+  },
   metricRow: {
     flexDirection: 'row',
     gap: 10,
@@ -2906,6 +3047,10 @@ const styles = StyleSheet.create({
     borderColor: '#17324d',
     backgroundColor: '#eef3f8'
   },
+  mealPlanLoggedRow: {
+    borderColor: '#0f766e',
+    backgroundColor: '#effaf7'
+  },
   foodRowCopy: {
     flex: 1,
     gap: 2
@@ -2913,6 +3058,28 @@ const styles = StyleSheet.create({
   foodRowActions: {
     alignItems: 'flex-end',
     gap: 8
+  },
+  mealPlanCheck: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff'
+  },
+  mealPlanCheckActive: {
+    borderColor: '#0f766e',
+    backgroundColor: '#0f766e'
+  },
+  mealPlanCheckLabel: {
+    color: '#6b7b90',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  mealPlanCheckLabelActive: {
+    color: '#ffffff'
   },
   inlinePillButton: {
     borderRadius: 999,
