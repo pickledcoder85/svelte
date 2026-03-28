@@ -33,6 +33,21 @@ async def test_persist_meal_template(client):
     assert fetched.status_code == 200
     assert fetched.json()["name"] == "Blueberry Protein Bowl"
 
+    favorites = await client.get("/api/meals/favorites")
+    assert favorites.status_code == 200
+    assert favorites.json() == []
+
+    favorite_update = await client.put(
+        "/api/meals/templates/meal-breakfast-bowl/favorite",
+        json={"favorite": True},
+    )
+    assert favorite_update.status_code == 200
+    assert favorite_update.json()["favorite"] is True
+
+    favorites = await client.get("/api/meals/favorites")
+    assert favorites.status_code == 200
+    assert len(favorites.json()) == 1
+
 
 @pytest.mark.asyncio
 async def test_persist_recipe_import_and_scale(client):
@@ -59,3 +74,18 @@ async def test_persist_recipe_import_and_scale(client):
     scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5")
     assert scaled.status_code == 200
     assert scaled.json()["default_yield"] == 3.0
+
+    favorites = await client.get("/api/recipes/favorites")
+    assert favorites.status_code == 200
+    assert len(favorites.json()) == 1
+
+    favorite_update = await client.put(
+        f"/api/recipes/{recipe_id}/favorite",
+        json={"favorite": False},
+    )
+    assert favorite_update.status_code == 200
+    assert favorite_update.json()["favorite"] is False
+
+    favorites = await client.get("/api/recipes/favorites")
+    assert favorites.status_code == 200
+    assert favorites.json() == []
