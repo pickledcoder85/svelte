@@ -8,6 +8,7 @@ from backend.app.routes.food_logs import router as food_logs_router
 from backend.app.routes.health import router as health_router
 from backend.app.routes.meals import router as meals_router
 from backend.app.routes.nutrition import router as nutrition_router
+from backend.app.routes.profile import router as profile_router
 from backend.app.routes.recipes import router as recipes_router
 from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
@@ -38,6 +39,7 @@ def create_app(database_path: str | None = None) -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(nutrition_router, prefix="/api")
+    app.include_router(profile_router, prefix="/api")
     app.include_router(food_logs_router, prefix="/api")
     app.include_router(ingestion_router, prefix="/api")
     app.include_router(meals_router, prefix="/api")
