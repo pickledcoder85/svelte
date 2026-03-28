@@ -6,6 +6,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 
 - Cross-platform Expo / React Native architecture with browser preview and Expo Go support on iPhone.
 - Weekly dashboard for calorie goals, calories consumed, macro targets, and adherence trends.
+- Session-aware daily food logging with persisted totals and weekly metrics.
 - USDA-backed nutrition search API route for standardized calorie and macro data.
 - Session-aware auth scaffolding and environment-backed provider config.
 - Meal builder utilities for ingredient weights, serving counts, and per-serving calorie/macro totals.
@@ -51,20 +52,16 @@ The frontend and backend both support hot reload in local development. `npm star
 
 Core tables:
 
-- `profiles`
-- `sessions`
-- `food_catalog`
-- `daily_logs`
-- `meal_templates`
-- `meal_ingredients`
-- `recipe_favorites`
+- `saved_favorites`
 - `recipe_assets`
+- richer `ingestion_outputs` metadata
+- richer `weight_entries` history usage
 
 Recommended relational notes:
 
 - `food_catalog` stores USDA and label-scan foods with source metadata and confidence.
 - `meal_templates` and `meal_ingredients` support reusable meals and computed serving nutrition.
-- `recipe_favorites` stores normalized steps plus imported assets.
+- `saved_favorites` should replace scattered favorite booleans over time.
 - `daily_logs` ties consumed foods and meals to authenticated users for weekly rollups.
 
 ## Local setup
@@ -98,5 +95,6 @@ Recommended relational notes:
 
 - Expo SDK 54 is pinned because this environment now uses Node 20 and Expo Go support is required during development.
 - The OpenAI vision integration is scaffolded and expects compatible API credentials.
-- Persistence exists in the database layer, but routes are not yet wired through it.
-- Auth persistence and production sign-in screens still need implementation.
+- A first-class favorites persistence model is not integrated yet.
+- Auth persistence and production sign-in/profile flows still need implementation.
+- Recipe import review UX and native packaging/signing workflows are still incomplete.

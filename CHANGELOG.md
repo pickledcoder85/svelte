@@ -12,23 +12,29 @@ The format should remain simple:
 
 ### Added
 
-- Repository initialized with Python backend and TypeScript frontend split.
-- Mobile-first architecture direction documented.
-- Backend scaffold for health, nutrition, recipes, and vision routes.
-- Frontend scaffold for dashboard and meal summary screens.
-- Project workflow docs: `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SKILLS.md`, and setup docs.
-- Layer-specific planning docs for frontend, backend, and database.
-- SQLite database layer with migration bootstrap and repository helpers.
-- Database schema covering users, profiles, goals, food items, logs, meals, recipes, and ingestion jobs.
-- Database tests for schema initialization and repository behavior.
+- Expo / React Native frontend with browser preview and Expo Go support on iPhone.
+- Dashboard range controls, line chart, macro progress, and mobile-first layout refinements.
+- Session-aware daily food log UI wired to persisted backend data.
+- Session-backed food log API flows with end-to-end request-path tests.
+- Ingestion review queue API for reading and transitioning review state.
+- Ingestion review-state persistence in SQLite.
+- User-aware weekly metrics persistence derived from stored logs and weights.
+- Normalized SQLite persistence for users, goals, food logs, ingestion jobs, and ingestion review outputs.
+- USDA integration boundary with fallback to local food data.
+- Persisted daily food log integration in the Expo frontend.
+- Favorites API routes for meal templates and recipes.
+- Missing favorites service module wired into the backend route layer.
+- Strict worker orchestration docs, including polling cadence and control-loop rules.
 
 ### Changed
 
-- Repo structure aligned to `frontend/` and `backend/`.
-- Project guidance updated to require use of the `svelte` conda environment.
-- Local database setup now uses `DATABASE_URL=sqlite:///./nutrition_os.db` by default.
+- Frontend stack pivoted from Vite web scaffolding to Expo SDK 54 with web support.
+- Local development now assumes Node 20 in the `svelte` conda environment for Expo compatibility.
+- Backend startup docs now use `--host 0.0.0.0` to support phone access on the local network.
+- Project guidance now treats Expo / React Native as the primary mobile path.
+- Dashboard chart and meal scaling controls now match the current mobile UX direction more closely.
 
 ### Planned tagging
 
-- Tag the current foundation once dependency installation, runtime validation, and initial smoke tests are complete.
-- Prefer semantic version tags after stable feature increments.
+- Next candidate stable tag: `v0.2.0`
+- Tag once first-class favorites persistence is integrated, roadmap/docs are reconciled, and the current feature set is validated end to end.
