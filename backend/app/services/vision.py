@@ -6,7 +6,15 @@ async def analyze_label_image(_: str) -> VisionNutritionExtraction:
     settings = get_settings()
 
     if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is not configured.")
+        return VisionNutritionExtraction(
+            label_text="Demo OCR output",
+            product_name="Scanned food product",
+            brand_name="Unknown brand",
+            serving_size="1 serving",
+            calories=120,
+            macros=MacroTargets(protein=8, carbs=12, fat=4),
+            confidence=0.62,
+        )
 
     # Placeholder response until the multimodal extraction client is wired.
     return VisionNutritionExtraction(

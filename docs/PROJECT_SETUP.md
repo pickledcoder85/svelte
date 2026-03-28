@@ -8,12 +8,14 @@ This project assumes all local work happens after activating the dedicated conda
 2. Verify Python is from the conda environment.
 3. Run both Python and Node package installs from that activated shell.
 4. Keep Python dependencies in `pyproject.toml`.
+5. Use `DATABASE_URL=sqlite:///./nutrition_os.db` for local development unless you intentionally want a different database file.
 
 ## Backend setup
 
 1. `conda activate svelte`
 2. `pip install -e ".[dev]"`
-3. `uvicorn backend.app.main:app --reload --port 8000`
+3. `python -m backend.app.db.bootstrap`
+4. `uvicorn backend.app.main:app --reload --port 8000`
 
 The backend serves:
 
@@ -47,3 +49,5 @@ Create `.env` from `.env.example` and define:
 - `OPENAI_API_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+
+Run `python -m backend.app.db.bootstrap` any time you need to create the local SQLite database file or apply schema changes.

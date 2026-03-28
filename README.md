@@ -18,8 +18,9 @@ This repository is a greenfield nutrition app starter with a dedicated `frontend
 
 - Frontend: TypeScript mobile-first app with hot reload.
 - Backend: Python FastAPI application managed through the `svelte` conda environment.
+- Database: SQLite by default for local development, with a checked-in migration file and repository helpers.
 - Mobile packaging: Capacitor for iPhone deployment once the web app is stable.
-- Auth and database: Supabase or another hosted Postgres/auth provider.
+- Auth: Supabase or another hosted auth provider.
 - Nutrition source: USDA FoodData Central API.
 - AI backend: multimodal model for nutrition-label extraction and OCR-based recipe ingestion.
 
@@ -29,6 +30,7 @@ Backend:
 
 - `conda activate svelte`
 - `pip install -e ".[dev]"`
+- `python -m backend.app.db.bootstrap`
 - `uvicorn backend.app.main:app --reload --port 8000`
 - `pytest`
 
@@ -67,19 +69,22 @@ Recommended relational notes:
 
 1. `conda activate svelte`.
 2. Install Python dependencies with `pip install -e ".[dev]"`.
-3. `cd frontend`.
-4. Install frontend dependencies with `npm install`.
-5. Return to the repo root.
-6. Copy `.env.example` to `.env` and set API credentials.
-7. Run the backend with `uvicorn backend.app.main:app --reload --port 8000`.
-8. Run the frontend from `frontend/` with `npm run dev`.
-9. Open the app in the browser and verify the backend at `http://localhost:8000/api/health`.
-10. Add Capacitor once the web build is ready for iPhone packaging.
+3. Initialize the local database with `python -m backend.app.db.bootstrap`.
+4. `cd frontend`.
+5. Install frontend dependencies with `npm install`.
+6. Return to the repo root.
+7. Copy `.env.example` to `.env` and set API credentials.
+8. Run the backend with `uvicorn backend.app.main:app --reload --port 8000`.
+9. Run the frontend from `frontend/` with `npm run dev`.
+10. Open the app in the browser and verify the backend at `http://localhost:8000/api/health`.
+11. Add Capacitor once the web build is ready for iPhone packaging.
 
 ## Engineering guidance
 
 - Process guidance lives in `AGENTS.md`, `SKILLS.md`, and `CONTRIBUTING.md`.
 - Environment and startup guidance lives in `docs/PROJECT_SETUP.md`.
+- Architecture planning lives in `docs/ARCHITECTURE_ROADMAP.md`, `docs/FRONTEND_PLAN.md`, `docs/BACKEND_PLAN.md`, and `docs/DATABASE_PLAN.md`.
+- Release history and planned tagging live in `CHANGELOG.md`.
 - Use feature branches and atomic commits once git is initialized locally.
 - Add tests for business logic changes before merge.
 - Treat mobile-first UX and Capacitor compatibility as baseline constraints, not later enhancements.
@@ -88,5 +93,5 @@ Recommended relational notes:
 
 - No package install was performed in this environment.
 - The OpenAI vision integration is scaffolded and expects compatible API credentials.
-- Persistence is not yet wired to a real database.
+- Persistence exists in the database layer, but routes are not yet wired through it.
 - Auth persistence and production sign-in screens still need implementation.
