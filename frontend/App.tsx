@@ -23,12 +23,15 @@ import {
   createMealPrepTask,
   calculateMeal,
   createLocalSession,
+  createUserGoal,
   fetchBackendHealth,
   fetchExerciseEntries,
   fetchFavoriteFoods,
   fetchFavoriteRecipes,
   fetchMealPlanDays,
   fetchMealPrepTasks,
+  fetchProfile,
+  fetchUserGoals,
   fetchRecipes,
   fetchRecipe,
   fetchTodaysFoodLog,
@@ -36,6 +39,7 @@ import {
   favoriteRecipe,
   importRecipe,
   searchFoodsWithSession,
+  updateProfile,
   updateMealPrepTaskStatus,
   unfavoriteRecipe,
   searchFoods
@@ -72,12 +76,15 @@ import type {
   FoodLogSummary,
   MealPlanDay,
   MealPrepTask,
-  RecipeDefinition
+  RecipeDefinition,
+  UserGoal,
+  UserProfile
 } from './src/types';
 
 const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
 const sectionTabs: Array<{ id: AppSection; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'profile', label: 'Profile' },
   { id: 'tracker', label: 'Tracker' },
   { id: 'foods', label: 'Food Search' },
   { id: 'meals', label: 'Meals' },
@@ -122,6 +129,22 @@ export default function App(): ReactElement {
   const [foodError, setFoodError] = useState<string | null>(null);
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileGoals, setProfileGoals] = useState<UserGoal[]>([]);
+  const [profileTone, setProfileTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [profileStatus, setProfileStatus] = useState('Loading profile settings');
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [goalSaving, setGoalSaving] = useState(false);
+  const [profileDisplayNameDraft, setProfileDisplayNameDraft] = useState('');
+  const [profileTimezoneDraft, setProfileTimezoneDraft] = useState('UTC');
+  const [profileUnitsDraft, setProfileUnitsDraft] = useState<'imperial' | 'metric'>('imperial');
+  const [goalEffectiveAtDraft, setGoalEffectiveAtDraft] = useState(() => new Date().toISOString().slice(0, 10));
+  const [goalCaloriesDraft, setGoalCaloriesDraft] = useState('2100');
+  const [goalProteinDraft, setGoalProteinDraft] = useState('180');
+  const [goalCarbsDraft, setGoalCarbsDraft] = useState('190');
+  const [goalFatDraft, setGoalFatDraft] = useState('60');
+  const [goalWeightDraft, setGoalWeightDraft] = useState('178.5');
   const [logFoodDraft, setLogFoodDraft] = useState('chicken');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>(demoFoodResults);
@@ -273,6 +296,84 @@ export default function App(): ReactElement {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfileSettings() {
+      if (!foodSessionToken) {
+        const fallbackProfile: UserProfile = {
+          user_id: 'local-demo',
+          email: 'nutrition@example.com',
+          display_name: 'Nutrition User',
+          timezone: 'UTC',
+          units: 'imperial'
+        };
+        setProfile(fallbackProfile);
+        setProfileGoals([]);
+        setProfileDisplayNameDraft(fallbackProfile.display_name ?? '');
+        setProfileTimezoneDraft(fallbackProfile.timezone);
+        setProfileUnitsDraft(fallbackProfile.units);
+        setProfileTone('demo');
+        setProfileStatus('Showing local profile defaults');
+        setProfileError(null);
+        return;
+      }
+
+      setProfileTone('checking');
+      setProfileStatus('Loading profile settings');
+      setProfileError(null);
+
+      try {
+        const [loadedProfile, goals] = await Promise.all([
+          fetchProfile(foodSessionToken),
+          fetchUserGoals(foodSessionToken)
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setProfile(loadedProfile);
+        setProfileGoals(goals);
+        setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
+        setProfileTimezoneDraft(loadedProfile.timezone);
+        setProfileUnitsDraft(loadedProfile.units);
+        setProfileTone('live');
+        setProfileStatus(
+          goals.length === 0
+            ? 'Profile loaded; create a new goal below'
+            : `${goals.length} goal${goals.length === 1 ? '' : 's'} loaded`
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const fallbackProfile: UserProfile = {
+          user_id: 'local-demo',
+          email: 'nutrition@example.com',
+          display_name: 'Nutrition User',
+          timezone: 'UTC',
+          units: 'imperial'
+        };
+        setProfile(fallbackProfile);
+        setProfileGoals([]);
+        setProfileDisplayNameDraft(fallbackProfile.display_name ?? '');
+        setProfileTimezoneDraft(fallbackProfile.timezone);
+        setProfileUnitsDraft(fallbackProfile.units);
+        setProfileTone('demo');
+        setProfileStatus('Showing local profile defaults');
+        setProfileError(error instanceof Error ? error.message : 'Profile settings unavailable.');
+      }
+    }
+
+    void loadProfileSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [foodSessionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -872,6 +973,102 @@ export default function App(): ReactElement {
     }
   }
 
+  async function saveProfileSettings() {
+    if (!profile) {
+      return;
+    }
+
+    const payload = {
+      display_name: profileDisplayNameDraft.trim().length > 0 ? profileDisplayNameDraft.trim() : null,
+      timezone: profileTimezoneDraft.trim() || 'UTC',
+      units: profileUnitsDraft
+    } satisfies Parameters<typeof updateProfile>[0];
+
+    setProfileSaving(true);
+    setProfileTone('checking');
+    setProfileStatus('Saving profile settings');
+    setProfileError(null);
+
+    try {
+      if (foodSessionToken) {
+        const updated = await updateProfile(payload, foodSessionToken);
+        setProfile(updated);
+        setProfileDisplayNameDraft(updated.display_name ?? '');
+        setProfileTimezoneDraft(updated.timezone);
+        setProfileUnitsDraft(updated.units);
+      }
+      setProfileTone(foodSessionToken ? 'live' : 'demo');
+      setProfileStatus('Profile settings saved');
+    } catch (error) {
+      setProfileTone('demo');
+      setProfileStatus('Could not save profile settings');
+      setProfileError(error instanceof Error ? error.message : 'Unable to save profile settings.');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function addGoal() {
+    const calorie_goal = Number(goalCaloriesDraft);
+    const protein_goal = Number(goalProteinDraft);
+    const carbs_goal = Number(goalCarbsDraft);
+    const fat_goal = Number(goalFatDraft);
+    const target_weight_lbs = goalWeightDraft.trim() === '' ? null : Number(goalWeightDraft);
+
+    if (
+      !Number.isFinite(calorie_goal) ||
+      calorie_goal <= 0 ||
+      !Number.isFinite(protein_goal) ||
+      protein_goal < 0 ||
+      !Number.isFinite(carbs_goal) ||
+      carbs_goal < 0 ||
+      !Number.isFinite(fat_goal) ||
+      fat_goal < 0 ||
+      (target_weight_lbs !== null && !Number.isFinite(target_weight_lbs))
+    ) {
+      return;
+    }
+
+    setGoalSaving(true);
+    setProfileTone('checking');
+    setProfileStatus('Saving new goal');
+    setProfileError(null);
+
+    try {
+      const saved = foodSessionToken
+        ? await createUserGoal(
+            {
+              effective_at: goalEffectiveAtDraft,
+              calorie_goal: Math.round(calorie_goal),
+              protein_goal,
+              carbs_goal,
+              fat_goal,
+              target_weight_lbs
+            },
+            foodSessionToken
+          )
+        : null;
+
+      if (saved) {
+        setProfileGoals((current) => [saved, ...current]);
+      }
+      setProfileTone(foodSessionToken ? 'live' : 'demo');
+      setProfileStatus('Goal saved');
+      setGoalEffectiveAtDraft(new Date().toISOString().slice(0, 10));
+      setGoalCaloriesDraft('2100');
+      setGoalProteinDraft('180');
+      setGoalCarbsDraft('190');
+      setGoalFatDraft('60');
+      setGoalWeightDraft('178.5');
+    } catch (error) {
+      setProfileTone('demo');
+      setProfileStatus('Could not save goal');
+      setProfileError(error instanceof Error ? error.message : 'Unable to save goal.');
+    } finally {
+      setGoalSaving(false);
+    }
+  }
+
   async function cycleMealPrepStatus(taskId: string) {
     const nextStatusByCurrent: Record<MealPrepTask['status'], MealPrepTask['status']> = {
       Queued: 'In progress',
@@ -1102,6 +1299,203 @@ export default function App(): ReactElement {
               </View>
             </View>
 
+          </>
+        )}
+
+        {section === 'profile' && (
+          <>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <View>
+                  <Text style={styles.panelEyebrow}>Profile</Text>
+                  <Text style={styles.panelTitle}>Settings and goals</Text>
+                </View>
+                <Text style={styles.panelDetail}>Load your session profile, keep your display settings current, and manage goal targets in one place.</Text>
+              </View>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
+                {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
+              </View>
+
+              {profile ? (
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailTitle}>{profile.display_name ?? 'Unnamed profile'}</Text>
+                  <Text style={styles.detailSubtitle}>
+                    {profile.email} · {profile.timezone} · {profile.units}
+                  </Text>
+
+                  <View style={styles.profileFieldStack}>
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Display name</Text>
+                      <TextInput
+                        value={profileDisplayNameDraft}
+                        onChangeText={setProfileDisplayNameDraft}
+                        placeholder="Nutrition User"
+                        placeholderTextColor="#7c8aa5"
+                        style={styles.profileFieldInput}
+                      />
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Timezone</Text>
+                      <TextInput
+                        value={profileTimezoneDraft}
+                        onChangeText={setProfileTimezoneDraft}
+                        placeholder="America/New_York"
+                        placeholderTextColor="#7c8aa5"
+                        style={styles.profileFieldInput}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.profileToggleRow}>
+                    {(['imperial', 'metric'] as const).map((units) => {
+                      const active = units === profileUnitsDraft;
+                      return (
+                        <Pressable
+                          key={units}
+                          style={[styles.profileToggle, active && styles.profileToggleActive]}
+                          onPress={() => setProfileUnitsDraft(units)}
+                        >
+                          <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                            {units === 'imperial' ? 'Imperial' : 'Metric'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={() => void saveProfileSettings()}
+                    disabled={profileSaving}
+                  >
+                    <Text style={styles.primaryButtonLabel}>
+                      {profileSaving ? 'Saving...' : 'Save profile settings'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Goals</Text>
+              <Text style={styles.panelTitle}>Target management</Text>
+              <Text style={styles.panelDetail}>Current goals are visible below, and you can add a new target block without leaving the app.</Text>
+
+              <View style={styles.foodList}>
+                {profileGoals.length > 0 ? (
+                  profileGoals.map((goal, index) => (
+                    <View key={goal.id} style={styles.goalCard}>
+                      <View style={styles.recipeRowTitleWrap}>
+                        <Text style={styles.listTitle}>
+                          Goal {profileGoals.length - index}
+                        </Text>
+                        <Text style={styles.listCaption}>{goal.effective_at}</Text>
+                      </View>
+                      <View style={styles.goalMetaRow}>
+                        <Text style={styles.goalMetaChip}>{goal.calorie_goal} kcal</Text>
+                        <Text style={styles.goalMetaChip}>{goal.protein_goal}P</Text>
+                        <Text style={styles.goalMetaChip}>{goal.carbs_goal}C</Text>
+                        <Text style={styles.goalMetaChip}>{goal.fat_goal}F</Text>
+                        {goal.target_weight_lbs !== null ? (
+                          <Text style={styles.goalMetaChip}>{goal.target_weight_lbs} lb</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailTitle}>No goals saved yet</Text>
+                    <Text style={styles.detailSubtitle}>Create a starting target block below to populate this list.</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.profileFieldStack}>
+                <View style={styles.profileField}>
+                  <Text style={styles.profileFieldLabel}>Effective date</Text>
+                  <TextInput
+                    value={goalEffectiveAtDraft}
+                    onChangeText={setGoalEffectiveAtDraft}
+                    placeholder="2026-03-30"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.profileFieldInput}
+                  />
+                </View>
+
+                <View style={styles.profileFieldRow}>
+                  <View style={styles.profileFieldHalf}>
+                    <Text style={styles.profileFieldLabel}>Calories</Text>
+                    <TextInput
+                      value={goalCaloriesDraft}
+                      onChangeText={setGoalCaloriesDraft}
+                      placeholder="2100"
+                      placeholderTextColor="#7c8aa5"
+                      keyboardType="numeric"
+                      style={styles.profileFieldInput}
+                    />
+                  </View>
+                  <View style={styles.profileFieldHalf}>
+                    <Text style={styles.profileFieldLabel}>Protein</Text>
+                    <TextInput
+                      value={goalProteinDraft}
+                      onChangeText={setGoalProteinDraft}
+                      placeholder="180"
+                      placeholderTextColor="#7c8aa5"
+                      keyboardType="numeric"
+                      style={styles.profileFieldInput}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.profileFieldRow}>
+                  <View style={styles.profileFieldHalf}>
+                    <Text style={styles.profileFieldLabel}>Carbs</Text>
+                    <TextInput
+                      value={goalCarbsDraft}
+                      onChangeText={setGoalCarbsDraft}
+                      placeholder="190"
+                      placeholderTextColor="#7c8aa5"
+                      keyboardType="numeric"
+                      style={styles.profileFieldInput}
+                    />
+                  </View>
+                  <View style={styles.profileFieldHalf}>
+                    <Text style={styles.profileFieldLabel}>Fat</Text>
+                    <TextInput
+                      value={goalFatDraft}
+                      onChangeText={setGoalFatDraft}
+                      placeholder="60"
+                      placeholderTextColor="#7c8aa5"
+                      keyboardType="numeric"
+                      style={styles.profileFieldInput}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.profileField}>
+                  <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
+                  <TextInput
+                    value={goalWeightDraft}
+                    onChangeText={setGoalWeightDraft}
+                    placeholder="178.5"
+                    placeholderTextColor="#7c8aa5"
+                    keyboardType="numeric"
+                    style={styles.profileFieldInput}
+                  />
+                </View>
+
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => void addGoal()}
+                  disabled={goalSaving}
+                >
+                  <Text style={styles.primaryButtonLabel}>{goalSaving ? 'Saving...' : 'Add goal'}</Text>
+                </Pressable>
+              </View>
+            </View>
           </>
         )}
 
@@ -2381,6 +2775,81 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     gap: 10
+  },
+  profileFieldStack: {
+    gap: 12
+  },
+  profileFieldRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  profileFieldHalf: {
+    flex: 1,
+    gap: 6
+  },
+  profileField: {
+    gap: 6
+  },
+  profileFieldLabel: {
+    color: '#6b7b90',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  profileFieldInput: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'web' ? 12 : 14,
+    color: '#132536'
+  },
+  profileToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap'
+  },
+  profileToggle: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  profileToggleActive: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  profileToggleLabel: {
+    color: '#17324d',
+    fontWeight: '700'
+  },
+  profileToggleLabelActive: {
+    color: '#ffffff'
+  },
+  goalCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    padding: 14,
+    gap: 10
+  },
+  goalMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  goalMetaChip: {
+    borderRadius: 999,
+    backgroundColor: '#eef3f8',
+    color: '#17324d',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    fontWeight: '700'
   },
   recipeDetailHeader: {
     flexDirection: 'row',

@@ -68,6 +68,44 @@ export interface FoodLogSummary {
   };
 }
 
+export interface UserProfile {
+  user_id: string;
+  email: string;
+  display_name: string | null;
+  timezone: string;
+  units: 'imperial' | 'metric';
+  user_created_at?: string | null;
+  profile_created_at?: string | null;
+  profile_updated_at?: string | null;
+}
+
+export interface UserProfileUpdate {
+  display_name: string | null;
+  timezone: string;
+  units: 'imperial' | 'metric';
+}
+
+export interface UserGoal {
+  id: string;
+  user_id: string;
+  effective_at: string;
+  calorie_goal: number;
+  protein_goal: number;
+  carbs_goal: number;
+  fat_goal: number;
+  target_weight_lbs: number | null;
+  created_at?: string | null;
+}
+
+export interface UserGoalCreate {
+  effective_at: string;
+  calorie_goal: number;
+  protein_goal: number;
+  carbs_goal: number;
+  fat_goal: number;
+  target_weight_lbs: number | null;
+}
+
 export interface ExerciseEntry {
   id: string;
   title: string;
@@ -168,6 +206,7 @@ export interface MealPrepTask {
 
 export type AppSection =
   | 'dashboard'
+  | 'profile'
   | 'tracker'
   | 'foods'
   | 'meals'

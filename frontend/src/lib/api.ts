@@ -11,6 +11,10 @@ import type {
   RecipeDefinition,
   RecipeImportInput,
   RecipeImportResult,
+  UserGoal,
+  UserGoalCreate,
+  UserProfile,
+  UserProfileUpdate,
   WeeklyMetrics
 } from '../types';
 
@@ -72,6 +76,51 @@ export async function fetchBackendHealth(): Promise<ApiHealth> {
 
 export async function fetchWeeklyMetrics(): Promise<WeeklyMetrics> {
   return readJson<WeeklyMetrics>(await fetch(buildApiUrl('/nutrition/weekly-metrics')));
+}
+
+export async function fetchProfile(accessToken: string): Promise<UserProfile> {
+  return readJson<UserProfile>(
+    await fetch(buildApiUrl('/profile'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function updateProfile(
+  payload: UserProfileUpdate,
+  accessToken: string
+): Promise<UserProfile> {
+  return readJson<UserProfile>(
+    await fetch(buildApiUrl('/profile'), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function fetchUserGoals(accessToken: string): Promise<UserGoal[]> {
+  return readJson<UserGoal[]>(
+    await fetch(buildApiUrl('/profile/goals'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function createUserGoal(payload: UserGoalCreate, accessToken: string): Promise<UserGoal> {
+  return readJson<UserGoal>(
+    await fetch(buildApiUrl('/profile/goals'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
 }
 
 export async function searchFoods(query: string): Promise<FoodItem[]> {
