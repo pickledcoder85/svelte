@@ -9,7 +9,7 @@
     "platforms": ["ios", "android", "web"],
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/mascot.png",
+      "image": "./assets/favicon.png",
       "resizeMode": "contain",
       "backgroundColor": "#f4efe4"
     },

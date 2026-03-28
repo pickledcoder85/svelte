@@ -56,7 +56,7 @@ const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
 const sectionOrder: AppSection[] = ['dashboard', 'log', 'foods', 'meals', 'recipes'];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const chartHeight = 160;
-const mascotImage = require('./assets/mascot.png');
+const heroBrandImage = require('./assets/favicon.png');
 
 function toneColor(tone: 'checking' | 'live' | 'demo'): string {
   if (tone === 'live') {
@@ -603,7 +603,7 @@ export default function App(): ReactElement {
               </View>
 
               <View style={styles.mascotCard}>
-                <Image source={mascotImage} style={styles.mascotImage} resizeMode="contain" />
+                <Image source={heroBrandImage} style={styles.mascotImage} resizeMode="contain" />
                 <Text style={styles.mascotLabel}>Pickle keeps the cut on track.</Text>
               </View>
             </View>
