@@ -8,6 +8,11 @@ class IngestionOutputReviewRequest(BaseModel):
     review_state: Literal["reviewed", "accepted", "rejected"]
 
 
+class IngestionOutputEditRequest(BaseModel):
+    extracted_text: str | None = None
+    structured_json: Any | None = None
+
+
 class IngestionOutput(BaseModel):
     id: str
     ingestion_job_id: str

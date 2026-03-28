@@ -29,6 +29,15 @@ def _normalize_output(payload: dict[str, Any]) -> IngestionOutput:
     return IngestionOutput.model_validate({**payload, "structured_json": structured_json})
 
 
+def _coerce_structured_json(payload: Any) -> Any:
+    if isinstance(payload, str):
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            return payload
+    return payload
+
+
 def _assert_job_access(repository: SQLiteRepository, user_id: str, ingestion_job_id: str) -> dict[str, Any]:
     job = repository.get_ingestion_job(ingestion_job_id)
     if job is None:
@@ -80,6 +89,9 @@ def transition_output(
     user_id: str,
     output_id: str,
     review_state: Literal["reviewed", "accepted", "rejected"],
+    *,
+    extracted_text: str | None = None,
+    structured_json: Any | None = None,
 ) -> IngestionOutput:
     output = _assert_output_access(repository, user_id, output_id)
     current_state = output["review_state"]
@@ -94,6 +106,17 @@ def transition_output(
             return _normalize_output(output)
         if current_state == "rejected":
             raise IngestionStateError("Rejected outputs cannot be accepted.")
+        if extracted_text is not None or structured_json is not None:
+            repository.save_ingestion_output(
+                ingestion_job_id=output["ingestion_job_id"],
+                extracted_text=extracted_text if extracted_text is not None else output["extracted_text"],
+                structured_json=
+                    structured_json
+                    if structured_json is not None
+                    else _coerce_structured_json(output["structured_json"]),
+                confidence=output["confidence"],
+                output_id=output_id,
+            )
         output = repository.accept_ingestion_output(output_id)
     else:
         if current_state == "rejected":
