@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.app.dependencies import get_current_session, get_repository
 from backend.app.models.auth import AuthSession
-from backend.app.models.ingestion import IngestionOutput, IngestionOutputReviewRequest
+from backend.app.models.ingestion import IngestionOutput, IngestionOutputEditRequest
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.ingestion import (
     IngestionAccessError,
@@ -93,11 +93,19 @@ async def mark_output_reviewed(
 @router.post("/outputs/{output_id}/accept", response_model=IngestionOutput)
 async def accept_output(
     output_id: str,
+    payload: IngestionOutputEditRequest | None = None,
     session: AuthSession | None = Depends(get_current_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> IngestionOutput:
     try:
-        return transition_output(repository, _require_session(session).user_id, output_id, "accepted")
+        return transition_output(
+            repository,
+            _require_session(session).user_id,
+            output_id,
+            "accepted",
+            extracted_text=payload.extracted_text if payload is not None else None,
+            structured_json=payload.structured_json if payload is not None else None,
+        )
     except HTTPException:
         raise
     except Exception as exc:
