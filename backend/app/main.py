@@ -9,6 +9,7 @@ from backend.app.routes.health import router as health_router
 from backend.app.routes.meals import router as meals_router
 from backend.app.routes.nutrition import router as nutrition_router
 from backend.app.routes.recipes import router as recipes_router
+from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
 from backend.app.repositories.sqlite import SQLiteRepository
 
@@ -41,6 +42,7 @@ def create_app(database_path: str | None = None) -> FastAPI:
     app.include_router(ingestion_router, prefix="/api")
     app.include_router(meals_router, prefix="/api")
     app.include_router(recipes_router, prefix="/api")
+    app.include_router(tracker_router, prefix="/api")
     app.include_router(vision_router, prefix="/api")
     return app
 

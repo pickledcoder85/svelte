@@ -48,6 +48,10 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 "user_goals",
                 "food_logs",
                 "food_log_entries",
+                "exercise_entries",
+                "meal_plan_days",
+                "meal_plan_slots",
+                "meal_prep_tasks",
                 "ingestion_jobs",
                 "saved_favorites",
             }.issubset(table_names)
@@ -58,7 +62,11 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
             {
                 "idx_user_goals_user_effective",
                 "idx_food_logs_user_date",
+                "idx_exercise_entries_user_logged_on",
                 "idx_food_log_entries_log",
+                "idx_meal_plan_days_user_date",
+                "idx_meal_plan_slots_day_position",
+                "idx_meal_prep_tasks_user_status",
                 "idx_ingestion_jobs_user_status",
                 "idx_ingestion_outputs_job",
                 "idx_ingestion_outputs_reviewed_at",
@@ -286,6 +294,64 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertTrue(repo.is_saved_favorite("user-1", "recipe", recipe.id))
         self.assertFalse(repo.is_saved_favorite("user-1", "food", "food-oats"))
         self.assertTrue(repo.is_saved_favorite("user-2", "food", "food-oats"))
+
+    def test_sqlite_repository_persists_exercise_meal_plan_and_meal_prep(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+
+            exercise_id = repo.create_exercise_entry(
+                user_id="user-1",
+                title="Incline walk",
+                duration_minutes=35,
+                calories_burned=240,
+                logged_on=date(2026, 3, 28),
+                logged_at="07:15",
+                intensity="Moderate",
+            )
+            meal_plan_day_id = repo.save_meal_plan_day(
+                user_id="user-1",
+                plan_date=date(2026, 3, 31),
+                label="Tue",
+                focus="Training day",
+                slots=[
+                    {
+                        "meal_label": "Breakfast",
+                        "title": "Greek yogurt + berries",
+                        "calories": 320,
+                        "prep_status": "Prepped",
+                    },
+                    {
+                        "meal_label": "Lunch",
+                        "title": "Chicken rice bowl",
+                        "calories": 610,
+                        "prep_status": "Needs prep",
+                    },
+                ],
+            )
+            task_id = repo.create_meal_prep_task(
+                user_id="user-1",
+                title="Bake chicken breast",
+                category="Protein",
+                portions="8 portions",
+                status="Queued",
+                scheduled_for=date(2026, 3, 30),
+            )
+            updated_task = repo.update_meal_prep_task_status(task_id, "Done")
+
+            exercises = repo.list_exercise_entries("user-1")
+            meal_plan_days = repo.list_meal_plan_days("user-1")
+            meal_prep_tasks = repo.list_meal_prep_tasks("user-1")
+
+        self.assertEqual(exercises[0]["id"], exercise_id)
+        self.assertEqual(exercises[0]["title"], "Incline walk")
+        self.assertEqual(meal_plan_days[0]["id"], meal_plan_day_id)
+        self.assertEqual(len(meal_plan_days[0]["slots"]), 2)
+        self.assertEqual(meal_plan_days[0]["slots"][0]["meal_label"], "Breakfast")
+        self.assertIsNotNone(updated_task)
+        self.assertEqual(updated_task["status"], "Done")
+        self.assertEqual(meal_prep_tasks[0]["status"], "Done")
 
 
 if __name__ == "__main__":
