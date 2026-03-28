@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import {
-  acceptIngestionOutput,
-  fetchIngestionOutput,
-  fetchIngestionQueue,
-  rejectIngestionOutput
-} from '../lib/api';
+import { acceptIngestionOutput, fetchIngestionQueue, rejectIngestionOutput } from '../lib/api';
 import { demoIngestionOutputs } from '../mock-data';
-import type { IngestionOutput, IngestionReviewState } from '../types';
+import type { IngestionOutput } from '../types';
+import {
+  describeOutput,
+  formatCreatedAt,
+  formatStructuredJson,
+  pendingOutputs
+} from './ingestionReviewHelpers';
 
 interface IngestionReviewPanelProps {
   accessToken: string | null;
@@ -29,9 +30,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   const [statusDetail, setStatusDetail] = useState('Fetching the ingestion review queue.');
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [actionSavingId, setActionSavingId] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,97 +109,48 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     };
   }, [accessToken]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSelectedOutput() {
-      if (!accessToken || !selectedOutputId) {
-        setDetailLoading(false);
-        return;
-      }
-
-      setDetailLoading(true);
-      setDetailError(null);
-
-      try {
-        const output = await fetchIngestionOutput(selectedOutputId, accessToken);
-        if (cancelled) {
-          return;
-        }
-        setSelectedOutput(output);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        const fallback = outputs.find((output) => output.id === selectedOutputId) ?? null;
-        setSelectedOutput(fallback);
-        setDetailError(error instanceof Error ? error.message : 'Could not load output detail.');
-      } finally {
-        if (!cancelled) {
-          setDetailLoading(false);
-        }
-      }
-    }
-
-    void loadSelectedOutput();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken, outputs, selectedOutputId]);
-
-  const pendingCount = outputs.length;
-  const acceptedCount = useMemo(
-    () => demoIngestionOutputs.filter((output) => output.review_state === 'accepted').length,
-    []
-  );
-  const displayOutput = selectedOutput;
-
-  async function reviewSelectedOutput(nextState: Extract<IngestionReviewState, 'accepted' | 'rejected'>) {
-    if (!displayOutput || actionSavingId === displayOutput.id) {
+  async function reviewOutput(outputId: string, action: 'accept' | 'reject') {
+    if (!accessToken || actioningId === outputId) {
       return;
     }
 
-    const current = displayOutput;
-    setActionSavingId(current.id);
+    setActioningId(outputId);
     setQueueError(null);
-    setDetailError(null);
     setTone('checking');
-    setStatusLabel(nextState === 'accepted' ? 'Accepting output' : 'Rejecting output');
-    setStatusDetail(`${describeOutput(current)} will be marked ${nextState}.`);
+    setStatusLabel(action === 'accept' ? 'Accepting output' : 'Rejecting output');
+    setStatusDetail('Saving the review decision.');
 
     try {
-      const updated = accessToken
-        ? nextState === 'accepted'
-          ? await acceptIngestionOutput(current.id, accessToken)
-          : await rejectIngestionOutput(current.id, accessToken)
-        : createDemoReview(current, nextState);
+      const reviewed =
+        action === 'accept'
+          ? await acceptIngestionOutput(outputId, accessToken)
+          : await rejectIngestionOutput(outputId, accessToken);
 
-      setOutputs((currentOutputs) => currentOutputs.filter((output) => output.id !== updated.id));
-      setSelectedOutput(updated);
-      setSelectedOutputId(updated.id);
-      setTone(accessToken ? 'live' : 'demo');
-      setStatusLabel(nextState === 'accepted' ? 'Output accepted' : 'Output rejected');
-      setStatusDetail(
-        `${describeOutput(updated)} moved out of the pending queue and is ready for the next review item.`
-      );
+      setOutputs((current) => current.filter((item) => item.id !== reviewed.id));
+      setSelectedOutputId((current) => (current === reviewed.id ? null : current));
+      setSelectedOutput((current) => (current?.id === reviewed.id ? null : current));
+      setTone('live');
+      setStatusLabel(action === 'accept' ? 'Output accepted' : 'Output rejected');
+      setStatusDetail(describeOutput(reviewed));
     } catch (error) {
       setTone('demo');
       setStatusLabel('Review action failed');
-      setStatusDetail(`Could not update ${describeOutput(current)}.`);
-      setDetailError(error instanceof Error ? error.message : 'Could not update ingestion output.');
+      setStatusDetail('The selected output could not be updated.');
+      setQueueError(error instanceof Error ? error.message : 'Unable to update ingestion review.');
     } finally {
-      setActionSavingId(null);
+      setActioningId(null);
     }
   }
+
+  const displayOutput = selectedOutput;
+  const pendingCount = outputs.length;
 
   return (
     <View style={styles.panel}>
       <Text style={styles.eyebrow}>Ingestion</Text>
       <Text style={styles.title}>Pending review queue</Text>
       <Text style={styles.detail}>
-        Review extracted nutrition label and recipe outputs, then accept or reject them from a mobile-friendly list.
+        Review queued outputs from a mobile-friendly list and open the selected item placeholder below.
       </Text>
 
       <View style={[styles.statusBanner, { borderColor: toneColor(tone) }]}>
@@ -210,8 +160,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       </View>
 
       <View style={styles.metricRow}>
-        <MetricTile label="Pending" value={`${pendingCount}`} />
-        <MetricTile label="Accepted seeded" value={`${acceptedCount}`} />
+        <MetricTile label="Pending" value={`${outputs.length}`} />
         <MetricTile label="Session" value={accessToken ? 'Live' : 'Demo'} />
       </View>
 
@@ -256,12 +205,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Selected output</Text>
-        {detailLoading && selectedOutput ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator size="small" color="#17324d" />
-            <Text style={styles.detailText}>Refreshing selected output...</Text>
-          </View>
-        ) : displayOutput ? (
+        {displayOutput ? (
           <View style={styles.detailStack}>
             <View style={styles.detailHeadingRow}>
               <View style={styles.detailHeadingCopy}>
@@ -277,9 +221,10 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
             </View>
 
             <View style={styles.detailBlock}>
-              <Text style={styles.detailBlockLabel}>Extracted text</Text>
+              <Text style={styles.detailBlockLabel}>Selected item</Text>
               <Text style={styles.detailText}>
-                {displayOutput.extracted_text ?? 'No extracted text was captured for this output.'}
+                This placeholder panel will expand later into a detail review view. For now, it keeps the selected
+                queue item visible and ready for the next backend-enabled step.
               </Text>
             </View>
 
@@ -290,114 +235,34 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
             <View style={styles.actionRow}>
               <Pressable
-                style={[
-                  styles.primaryButton,
-                  (displayOutput.review_state === 'accepted' || actionSavingId === displayOutput.id) &&
-                    styles.primaryButtonDisabled
-                ]}
-                onPress={() => void reviewSelectedOutput('accepted')}
-                disabled={displayOutput.review_state === 'accepted' || actionSavingId === displayOutput.id}
+                style={[styles.actionButton, styles.acceptButton]}
+                onPress={() => void reviewOutput(displayOutput.id, 'accept')}
+                disabled={actioningId === displayOutput.id}
               >
-                <Text style={styles.primaryButtonLabel}>
-                  {actionSavingId === displayOutput.id ? 'Saving...' : 'Accept'}
+                <Text style={styles.actionButtonLabel}>
+                  {actioningId === displayOutput.id ? 'Saving...' : 'Accept'}
                 </Text>
               </Pressable>
-
               <Pressable
-                style={[
-                  styles.secondaryButton,
-                  (displayOutput.review_state === 'rejected' || actionSavingId === displayOutput.id) &&
-                    styles.secondaryButtonDisabled
-                ]}
-                onPress={() => void reviewSelectedOutput('rejected')}
-                disabled={displayOutput.review_state === 'rejected' || actionSavingId === displayOutput.id}
+                style={[styles.actionButton, styles.rejectButton]}
+                onPress={() => void reviewOutput(displayOutput.id, 'reject')}
+                disabled={actioningId === displayOutput.id}
               >
-                <Text style={styles.secondaryButtonLabel}>
-                  {actionSavingId === displayOutput.id ? 'Saving...' : 'Reject'}
+                <Text style={[styles.actionButtonLabel, styles.rejectButtonLabel]}>
+                  {actioningId === displayOutput.id ? 'Saving...' : 'Reject'}
                 </Text>
               </Pressable>
             </View>
-
-            {detailError ? <Text style={styles.errorText}>{detailError}</Text> : null}
-            {displayOutput.review_state !== 'pending' ? (
-              <Text style={styles.detailNote}>
-                This output is no longer pending and will not appear in the review list again.
-              </Text>
-            ) : null}
           </View>
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>Select a review item</Text>
-            <Text style={styles.detailText}>The full extracted text and structured JSON will appear here.</Text>
+            <Text style={styles.detailText}>The selected item placeholder will appear here.</Text>
           </View>
         )}
       </View>
     </View>
   );
-}
-
-function pendingOutputs(outputs: IngestionOutput[]): IngestionOutput[] {
-  return outputs.filter((output) => output.review_state === 'pending');
-}
-
-function createDemoReview(
-  output: IngestionOutput,
-  nextState: Extract<IngestionReviewState, 'accepted' | 'rejected'>
-): IngestionOutput {
-  const timestamp = new Date().toISOString();
-  return {
-    ...output,
-    review_state: nextState,
-    reviewed_at: timestamp,
-    accepted_at: nextState === 'accepted' ? timestamp : null,
-    rejected_at: nextState === 'rejected' ? timestamp : null
-  };
-}
-
-function describeOutput(output: IngestionOutput): string {
-  if (typeof output.structured_json === 'object' && output.structured_json !== null) {
-    const payload = output.structured_json as Record<string, unknown>;
-    const title = payload.product_name || payload.title;
-    if (typeof title === 'string' && title.trim().length > 0) {
-      return title;
-    }
-  }
-
-  if (typeof output.extracted_text === 'string' && output.extracted_text.trim().length > 0) {
-    return output.extracted_text.trim().split('\n')[0].slice(0, 48);
-  }
-
-  return output.id;
-}
-
-function formatCreatedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  });
-}
-
-function formatStructuredJson(value: unknown): string {
-  if (value === null || value === undefined) {
-    return 'No structured JSON captured.';
-  }
-
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
 }
 
 function toneColor(tone: SyncTone): string {
@@ -614,45 +479,36 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     padding: 12
   },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  primaryButton: {
-    flex: 1,
-    borderRadius: 14,
-    backgroundColor: '#17324d',
-    paddingVertical: 12,
-    alignItems: 'center'
-  },
-  primaryButtonDisabled: {
-    opacity: 0.65
-  },
-  primaryButtonLabel: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '800'
-  },
-  secondaryButton: {
-    flex: 1,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    paddingVertical: 12,
-    alignItems: 'center'
-  },
-  secondaryButtonDisabled: {
-    opacity: 0.65
-  },
-  secondaryButtonLabel: {
-    color: '#17324d',
-    fontSize: 13,
-    fontWeight: '800'
-  },
   detailNote: {
     color: '#7a4e16',
     fontSize: 12,
     lineHeight: 18
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap'
+  },
+  actionButton: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1
+  },
+  acceptButton: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  rejectButton: {
+    backgroundColor: '#fff4f0',
+    borderColor: '#f2c8be'
+  },
+  actionButtonLabel: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  rejectButtonLabel: {
+    color: '#8a3328'
   }
 });
