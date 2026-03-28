@@ -1,9 +1,12 @@
 import type {
   DashboardRangeSeries,
   DashboardSnapshot,
+  ExerciseEntry,
   FoodItem,
   FoodLogSummary,
   MealInput,
+  MealPlanDay,
+  MealPrepTask,
   RecipeDefinition,
   RecipeImportInput,
   WeeklyMetrics
@@ -568,3 +571,86 @@ export const demoFoodLog: FoodLogSummary = {
     macros: { protein: 28.6, carbs: 66.2, fat: 5.2 }
   }
 };
+
+export const demoExerciseEntries: ExerciseEntry[] = [
+  {
+    id: 'exercise-walk',
+    title: 'Incline walk',
+    duration_minutes: 35,
+    calories_burned: 240,
+    logged_at: '07:15',
+    intensity: 'Moderate'
+  },
+  {
+    id: 'exercise-lift',
+    title: 'Upper body lift',
+    duration_minutes: 52,
+    calories_burned: 310,
+    logged_at: '17:40',
+    intensity: 'High'
+  }
+];
+
+export const demoMealPlanDays: MealPlanDay[] = [
+  {
+    id: 'meal-plan-mon',
+    label: 'Mon',
+    focus: 'Training day',
+    slots: [
+      { id: 'mon-breakfast', meal_label: 'Breakfast', title: 'Greek yogurt + berries', calories: 320, prep_status: 'Prepped' },
+      { id: 'mon-lunch', meal_label: 'Lunch', title: 'Chicken rice bowls', calories: 610, prep_status: 'Prepped' },
+      { id: 'mon-dinner', meal_label: 'Dinner', title: 'Salmon, potato, broccoli', calories: 710, prep_status: 'Needs prep' }
+    ]
+  },
+  {
+    id: 'meal-plan-tue',
+    label: 'Tue',
+    focus: 'Desk day',
+    slots: [
+      { id: 'tue-breakfast', meal_label: 'Breakfast', title: 'Overnight oats', calories: 380, prep_status: 'Prepped' },
+      { id: 'tue-lunch', meal_label: 'Lunch', title: 'Turkey wraps + carrots', calories: 540, prep_status: 'Flexible' },
+      { id: 'tue-dinner', meal_label: 'Dinner', title: 'Beef tacos', calories: 760, prep_status: 'Needs prep' }
+    ]
+  },
+  {
+    id: 'meal-plan-wed',
+    label: 'Wed',
+    focus: 'Recovery day',
+    slots: [
+      { id: 'wed-breakfast', meal_label: 'Breakfast', title: 'Egg scramble + toast', calories: 410, prep_status: 'Needs prep' },
+      { id: 'wed-lunch', meal_label: 'Lunch', title: 'Chicken thigh salad', calories: 520, prep_status: 'Prepped' },
+      { id: 'wed-dinner', meal_label: 'Dinner', title: 'Protein pasta bowl', calories: 690, prep_status: 'Flexible' }
+    ]
+  }
+];
+
+export const demoMealPrepTasks: MealPrepTask[] = [
+  {
+    id: 'prep-chicken',
+    title: 'Bake 3 lb chicken breast',
+    category: 'Protein',
+    portions: '8 portions',
+    status: 'Queued'
+  },
+  {
+    id: 'prep-rice',
+    title: 'Cook jasmine rice',
+    category: 'Carb',
+    portions: '6 cups cooked',
+    status: 'In progress'
+  },
+  {
+    id: 'prep-berries',
+    title: 'Wash berries and portion cups',
+    category: 'Produce',
+    portions: '5 snack cups',
+    status: 'Done'
+  },
+  {
+    id: 'prep-bowls',
+    title: 'Assemble chicken rice bowls',
+    category: 'Assembly',
+    portions: '4 lunches',
+    status: 'Queued'
+  }
+];
