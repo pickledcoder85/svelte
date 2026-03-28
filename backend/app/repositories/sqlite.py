@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -12,6 +12,264 @@ from backend.app.models.meals import MealTemplate
 from backend.app.models.nutrition import FoodItem, MacroTargets, WeeklyMetrics
 from backend.app.models.recipes import RecipeAsset, RecipeDefinition
 from backend.app.db.database import json_text
+
+
+DEFAULT_FOOD_CATALOG_SEEDS: list[dict[str, Any]] = [
+    {
+        "id": "food-oats",
+        "name": "Rolled oats",
+        "brand": None,
+        "calories": 389,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 16.9,
+        "carbs": 66.3,
+        "fat": 6.9,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-greek-yogurt",
+        "name": "Greek yogurt, plain nonfat",
+        "brand": None,
+        "calories": 59,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 10.3,
+        "carbs": 3.6,
+        "fat": 0.4,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-blueberries",
+        "name": "Blueberries",
+        "brand": None,
+        "calories": 57,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 0.7,
+        "carbs": 14.5,
+        "fat": 0.3,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-chicken-breast",
+        "name": "Chicken breast, skinless",
+        "brand": None,
+        "calories": 165,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 31.0,
+        "carbs": 0.0,
+        "fat": 3.6,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-chicken-thighs",
+        "name": "Chicken thighs, skinless",
+        "brand": None,
+        "calories": 209,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 26.0,
+        "carbs": 0.0,
+        "fat": 10.9,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-beef-ground-80-20",
+        "name": "Beef, ground (80/20)",
+        "brand": None,
+        "calories": 254,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 17.2,
+        "carbs": 0.0,
+        "fat": 20.0,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-carrots",
+        "name": "Carrots",
+        "brand": None,
+        "calories": 41,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 0.9,
+        "carbs": 9.6,
+        "fat": 0.2,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-apples-granny-smith",
+        "name": "Apple, Granny Smith",
+        "brand": None,
+        "calories": 52,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 0.3,
+        "carbs": 13.8,
+        "fat": 0.2,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-bread-whole-wheat",
+        "name": "Bread, whole wheat",
+        "brand": None,
+        "calories": 247,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 13.0,
+        "carbs": 41.0,
+        "fat": 4.2,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-eggs-whole",
+        "name": "Eggs, whole",
+        "brand": None,
+        "calories": 143,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 12.6,
+        "carbs": 0.7,
+        "fat": 9.5,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-strawberries",
+        "name": "Strawberries",
+        "brand": None,
+        "calories": 32,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 0.7,
+        "carbs": 7.7,
+        "fat": 0.3,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-bananas",
+        "name": "Bananas",
+        "brand": None,
+        "calories": 89,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 1.1,
+        "carbs": 22.8,
+        "fat": 0.3,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-rice-white",
+        "name": "Rice, white",
+        "brand": None,
+        "calories": 130,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 2.4,
+        "carbs": 28.2,
+        "fat": 0.3,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-potatoes",
+        "name": "Potatoes",
+        "brand": None,
+        "calories": 77,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 2.0,
+        "carbs": 17.0,
+        "fat": 0.1,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-salmon",
+        "name": "Salmon",
+        "brand": None,
+        "calories": 208,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 20.0,
+        "carbs": 0.0,
+        "fat": 13.0,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-broccoli",
+        "name": "Broccoli",
+        "brand": None,
+        "calories": 34,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 2.8,
+        "carbs": 6.6,
+        "fat": 0.4,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-avocado",
+        "name": "Avocado",
+        "brand": None,
+        "calories": 160,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 2.0,
+        "carbs": 8.5,
+        "fat": 14.7,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-peanut-butter",
+        "name": "Peanut butter",
+        "brand": None,
+        "calories": 588,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 25.1,
+        "carbs": 20.0,
+        "fat": 50.4,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-milk-2pct",
+        "name": "Milk, 2%",
+        "brand": None,
+        "calories": 50,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 3.4,
+        "carbs": 4.8,
+        "fat": 2.0,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-spinach",
+        "name": "Spinach",
+        "brand": None,
+        "calories": 23,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 2.9,
+        "carbs": 3.6,
+        "fat": 0.4,
+        "source": "CUSTOM",
+    },
+    {
+        "id": "food-cottage-cheese",
+        "name": "Cottage cheese",
+        "brand": None,
+        "calories": 98,
+        "serving_size": 100,
+        "serving_unit": "g",
+        "protein": 11.1,
+        "carbs": 3.4,
+        "fat": 4.3,
+        "source": "CUSTOM",
+    },
+]
+
+DEFAULT_FAVORITE_FOOD_IDS = [seed["id"] for seed in DEFAULT_FOOD_CATALOG_SEEDS]
 
 
 class SQLiteRepository:
@@ -227,6 +485,26 @@ class SQLiteRepository:
                     source TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS default_favorite_foods (
+                    food_id TEXT PRIMARY KEY,
+                    food_name TEXT NOT NULL,
+                    brand TEXT,
+                    calories REAL NOT NULL,
+                    serving_size REAL NOT NULL,
+                    serving_unit TEXT NOT NULL,
+                    protein REAL NOT NULL,
+                    carbs REAL NOT NULL,
+                    fat REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    display_order INTEGER NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS user_default_favorite_food_seed_runs (
+                    user_id TEXT PRIMARY KEY,
+                    seeded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS meal_templates (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -313,18 +591,17 @@ class SQLiteRepository:
                     ON saved_favorites (user_id, entity_type, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_saved_favorites_entity
                     ON saved_favorites (entity_type, entity_id);
+                CREATE INDEX IF NOT EXISTS idx_default_favorite_foods_order
+                    ON default_favorite_foods (display_order ASC, food_name ASC);
                 """
             )
         self._seed_data()
 
     def _seed_data(self) -> None:
-        if self.list_foods():
-            return
-
         with self._lock, self._connection:
             self._connection.execute(
                 """
-                INSERT INTO weekly_metrics (
+                INSERT OR IGNORE INTO weekly_metrics (
                     id, calorie_goal, calories_consumed,
                     protein_target, carbs_target, fat_target,
                     protein_consumed, carbs_consumed, fat_consumed,
@@ -335,48 +612,49 @@ class SQLiteRepository:
             )
             self._connection.executemany(
                 """
-                INSERT INTO food_catalog (
+                INSERT OR IGNORE INTO food_catalog (
                     id, name, brand, calories, serving_size, serving_unit,
                     protein, carbs, fat, source
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
-                        "food-oats",
-                        "Rolled oats",
-                        None,
-                        389,
-                        100,
-                        "g",
-                        16.9,
-                        66.3,
-                        6.9,
-                        "CUSTOM",
-                    ),
+                        seed["id"],
+                        seed["name"],
+                        seed["brand"],
+                        seed["calories"],
+                        seed["serving_size"],
+                        seed["serving_unit"],
+                        seed["protein"],
+                        seed["carbs"],
+                        seed["fat"],
+                        seed["source"],
+                    )
+                    for seed in DEFAULT_FOOD_CATALOG_SEEDS
+                ],
+            )
+            self._connection.executemany(
+                """
+                INSERT OR IGNORE INTO default_favorite_foods (
+                    food_id, food_name, brand, calories, serving_size,
+                    serving_unit, protein, carbs, fat, source, display_order
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
                     (
-                        "food-greek-yogurt",
-                        "Greek yogurt, plain nonfat",
-                        None,
-                        59,
-                        100,
-                        "g",
-                        10.3,
-                        3.6,
-                        0.4,
-                        "CUSTOM",
-                    ),
-                    (
-                        "food-blueberries",
-                        "Blueberries",
-                        None,
-                        57,
-                        100,
-                        "g",
-                        0.7,
-                        14.5,
-                        0.3,
-                        "CUSTOM",
-                    ),
+                        seed["id"],
+                        seed["name"],
+                        seed["brand"],
+                        seed["calories"],
+                        seed["serving_size"],
+                        seed["serving_unit"],
+                        seed["protein"],
+                        seed["carbs"],
+                        seed["fat"],
+                        seed["source"],
+                        index + 1,
+                    )
+                    for index, seed in enumerate(DEFAULT_FOOD_CATALOG_SEEDS)
                 ],
             )
 
@@ -488,6 +766,13 @@ class SQLiteRepository:
         timezone: str = "UTC",
         units: str = "imperial",
     ) -> dict[str, Any]:
+        user_existed = (
+            self._connection.execute(
+                "SELECT 1 FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+            is not None
+        )
         with self._lock, self._connection:
             self._connection.execute(
                 """
@@ -510,10 +795,62 @@ class SQLiteRepository:
                 """,
                 (user_id, display_name, timezone, units),
             )
+            if not user_existed:
+                self._seed_default_favorite_foods_for_user(user_id)
         identity = self.get_user_identity(user_id)
         if identity is None:
             raise RuntimeError("Failed to persist user identity.")
         return identity
+
+    def _seed_default_favorite_foods_for_user(self, user_id: str) -> None:
+        if (
+            self._connection.execute(
+                "SELECT 1 FROM user_default_favorite_food_seed_runs WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            is not None
+        ):
+            return
+
+        default_food_rows = self._connection.execute(
+            """
+            SELECT food_id, display_order
+            FROM default_favorite_foods
+            ORDER BY display_order ASC, food_name ASC
+            """
+        ).fetchall()
+        if not default_food_rows:
+            return
+
+        seed_base = datetime(2026, 1, 1, 0, 0, 0)
+        total_rows = len(default_food_rows)
+        for row in default_food_rows:
+            display_order = int(row["display_order"])
+            created_at = (
+                seed_base + timedelta(seconds=total_rows - display_order)
+            ).isoformat(timespec="seconds")
+            self._connection.execute(
+                """
+                INSERT INTO saved_favorites (id, user_id, entity_type, entity_id, created_at)
+                VALUES (?, ?, 'food', ?, ?)
+                ON CONFLICT(user_id, entity_type, entity_id) DO NOTHING
+                """,
+                (
+                    f"seed-favorite-{user_id}-{row['food_id']}",
+                    user_id,
+                    row["food_id"],
+                    created_at,
+                ),
+            )
+
+        self._connection.execute(
+            """
+            INSERT INTO user_default_favorite_food_seed_runs (user_id)
+            VALUES (?)
+            ON CONFLICT(user_id) DO NOTHING
+            """,
+            (user_id,),
+        )
 
     def _ensure_user_exists(self, user_id: str) -> None:
         row = self._connection.execute(
