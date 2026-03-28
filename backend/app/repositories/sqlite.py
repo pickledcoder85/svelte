@@ -49,6 +49,7 @@ class SQLiteRepository:
                     display_name TEXT,
                     timezone TEXT NOT NULL DEFAULT 'UTC',
                     units TEXT NOT NULL DEFAULT 'imperial',
+                    setup_completed_at TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -526,7 +527,8 @@ class SQLiteRepository:
                 p.timezone,
                 p.units,
                 p.created_at AS profile_created_at,
-                p.updated_at AS profile_updated_at
+                p.updated_at AS profile_updated_at,
+                p.setup_completed_at
             FROM users u
             LEFT JOIN user_profiles p ON p.user_id = u.id
             WHERE u.id = ?
@@ -534,6 +536,20 @@ class SQLiteRepository:
             (user_id,),
         ).fetchone()
         return dict(row) if row is not None else None
+
+    def mark_user_setup_completed(self, user_id: str) -> dict[str, Any] | None:
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                UPDATE user_profiles
+                SET setup_completed_at = COALESCE(setup_completed_at, CURRENT_TIMESTAMP),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            )
+        return self.get_user_identity(user_id)
 
     def save_favorite(
         self,

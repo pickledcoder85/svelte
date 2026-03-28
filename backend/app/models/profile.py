@@ -14,6 +14,7 @@ class UserProfile(BaseModel):
     user_created_at: datetime | None = None
     profile_created_at: datetime | None = None
     profile_updated_at: datetime | None = None
+    setup_completed_at: datetime | None = None
 
 
 class UserProfileUpdateRequest(BaseModel):

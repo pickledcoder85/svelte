@@ -33,13 +33,16 @@ def update_user_profile(
     session: AuthSession,
     payload: UserProfileUpdateRequest,
 ) -> UserProfile:
-    profile = repository.save_user_identity(
+    repository.save_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=payload.display_name,
         timezone=payload.timezone,
         units=payload.units,
     )
+    profile = repository.mark_user_setup_completed(session.user_id)
+    if profile is None:
+        raise RuntimeError("Failed to persist user profile setup state.")
     return UserProfile.model_validate(profile)
 
 
