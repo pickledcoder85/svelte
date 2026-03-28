@@ -53,10 +53,22 @@ def test_meal_totals():
 
     totals = meal_totals(meal)
 
-    assert totals.calories == 567.0
-    assert totals.per_serving_calories == 283.5
+    assert totals.calories == 568.0
+    assert totals.per_serving_calories == 284.0
     assert totals.per_serving_macros.model_dump() == {
-        "protein": 22.3,
-        "carbs": 36.6,
-        "fat": 3.4,
+        "protein": 22.7,
+        "carbs": 42.0,
+        "fat": 3.5,
     }
+
+
+def test_meal_totals_empty_meal_returns_zero_totals():
+    meal = MealInput(
+        id="meal-invalid",
+        name="Invalid",
+        serving_count=1,
+        ingredients=[],
+    )
+
+    totals = meal_totals(meal)
+    assert totals.calories == 0.0

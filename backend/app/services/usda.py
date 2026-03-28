@@ -4,6 +4,7 @@ import httpx
 
 from backend.app.config import get_settings
 from backend.app.models.nutrition import FoodItem, MacroTargets
+from backend.app.repositories.memory import InMemoryBackendRepository
 
 
 USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
@@ -24,7 +25,8 @@ async def search_foods(query: str) -> list[FoodItem]:
     settings = get_settings()
 
     if not settings.usda_api_key:
-        raise RuntimeError("USDA_API_KEY is not configured.")
+        repository = InMemoryBackendRepository.seeded()
+        return repository.search_foods(query)
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.get(
@@ -58,3 +60,12 @@ async def search_foods(query: str) -> list[FoodItem]:
         )
         for food in foods
     ]
+
+
+async def search_foods_with_fallback(
+    query: str, repository: InMemoryBackendRepository
+) -> list[FoodItem]:
+    settings = get_settings()
+    if not settings.usda_api_key:
+        return repository.search_foods(query)
+    return await search_foods(query)
