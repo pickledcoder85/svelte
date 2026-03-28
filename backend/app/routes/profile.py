@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.app.dependencies import get_current_session, get_repository
 from backend.app.models.auth import AuthSession
 from backend.app.models.profile import (
+    DashboardSummary,
     ProfileProgress,
     UserGoal,
     UserGoalCreateRequest,
@@ -17,6 +18,7 @@ from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.profile import (
     create_weight_entry,
     create_user_goal,
+    get_dashboard_summary,
     get_profile_progress,
     get_user_profile,
     list_user_goals,
@@ -93,6 +95,21 @@ async def read_progress(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> ProfileProgress:
     return get_profile_progress(
+        repository,
+        _require_session(session).user_id,
+        week_start=week_start,
+        week_end=week_end,
+    )
+
+
+@router.get("/dashboard", response_model=DashboardSummary)
+async def read_dashboard(
+    week_start: date | None = None,
+    week_end: date | None = None,
+    session: AuthSession | None = Depends(get_current_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> DashboardSummary:
+    return get_dashboard_summary(
         repository,
         _require_session(session).user_id,
         week_start=week_start,
