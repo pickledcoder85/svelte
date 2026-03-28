@@ -7,4 +7,4 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "svelte" ]]; then
 fi
 
 cd frontend
-npm run dev
+npm start

@@ -1,10 +1,10 @@
 # Nutrition OS Starter
 
-This repository is a greenfield nutrition app starter with a dedicated `frontend/` TypeScript app, a `backend/` Python FastAPI API, and hot-reloading local development.
+This repository is a greenfield nutrition app starter with an Expo / React Native frontend in `frontend/`, a Python FastAPI backend, and hot-reloading local development for browser and iPhone preview.
 
 ## Product coverage
 
-- Cross-platform web app architecture that can be packaged for iPhone with Capacitor.
+- Cross-platform Expo / React Native architecture with browser preview and Expo Go support on iPhone.
 - Weekly dashboard for calorie goals, calories consumed, macro targets, and adherence trends.
 - USDA-backed nutrition search API route for standardized calorie and macro data.
 - Session-aware auth scaffolding and environment-backed provider config.
@@ -16,10 +16,10 @@ This repository is a greenfield nutrition app starter with a dedicated `frontend
 
 ## Stack
 
-- Frontend: TypeScript mobile-first app with hot reload.
+- Frontend: Expo / React Native TypeScript app with web support and hot reload.
 - Backend: Python FastAPI application managed through the `svelte` conda environment.
 - Database: SQLite by default for local development, with a checked-in migration file and repository helpers.
-- Mobile packaging: Capacitor for iPhone deployment once the web app is stable.
+- Mobile runtime: Expo Go during development, with native build/export options later.
 - Auth: Supabase or another hosted auth provider.
 - Nutrition source: USDA FoodData Central API.
 - AI backend: multimodal model for nutrition-label extraction and OCR-based recipe ingestion.
@@ -39,11 +39,12 @@ Frontend:
 - `conda activate svelte`
 - `cd frontend`
 - `npm install`
-- `npm run dev`
+- `npm start`
+- `npm run web`
 - `npm run check`
 - `npm test`
 
-The frontend and backend both support hot reload in local development.
+The frontend and backend both support hot reload in local development. `npm start` opens the Expo dev server for phone and simulator preview, and `npm run web` opens the Expo web build in the browser.
 
 ## Database model to implement next
 
@@ -75,9 +76,10 @@ Recommended relational notes:
 6. Return to the repo root.
 7. Copy `.env.example` to `.env` and set API credentials.
 8. Run the backend with `uvicorn backend.app.main:app --reload --port 8000`.
-9. Run the frontend from `frontend/` with `npm run dev`.
-10. Open the app in the browser and verify the backend at `http://localhost:8000/api/health`.
-11. Add Capacitor once the web build is ready for iPhone packaging.
+9. For browser preview, run the frontend from `frontend/` with `npm run web`.
+10. For iPhone preview, run `npm start` in `frontend/` and scan the QR code with Expo Go.
+11. Set `EXPO_PUBLIC_API_BASE_URL` to `http://<your-lan-ip>:8000/api` when using Expo Go on a phone, because `localhost` points at the device rather than your laptop.
+12. Verify the backend at `http://localhost:8000/api/health`.
 
 ## Engineering guidance
 
@@ -87,11 +89,11 @@ Recommended relational notes:
 - Release history and planned tagging live in `CHANGELOG.md`.
 - Use feature branches and atomic commits once git is initialized locally.
 - Add tests for business logic changes before merge.
-- Treat mobile-first UX and Capacitor compatibility as baseline constraints, not later enhancements.
+- Treat mobile-first UX and Expo / React Native compatibility as baseline constraints, not later enhancements.
 
 ## Current limitations
 
-- No package install was performed in this environment.
+- Expo SDK 54 is pinned because this environment now uses Node 20 and Expo Go support is required during development.
 - The OpenAI vision integration is scaffolded and expects compatible API credentials.
 - Persistence exists in the database layer, but routes are not yet wired through it.
 - Auth persistence and production sign-in screens still need implementation.
