@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
-from backend.app.dependencies import get_current_session, get_repository
+from backend.app.dependencies import get_required_session, get_repository
 from backend.app.models.auth import AuthSession, LoginRequest, SessionResponse
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.auth import create_session
@@ -18,8 +18,6 @@ async def login(
 
 @router.get("/session", response_model=SessionResponse)
 async def current_session(
-    session: AuthSession | None = Depends(get_current_session),
+    session: AuthSession = Depends(get_required_session),
 ) -> SessionResponse:
-    if session is not None:
-        return SessionResponse(session=session)
-    raise HTTPException(status_code=401, detail="No active session.")
+    return SessionResponse(session=session)

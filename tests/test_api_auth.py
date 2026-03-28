@@ -20,3 +20,20 @@ async def test_create_and_fetch_session(client):
     )
     assert lookup.status_code == 200
     assert lookup.json()["session"]["access_token"] == session["access_token"]
+
+
+@pytest.mark.asyncio
+async def test_invalid_session_token_is_rejected_for_user_owned_routes(client):
+    response = await client.get(
+        "/api/auth/session",
+        headers={"Authorization": "Bearer not-a-real-session"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "No active session."
+
+    profile_response = await client.get(
+        "/api/profile",
+        headers={"Authorization": "Bearer not-a-real-session"},
+    )
+    assert profile_response.status_code == 401
+    assert profile_response.json()["detail"] == "No active session."

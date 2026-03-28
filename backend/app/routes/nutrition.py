@@ -2,8 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.dependencies import get_current_session, get_repository
-from backend.app.models.auth import AuthSession
+from backend.app.dependencies import get_current_session, get_required_session, get_repository
 from backend.app.models.nutrition import FoodFavoriteState, FoodItem, MealInput, MealTotals, WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.nutrition import (
@@ -17,14 +16,6 @@ from backend.app.services.usda import search_standardized_foods
 
 
 router = APIRouter(prefix="/nutrition", tags=["nutrition"])
-
-
-def _require_session(session: AuthSession | None) -> AuthSession:
-    if session is None:
-        raise HTTPException(status_code=401, detail="No active session.")
-    return session
-
-
 @router.get("/weekly-metrics", response_model=WeeklyMetrics)
 async def weekly_metrics(
     week_start: date | None = Query(default=None),
@@ -51,28 +42,28 @@ async def foods_search(
 
 @router.get("/favorites/foods", response_model=list[FoodItem])
 async def read_favorite_foods(
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> list[FoodItem]:
-    return list_favorite_foods(repository, _require_session(session).user_id)
+    return list_favorite_foods(repository, session.user_id)
 
 
 @router.post("/favorites/foods/{food_id}", response_model=FoodFavoriteState)
 async def favorite_food_route(
     food_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> FoodFavoriteState:
-    return favorite_food(repository, _require_session(session).user_id, food_id)
+    return favorite_food(repository, session.user_id, food_id)
 
 
 @router.delete("/favorites/foods/{food_id}", response_model=FoodFavoriteState)
 async def unfavorite_food_route(
     food_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> FoodFavoriteState:
-    return unfavorite_food(repository, _require_session(session).user_id, food_id)
+    return unfavorite_food(repository, session.user_id, food_id)
 
 
 @router.post("/meals/calculate", response_model=MealTotals)
