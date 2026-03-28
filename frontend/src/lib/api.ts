@@ -1,5 +1,6 @@
 import type {
   ExerciseEntry,
+  IngestionOutput,
   FoodItem,
   FoodLogEntryInput,
   FoodLogSummary,
@@ -215,6 +216,49 @@ export async function fetchRecipes(): Promise<RecipeDefinition[]> {
 
 export async function fetchFavoriteRecipes(): Promise<RecipeDefinition[]> {
   return readJson<RecipeDefinition[]>(await fetch(buildApiUrl('/recipes/favorites')));
+}
+
+export async function fetchIngestionQueue(accessToken: string): Promise<IngestionOutput[]> {
+  return readJson<IngestionOutput[]>(
+    await fetch(buildApiUrl('/ingestion/queue'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function fetchIngestionOutput(
+  outputId: string,
+  accessToken: string
+): Promise<IngestionOutput> {
+  return readJson<IngestionOutput>(
+    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}`), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function acceptIngestionOutput(
+  outputId: string,
+  accessToken: string
+): Promise<IngestionOutput> {
+  return readJson<IngestionOutput>(
+    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/accept`), {
+      method: 'POST',
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function rejectIngestionOutput(
+  outputId: string,
+  accessToken: string
+): Promise<IngestionOutput> {
+  return readJson<IngestionOutput>(
+    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/reject`), {
+      method: 'POST',
+      headers: authHeaders(accessToken)
+    })
+  );
 }
 
 export async function fetchRecipe(recipeId: string): Promise<RecipeDefinition> {

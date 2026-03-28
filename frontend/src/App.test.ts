@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   demoExerciseEntries,
+  demoIngestionOutputs,
   demoFoodLog,
   demoMeal,
   demoMealPlanDays,
@@ -41,5 +42,10 @@ describe('frontend demo data', () => {
     expect(demoRecipeCatalog.some((recipe) => !recipe.favorite)).toBe(true);
     expect(demoRecipe.favorite).toBe(true);
     expect(demoRecipe.steps).toHaveLength(3);
+  });
+
+  it('seeds pending ingestion outputs for the review flow', () => {
+    expect(demoIngestionOutputs.filter((output) => output.review_state === 'pending')).toHaveLength(2);
+    expect(demoIngestionOutputs.some((output) => output.review_state === 'accepted')).toBe(true);
   });
 });

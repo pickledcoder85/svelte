@@ -212,7 +212,8 @@ export type AppSection =
   | 'meals'
   | 'meal-plan'
   | 'meal-prep'
-  | 'recipes';
+  | 'recipes'
+  | 'ingestion';
 
 export interface DashboardSnapshot {
   connectionLabel: string;
@@ -233,4 +234,23 @@ export interface RecipeImportResult {
   id: string;
   title: string;
   favorite: boolean;
+}
+
+export type IngestionReviewState = 'pending' | 'reviewed' | 'accepted' | 'rejected';
+
+export interface IngestionOutput {
+  id: string;
+  ingestion_job_id: string;
+  extracted_text: string | null;
+  structured_json: unknown;
+  confidence: number;
+  reviewed_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  created_at: string;
+  review_state: IngestionReviewState;
+}
+
+export interface IngestionReviewUpdate {
+  review_state: Extract<IngestionReviewState, 'accepted' | 'rejected'>;
 }
