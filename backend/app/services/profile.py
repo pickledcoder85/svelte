@@ -4,6 +4,7 @@ from backend.app.models.auth import AuthSession
 from backend.app.models.profile import (
     DashboardSummary,
     ProfileProgress,
+    UserOnboardingRequest,
     UserGoal,
     UserGoalCreateRequest,
     UserProfile,
@@ -16,6 +17,25 @@ from backend.app.models.nutrition import WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
+class OnboardingAlreadyCompletedError(RuntimeError):
+    pass
+
+
+_ACTIVITY_FACTORS = {
+    "sedentary": 1.2,
+    "light": 1.375,
+    "moderate": 1.55,
+    "very_active": 1.725,
+    "extra_active": 1.9,
+}
+
+_GOAL_ADJUSTMENTS = {
+    "lose": -500,
+    "maintain": 0,
+    "gain": 250,
+}
+
+
 def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> UserProfile:
     repository.save_user_identity(
         user_id=session.user_id,
@@ -25,6 +45,48 @@ def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> User
     profile = repository.get_user_identity(session.user_id)
     if profile is None:
         raise RuntimeError("Failed to load user profile.")
+    return UserProfile.model_validate(profile)
+
+
+def complete_user_onboarding(
+    repository: SQLiteRepository,
+    session: AuthSession,
+    payload: UserOnboardingRequest,
+) -> UserProfile:
+    profile = repository.get_user_identity(session.user_id)
+    if profile is not None and profile.get("setup_completed_at") is not None:
+        raise OnboardingAlreadyCompletedError("User onboarding is already complete.")
+
+    repository.save_user_identity(
+        user_id=session.user_id,
+        email=session.email,
+        display_name=session.display_name,
+    )
+    bmr_calories, tdee_calories, initial_calorie_target = _calculate_onboarding_calories(payload)
+    profile = repository.save_user_onboarding(
+        user_id=session.user_id,
+        sex=payload.sex,
+        age_years=payload.age_years,
+        height_cm=payload.height_cm,
+        current_weight_lbs=payload.current_weight_lbs,
+        goal_type=payload.goal_type,
+        target_weight_lbs=payload.target_weight_lbs,
+        activity_level=payload.activity_level,
+        bmr_calories=bmr_calories,
+        tdee_calories=tdee_calories,
+        initial_calorie_target=initial_calorie_target,
+    )
+    repository.save_user_goal(
+        user_id=session.user_id,
+        effective_at=date.today(),
+        calorie_goal=initial_calorie_target,
+        protein_goal=round(initial_calorie_target * 0.3 / 4, 1),
+        carbs_goal=round(initial_calorie_target * 0.4 / 4, 1),
+        fat_goal=round(initial_calorie_target * 0.3 / 9, 1),
+        target_weight_lbs=payload.target_weight_lbs,
+    )
+    if profile is None:
+        raise RuntimeError("Failed to persist onboarding profile.")
     return UserProfile.model_validate(profile)
 
 
@@ -221,3 +283,12 @@ def _resolve_weekly_metrics(
         week_start=resolved_end - timedelta(days=6),
         week_end=resolved_end,
     )
+
+
+def _calculate_onboarding_calories(payload: UserOnboardingRequest) -> tuple[int, int, int]:
+    weight_kg = payload.current_weight_lbs / 2.2046226218
+    sex_adjustment = 5 if payload.sex == "male" else -161
+    bmr = 10 * weight_kg + 6.25 * payload.height_cm - 5 * payload.age_years + sex_adjustment
+    tdee = bmr * _ACTIVITY_FACTORS[payload.activity_level]
+    calorie_target = max(1200, tdee + _GOAL_ADJUSTMENTS[payload.goal_type])
+    return round(bmr), round(tdee), round(calorie_target)
