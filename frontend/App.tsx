@@ -14,23 +14,32 @@ import {
   View
 } from 'react-native';
 
-import { calculateMeal, fetchBackendHealth, fetchWeeklyMetrics, importRecipe, searchFoods } from './src/lib/api';
+import {
+  addFoodLogEntry,
+  calculateMeal,
+  fetchBackendHealth,
+  fetchTodaysFoodLog,
+  fetchWeeklyMetrics,
+  importRecipe,
+  searchFoods
+} from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
 import { foodMacroLine, selectFoodById } from './src/lib/foods';
-import { mealTotals, progressPercent, recipeScaleLabel, scaleMealIngredients } from './src/lib/nutrition';
+import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import {
   demoDashboardSnapshot,
   demoFoodResults,
   demoFoodStrip,
   demoMeal,
+  demoFoodLog,
   demoRangeSeries,
   demoRecipe,
   demoRecipeImports
 } from './src/mock-data';
-import type { AppSection, DashboardRange, DashboardSnapshot, FoodItem } from './src/types';
+import type { AppSection, DashboardRange, DashboardSnapshot, FoodItem, FoodLogSummary } from './src/types';
 
 const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
-const sectionOrder: AppSection[] = ['dashboard', 'foods', 'meals', 'recipes'];
+const sectionOrder: AppSection[] = ['dashboard', 'log', 'foods', 'meals', 'recipes'];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const chartHeight = 160;
 
@@ -64,6 +73,20 @@ export default function App(): ReactElement {
   const [foodStatus, setFoodStatus] = useState('Ready to search');
   const [foodError, setFoodError] = useState<string | null>(null);
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
+  const [logFoodDraft, setLogFoodDraft] = useState('yogurt');
+  const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('yogurt');
+  const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>(demoFoodResults);
+  const [selectedLogFoodId, setSelectedLogFoodId] = useState(demoFoodResults[0].id);
+  const [logGrams, setLogGrams] = useState('100');
+  const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
+  const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [foodLogStatus, setFoodLogStatus] = useState("Loading today's log");
+  const [foodLogError, setFoodLogError] = useState<string | null>(null);
+  const [foodLogLoading, setFoodLogLoading] = useState(true);
+  const [isSavingLogEntry, setIsSavingLogEntry] = useState(false);
+  const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
+  const [logSearchError, setLogSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +156,52 @@ export default function App(): ReactElement {
   useEffect(() => {
     let cancelled = false;
 
+    async function loadFoodLog() {
+      setFoodLogLoading(true);
+      setFoodLogTone('checking');
+      setFoodLogStatus("Loading today's log");
+      setFoodLogError(null);
+
+      try {
+        const log = await fetchTodaysFoodLog();
+
+        if (cancelled) {
+          return;
+        }
+
+        setFoodLog(log);
+        setFoodLogTone('live');
+        setFoodLogStatus(
+          log.entries.length === 0
+            ? 'No foods logged yet'
+            : `${log.entries.length} persisted entr${log.entries.length === 1 ? 'y' : 'ies'} loaded`
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setFoodLog(demoFoodLog);
+        setFoodLogTone('demo');
+        setFoodLogStatus('Showing demo daily log');
+        setFoodLogError(error instanceof Error ? error.message : 'Daily log unavailable.');
+      } finally {
+        if (!cancelled) {
+          setFoodLogLoading(false);
+        }
+      }
+    }
+
+    void loadFoodLog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function syncFoodSearch() {
       const query = foodSearchTerm.trim();
       if (!query) {
@@ -178,6 +247,55 @@ export default function App(): ReactElement {
     };
   }, [foodSearchTerm]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncLogFoodSearch() {
+      const query = logFoodSearchTerm.trim();
+      if (!query) {
+        setLogFoodResults(demoFoodResults);
+        setSelectedLogFoodId(demoFoodResults[0].id);
+        setLogSearchTone('checking');
+        setLogSearchStatus('Enter a food search to add something to today');
+        setLogSearchError(null);
+        return;
+      }
+
+      setLogSearchTone('checking');
+      setLogSearchStatus(`Searching for "${query}"`);
+      setLogSearchError(null);
+
+      try {
+        const results = await searchFoods(query);
+
+        if (cancelled) {
+          return;
+        }
+
+        setLogFoodResults(results);
+        setSelectedLogFoodId((current) => selectFoodById(results, current)?.id ?? results[0]?.id ?? '');
+        setLogSearchTone('live');
+        setLogSearchStatus(`${results.length} result${results.length === 1 ? '' : 's'} available for logging`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setLogFoodResults(demoFoodResults);
+        setSelectedLogFoodId(demoFoodResults[0].id);
+        setLogSearchTone('demo');
+        setLogSearchStatus('Showing demo foods for the log');
+        setLogSearchError(error instanceof Error ? error.message : 'Food search unavailable.');
+      }
+    }
+
+    void syncLogFoodSearch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logFoodSearchTerm]);
+
   const selectedSeries = useMemo(
     () => selectRangeSeries(snapshot.rangeSeries, activeRange),
     [activeRange, snapshot.rangeSeries]
@@ -186,8 +304,32 @@ export default function App(): ReactElement {
     () => selectFoodById(foodResults, selectedFoodId),
     [foodResults, selectedFoodId]
   );
+  const selectedLogFood = useMemo(
+    () => selectFoodById(logFoodResults, selectedLogFoodId),
+    [logFoodResults, selectedLogFoodId]
+  );
   const mealPreview = useMemo(() => scaleMealIngredients(demoMeal, recipeScale), [recipeScale]);
   const recipeTotals = useMemo(() => mealTotals(mealPreview), [mealPreview]);
+  const logEntryPreview = useMemo(() => {
+    if (!selectedLogFood || selectedLogFood.serving_size <= 0) {
+      return null;
+    }
+
+    const grams = Number(logGrams);
+    if (!Number.isFinite(grams) || grams <= 0) {
+      return null;
+    }
+
+    const multiplier = grams / selectedLogFood.serving_size;
+    return {
+      calories: round1(selectedLogFood.calories * multiplier),
+      macros: {
+        protein: round1(selectedLogFood.macros.protein * multiplier),
+        carbs: round1(selectedLogFood.macros.carbs * multiplier),
+        fat: round1(selectedLogFood.macros.fat * multiplier)
+      }
+    };
+  }, [logGrams, selectedLogFood]);
   const calorieProgress = progressPercent(
     selectedSeries.caloriesConsumed,
     selectedSeries.targetCalories
@@ -201,6 +343,38 @@ export default function App(): ReactElement {
     setIsSubmittingSearch(true);
     setFoodSearchTerm(foodDraft);
     setTimeout(() => setIsSubmittingSearch(false), 250);
+  }
+
+  async function submitFoodLogEntry() {
+    const grams = Number(logGrams);
+    if (!selectedLogFood || !Number.isFinite(grams) || grams <= 0) {
+      setFoodLogTone('demo');
+      setFoodLogStatus('Enter a valid gram amount before adding.');
+      setFoodLogError('Enter a valid gram amount before adding.');
+      return;
+    }
+
+    setIsSavingLogEntry(true);
+    setFoodLogTone('checking');
+    setFoodLogStatus(`Adding ${selectedLogFood.name} to today`);
+    setFoodLogError(null);
+
+    try {
+      const updatedLog = await addFoodLogEntry({
+        food_id: selectedLogFood.id,
+        grams: round1(grams)
+      });
+      setFoodLog(updatedLog);
+      setFoodLogTone('live');
+      setFoodLogStatus(`Added ${selectedLogFood.name} to today's log`);
+      setLogGrams('100');
+    } catch (error) {
+      setFoodLogTone('demo');
+      setFoodLogStatus(`Could not save ${selectedLogFood.name}`);
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
+    } finally {
+      setIsSavingLogEntry(false);
+    }
   }
 
   return (
@@ -331,6 +505,161 @@ export default function App(): ReactElement {
               </View>
             </View>
 
+          </>
+        )}
+
+        {section === 'log' && (
+          <>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <View>
+                  <Text style={styles.panelEyebrow}>Daily log</Text>
+                  <Text style={styles.panelTitle}>Persisted foods for today</Text>
+                </View>
+                <Text style={styles.panelDetail}>Search a food, add grams, and keep the log synced.</Text>
+              </View>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(foodLogTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{foodLogStatus}</Text>
+                {foodLogError ? <Text style={styles.inlineStatusDetail}>{foodLogError}</Text> : null}
+              </View>
+
+              <View style={styles.metricRow}>
+                <MetricTile label="Calories" value={`${foodLog.totals.calories.toLocaleString()} kcal`} />
+                <MetricTile
+                  label="Macros"
+                  value={`${round1(foodLog.totals.macros.protein)}P / ${round1(foodLog.totals.macros.carbs)}C / ${round1(foodLog.totals.macros.fat)}F`}
+                />
+                <MetricTile label="Entries" value={`${foodLog.entries.length}`} />
+              </View>
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Add food</Text>
+              <Text style={styles.panelTitle}>Search and log an item</Text>
+              <Text style={styles.panelDetail}>
+                Type a food, choose a result, enter grams, and save it to today’s log.
+              </Text>
+
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={logFoodDraft}
+                  onChangeText={setLogFoodDraft}
+                  placeholder="Search yogurt, oats, blueberries..."
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => {
+                    setLogFoodSearchTerm(logFoodDraft);
+                  }}
+                >
+                  <Text style={styles.primaryButtonLabel}>Search</Text>
+                </Pressable>
+              </View>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(logSearchTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{logSearchStatus}</Text>
+                {logSearchError ? <Text style={styles.inlineStatusDetail}>{logSearchError}</Text> : null}
+              </View>
+
+              <View style={styles.foodList}>
+                {logFoodResults.map((food) => {
+                  const active = food.id === selectedLogFood?.id;
+
+                  return (
+                    <Pressable
+                      key={food.id}
+                      style={[styles.foodRow, active && styles.foodRowActive]}
+                      onPress={() => setSelectedLogFoodId(food.id)}
+                    >
+                      <View style={styles.foodRowCopy}>
+                        <Text style={styles.listTitle}>{food.name}</Text>
+                        <Text style={styles.listCaption}>
+                          {(food.brand ?? 'Unbranded')} · {food.source}
+                        </Text>
+                      </View>
+                      <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {selectedLogFood ? (
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailTitle}>{selectedLogFood.name}</Text>
+                  <Text style={styles.detailSubtitle}>
+                    {selectedLogFood.brand ?? selectedLogFood.source} · {selectedLogFood.serving_size}
+                    {selectedLogFood.serving_unit} base serving
+                  </Text>
+
+                  <View style={styles.searchRow}>
+                    <TextInput
+                      value={logGrams}
+                      onChangeText={setLogGrams}
+                      placeholder="100"
+                      placeholderTextColor="#7c8aa5"
+                      style={styles.searchInput}
+                      keyboardType="numeric"
+                      autoCorrect={false}
+                    />
+                    <Pressable
+                      style={styles.primaryButton}
+                      onPress={submitFoodLogEntry}
+                      disabled={isSavingLogEntry}
+                    >
+                      <Text style={styles.primaryButtonLabel}>
+                        {isSavingLogEntry ? 'Saving...' : 'Add to today'}
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  {logEntryPreview ? (
+                    <View style={styles.metricRow}>
+                      <MetricTile label="Preview calories" value={`${logEntryPreview.calories} kcal`} compact />
+                      <MetricTile
+                        label="Preview macros"
+                        value={`${logEntryPreview.macros.protein}P / ${logEntryPreview.macros.carbs}C / ${logEntryPreview.macros.fat}F`}
+                        compact
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Today</Text>
+              <Text style={styles.panelTitle}>{foodLogLoading ? 'Loading entries' : formatLogDate(foodLog.date)}</Text>
+              {foodLogLoading ? (
+                <View style={styles.detailCard}>
+                  <ActivityIndicator size="small" color="#17324d" />
+                  <Text style={styles.detailSubtitle}>Fetching today’s persisted log...</Text>
+                </View>
+              ) : foodLog.entries.length === 0 ? (
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailTitle}>No entries yet</Text>
+                  <Text style={styles.detailSubtitle}>Add a searched food above to start today’s log.</Text>
+                </View>
+              ) : (
+                <View style={styles.foodList}>
+                  {foodLog.entries.map((entry) => (
+                    <View key={entry.id} style={styles.foodRow}>
+                      <View style={styles.foodRowCopy}>
+                        <Text style={styles.listTitle}>{entry.food_name}</Text>
+                        <Text style={styles.listCaption}>
+                          {entry.grams} g · {entry.logged_at} · {(entry.brand ?? 'Unbranded')} · {entry.source}
+                        </Text>
+                      </View>
+                      <Text style={styles.listMetric}>{entry.calories} kcal</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
           </>
         )}
 
@@ -529,6 +858,30 @@ function MacroProgress({
       </View>
     </View>
   );
+}
+
+function formatLogDate(value: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString([], {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function createEmptyFoodLog(date = new Date().toISOString().slice(0, 10)): FoodLogSummary {
+  return {
+    date,
+    entries: [],
+    totals: {
+      calories: 0,
+      macros: { protein: 0, carbs: 0, fat: 0 }
+    }
+  };
 }
 
 function LineTrendChart({

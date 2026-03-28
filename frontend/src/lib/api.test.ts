@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildApiUrl,
+  addFoodLogEntry,
   calculateMeal,
   importRecipe,
+  fetchTodaysFoodLog,
   normalizeApiBaseUrl,
   searchFoods
 } from './api';
-import { demoMeal, demoRecipeImports } from '../mock-data';
+import { demoFoodLog, demoMeal, demoRecipeImports } from '../mock-data';
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -101,6 +103,39 @@ describe('api helpers', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/nutrition/foods/search?q=yogurt'
+    );
+  });
+
+  it('fetches the current food log from the today endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoFoodLog), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchTodaysFoodLog();
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/nutrition/food-logs/today');
+  });
+
+  it('posts food log entries to the today entries endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoFoodLog), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await addFoodLogEntry({ food_id: 'food-greek-yogurt', grams: 120 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/food-logs/today/entries',
+      expect.objectContaining({
+        method: 'POST'
+      })
     );
   });
 });

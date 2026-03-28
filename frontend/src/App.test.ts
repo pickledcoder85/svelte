@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demoMeal, demoRangeSeries, demoRecipeImports } from './mock-data';
+import { demoFoodLog, demoMeal, demoRangeSeries, demoRecipeImports } from './mock-data';
 
 describe('frontend demo data', () => {
   it('keeps the seed meal aligned to two servings', () => {
@@ -11,5 +11,10 @@ describe('frontend demo data', () => {
     expect(demoRecipeImports.sources).toHaveLength(3);
     expect(demoRangeSeries).toHaveLength(4);
     expect(demoRangeSeries[0].range).toBe('1D');
+  });
+
+  it('seeds a persisted daily log for the new log screen', () => {
+    expect(demoFoodLog.entries).toHaveLength(3);
+    expect(demoFoodLog.totals.calories).toBeGreaterThan(0);
   });
 });

@@ -2,6 +2,7 @@ import type {
   DashboardRangeSeries,
   DashboardSnapshot,
   FoodItem,
+  FoodLogSummary,
   MealInput,
   RecipeImportInput,
   WeeklyMetrics
@@ -186,3 +187,46 @@ export const demoFoodResults: FoodItem[] = [
     source: 'USDA'
   }
 ];
+
+export const demoFoodLog: FoodLogSummary = {
+  date: '2026-03-28',
+  entries: [
+    {
+      id: 'food-log-entry-yogurt',
+      food_id: 'food-greek-yogurt',
+      food_name: 'Greek yogurt, plain nonfat',
+      brand: 'Generic',
+      source: 'USDA',
+      grams: 170,
+      calories: 100.3,
+      macros: { protein: 17.5, carbs: 6.1, fat: 0.7 },
+      logged_at: '08:10'
+    },
+    {
+      id: 'food-log-entry-oats',
+      food_id: 'food-rolled-oats',
+      food_name: 'Rolled oats',
+      brand: 'Generic',
+      source: 'USDA',
+      grams: 60,
+      calories: 233.4,
+      macros: { protein: 10.1, carbs: 39.8, fat: 4.1 },
+      logged_at: '12:30'
+    },
+    {
+      id: 'food-log-entry-blueberries',
+      food_id: 'food-blueberries',
+      food_name: 'Blueberries',
+      brand: null,
+      source: 'USDA',
+      grams: 140,
+      calories: 79.8,
+      macros: { protein: 1.0, carbs: 20.3, fat: 0.4 },
+      logged_at: '16:15'
+    }
+  ],
+  totals: {
+    calories: 413.5,
+    macros: { protein: 28.6, carbs: 66.2, fat: 5.2 }
+  }
+};

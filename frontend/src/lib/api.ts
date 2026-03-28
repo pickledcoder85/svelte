@@ -1,5 +1,7 @@
 import type {
   FoodItem,
+  FoodLogEntryInput,
+  FoodLogSummary,
   MealInput,
   MealTotals,
   RecipeImportInput,
@@ -64,6 +66,20 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
 
   return readJson<FoodItem[]>(
     await fetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`))
+  );
+}
+
+export async function fetchTodaysFoodLog(): Promise<FoodLogSummary> {
+  return readJson<FoodLogSummary>(await fetch(buildApiUrl('/nutrition/food-logs/today')));
+}
+
+export async function addFoodLogEntry(payload: FoodLogEntryInput): Promise<FoodLogSummary> {
+  return readJson<FoodLogSummary>(
+    await fetch(buildApiUrl('/nutrition/food-logs/today/entries'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
   );
 }
 
