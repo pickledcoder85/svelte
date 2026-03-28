@@ -8,12 +8,15 @@ import {
   createMealPrepTask,
   calculateMeal,
   createLocalSession,
+  createUserGoal,
   favoriteRecipe,
   fetchFavoriteFoods,
   fetchExerciseEntries,
   fetchFavoriteRecipes,
   fetchMealPlanDays,
   fetchMealPrepTasks,
+  fetchProfile,
+  fetchUserGoals,
   fetchRecipes,
   fetchRecipe,
   importRecipe,
@@ -21,6 +24,7 @@ import {
   normalizeApiBaseUrl,
   searchFoods,
   searchFoodsWithSession,
+  updateProfile,
   updateMealPrepTaskStatus,
   unfavoriteRecipe
 } from './api';
@@ -338,6 +342,127 @@ describe('api helpers', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'http://localhost:8000/api/tracker/exercise',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+  });
+
+  it('fetches and updates profile data with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            user_id: 'user-123',
+            email: 'profile@example.com',
+            display_name: 'Profile User',
+            timezone: 'UTC',
+            units: 'imperial'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            user_id: 'user-123',
+            email: 'profile@example.com',
+            display_name: 'Cut Phase',
+            timezone: 'America/New_York',
+            units: 'imperial'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'goal-1',
+              user_id: 'user-123',
+              effective_at: '2026-03-30',
+              calorie_goal: 2100,
+              protein_goal: 180,
+              carbs_goal: 190,
+              fat_goal: 60,
+              target_weight_lbs: 178.5
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'goal-2',
+            user_id: 'user-123',
+            effective_at: '2026-04-06',
+            calorie_goal: 2050,
+            protein_goal: 185,
+            carbs_goal: 180,
+            fat_goal: 62,
+            target_weight_lbs: 177
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchProfile('token-123');
+    await updateProfile(
+      {
+        display_name: 'Cut Phase',
+        timezone: 'America/New_York',
+        units: 'imperial'
+      },
+      'token-123'
+    );
+    await fetchUserGoals('token-123');
+    await createUserGoal(
+      {
+        effective_at: '2026-04-06',
+        calorie_goal: 2050,
+        protein_goal: 185,
+        carbs_goal: 180,
+        fat_goal: 62,
+        target_weight_lbs: 177
+      },
+      'token-123'
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/profile',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/profile',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://localhost:8000/api/profile/goals',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      'http://localhost:8000/api/profile/goals',
       expect.objectContaining({
         method: 'POST',
         headers: {
