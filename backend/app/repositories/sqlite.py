@@ -101,6 +101,19 @@ class SQLiteRepository:
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS exercise_entries (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    duration_minutes INTEGER NOT NULL,
+                    calories_burned INTEGER NOT NULL,
+                    logged_on TEXT NOT NULL,
+                    logged_at TEXT NOT NULL,
+                    intensity TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS food_log_entries (
                     id TEXT PRIMARY KEY,
                     food_log_id TEXT NOT NULL,
@@ -116,6 +129,42 @@ class SQLiteRepository:
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (food_log_id) REFERENCES food_logs (id) ON DELETE CASCADE,
                     FOREIGN KEY (meal_template_id) REFERENCES meal_templates (id) ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS meal_plan_days (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    plan_date TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    focus TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (user_id, plan_date),
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS meal_plan_slots (
+                    id TEXT PRIMARY KEY,
+                    meal_plan_day_id TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    meal_label TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    calories INTEGER NOT NULL,
+                    prep_status TEXT NOT NULL,
+                    FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days (id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS meal_prep_tasks (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    portions TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    scheduled_for TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                 );
 
                 CREATE TABLE IF NOT EXISTS ingestion_jobs (
@@ -232,9 +281,17 @@ class SQLiteRepository:
                 CREATE INDEX IF NOT EXISTS idx_user_goals_user_effective ON user_goals (user_id, effective_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_weight_entries_user_recorded ON weight_entries (user_id, recorded_at);
                 CREATE INDEX IF NOT EXISTS idx_food_logs_user_date ON food_logs (user_id, log_date);
+                CREATE INDEX IF NOT EXISTS idx_exercise_entries_user_logged_on
+                    ON exercise_entries (user_id, logged_on DESC, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_food_log_entries_log ON food_log_entries (food_log_id);
                 CREATE INDEX IF NOT EXISTS idx_food_log_entries_food_item ON food_log_entries (food_item_id);
                 CREATE INDEX IF NOT EXISTS idx_food_log_entries_meal_template ON food_log_entries (meal_template_id);
+                CREATE INDEX IF NOT EXISTS idx_meal_plan_days_user_date
+                    ON meal_plan_days (user_id, plan_date ASC);
+                CREATE INDEX IF NOT EXISTS idx_meal_plan_slots_day_position
+                    ON meal_plan_slots (meal_plan_day_id, position ASC);
+                CREATE INDEX IF NOT EXISTS idx_meal_prep_tasks_user_status
+                    ON meal_prep_tasks (user_id, status, updated_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_user_status ON ingestion_jobs (user_id, status);
                 CREATE INDEX IF NOT EXISTS idx_ingestion_outputs_job ON ingestion_outputs (ingestion_job_id);
                 CREATE INDEX IF NOT EXISTS idx_ingestion_outputs_reviewed_at ON ingestion_outputs (reviewed_at, created_at DESC);
@@ -720,6 +777,212 @@ class SQLiteRepository:
             (user_id,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def create_exercise_entry(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        duration_minutes: int,
+        calories_burned: int,
+        logged_on: date,
+        logged_at: str,
+        intensity: str,
+        exercise_entry_id: str | None = None,
+    ) -> str:
+        identifier = exercise_entry_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO exercise_entries (
+                    id, user_id, title, duration_minutes, calories_burned,
+                    logged_on, logged_at, intensity
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    user_id,
+                    title,
+                    duration_minutes,
+                    calories_burned,
+                    logged_on.isoformat(),
+                    logged_at,
+                    intensity,
+                ),
+            )
+        return identifier
+
+    def get_exercise_entry(self, exercise_entry_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM exercise_entries WHERE id = ?",
+            (exercise_entry_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_exercise_entries(self, user_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM exercise_entries
+            WHERE user_id = ?
+            ORDER BY logged_on DESC, created_at DESC, id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def save_meal_plan_day(
+        self,
+        *,
+        user_id: str,
+        plan_date: date,
+        label: str,
+        focus: str,
+        slots: list[dict[str, Any]],
+        meal_plan_day_id: str | None = None,
+    ) -> str:
+        identifier = meal_plan_day_id or f"meal-plan-{user_id}-{plan_date.isoformat()}"
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO meal_plan_days (id, user_id, plan_date, label, focus)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, plan_date) DO UPDATE SET
+                    label = excluded.label,
+                    focus = excluded.focus,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (identifier, user_id, plan_date.isoformat(), label, focus),
+            )
+            row = self._connection.execute(
+                "SELECT id FROM meal_plan_days WHERE user_id = ? AND plan_date = ?",
+                (user_id, plan_date.isoformat()),
+            ).fetchone()
+            actual_id = row["id"] if row is not None else identifier
+            self._connection.execute(
+                "DELETE FROM meal_plan_slots WHERE meal_plan_day_id = ?",
+                (actual_id,),
+            )
+            for index, slot in enumerate(slots):
+                self._connection.execute(
+                    """
+                    INSERT INTO meal_plan_slots (
+                        id, meal_plan_day_id, position, meal_label, title, calories, prep_status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()),
+                        actual_id,
+                        index,
+                        slot["meal_label"],
+                        slot["title"],
+                        slot["calories"],
+                        slot["prep_status"],
+                    ),
+                )
+        return actual_id
+
+    def _list_meal_plan_slots(self, meal_plan_day_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM meal_plan_slots
+            WHERE meal_plan_day_id = ?
+            ORDER BY position ASC, id ASC
+            """,
+            (meal_plan_day_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_meal_plan_day(self, meal_plan_day_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM meal_plan_days WHERE id = ?",
+            (meal_plan_day_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        day = dict(row)
+        day["slots"] = self._list_meal_plan_slots(meal_plan_day_id)
+        return day
+
+    def list_meal_plan_days(self, user_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM meal_plan_days
+            WHERE user_id = ?
+            ORDER BY plan_date ASC, created_at ASC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [
+            {
+                **dict(row),
+                "slots": self._list_meal_plan_slots(row["id"]),
+            }
+            for row in rows
+        ]
+
+    def create_meal_prep_task(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        category: str,
+        portions: str,
+        status: str,
+        scheduled_for: date | None = None,
+        meal_prep_task_id: str | None = None,
+    ) -> str:
+        identifier = meal_prep_task_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO meal_prep_tasks (
+                    id, user_id, title, category, portions, status, scheduled_for
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    user_id,
+                    title,
+                    category,
+                    portions,
+                    status,
+                    scheduled_for.isoformat() if scheduled_for is not None else None,
+                ),
+            )
+        return identifier
+
+    def get_meal_prep_task(self, task_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM meal_prep_tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_meal_prep_tasks(self, user_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM meal_prep_tasks
+            WHERE user_id = ?
+            ORDER BY updated_at DESC, created_at DESC, id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_meal_prep_task_status(self, task_id: str, status: str) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                UPDATE meal_prep_tasks
+                SET status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (status, task_id),
+            )
+        return self.get_meal_prep_task(task_id)
 
     def create_ingestion_job(
         self,
