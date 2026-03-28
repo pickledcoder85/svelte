@@ -1,0 +1,41 @@
+from datetime import date, datetime
+
+from pydantic import BaseModel, Field
+
+
+class UserProfile(BaseModel):
+    user_id: str
+    email: str
+    display_name: str | None = None
+    timezone: str = "UTC"
+    units: str = "imperial"
+    user_created_at: datetime | None = None
+    profile_created_at: datetime | None = None
+    profile_updated_at: datetime | None = None
+
+
+class UserProfileUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1)
+    timezone: str = Field(min_length=1)
+    units: str = Field(pattern="^(imperial|metric)$")
+
+
+class UserGoal(BaseModel):
+    id: str
+    user_id: str
+    effective_at: date
+    calorie_goal: int
+    protein_goal: float
+    carbs_goal: float
+    fat_goal: float
+    target_weight_lbs: float | None = None
+    created_at: datetime | None = None
+
+
+class UserGoalCreateRequest(BaseModel):
+    effective_at: date
+    calorie_goal: int = Field(gt=0)
+    protein_goal: float = Field(ge=0)
+    carbs_goal: float = Field(ge=0)
+    fat_goal: float = Field(ge=0)
+    target_weight_lbs: float | None = None
