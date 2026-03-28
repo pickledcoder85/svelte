@@ -53,6 +53,7 @@ import {
   sortFoodsForPicker
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
+import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import {
   demoDashboardSnapshot,
   demoExerciseEntries,
@@ -90,7 +91,8 @@ const sectionTabs: Array<{ id: AppSection; label: string }> = [
   { id: 'meals', label: 'Meals' },
   { id: 'meal-plan', label: 'Meal Plan' },
   { id: 'meal-prep', label: 'Meal Prep' },
-  { id: 'recipes', label: 'Recipes' }
+  { id: 'recipes', label: 'Recipes' },
+  { id: 'ingestion', label: 'Ingestion' }
 ];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const chartHeight = 160;
@@ -2203,6 +2205,8 @@ export default function App(): ReactElement {
             </View>
           </View>
         )}
+
+        {section === 'ingestion' && <IngestionReviewPanel accessToken={foodSessionToken} />}
 
         {Platform.OS === 'web' ? (
           <Text style={styles.footer}>

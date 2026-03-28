@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildApiUrl,
+  acceptIngestionOutput,
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
@@ -9,6 +10,8 @@ import {
   calculateMeal,
   createLocalSession,
   createUserGoal,
+  fetchIngestionOutput,
+  fetchIngestionQueue,
   favoriteRecipe,
   fetchFavoriteFoods,
   fetchExerciseEntries,
@@ -22,6 +25,7 @@ import {
   importRecipe,
   fetchTodaysFoodLog,
   normalizeApiBaseUrl,
+  rejectIngestionOutput,
   searchFoods,
   searchFoodsWithSession,
   updateProfile,
@@ -32,6 +36,7 @@ import {
   demoFoodLog,
   demoFoodResults,
   demoMeal,
+  demoIngestionOutputs,
   demoRecipe,
   demoRecipeCatalog,
   demoRecipeFavorites,
@@ -107,6 +112,72 @@ describe('api helpers', () => {
     await fetchFavoriteRecipes();
 
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/recipes/favorites');
+  });
+
+  it('loads and reviews ingestion outputs with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(demoIngestionOutputs.filter((output) => output.review_state === 'pending')), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(demoIngestionOutputs[0]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...demoIngestionOutputs[0], review_state: 'accepted' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...demoIngestionOutputs[1], review_state: 'rejected' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchIngestionQueue('token-123');
+    await fetchIngestionOutput(demoIngestionOutputs[0].id, 'token-123');
+    await acceptIngestionOutput(demoIngestionOutputs[0].id, 'token-123');
+    await rejectIngestionOutput(demoIngestionOutputs[1].id, 'token-123');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/ingestion/queue',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `http://localhost:8000/api/ingestion/outputs/${demoIngestionOutputs[0].id}`,
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      `http://localhost:8000/api/ingestion/outputs/${demoIngestionOutputs[0].id}/accept`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      `http://localhost:8000/api/ingestion/outputs/${demoIngestionOutputs[1].id}/reject`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
   });
 
   it('fetches the recipe catalog from the recipes endpoint', async () => {

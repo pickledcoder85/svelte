@@ -2,6 +2,7 @@ import type {
   DashboardRangeSeries,
   DashboardSnapshot,
   ExerciseEntry,
+  IngestionOutput,
   FoodItem,
   FoodLogSummary,
   MealInput,
@@ -150,6 +151,64 @@ export const demoRecipeImports: RecipeImportInput & { sources: Array<{ kind: 'te
     { kind: 'image', label: 'Recipe photos' }
   ]
 };
+
+export const demoIngestionOutputs: IngestionOutput[] = [
+  {
+    id: 'ingestion-output-oats',
+    ingestion_job_id: 'ingestion-job-oats',
+    extracted_text:
+      'Nutrition Facts\nServing size 1 cup (80g)\nCalories 300\nProtein 10g\nCarbs 54g\nFat 5g',
+    structured_json: {
+      product_name: 'Rolled oats',
+      serving_size: '1 cup (80g)',
+      calories: 300,
+      protein: 10,
+      carbs: 54,
+      fat: 5
+    },
+    confidence: 0.94,
+    reviewed_at: null,
+    accepted_at: null,
+    rejected_at: null,
+    created_at: '2026-03-27T13:45:00Z',
+    review_state: 'pending'
+  },
+  {
+    id: 'ingestion-output-yogurt',
+    ingestion_job_id: 'ingestion-job-yogurt',
+    extracted_text:
+      'Nutrition Facts\nServing size 3/4 cup (170g)\nCalories 100\nProtein 17g\nCarbs 6g\nFat 0g',
+    structured_json: {
+      product_name: 'Greek yogurt',
+      serving_size: '3/4 cup (170g)',
+      calories: 100,
+      protein: 17,
+      carbs: 6,
+      fat: 0
+    },
+    confidence: 0.9,
+    reviewed_at: null,
+    accepted_at: null,
+    rejected_at: null,
+    created_at: '2026-03-27T12:30:00Z',
+    review_state: 'pending'
+  },
+  {
+    id: 'ingestion-output-parfait',
+    ingestion_job_id: 'ingestion-job-parfait',
+    extracted_text: 'Recipe steps detected from image set.',
+    structured_json: {
+      title: 'Summer Berry Parfait',
+      steps: ['Layer yogurt and berries.', 'Top with granola.']
+    },
+    confidence: 0.86,
+    reviewed_at: '2026-03-26T11:10:00Z',
+    accepted_at: '2026-03-26T11:10:00Z',
+    rejected_at: null,
+    created_at: '2026-03-26T11:04:00Z',
+    review_state: 'accepted'
+  }
+];
 
 export const demoRangeSeries: DashboardRangeSeries[] = [
   {
