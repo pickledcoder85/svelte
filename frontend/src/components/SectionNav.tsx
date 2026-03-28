@@ -3,7 +3,8 @@ import type { AppSection } from '../types';
 const sections: Array<{ key: AppSection; title: string; detail: string }> = [
   { key: 'dashboard', title: 'Dashboard', detail: 'Weekly metrics' },
   { key: 'meals', title: 'Meals', detail: 'Compose + scale' },
-  { key: 'recipes', title: 'Recipes', detail: 'Favorites + imports' }
+  { key: 'recipes', title: 'Recipes', detail: 'Favorites + imports' },
+  { key: 'foods', title: 'Foods', detail: 'Search + detail' }
 ];
 
 interface SectionNavProps {

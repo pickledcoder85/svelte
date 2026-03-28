@@ -1,4 +1,5 @@
 import type {
+  FoodItem,
   RecipeImportInput,
   RecipeImportResult,
   MealInput,
@@ -53,6 +54,14 @@ export async function fetchBackendHealth(): Promise<ApiHealth> {
 
 export async function fetchWeeklyMetrics(): Promise<WeeklyMetrics> {
   return readJson<WeeklyMetrics>(await fetch(buildApiUrl('/nutrition/weekly-metrics')));
+}
+
+export async function searchFoods(query: string): Promise<FoodItem[]> {
+  const normalizedQuery = query.trim();
+
+  return readJson<FoodItem[]>(
+    await fetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`))
+  );
 }
 
 export async function calculateMeal(meal: MealInput): Promise<MealTotals> {

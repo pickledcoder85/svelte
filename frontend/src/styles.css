@@ -181,7 +181,7 @@ h1 {
 
 .section-nav {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.7rem;
   margin-top: 1rem;
 }
@@ -310,6 +310,102 @@ h1 {
   margin-bottom: 0.2rem;
 }
 
+.food-search-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.food-search-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.food-search-field span {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.food-search-field input {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.food-search-meta {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.food-search-error {
+  color: #9a3412;
+  font-size: 0.92rem;
+}
+
+.food-result-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.food-result {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  text-align: left;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+}
+
+.food-result.is-active {
+  border-color: #0f766e;
+  background: #ecfeff;
+}
+
+.food-result strong,
+.food-detail-summary strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.food-result span,
+.food-detail-summary span,
+.food-detail-grid span {
+  color: #475569;
+}
+
+.food-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.food-detail-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 1fr;
+}
+
+.food-detail-grid > div {
+  padding: 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.food-detail-grid strong {
+  display: block;
+  margin-top: 0.25rem;
+}
+
 .totals-card {
   padding: 1.25rem;
   border-radius: 1rem;
@@ -378,8 +474,14 @@ h1 {
   }
 
   .metric-grid,
-  .preview-grid {
+  .preview-grid,
+  .food-detail-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .food-search-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
   }
 }
 
@@ -401,7 +503,8 @@ h1 {
 
   .stack-list li,
   .step-list li,
-  .asset-strip li {
+  .asset-strip li,
+  .food-result {
     align-items: flex-start;
   }
 }

@@ -1,15 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildApiUrl,
   calculateMeal,
   importRecipe,
   normalizeApiBaseUrl,
+  searchFoods,
   saveMealTemplate
 } from './api';
-import { demoMeal, demoRecipeImports, demoFoodStrip } from '../mock-data';
+import { demoFoodStrip, demoMeal, demoRecipeImports } from '../mock-data';
 
 beforeEach(() => {
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('api helpers', () => {
@@ -86,6 +91,36 @@ describe('api helpers', () => {
       expect.objectContaining({
         method: 'POST'
       })
+    );
+  });
+
+  it('queries the food search endpoint with trimmed input', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: 'food-greek-yogurt',
+            name: 'Greek yogurt, plain nonfat',
+            brand: 'Generic',
+            calories: 59,
+            serving_size: 100,
+            serving_unit: 'g',
+            macros: { protein: 10.3, carbs: 3.6, fat: 0.4 },
+            source: 'USDA'
+          }
+        ]),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchFoods('  yogurt  ');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/foods/search?q=yogurt'
     );
   });
 });
