@@ -43,6 +43,8 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 "idx_food_log_entries_log",
                 "idx_ingestion_jobs_user_status",
                 "idx_ingestion_outputs_job",
+                "idx_ingestion_outputs_reviewed_at",
+                "idx_ingestion_outputs_pending_review",
             }.issubset(index_names)
         )
 
@@ -121,6 +123,52 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(job["status"], "completed")
         self.assertTrue(job["completed_at"].startswith("2026-03-27T15:30"))
         self.assertEqual(jobs[0]["id"], job_id)
+
+    def test_sqlite_repository_tracks_ingestion_outputs_and_review_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+            job_id = repo.create_ingestion_job(
+                user_id="user-1",
+                source_kind="camera",
+                source_name="label-photo.jpg",
+            )
+
+            pending_output = repo.save_ingestion_output(
+                ingestion_job_id=job_id,
+                extracted_text="Nutrition Facts",
+                structured_json={"product_name": "Rolled oats"},
+                confidence=0.91,
+                output_id="output-1",
+            )
+            second_output = repo.save_ingestion_output(
+                ingestion_job_id=job_id,
+                extracted_text="Serving size 1 cup",
+                structured_json={"serving_size": "1 cup"},
+                confidence=0.74,
+                output_id="output-2",
+            )
+
+            pending_outputs = repo.list_pending_ingestion_outputs(job_id)
+            reviewed_output = repo.accept_ingestion_output(
+                "output-1",
+                accepted_at=datetime(2026, 3, 27, 15, 45),
+            )
+            rejected_output = repo.reject_ingestion_output(
+                "output-2",
+                rejected_at=datetime(2026, 3, 27, 15, 50),
+            )
+            all_outputs = repo.list_ingestion_outputs(job_id)
+
+        self.assertEqual(pending_output["review_state"], "pending")
+        self.assertEqual(second_output["review_state"], "pending")
+        self.assertEqual(len(pending_outputs), 2)
+        self.assertEqual(reviewed_output["review_state"], "accepted")
+        self.assertEqual(reviewed_output["accepted_at"], "2026-03-27T15:45:00")
+        self.assertEqual(rejected_output["review_state"], "rejected")
+        self.assertEqual(rejected_output["rejected_at"], "2026-03-27T15:50:00")
+        self.assertEqual([output["id"] for output in all_outputs], ["output-2", "output-1"])
 
 
 if __name__ == "__main__":
