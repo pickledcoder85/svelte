@@ -6,6 +6,7 @@ from backend.app.dependencies import get_required_session, get_repository
 from backend.app.models.profile import (
     DashboardSummary,
     ProfileProgress,
+    UserOnboardingRequest,
     UserGoal,
     UserGoalCreateRequest,
     UserProfile,
@@ -15,6 +16,8 @@ from backend.app.models.profile import (
 )
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.profile import (
+    OnboardingAlreadyCompletedError,
+    complete_user_onboarding,
     create_weight_entry,
     create_user_goal,
     get_dashboard_summary,
@@ -27,6 +30,8 @@ from backend.app.services.profile import (
 
 
 router = APIRouter(prefix="/profile", tags=["profile"])
+
+
 @router.get("", response_model=UserProfile)
 async def read_profile(
     session = Depends(get_required_session),
@@ -106,3 +111,15 @@ async def read_dashboard(
         week_start=week_start,
         week_end=week_end,
     )
+
+
+@router.post("/onboarding", response_model=UserProfile)
+async def complete_onboarding(
+    payload: UserOnboardingRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> UserProfile:
+    try:
+        return complete_user_onboarding(repository, session, payload)
+    except OnboardingAlreadyCompletedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

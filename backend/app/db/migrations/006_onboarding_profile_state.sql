@@ -1,0 +1,10 @@
+ALTER TABLE user_profiles ADD COLUMN sex TEXT;
+ALTER TABLE user_profiles ADD COLUMN age_years INTEGER;
+ALTER TABLE user_profiles ADD COLUMN height_cm REAL;
+ALTER TABLE user_profiles ADD COLUMN current_weight_lbs REAL;
+ALTER TABLE user_profiles ADD COLUMN goal_type TEXT;
+ALTER TABLE user_profiles ADD COLUMN target_weight_lbs REAL;
+ALTER TABLE user_profiles ADD COLUMN activity_level TEXT;
+ALTER TABLE user_profiles ADD COLUMN bmr_calories INTEGER;
+ALTER TABLE user_profiles ADD COLUMN tdee_calories INTEGER;
+ALTER TABLE user_profiles ADD COLUMN initial_calorie_target INTEGER;
