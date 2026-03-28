@@ -23,6 +23,7 @@ Already in place:
 Still blocking Phase 1 completion:
 
 - auth/session flow is still lighter than the intended finished boundary
+- first-run onboarding is missing for collecting baseline user stats and goal intent
 - meal builder is not fully completed end to end with persistence-backed UX
 - recipes are not fully complete as a persisted CRUD plus scaling flow
 - favorite foods behavior is not fully finished as the primary search source
@@ -34,6 +35,7 @@ Still blocking Phase 1 completion:
 Phase 1 is complete only when all of these are true:
 
 - auth/session behavior is explicit, stable, and user-scoped across all user-owned resources
+- first sign-in for a new profile routes the user through an initial setup workflow for baseline body stats and goal selection
 - dashboard and tracker metrics come from persisted logs, goals, and weights without demo-only supplementation
 - favorite foods are seeded, cached, searchable, and persisted
 - meal builder supports ingredient editing, serving scaling, calculated totals, and saved meal persistence
@@ -54,19 +56,36 @@ Goal:
 Implementation tasks:
 
 - normalize session bootstrap and current-user loading in the backend
+- add first-run onboarding state so newly created profiles complete setup before entering the main app
+- collect baseline stats: sex, age, height, current weight, goal type, target weight, and activity level
+- calculate BMR with a single backend-owned formula and derive TDEE and starting calorie target from it
+- persist the onboarding-derived profile and initial goal version
 - remove any remaining route assumptions that bypass explicit user context
 - ensure frontend app bootstrap loads a consistent session/app-readiness state
 - add frontend error handling for missing or invalid session state
+- route newly created profiles with incomplete setup to the setup flow instead of the main app shell
 
 Definition of done:
 
 - all user-owned routes run through one current-user path
+- first sign-in for a newly created profile shows a setup workflow before the main experience
+- backend stores calculated BMR, estimated TDEE, and initial calorie target from user inputs
 - frontend app readiness no longer depends on implicit fallback state
 - API tests cover unauthorized and authorized behavior where relevant
 
 Suggested branch:
 
 - `feature/phase1-auth-session-hardening`
+
+Recommended implementation details:
+
+- use Mifflin-St Jeor for BMR calculation
+- use an explicit activity multiplier to derive TDEE
+- derive an initial calorie target from goal type:
+  - `weight-loss`: subtract a moderate deficit from TDEE
+  - `maintenance`: use estimated TDEE
+  - `weight-gain`: add a moderate surplus to TDEE
+- store the raw inputs and derived outputs so the user can review and update them later
 
 ### Slice 2: favorite foods completion
 
@@ -83,6 +102,11 @@ Implementation tasks:
 - trigger USDA search only when the local favorite set does not satisfy the search
 - add `add to favorites` from remote search results
 - persist favorite-food adds immediately and refresh the local cache
+- show food-card quick actions for:
+  - base unit or reference weight
+  - quantity input
+  - add-to-today action for the daily tracker
+  - favorite toggle
 
 Definition of done:
 
@@ -90,6 +114,7 @@ Definition of done:
 - default seeded foods appear for a new user without an external fetch
 - USDA is only hit on a miss or explicit broader search
 - add-to-favorites works end to end and is test-covered
+- food search cards can add an item directly to today's tracker with quantity and unit context
 
 Suggested branches:
 
@@ -110,12 +135,14 @@ Implementation tasks:
 - persist saved meal templates
 - support loading, editing, and reusing saved meals
 - ensure scale controls default to `1.0x` and expose common increments cleanly on mobile
+- replace recipe-scale dropdown controls with a slider using fixed stops at the allowed scale values
 
 Definition of done:
 
 - a user can create, save, reopen, and reuse a custom meal
 - totals are derived reproducibly from ingredients
 - backend and frontend tests cover calculations and save/update behavior
+- recipe and meal scaling controls use touch-friendly fixed-stop interaction rather than a generic dropdown
 
 Suggested branches:
 
