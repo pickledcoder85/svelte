@@ -36,7 +36,18 @@ export interface MealTotals {
   per_serving_macros: MacroTargets;
 }
 
-export type AppSection = 'dashboard' | 'meals' | 'recipes';
+export interface FoodItem {
+  id: string;
+  name: string;
+  brand: string | null;
+  calories: number;
+  serving_size: number;
+  serving_unit: string;
+  macros: MacroTargets;
+  source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM';
+}
+
+export type AppSection = 'dashboard' | 'meals' | 'recipes' | 'foods';
 
 export interface DashboardSnapshot {
   connectionLabel: string;

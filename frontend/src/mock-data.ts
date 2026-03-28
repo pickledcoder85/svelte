@@ -1,5 +1,6 @@
 import type {
   DashboardSnapshot,
+  FoodItem,
   MealInput,
   MealTemplateInput,
   RecipeImportInput,
@@ -88,3 +89,36 @@ export const demoFoodStrip = {
     servings: 2
   } satisfies MealTemplateInput
 };
+
+export const demoFoodResults: FoodItem[] = [
+  {
+    id: 'food-greek-yogurt',
+    name: 'Greek yogurt, plain nonfat',
+    brand: 'Generic',
+    calories: 59,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 10.3, carbs: 3.6, fat: 0.4 },
+    source: 'USDA'
+  },
+  {
+    id: 'food-rolled-oats',
+    name: 'Rolled oats',
+    brand: 'Generic',
+    calories: 389,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 16.9, carbs: 66.3, fat: 6.9 },
+    source: 'USDA'
+  },
+  {
+    id: 'food-blueberries',
+    name: 'Blueberries',
+    brand: null,
+    calories: 57,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 0.7, carbs: 14.5, fat: 0.3 },
+    source: 'USDA'
+  }
+];
