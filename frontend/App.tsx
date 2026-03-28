@@ -44,10 +44,13 @@ import {
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import {
   demoDashboardSnapshot,
+  demoExerciseEntries,
   demoFoodResults,
   demoFoodStrip,
   demoMeal,
   demoFoodLog,
+  demoMealPlanDays,
+  demoMealPrepTasks,
   demoRangeSeries,
   demoRecipeFavorites,
   demoRecipeCatalog,
@@ -57,13 +60,24 @@ import type {
   AppSection,
   DashboardRange,
   DashboardSnapshot,
+  ExerciseEntry,
   FoodItem,
   FoodLogSummary,
+  MealPlanDay,
+  MealPrepTask,
   RecipeDefinition
 } from './src/types';
 
 const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
-const sectionOrder: AppSection[] = ['dashboard', 'log', 'foods', 'meals', 'recipes'];
+const sectionTabs: Array<{ id: AppSection; label: string }> = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'tracker', label: 'Tracker' },
+  { id: 'foods', label: 'Food Search' },
+  { id: 'meals', label: 'Meals' },
+  { id: 'meal-plan', label: 'Meal Plan' },
+  { id: 'meal-prep', label: 'Meal Prep' },
+  { id: 'recipes', label: 'Recipes' }
+];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const chartHeight = 160;
 const heroBrandImage = require('./assets/favicon.png');
@@ -101,8 +115,8 @@ export default function App(): ReactElement {
   const [foodError, setFoodError] = useState<string | null>(null);
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
-  const [logFoodDraft, setLogFoodDraft] = useState('yogurt');
-  const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('yogurt');
+  const [logFoodDraft, setLogFoodDraft] = useState('chicken');
+  const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>(demoFoodResults);
   const [selectedLogFoodId, setSelectedLogFoodId] = useState(demoFoodResults[0].id);
   const [logGrams, setLogGrams] = useState('100');
@@ -115,6 +129,10 @@ export default function App(): ReactElement {
   const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
+  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(demoExerciseEntries);
+  const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
+  const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
+  const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
   const [recipeFavorites, setRecipeFavorites] = useState<RecipeDefinition[]>([]);
   const [recipeCatalog, setRecipeCatalog] = useState<RecipeDefinition[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
@@ -125,6 +143,9 @@ export default function App(): ReactElement {
   const [recipeLoading, setRecipeLoading] = useState(true);
   const [recipeDetailLoading, setRecipeDetailLoading] = useState(false);
   const [recipeSavingId, setRecipeSavingId] = useState<string | null>(null);
+  const [mealPlanFocus, setMealPlanFocus] = useState<'Day' | 'Week'>('Day');
+  const [mealPlanDays] = useState<MealPlanDay[]>(demoMealPlanDays);
+  const [mealPrepTasks, setMealPrepTasks] = useState<MealPrepTask[]>(demoMealPrepTasks);
 
   useEffect(() => {
     let cancelled = false;
@@ -645,6 +666,45 @@ export default function App(): ReactElement {
     }
   }
 
+  function addExerciseEntry() {
+    const duration_minutes = Number(exerciseMinutesDraft);
+    const calories_burned = Number(exerciseCaloriesDraft);
+    const title = exerciseTitleDraft.trim();
+
+    if (!title || !Number.isFinite(duration_minutes) || duration_minutes <= 0 || !Number.isFinite(calories_burned) || calories_burned <= 0) {
+      return;
+    }
+
+    setExerciseEntries((current) => [
+      {
+        id: `exercise-${Date.now()}`,
+        title,
+        duration_minutes,
+        calories_burned,
+        logged_at: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        intensity: calories_burned >= 300 ? 'High' : duration_minutes >= 30 ? 'Moderate' : 'Low'
+      },
+      ...current
+    ]);
+    setExerciseTitleDraft('Walk');
+    setExerciseMinutesDraft('20');
+    setExerciseCaloriesDraft('120');
+  }
+
+  function cycleMealPrepStatus(taskId: string) {
+    const nextStatusByCurrent: Record<MealPrepTask['status'], MealPrepTask['status']> = {
+      Queued: 'In progress',
+      'In progress': 'Done',
+      Done: 'Queued'
+    };
+
+    setMealPrepTasks((current) =>
+      current.map((task) =>
+        task.id === taskId ? { ...task, status: nextStatusByCurrent[task.status] } : task
+      )
+    );
+  }
+
   function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
     const remaining = recipes.filter((recipe) => recipe.id !== updatedRecipe.id);
     return updatedRecipe.favorite ? [updatedRecipe, ...remaining] : remaining;
@@ -739,16 +799,16 @@ export default function App(): ReactElement {
         </View>
 
         <View style={styles.sectionTabs}>
-          {sectionOrder.map((item) => {
-            const active = item === section;
+          {sectionTabs.map((item) => {
+            const active = item.id === section;
             return (
               <Pressable
-                key={item}
+                key={item.id}
                 style={[styles.sectionTab, active && styles.sectionTabActive]}
-                onPress={() => setSection(item)}
+                onPress={() => setSection(item.id)}
               >
                 <Text style={[styles.sectionTabLabel, active && styles.sectionTabLabelActive]}>
-                  {item.toUpperCase()}
+                  {item.label}
                 </Text>
               </Pressable>
             );
@@ -841,38 +901,42 @@ export default function App(): ReactElement {
           </>
         )}
 
-        {section === 'log' && (
+        {section === 'tracker' && (
           <>
             <View style={styles.panel}>
               <View style={styles.panelHeader}>
                 <View>
-                  <Text style={styles.panelEyebrow}>Daily log</Text>
-                  <Text style={styles.panelTitle}>Persisted foods for today</Text>
+                  <Text style={styles.panelEyebrow}>Tracker</Text>
+                  <Text style={styles.panelTitle}>Food eaten and exercise performed</Text>
                 </View>
-                <Text style={styles.panelDetail}>Search a food, add grams, and keep the log synced.</Text>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(foodLogTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{foodLogStatus}</Text>
-                {foodLogError ? <Text style={styles.inlineStatusDetail}>{foodLogError}</Text> : null}
+                <Text style={styles.panelDetail}>Use one home for intake and output while backend exercise persistence is still pending.</Text>
               </View>
 
               <View style={styles.metricRow}>
                 <MetricTile label="Calories" value={`${foodLog.totals.calories.toLocaleString()} kcal`} />
                 <MetricTile
+                  label="Exercise burn"
+                  value={`${exerciseEntries.reduce((sum, entry) => sum + entry.calories_burned, 0)} kcal`}
+                />
+                <MetricTile
                   label="Macros"
                   value={`${round1(foodLog.totals.macros.protein)}P / ${round1(foodLog.totals.macros.carbs)}C / ${round1(foodLog.totals.macros.fat)}F`}
                 />
-                <MetricTile label="Entries" value={`${foodLog.entries.length}`} />
+                <MetricTile label="Tracked items" value={`${foodLog.entries.length + exerciseEntries.length}`} />
               </View>
             </View>
 
             <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Add food</Text>
+              <Text style={styles.panelEyebrow}>Food eaten</Text>
               <Text style={styles.panelTitle}>Search and log an item</Text>
               <Text style={styles.panelDetail}>
                 Type a food, choose a result, enter grams, and save it to today’s log.
               </Text>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(foodLogTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{foodLogStatus}</Text>
+                {foodLogError ? <Text style={styles.inlineStatusDetail}>{foodLogError}</Text> : null}
+              </View>
 
               <View style={styles.searchRow}>
                 <TextInput
@@ -962,6 +1026,68 @@ export default function App(): ReactElement {
                   ) : null}
                 </View>
               ) : null}
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Exercise performed</Text>
+              <Text style={styles.panelTitle}>Log activity output</Text>
+              <Text style={styles.panelDetail}>
+                Capture exercise locally now so the tracker reflects both food and movement in one place.
+              </Text>
+
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={exerciseTitleDraft}
+                  onChangeText={setExerciseTitleDraft}
+                  placeholder="Walk, bike, lift..."
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  autoCorrect={false}
+                />
+                <Pressable style={styles.primaryButton} onPress={addExerciseEntry}>
+                  <Text style={styles.primaryButtonLabel}>Add exercise</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={exerciseMinutesDraft}
+                  onChangeText={setExerciseMinutesDraft}
+                  placeholder="Minutes"
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  keyboardType="numeric"
+                  autoCorrect={false}
+                />
+                <TextInput
+                  value={exerciseCaloriesDraft}
+                  onChangeText={setExerciseCaloriesDraft}
+                  placeholder="Calories burned"
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  keyboardType="numeric"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.metricRow}>
+                <MetricTile label="Minutes" value={`${exerciseMinutesDraft} min`} compact />
+                <MetricTile label="Burn" value={`${exerciseCaloriesDraft} kcal`} compact />
+              </View>
+
+              <View style={styles.foodList}>
+                {exerciseEntries.map((entry) => (
+                  <View key={entry.id} style={styles.foodRow}>
+                    <View style={styles.foodRowCopy}>
+                      <Text style={styles.listTitle}>{entry.title}</Text>
+                      <Text style={styles.listCaption}>
+                        {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
+                      </Text>
+                    </View>
+                    <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                  </View>
+                ))}
+              </View>
             </View>
 
             <View style={styles.panel}>
@@ -1086,6 +1212,81 @@ export default function App(): ReactElement {
                 )}
               </View>
             ) : null}
+          </View>
+        )}
+
+        {section === 'meal-plan' && (
+          <View style={styles.panel}>
+            <Text style={styles.panelEyebrow}>Meal plan</Text>
+            <Text style={styles.panelTitle}>Visual day or week plan</Text>
+            <Text style={styles.panelDetail}>
+              Keep the meal plan simple and visual so it can drive logging and prep later.
+            </Text>
+
+            <View style={styles.rangeTabs}>
+              {(['Day', 'Week'] as const).map((focus) => {
+                const active = focus === mealPlanFocus;
+                return (
+                  <Pressable
+                    key={focus}
+                    style={[styles.rangeTab, active && styles.rangeTabActive]}
+                    onPress={() => setMealPlanFocus(focus)}
+                  >
+                    <Text style={[styles.rangeTabLabel, active && styles.rangeTabLabelActive]}>{focus}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.foodList}>
+              {(mealPlanFocus === 'Day' ? mealPlanDays.slice(0, 1) : mealPlanDays).map((day) => (
+                <View key={day.id} style={styles.detailCard}>
+                  <View style={styles.recipeRowTitleWrap}>
+                    <Text style={styles.detailTitle}>{day.label}</Text>
+                    <Text style={styles.detailSubtitle}>{day.focus}</Text>
+                  </View>
+                  {day.slots.map((slot) => (
+                    <View key={slot.id} style={styles.listRow}>
+                      <View>
+                        <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                        <Text style={styles.listCaption}>{slot.title}</Text>
+                      </View>
+                      <View style={styles.foodRowActions}>
+                        <Text style={styles.listMetric}>{slot.calories} kcal</Text>
+                        <Text style={styles.listCaption}>{slot.prep_status}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {section === 'meal-prep' && (
+          <View style={styles.panel}>
+            <Text style={styles.panelEyebrow}>Meal prep</Text>
+            <Text style={styles.panelTitle}>Prep the week in batches</Text>
+            <Text style={styles.panelDetail}>
+              Track what to cook, portion, and assemble so the meal plan is realistic.
+            </Text>
+
+            <View style={styles.foodList}>
+              {mealPrepTasks.map((task) => (
+                <Pressable key={task.id} style={styles.foodRow} onPress={() => cycleMealPrepStatus(task.id)}>
+                  <View style={styles.foodRowCopy}>
+                    <Text style={styles.listTitle}>{task.title}</Text>
+                    <Text style={styles.listCaption}>
+                      {task.category} · {task.portions}
+                    </Text>
+                  </View>
+                  <View style={styles.foodRowActions}>
+                    <Text style={styles.listMetric}>{task.status}</Text>
+                    <Text style={styles.listCaption}>Tap to cycle</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           </View>
         )}
 

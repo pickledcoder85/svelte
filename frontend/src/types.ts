@@ -68,6 +68,15 @@ export interface FoodLogSummary {
   };
 }
 
+export interface ExerciseEntry {
+  id: string;
+  title: string;
+  duration_minutes: number;
+  calories_burned: number;
+  logged_at: string;
+  intensity: 'Low' | 'Moderate' | 'High';
+}
+
 export interface RecipeDefinition {
   id: string;
   title: string;
@@ -127,7 +136,37 @@ export interface FoodItem {
   favorite: boolean;
 }
 
-export type AppSection = 'dashboard' | 'log' | 'foods' | 'meals' | 'recipes';
+export interface MealPlanSlot {
+  id: string;
+  meal_label: string;
+  title: string;
+  calories: number;
+  prep_status: 'Prepped' | 'Needs prep' | 'Flexible';
+}
+
+export interface MealPlanDay {
+  id: string;
+  label: string;
+  focus: string;
+  slots: MealPlanSlot[];
+}
+
+export interface MealPrepTask {
+  id: string;
+  title: string;
+  category: 'Protein' | 'Carb' | 'Produce' | 'Assembly';
+  portions: string;
+  status: 'Queued' | 'In progress' | 'Done';
+}
+
+export type AppSection =
+  | 'dashboard'
+  | 'tracker'
+  | 'foods'
+  | 'meals'
+  | 'meal-plan'
+  | 'meal-prep'
+  | 'recipes';
 
 export interface DashboardSnapshot {
   connectionLabel: string;

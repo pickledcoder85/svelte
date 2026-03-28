@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  demoExerciseEntries,
   demoFoodLog,
   demoMeal,
+  demoMealPlanDays,
+  demoMealPrepTasks,
   demoRangeSeries,
   demoRecipe,
   demoRecipeFavorites,
@@ -24,6 +27,12 @@ describe('frontend demo data', () => {
   it('seeds a persisted daily log for the new log screen', () => {
     expect(demoFoodLog.entries).toHaveLength(3);
     expect(demoFoodLog.totals.calories).toBeGreaterThan(0);
+  });
+
+  it('seeds tracker and planning data for the new shell sections', () => {
+    expect(demoExerciseEntries).toHaveLength(2);
+    expect(demoMealPlanDays).toHaveLength(3);
+    expect(demoMealPrepTasks).toHaveLength(4);
   });
 
   it('seeds recipe favorites for the new recipes screen', () => {
