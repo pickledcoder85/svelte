@@ -22,3 +22,7 @@ class RecipeDefinition(RecipeImportRequest):
     ingredients: list[IngredientInput] = Field(default_factory=list)
     default_yield: float = Field(gt=0)
     favorite: bool = False
+
+
+class FavoriteRecipeRequest(BaseModel):
+    favorite: bool = True

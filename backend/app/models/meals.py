@@ -16,3 +16,7 @@ class MealTemplate(MealTemplateCreateRequest):
     macros: MacroTargets
     per_serving_calories: float
     per_serving_macros: MacroTargets
+
+
+class FavoriteMealTemplateRequest(BaseModel):
+    favorite: bool = True

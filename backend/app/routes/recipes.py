@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 
 from backend.app.dependencies import get_repository
-from backend.app.models.recipes import RecipeDefinition, RecipeImportRequest
+from backend.app.models.recipes import FavoriteRecipeRequest, RecipeDefinition, RecipeImportRequest
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.favorites import list_favorite_recipes, set_recipe_favorite
 from backend.app.services.recipes import get_recipe, import_recipe, list_recipes, scale_recipe
 
 
@@ -19,6 +20,13 @@ async def import_recipe_route(
 @router.get("", response_model=list[RecipeDefinition])
 async def list_recipes_route(repository: SQLiteRepository = Depends(get_repository)) -> list[RecipeDefinition]:
     return list_recipes(repository)
+
+
+@router.get("/favorites", response_model=list[RecipeDefinition])
+async def list_favorite_recipes_route(
+    repository: SQLiteRepository = Depends(get_repository),
+) -> list[RecipeDefinition]:
+    return list_favorite_recipes(repository)
 
 
 @router.get("/{recipe_id}", response_model=RecipeDefinition)
@@ -43,3 +51,15 @@ async def scale_recipe_route(
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found.")
     return scale_recipe(recipe, factor)
+
+
+@router.put("/{recipe_id}/favorite", response_model=RecipeDefinition)
+async def update_recipe_favorite(
+    recipe_id: str,
+    payload: FavoriteRecipeRequest,
+    repository: SQLiteRepository = Depends(get_repository),
+) -> RecipeDefinition:
+    recipe = set_recipe_favorite(repository, recipe_id, payload)
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found.")
+    return recipe
