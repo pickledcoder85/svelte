@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +15,28 @@ class UserProfile(BaseModel):
     user_created_at: datetime | None = None
     profile_created_at: datetime | None = None
     profile_updated_at: datetime | None = None
+    setup_completed_at: datetime | None = None
+    setup_complete: bool = False
+    sex: Literal["male", "female"] | None = None
+    age_years: int | None = None
+    height_cm: float | None = None
+    current_weight_lbs: float | None = None
+    goal_type: Literal["lose", "maintain", "gain"] | None = None
+    target_weight_lbs: float | None = None
+    activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
+    bmr_calories: int | None = None
+    tdee_calories: int | None = None
+    initial_calorie_target: int | None = None
+
+
+class UserOnboardingRequest(BaseModel):
+    sex: Literal["male", "female"]
+    age_years: int = Field(gt=0, lt=120)
+    height_cm: float = Field(gt=0)
+    current_weight_lbs: float = Field(gt=0)
+    goal_type: Literal["lose", "maintain", "gain"]
+    target_weight_lbs: float = Field(gt=0)
+    activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"]
 
 
 class UserProfileUpdateRequest(BaseModel):

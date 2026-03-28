@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from backend.app.dependencies import get_current_session, get_repository
-from backend.app.models.auth import AuthSession
+from backend.app.dependencies import get_current_session, get_required_session, get_repository
 from backend.app.models.recipes import RecipeDefinition, RecipeImportRequest
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.favorites import favorite_recipe, list_favorite_recipes, unfavorite_recipe
@@ -9,14 +8,6 @@ from backend.app.services.recipes import get_recipe, import_recipe, list_recipes
 
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
-
-
-def _require_session(session: AuthSession | None) -> AuthSession:
-    if session is None:
-        raise HTTPException(status_code=401, detail="No active session.")
-    return session
-
-
 @router.post("/import", response_model=RecipeDefinition)
 async def import_recipe_route(
     payload: RecipeImportRequest, repository: SQLiteRepository = Depends(get_repository)
@@ -35,10 +26,10 @@ async def list_recipes_route(
 
 @router.get("/favorites", response_model=list[RecipeDefinition])
 async def list_favorite_recipes_route(
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> list[RecipeDefinition]:
-    return list_favorite_recipes(repository, _require_session(session).user_id)
+    return list_favorite_recipes(repository, session.user_id)
 
 
 @router.get("/{recipe_id}", response_model=RecipeDefinition)
@@ -73,10 +64,10 @@ async def scale_recipe_route(
 @router.post("/{recipe_id}/favorite", response_model=RecipeDefinition)
 async def favorite_recipe_route(
     recipe_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> RecipeDefinition:
-    recipe = favorite_recipe(repository, _require_session(session).user_id, recipe_id)
+    recipe = favorite_recipe(repository, session.user_id, recipe_id)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found.")
     return recipe
@@ -85,10 +76,10 @@ async def favorite_recipe_route(
 @router.delete("/{recipe_id}/favorite", response_model=RecipeDefinition)
 async def unfavorite_recipe_route(
     recipe_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> RecipeDefinition:
-    recipe = unfavorite_recipe(repository, _require_session(session).user_id, recipe_id)
+    recipe = unfavorite_recipe(repository, session.user_id, recipe_id)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found.")
     return recipe

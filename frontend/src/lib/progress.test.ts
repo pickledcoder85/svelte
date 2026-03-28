@@ -25,4 +25,21 @@ describe('progress helpers', () => {
     expect(summary.weightEntryCount).toBe(4);
     expect(summary.latestRecordedAt).toBe('2026-03-28');
   });
+
+  it('handles empty tracker and weight data without seeding demo values', () => {
+    const trackerSummary = buildTrackerTotals({ date: '2026-03-28', entries: [], totals: { calories: 0, macros: { protein: 0, carbs: 0, fat: 0 } } }, []);
+    const weightSummary = buildWeightProgressSummary(null, []);
+
+    expect(trackerSummary.foodCalories).toBe(0);
+    expect(trackerSummary.exerciseCalories).toBe(0);
+    expect(trackerSummary.netCalories).toBe(0);
+    expect(trackerSummary.foodEntryCount).toBe(0);
+    expect(trackerSummary.exerciseEntryCount).toBe(0);
+    expect(weightSummary.currentWeightLbs).toBeNull();
+    expect(weightSummary.startWeightLbs).toBeNull();
+    expect(weightSummary.targetWeightLbs).toBeNull();
+    expect(weightSummary.weeklyWeightChange).toBe(0);
+    expect(weightSummary.weightEntryCount).toBe(0);
+    expect(weightSummary.latestRecordedAt).toBeNull();
+  });
 });

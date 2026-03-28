@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.dependencies import get_current_session, get_repository
-from backend.app.models.auth import AuthSession
+from backend.app.dependencies import get_required_session, get_repository
 from backend.app.models.ingestion import IngestionOutput, IngestionOutputEditRequest
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.ingestion import (
@@ -16,14 +15,6 @@ from backend.app.services.ingestion import (
 
 
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
-
-
-def _require_session(session: AuthSession | None) -> AuthSession:
-    if session is None:
-        raise HTTPException(status_code=401, detail="No active session.")
-    return session
-
-
 def _map_ingestion_error(exc: Exception) -> HTTPException:
     if isinstance(exc, IngestionNotFoundError):
         return HTTPException(status_code=404, detail=str(exc))
@@ -37,11 +28,11 @@ def _map_ingestion_error(exc: Exception) -> HTTPException:
 @router.get("/queue", response_model=list[IngestionOutput])
 async def read_review_queue(
     ingestion_job_id: str | None = Query(default=None),
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> list[IngestionOutput]:
     try:
-        return list_review_queue(repository, _require_session(session).user_id, ingestion_job_id)
+        return list_review_queue(repository, session.user_id, ingestion_job_id)
     except HTTPException:
         raise
     except Exception as exc:
@@ -51,11 +42,11 @@ async def read_review_queue(
 @router.get("/jobs/{ingestion_job_id}/outputs", response_model=list[IngestionOutput])
 async def read_job_outputs(
     ingestion_job_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> list[IngestionOutput]:
     try:
-        return list_job_outputs(repository, _require_session(session).user_id, ingestion_job_id)
+        return list_job_outputs(repository, session.user_id, ingestion_job_id)
     except HTTPException:
         raise
     except Exception as exc:
@@ -65,11 +56,11 @@ async def read_job_outputs(
 @router.get("/outputs/{output_id}", response_model=IngestionOutput)
 async def read_output(
     output_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> IngestionOutput:
     try:
-        return get_output(repository, _require_session(session).user_id, output_id)
+        return get_output(repository, session.user_id, output_id)
     except HTTPException:
         raise
     except Exception as exc:
@@ -79,11 +70,11 @@ async def read_output(
 @router.post("/outputs/{output_id}/review", response_model=IngestionOutput)
 async def mark_output_reviewed(
     output_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> IngestionOutput:
     try:
-        return transition_output(repository, _require_session(session).user_id, output_id, "reviewed")
+        return transition_output(repository, session.user_id, output_id, "reviewed")
     except HTTPException:
         raise
     except Exception as exc:
@@ -94,13 +85,13 @@ async def mark_output_reviewed(
 async def accept_output(
     output_id: str,
     payload: IngestionOutputEditRequest | None = None,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> IngestionOutput:
     try:
         return transition_output(
             repository,
-            _require_session(session).user_id,
+            session.user_id,
             output_id,
             "accepted",
             extracted_text=payload.extracted_text if payload is not None else None,
@@ -115,11 +106,11 @@ async def accept_output(
 @router.post("/outputs/{output_id}/reject", response_model=IngestionOutput)
 async def reject_output(
     output_id: str,
-    session: AuthSession | None = Depends(get_current_session),
+    session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> IngestionOutput:
     try:
-        return transition_output(repository, _require_session(session).user_id, output_id, "rejected")
+        return transition_output(repository, session.user_id, output_id, "rejected")
     except HTTPException:
         raise
     except Exception as exc:

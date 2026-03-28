@@ -18,6 +18,7 @@ async def test_profile_read_update_and_goal_lifecycle(client):
     profile = profile_response.json()
     assert profile["email"] == "profile@example.com"
     assert profile["display_name"] == "Profile User"
+    assert profile["setup_completed_at"] is None
 
     update_response = await client.put(
         "/api/profile",
@@ -32,6 +33,7 @@ async def test_profile_read_update_and_goal_lifecycle(client):
     updated = update_response.json()
     assert updated["display_name"] == "Cut Phase"
     assert updated["timezone"] == "America/New_York"
+    assert updated["setup_completed_at"] is not None
 
     goal_response = await client.post(
         "/api/profile/goals",

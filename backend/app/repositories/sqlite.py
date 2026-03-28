@@ -307,6 +307,17 @@ class SQLiteRepository:
                     display_name TEXT,
                     timezone TEXT NOT NULL DEFAULT 'UTC',
                     units TEXT NOT NULL DEFAULT 'imperial',
+                    setup_completed_at TEXT,
+                    sex TEXT,
+                    age_years INTEGER,
+                    height_cm REAL,
+                    current_weight_lbs REAL,
+                    goal_type TEXT,
+                    target_weight_lbs REAL,
+                    activity_level TEXT,
+                    bmr_calories INTEGER,
+                    tdee_calories INTEGER,
+                    initial_calorie_target INTEGER,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -863,7 +874,19 @@ class SQLiteRepository:
                 p.timezone,
                 p.units,
                 p.created_at AS profile_created_at,
-                p.updated_at AS profile_updated_at
+                p.updated_at AS profile_updated_at,
+                p.setup_completed_at,
+                CASE WHEN p.setup_completed_at IS NOT NULL THEN 1 ELSE 0 END AS setup_complete,
+                p.sex,
+                p.age_years,
+                p.height_cm,
+                p.current_weight_lbs,
+                p.goal_type,
+                p.target_weight_lbs,
+                p.activity_level,
+                p.bmr_calories,
+                p.tdee_calories,
+                p.initial_calorie_target
             FROM users u
             LEFT JOIN user_profiles p ON p.user_id = u.id
             WHERE u.id = ?
@@ -871,6 +894,78 @@ class SQLiteRepository:
             (user_id,),
         ).fetchone()
         return dict(row) if row is not None else None
+
+    def mark_user_setup_completed(self, user_id: str) -> dict[str, Any] | None:
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                UPDATE user_profiles
+                SET setup_completed_at = COALESCE(setup_completed_at, CURRENT_TIMESTAMP),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            )
+        return self.get_user_identity(user_id)
+
+    def save_user_onboarding(
+        self,
+        *,
+        user_id: str,
+        sex: str,
+        age_years: int,
+        height_cm: float,
+        current_weight_lbs: float,
+        goal_type: str,
+        target_weight_lbs: float,
+        activity_level: str,
+        bmr_calories: int,
+        tdee_calories: int,
+        initial_calorie_target: int,
+    ) -> dict[str, Any]:
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO user_profiles (
+                    user_id, sex, age_years, height_cm, current_weight_lbs,
+                    goal_type, target_weight_lbs, activity_level,
+                    bmr_calories, tdee_calories, initial_calorie_target,
+                    setup_completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    sex = excluded.sex,
+                    age_years = excluded.age_years,
+                    height_cm = excluded.height_cm,
+                    current_weight_lbs = excluded.current_weight_lbs,
+                    goal_type = excluded.goal_type,
+                    target_weight_lbs = excluded.target_weight_lbs,
+                    activity_level = excluded.activity_level,
+                    bmr_calories = excluded.bmr_calories,
+                    tdee_calories = excluded.tdee_calories,
+                    initial_calorie_target = excluded.initial_calorie_target,
+                    setup_completed_at = COALESCE(user_profiles.setup_completed_at, excluded.setup_completed_at),
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    user_id,
+                    sex,
+                    age_years,
+                    height_cm,
+                    current_weight_lbs,
+                    goal_type,
+                    target_weight_lbs,
+                    activity_level,
+                    bmr_calories,
+                    tdee_calories,
+                    initial_calorie_target,
+                ),
+            )
+        profile = self.get_user_identity(user_id)
+        if profile is None:
+            raise RuntimeError("Failed to persist onboarding profile.")
+        return profile
 
     def save_favorite(
         self,

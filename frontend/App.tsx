@@ -19,8 +19,6 @@ import {
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
-  createMealPlanDay,
-  createMealPrepTask,
   calculateMeal,
   createLocalSession,
   createUserGoal,
@@ -47,6 +45,13 @@ import {
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
+import {
+  formatMealPlanCardDate,
+  formatMealPlanCardWeekday,
+  resolveSelectedMealPlanDate,
+  selectMealPlanDay,
+  sortMealPlanDaysByDate
+} from './src/lib/meal-plan';
 import { buildTrackerTotals, buildWeightProgressSummary } from './src/lib/progress';
 import {
   filterFoodsFuzzy,
@@ -59,15 +64,9 @@ import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredi
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import {
   demoDashboardSnapshot,
-  demoExerciseEntries,
   demoFoodResults,
   demoMeal,
-  demoFoodLog,
-  demoMealPlanDays,
-  demoMealPrepTasks,
   demoRangeSeries,
-  demoProfileProgress,
-  demoWeightEntries,
   demoRecipeFavorites,
   demoRecipeCatalog,
   demoRecipeImports
@@ -123,7 +122,7 @@ export default function App(): ReactElement {
   });
   const [syncTone, setSyncTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [syncLabel, setSyncLabel] = useState('Checking backend');
-  const [syncDetail, setSyncDetail] = useState('Starting with seeded data.');
+  const [syncDetail, setSyncDetail] = useState('Waiting for live backend data.');
   const [recipeScale, setRecipeScale] = useState<(typeof recipeScales)[number]>(1);
   const [showScaleOptions, setShowScaleOptions] = useState(false);
   const [foodDraft, setFoodDraft] = useState('');
@@ -145,7 +144,7 @@ export default function App(): ReactElement {
   const [profileSaving, setProfileSaving] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
   const [profileProgress, setProfileProgress] = useState<ProfileProgress | null>(null);
-  const [weightEntries, setWeightEntries] = useState<WeightEntry[]>(demoWeightEntries);
+  const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
   const [profileDisplayNameDraft, setProfileDisplayNameDraft] = useState('');
   const [profileTimezoneDraft, setProfileTimezoneDraft] = useState('UTC');
   const [profileUnitsDraft, setProfileUnitsDraft] = useState<'imperial' | 'metric'>('imperial');
@@ -157,8 +156,8 @@ export default function App(): ReactElement {
   const [goalWeightDraft, setGoalWeightDraft] = useState('178.5');
   const [logFoodDraft, setLogFoodDraft] = useState('chicken');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
-  const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>(demoFoodResults);
-  const [selectedLogFoodId, setSelectedLogFoodId] = useState(demoFoodResults[0].id);
+  const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
+  const [selectedLogFoodId, setSelectedLogFoodId] = useState('');
   const [logGrams, setLogGrams] = useState('100');
   const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
   const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live' | 'demo'>('checking');
@@ -169,7 +168,7 @@ export default function App(): ReactElement {
   const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
-  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>(demoExerciseEntries);
+  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
   const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
   const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
@@ -191,12 +190,13 @@ export default function App(): ReactElement {
   const [recipeImportError, setRecipeImportError] = useState<string | null>(null);
   const [recipeImportLoading, setRecipeImportLoading] = useState(true);
   const [importedRecipeId, setImportedRecipeId] = useState<string | null>(null);
-  const [mealPlanFocus, setMealPlanFocus] = useState<'Day' | 'Week'>('Day');
-  const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>(demoMealPlanDays);
+  const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>([]);
+  const [selectedMealPlanDate, setSelectedMealPlanDate] = useState<string | null>(null);
+  const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, boolean>>>({});
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
-  const [mealPrepTasks, setMealPrepTasks] = useState<MealPrepTask[]>(demoMealPrepTasks);
+  const [mealPrepTasks, setMealPrepTasks] = useState<MealPrepTask[]>([]);
   const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
@@ -300,15 +300,9 @@ export default function App(): ReactElement {
           return;
         }
 
-        setSnapshot({
-          ...demoDashboardSnapshot,
-          rangeSeries: demoRangeSeries
-        });
-        setSyncTone('demo');
-        setSyncLabel('Demo data');
-        setSyncDetail(
-          error instanceof Error ? error.message : 'Backend unavailable. Showing demo frontend data.'
-        );
+        setSyncTone('checking');
+        setSyncLabel('Backend unavailable');
+        setSyncDetail(error instanceof Error ? error.message : 'Backend unavailable.');
         setRecipeImportTone('demo');
         setRecipeImportStatus('Showing seeded recipe import review');
         setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
@@ -331,25 +325,16 @@ export default function App(): ReactElement {
 
     async function loadProfileSettings() {
       if (!foodSessionToken) {
-        const fallbackProfile: UserProfile = {
-          user_id: 'local-demo',
-          email: 'nutrition@example.com',
-          display_name: 'Nutrition User',
-          timezone: 'UTC',
-          units: 'imperial'
-        };
-        setProfile(fallbackProfile);
+        setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(demoProfileProgress);
-        setWeightEntries(demoWeightEntries);
-        setProfileDisplayNameDraft(fallbackProfile.display_name ?? '');
-        setProfileTimezoneDraft(fallbackProfile.timezone);
-        setProfileUnitsDraft(fallbackProfile.units);
-        setProfileTone('demo');
-        setProfileStatus(
-          `${demoProfileProgress.weight_entries} weight entries and ${demoProfileProgress.adherence_score}% adherence loaded from local demo data`
-        );
-        setProfileError(null);
+        setProfileProgress(null);
+        setWeightEntries([]);
+        setProfileDisplayNameDraft('');
+        setProfileTimezoneDraft('UTC');
+        setProfileUnitsDraft('imperial');
+        setProfileTone('checking');
+        setProfileStatus('Profile data unavailable until a backend session is ready');
+        setProfileError('No active profile session.');
         return;
       }
 
@@ -387,24 +372,15 @@ export default function App(): ReactElement {
           return;
         }
 
-        const fallbackProfile: UserProfile = {
-          user_id: 'local-demo',
-          email: 'nutrition@example.com',
-          display_name: 'Nutrition User',
-          timezone: 'UTC',
-          units: 'imperial'
-        };
-        setProfile(fallbackProfile);
+        setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(demoProfileProgress);
-        setWeightEntries(demoWeightEntries);
-        setProfileDisplayNameDraft(fallbackProfile.display_name ?? '');
-        setProfileTimezoneDraft(fallbackProfile.timezone);
-        setProfileUnitsDraft(fallbackProfile.units);
-        setProfileTone('demo');
-        setProfileStatus(
-          `${demoProfileProgress.weight_entries} weight entries and ${demoProfileProgress.adherence_score}% adherence loaded from local demo data`
-        );
+        setProfileProgress(null);
+        setWeightEntries([]);
+        setProfileDisplayNameDraft('');
+        setProfileTimezoneDraft('UTC');
+        setProfileUnitsDraft('imperial');
+        setProfileTone('checking');
+        setProfileStatus('Profile data unavailable');
         setProfileError(error instanceof Error ? error.message : 'Profile settings unavailable.');
       }
     }
@@ -421,18 +397,20 @@ export default function App(): ReactElement {
 
     async function loadTrackerSections() {
       if (!foodSessionToken) {
-        setTrackerTone('demo');
-        setTrackerStatus('Showing seeded tracker items');
-        setTrackerError(null);
-        setMealPlanTone('demo');
-        setMealPlanStatus('Showing seeded meal plan');
-        setMealPlanError(null);
-        setMealPrepTone('demo');
-        setMealPrepStatus('Showing seeded meal prep');
-        setMealPrepError(null);
-        setExerciseEntries(demoExerciseEntries);
-        setMealPlanDays(demoMealPlanDays);
-        setMealPrepTasks(demoMealPrepTasks);
+        setTrackerTone('checking');
+        setTrackerStatus('Tracker data unavailable until a backend session is ready');
+        setTrackerError('No active tracker session.');
+        setExerciseEntries([]);
+        setMealPlanTone('checking');
+        setMealPlanStatus('Meal plan unavailable until a backend session is ready');
+        setMealPlanError('No active tracker session.');
+        setMealPlanDays([]);
+        setSelectedMealPlanDate(null);
+        setMealPlanEatenSlots({});
+        setMealPrepTone('checking');
+        setMealPrepStatus('Meal prep unavailable until a backend session is ready');
+        setMealPrepError('No active tracker session.');
+        setMealPrepTasks([]);
         return;
       }
 
@@ -457,93 +435,50 @@ export default function App(): ReactElement {
           return;
         }
 
-        setExerciseEntries(exercise.length > 0 ? exercise : demoExerciseEntries);
+        setExerciseEntries(exercise);
         setTrackerTone('live');
         setTrackerStatus(
           exercise.length > 0
             ? `${exercise.length} tracked exercise entr${exercise.length === 1 ? 'y' : 'ies'} loaded`
-            : 'No saved exercise yet; showing seeded activities'
+            : 'No saved exercise yet'
         );
 
-        if (mealPlan.length > 0) {
-          setMealPlanDays(mealPlan);
-          setMealPlanTone('live');
-          setMealPlanStatus(`${mealPlan.length} meal plan day${mealPlan.length === 1 ? '' : 's'} loaded`);
-        } else {
-          const seededPlan = await Promise.all(
-            demoMealPlanDays.map((day, index) =>
-              createMealPlanDay(
-                {
-                  plan_date:
-                    day.plan_date ??
-                    new Date(Date.now() + index * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-                  label: day.label,
-                  focus: day.focus,
-                  slots: day.slots.map((slot) => ({
-                    meal_label: slot.meal_label,
-                    title: slot.title,
-                    calories: slot.calories,
-                    prep_status: slot.prep_status
-                  }))
-                },
-                foodSessionToken
-              )
-            )
-          );
+        setMealPlanDays(mealPlan);
+        setSelectedMealPlanDate((current) =>
+          resolveSelectedMealPlanDate(mealPlan, current)
+        );
+        setMealPlanTone('live');
+        setMealPlanStatus(
+          mealPlan.length > 0
+            ? `${mealPlan.length} meal plan day${mealPlan.length === 1 ? '' : 's'} loaded`
+            : 'No meal plan saved yet'
+        );
 
-          if (cancelled) {
-            return;
-          }
-
-          setMealPlanDays(seededPlan);
-          setMealPlanTone('live');
-          setMealPlanStatus('Seeded meal plan days for this session');
-        }
-
-        if (mealPrep.length > 0) {
-          setMealPrepTasks(mealPrep);
-          setMealPrepTone('live');
-          setMealPrepStatus(`${mealPrep.length} meal prep task${mealPrep.length === 1 ? '' : 's'} loaded`);
-        } else {
-          const seededPrep = await Promise.all(
-            demoMealPrepTasks.map((task) =>
-              createMealPrepTask(
-                {
-                  title: task.title,
-                  category: task.category,
-                  portions: task.portions,
-                  status: task.status,
-                  scheduled_for: task.scheduled_for ?? null
-                },
-                foodSessionToken
-              )
-            )
-          );
-
-          if (cancelled) {
-            return;
-          }
-
-          setMealPrepTasks(seededPrep);
-          setMealPrepTone('live');
-          setMealPrepStatus('Seeded meal prep tasks for this session');
-        }
+        setMealPrepTasks(mealPrep);
+        setMealPrepTone('live');
+        setMealPrepStatus(
+          mealPrep.length > 0
+            ? `${mealPrep.length} meal prep task${mealPrep.length === 1 ? '' : 's'} loaded`
+            : 'No meal prep tasks saved yet'
+        );
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        setExerciseEntries(demoExerciseEntries);
-        setMealPlanDays(demoMealPlanDays);
-        setMealPrepTasks(demoMealPrepTasks);
-        setTrackerTone('demo');
-        setTrackerStatus('Showing seeded tracker items');
+        setExerciseEntries([]);
+        setMealPlanDays([]);
+        setSelectedMealPlanDate(null);
+        setMealPlanEatenSlots({});
+        setMealPrepTasks([]);
+        setTrackerTone('checking');
+        setTrackerStatus('Tracker data unavailable');
         setTrackerError(error instanceof Error ? error.message : 'Tracker data unavailable.');
-        setMealPlanTone('demo');
-        setMealPlanStatus('Showing seeded meal plan');
+        setMealPlanTone('checking');
+        setMealPlanStatus('Meal plan unavailable');
         setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
-        setMealPrepTone('demo');
-        setMealPrepStatus('Showing seeded meal prep');
+        setMealPrepTone('checking');
+        setMealPrepStatus('Meal prep unavailable');
         setMealPrepError(error instanceof Error ? error.message : 'Meal prep unavailable.');
       }
     }
@@ -583,9 +518,9 @@ export default function App(): ReactElement {
           return;
         }
 
-        setFoodLog(demoFoodLog);
-        setFoodLogTone('demo');
-        setFoodLogStatus('Showing demo daily log');
+        setFoodLog(createEmptyFoodLog());
+        setFoodLogTone('checking');
+        setFoodLogStatus("Today's log unavailable");
         setFoodLogError(error instanceof Error ? error.message : 'Daily log unavailable.');
       } finally {
         if (!cancelled) {
@@ -705,10 +640,10 @@ export default function App(): ReactElement {
           return;
         }
 
-        setLogFoodResults(demoFoodResults);
-        setSelectedLogFoodId(demoFoodResults[0].id);
-        setLogSearchTone('demo');
-        setLogSearchStatus('Showing demo foods for the log');
+        setLogFoodResults([]);
+        setSelectedLogFoodId('');
+        setLogSearchTone('checking');
+        setLogSearchStatus('Food search unavailable');
         setLogSearchError(error instanceof Error ? error.message : 'Food search unavailable.');
       }
     }
@@ -859,6 +794,11 @@ export default function App(): ReactElement {
     () => selectFoodById(logFoodResults, selectedLogFoodId),
     [logFoodResults, selectedLogFoodId]
   );
+  const sortedMealPlanDays = useMemo(() => sortMealPlanDaysByDate(mealPlanDays), [mealPlanDays]);
+  const selectedMealPlanDay = useMemo(
+    () => selectMealPlanDay(sortedMealPlanDays, selectedMealPlanDate),
+    [selectedMealPlanDate, sortedMealPlanDays]
+  );
   const trackerTotals = useMemo(() => buildTrackerTotals(foodLog, exerciseEntries), [exerciseEntries, foodLog]);
   const weightProgress = useMemo(
     () => buildWeightProgressSummary(profileProgress, weightEntries),
@@ -949,7 +889,7 @@ export default function App(): ReactElement {
   async function submitFoodLogEntry() {
     const grams = Number(logGrams);
     if (!selectedLogFood || !Number.isFinite(grams) || grams <= 0) {
-      setFoodLogTone('demo');
+      setFoodLogTone('checking');
       setFoodLogStatus('Enter a valid gram amount before adding.');
       setFoodLogError('Enter a valid gram amount before adding.');
       return;
@@ -970,7 +910,7 @@ export default function App(): ReactElement {
       setFoodLogStatus(`Added ${selectedLogFood.name} to today's log`);
       setLogGrams('100');
     } catch (error) {
-      setFoodLogTone('demo');
+      setFoodLogTone('checking');
       setFoodLogStatus(`Could not save ${selectedLogFood.name}`);
       setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
     } finally {
@@ -1012,14 +952,14 @@ export default function App(): ReactElement {
         const saved = await createExerciseEntry(payload, foodSessionToken);
         setExerciseEntries((current) => [saved, ...current.filter((entry) => entry.id !== optimisticEntry.id)]);
       }
-      setTrackerTone(foodSessionToken ? 'live' : 'demo');
+      setTrackerTone('live');
       setTrackerStatus(`${title} added to tracker`);
       setExerciseTitleDraft('Walk');
       setExerciseMinutesDraft('20');
       setExerciseCaloriesDraft('120');
     } catch (error) {
       setExerciseEntries((current) => current.filter((entry) => entry.id !== optimisticEntry.id));
-      setTrackerTone('demo');
+      setTrackerTone('checking');
       setTrackerStatus(`Could not save ${title}`);
       setTrackerError(error instanceof Error ? error.message : 'Unable to save tracker entry.');
     } finally {
@@ -1051,10 +991,10 @@ export default function App(): ReactElement {
         setProfileTimezoneDraft(updated.timezone);
         setProfileUnitsDraft(updated.units);
       }
-      setProfileTone(foodSessionToken ? 'live' : 'demo');
+      setProfileTone('live');
       setProfileStatus('Profile settings saved');
     } catch (error) {
-      setProfileTone('demo');
+      setProfileTone('checking');
       setProfileStatus('Could not save profile settings');
       setProfileError(error instanceof Error ? error.message : 'Unable to save profile settings.');
     } finally {
@@ -1106,7 +1046,7 @@ export default function App(): ReactElement {
       if (saved) {
         setProfileGoals((current) => [saved, ...current]);
       }
-      setProfileTone(foodSessionToken ? 'live' : 'demo');
+      setProfileTone('live');
       setProfileStatus('Goal saved');
       setGoalEffectiveAtDraft(new Date().toISOString().slice(0, 10));
       setGoalCaloriesDraft('2100');
@@ -1115,7 +1055,7 @@ export default function App(): ReactElement {
       setGoalFatDraft('60');
       setGoalWeightDraft('178.5');
     } catch (error) {
-      setProfileTone('demo');
+      setProfileTone('checking');
       setProfileStatus('Could not save goal');
       setProfileError(error instanceof Error ? error.message : 'Unable to save goal.');
     } finally {
@@ -1158,6 +1098,31 @@ export default function App(): ReactElement {
     } finally {
       setMealPrepSavingId(null);
     }
+  }
+
+  function toggleMealPlanMeal(day: MealPlanDay, slotId: string, slotLabel: string) {
+    const currentlyLogged = mealPlanEatenSlots[day.id]?.[slotId] ?? false;
+    setMealPlanEatenSlots((current) => {
+      const nextDayState = { ...(current[day.id] ?? {}) };
+      const nextLogged = !nextDayState[slotId];
+      if (nextLogged) {
+        nextDayState[slotId] = true;
+      } else {
+        delete nextDayState[slotId];
+      }
+
+      const nextState = { ...current };
+      if (Object.keys(nextDayState).length === 0) {
+        delete nextState[day.id];
+      } else {
+        nextState[day.id] = nextDayState;
+      }
+
+      return nextState;
+    });
+
+    setMealPlanTone('live');
+    setMealPlanStatus(`${slotLabel} ${currentlyLogged ? 'unchecked' : 'logged as eaten'} for ${day.label}`);
   }
 
   function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
@@ -1311,7 +1276,7 @@ export default function App(): ReactElement {
                     <Text style={styles.detailTitle}>Weekly metrics, goals, and tracker totals</Text>
                   </View>
                   <Text style={styles.detailSubtitle}>
-                    Live data already on main, summarized without the seeded dashboard copy.
+                    Live data already on main, summarized from the live backend data.
                   </Text>
                 </View>
 
@@ -1766,25 +1731,34 @@ export default function App(): ReactElement {
               </View>
 
               <View style={styles.foodList}>
-                {logFoodResults.map((food) => {
-                  const active = food.id === selectedLogFood?.id;
+                {logFoodResults.length > 0 ? (
+                  logFoodResults.map((food) => {
+                    const active = food.id === selectedLogFood?.id;
 
-                  return (
-                    <Pressable
-                      key={food.id}
-                      style={[styles.foodRow, active && styles.foodRowActive]}
-                      onPress={() => setSelectedLogFoodId(food.id)}
-                    >
-                      <View style={styles.foodRowCopy}>
-                        <Text style={styles.listTitle}>{food.name}</Text>
-                        <Text style={styles.listCaption}>
-                          {(food.brand ?? 'Unbranded')} · {food.source}
-                        </Text>
-                      </View>
-                      <Text style={styles.listMetric}>{food.calories} kcal</Text>
-                    </Pressable>
-                  );
-                })}
+                    return (
+                      <Pressable
+                        key={food.id}
+                        style={[styles.foodRow, active && styles.foodRowActive]}
+                        onPress={() => setSelectedLogFoodId(food.id)}
+                      >
+                        <View style={styles.foodRowCopy}>
+                          <Text style={styles.listTitle}>{food.name}</Text>
+                          <Text style={styles.listCaption}>
+                            {(food.brand ?? 'Unbranded')} · {food.source}
+                          </Text>
+                        </View>
+                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailTitle}>No search results yet</Text>
+                    <Text style={styles.detailSubtitle}>
+                      Search for a food to load live USDA-backed matches and log one to today.
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {selectedLogFood ? (
@@ -1878,17 +1852,26 @@ export default function App(): ReactElement {
               </View>
 
               <View style={styles.foodList}>
-                {exerciseEntries.map((entry) => (
-                  <View key={entry.id} style={styles.foodRow}>
-                    <View style={styles.foodRowCopy}>
-                      <Text style={styles.listTitle}>{entry.title}</Text>
-                      <Text style={styles.listCaption}>
-                        {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
-                      </Text>
+                {exerciseEntries.length > 0 ? (
+                  exerciseEntries.map((entry) => (
+                    <View key={entry.id} style={styles.foodRow}>
+                      <View style={styles.foodRowCopy}>
+                        <Text style={styles.listTitle}>{entry.title}</Text>
+                        <Text style={styles.listCaption}>
+                          {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
+                        </Text>
+                      </View>
+                      <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
                     </View>
-                    <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                  ))
+                ) : (
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailTitle}>No exercise entries yet</Text>
+                    <Text style={styles.detailSubtitle}>
+                      Add a workout above to start tracking calories burned and movement.
+                    </Text>
                   </View>
-                ))}
+                )}
               </View>
             </View>
 
@@ -2020,9 +2003,9 @@ export default function App(): ReactElement {
         {section === 'meal-plan' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
-            <Text style={styles.panelTitle}>Visual day or week plan</Text>
+            <Text style={styles.panelTitle}>Weekly date cards</Text>
             <Text style={styles.panelDetail}>
-              Keep the meal plan simple and visual so it can drive logging and prep later.
+              Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
             </Text>
 
             <View style={[styles.inlineStatus, { borderColor: toneColor(mealPlanTone) }]}>
@@ -2030,43 +2013,88 @@ export default function App(): ReactElement {
               {mealPlanError ? <Text style={styles.inlineStatusDetail}>{mealPlanError}</Text> : null}
             </View>
 
-            <View style={styles.rangeTabs}>
-              {(['Day', 'Week'] as const).map((focus) => {
-                const active = focus === mealPlanFocus;
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mealPlanDateStrip}
+            >
+              {sortedMealPlanDays.map((day) => {
+                const active = day.plan_date === selectedMealPlanDate;
+                const isToday = day.plan_date === new Date().toISOString().slice(0, 10);
+
                 return (
                   <Pressable
-                    key={focus}
-                    style={[styles.rangeTab, active && styles.rangeTabActive]}
-                    onPress={() => setMealPlanFocus(focus)}
+                    key={day.id}
+                    style={[styles.mealPlanDateCard, active && styles.mealPlanDateCardActive]}
+                    onPress={() => {
+                      setSelectedMealPlanDate(day.plan_date ?? null);
+                      setMealPlanTone('live');
+                      setMealPlanStatus(`Showing ${formatMealPlanCardDate(day.plan_date)} plan`);
+                    }}
                   >
-                    <Text style={[styles.rangeTabLabel, active && styles.rangeTabLabelActive]}>{focus}</Text>
+                    <Text style={[styles.mealPlanDateWeekday, active && styles.mealPlanDateWeekdayActive]}>
+                      {formatMealPlanCardWeekday(day.plan_date)}
+                    </Text>
+                    <Text style={[styles.mealPlanDateLabel, active && styles.mealPlanDateLabelActive]}>
+                      {formatMealPlanCardDate(day.plan_date)}
+                    </Text>
+                    <Text style={[styles.mealPlanDateMeta, active && styles.mealPlanDateMetaActive]}>
+                      {day.label}
+                      {isToday ? ' · Today' : ''}
+                    </Text>
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
 
-            <View style={styles.foodList}>
-              {(mealPlanFocus === 'Day' ? mealPlanDays.slice(0, 1) : mealPlanDays).map((day) => (
-                <View key={day.id} style={styles.detailCard}>
-                  <View style={styles.recipeRowTitleWrap}>
-                    <Text style={styles.detailTitle}>{day.label}</Text>
-                    <Text style={styles.detailSubtitle}>{day.focus}</Text>
+            {selectedMealPlanDay ? (
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.detailTitle}>{selectedMealPlanDay.label}</Text>
+                    <Text style={styles.detailSubtitle}>
+                      {selectedMealPlanDay.focus} · {formatMealPlanCardDate(selectedMealPlanDay.plan_date)}
+                    </Text>
                   </View>
-                  {day.slots.map((slot) => (
-                    <View key={slot.id} style={styles.listRow}>
-                      <View>
-                        <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                        <Text style={styles.listCaption}>{slot.title}</Text>
-                      </View>
-                      <View style={styles.foodRowActions}>
-                        <Text style={styles.listMetric}>{slot.calories} kcal</Text>
-                        <Text style={styles.listCaption}>{slot.prep_status}</Text>
-                      </View>
-                    </View>
-                  ))}
+                  <Text style={styles.detailSubtitle}>
+                    {selectedMealPlanDay.slots.length} planned meal{selectedMealPlanDay.slots.length === 1 ? '' : 's'}
+                  </Text>
                 </View>
-              ))}
-            </View>
+
+                <View style={styles.foodList}>
+                  {selectedMealPlanDay.slots.map((slot) => {
+                    const logged = mealPlanEatenSlots[selectedMealPlanDay.id]?.[slot.id] ?? false;
+
+                    return (
+                      <Pressable
+                        key={slot.id}
+                        style={[styles.listRow, logged && styles.mealPlanLoggedRow]}
+                        onPress={() => toggleMealPlanMeal(selectedMealPlanDay, slot.id, slot.meal_label)}
+                      >
+                        <View style={styles.foodRowCopy}>
+                          <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                          <Text style={styles.listCaption}>{slot.title}</Text>
+                        </View>
+                        <View style={styles.foodRowActions}>
+                          <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
+                            <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
+                              {logged ? '☑' : '☐'}
+                            </Text>
+                          </View>
+                          <Text style={styles.listMetric}>{slot.calories} kcal</Text>
+                          <Text style={styles.listCaption}>{slot.prep_status}</Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>No meal plan saved yet</Text>
+                <Text style={styles.detailSubtitle}>Save a weekly plan to populate the date cards here.</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -2704,6 +2732,49 @@ const styles = StyleSheet.create({
   rangeTabLabelActive: {
     color: '#ffffff'
   },
+  mealPlanDateStrip: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  mealPlanDateCard: {
+    minWidth: 96,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#f3f6fb',
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    gap: 4
+  },
+  mealPlanDateCardActive: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  mealPlanDateWeekday: {
+    color: '#6b7b90',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8
+  },
+  mealPlanDateWeekdayActive: {
+    color: '#dbe7f2'
+  },
+  mealPlanDateLabel: {
+    color: '#17324d',
+    fontSize: 18,
+    fontWeight: '800'
+  },
+  mealPlanDateLabelActive: {
+    color: '#ffffff'
+  },
+  mealPlanDateMeta: {
+    color: '#66778c',
+    fontSize: 12
+  },
+  mealPlanDateMetaActive: {
+    color: '#dbe7f2'
+  },
   metricRow: {
     flexDirection: 'row',
     gap: 10,
@@ -2976,6 +3047,10 @@ const styles = StyleSheet.create({
     borderColor: '#17324d',
     backgroundColor: '#eef3f8'
   },
+  mealPlanLoggedRow: {
+    borderColor: '#0f766e',
+    backgroundColor: '#effaf7'
+  },
   foodRowCopy: {
     flex: 1,
     gap: 2
@@ -2983,6 +3058,28 @@ const styles = StyleSheet.create({
   foodRowActions: {
     alignItems: 'flex-end',
     gap: 8
+  },
+  mealPlanCheck: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff'
+  },
+  mealPlanCheckActive: {
+    borderColor: '#0f766e',
+    backgroundColor: '#0f766e'
+  },
+  mealPlanCheckLabel: {
+    color: '#6b7b90',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  mealPlanCheckLabelActive: {
+    color: '#ffffff'
   },
   inlinePillButton: {
     borderRadius: 999,
