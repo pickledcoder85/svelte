@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from backend.app.models.nutrition import WeeklyMetrics
+
 
 class UserProfile(BaseModel):
     user_id: str
@@ -65,3 +67,18 @@ class ProfileProgress(BaseModel):
     calorie_goal: int
     calories_consumed: int
     adherence_score: int
+
+
+class WeightHistorySummary(BaseModel):
+    entry_count: int
+    current_weight_lbs: float | None = None
+    start_weight_lbs: float | None = None
+    change_from_start_lbs: float | None = None
+    latest_recorded_at: date | None = None
+    recent_entries: list[WeightEntry] = Field(default_factory=list)
+
+
+class DashboardSummary(BaseModel):
+    progress: ProfileProgress
+    weekly_metrics: WeeklyMetrics
+    weight_history: WeightHistorySummary

@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from backend.app.models.auth import AuthSession
 from backend.app.models.profile import (
+    DashboardSummary,
     ProfileProgress,
     UserGoal,
     UserGoalCreateRequest,
@@ -9,7 +10,9 @@ from backend.app.models.profile import (
     UserProfileUpdateRequest,
     WeightEntry,
     WeightEntryCreateRequest,
+    WeightHistorySummary,
 )
+from backend.app.models.nutrition import WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
@@ -100,22 +103,7 @@ def get_profile_progress(
     profile = repository.get_user_identity(user_id) or {"user_id": user_id}
     goals = repository.list_user_goals(user_id)
     weight_entries = _list_weight_entries(repository, user_id)
-    if week_start is None or week_end is None:
-        resolved_end = _latest_activity_date(repository, user_id)
-        if resolved_end is None:
-            weekly_metrics = repository.get_weekly_metrics_for_user(user_id=user_id)
-        else:
-            weekly_metrics = repository.get_weekly_metrics_for_user(
-                user_id=user_id,
-                week_start=resolved_end - timedelta(days=6),
-                week_end=resolved_end,
-            )
-    else:
-        weekly_metrics = repository.get_weekly_metrics_for_user(
-            user_id=user_id,
-            week_start=week_start,
-            week_end=week_end,
-        )
+    weekly_metrics = _resolve_weekly_metrics(repository, user_id, week_start, week_end)
 
     current_weight = float(weight_entries[-1]["weight_lbs"]) if weight_entries else None
     start_weight = float(weight_entries[0]["weight_lbs"]) if weight_entries else None
@@ -132,6 +120,38 @@ def get_profile_progress(
         calorie_goal=weekly_metrics.calorie_goal,
         calories_consumed=weekly_metrics.calories_consumed,
         adherence_score=weekly_metrics.adherence_score,
+    )
+
+
+def get_dashboard_summary(
+    repository: SQLiteRepository,
+    user_id: str,
+    week_start: date | None = None,
+    week_end: date | None = None,
+) -> DashboardSummary:
+    progress = get_profile_progress(repository, user_id, week_start=week_start, week_end=week_end)
+    weight_entries = _list_weight_entries(repository, user_id)
+    weekly_metrics = _resolve_weekly_metrics(repository, user_id, week_start, week_end)
+    latest_recorded_at = date.fromisoformat(weight_entries[-1]["recorded_at"]) if weight_entries else None
+    current_weight = float(weight_entries[-1]["weight_lbs"]) if weight_entries else None
+    start_weight = float(weight_entries[0]["weight_lbs"]) if weight_entries else None
+    recent_entries = [WeightEntry.model_validate(entry) for entry in weight_entries[-7:]]
+
+    return DashboardSummary(
+        progress=progress,
+        weekly_metrics=weekly_metrics,
+        weight_history=WeightHistorySummary(
+            entry_count=len(weight_entries),
+            current_weight_lbs=current_weight,
+            start_weight_lbs=start_weight,
+            change_from_start_lbs=(
+                round(current_weight - start_weight, 1)
+                if current_weight is not None and start_weight is not None
+                else None
+            ),
+            latest_recorded_at=latest_recorded_at,
+            recent_entries=recent_entries,
+        ),
     )
 
 
@@ -175,3 +195,26 @@ def _latest_activity_date(repository: SQLiteRepository, user_id: str) -> date | 
     if row is None or row["activity_date"] is None:
         return None
     return date.fromisoformat(row["activity_date"])
+
+
+def _resolve_weekly_metrics(
+    repository: SQLiteRepository,
+    user_id: str,
+    week_start: date | None,
+    week_end: date | None,
+) -> WeeklyMetrics:
+    if week_start is not None and week_end is not None:
+        return repository.get_weekly_metrics_for_user(
+            user_id=user_id,
+            week_start=week_start,
+            week_end=week_end,
+        )
+
+    resolved_end = _latest_activity_date(repository, user_id)
+    if resolved_end is None:
+        return repository.get_weekly_metrics_for_user(user_id=user_id)
+    return repository.get_weekly_metrics_for_user(
+        user_id=user_id,
+        week_start=resolved_end - timedelta(days=6),
+        week_end=resolved_end,
+    )
