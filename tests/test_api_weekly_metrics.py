@@ -1,5 +1,9 @@
-def test_weekly_metrics_endpoint(client):
-    response = client.get("/api/nutrition/weekly-metrics")
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_weekly_metrics_endpoint(client):
+    response = await client.get("/api/nutrition/weekly-metrics")
 
     assert response.status_code == 200
     body = response.json()

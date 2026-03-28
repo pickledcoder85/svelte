@@ -1,5 +1,9 @@
-def test_create_and_fetch_session(client):
-    response = client.post(
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_create_and_fetch_session(client):
+    response = await client.post(
         "/api/auth/session",
         json={"email": "tester@example.com", "display_name": "Tester"},
     )
@@ -10,7 +14,7 @@ def test_create_and_fetch_session(client):
     assert session["display_name"] == "Tester"
     assert session["provider"] == "local"
 
-    lookup = client.get(
+    lookup = await client.get(
         "/api/auth/session",
         headers={"Authorization": f"Bearer {session['access_token']}"},
     )
