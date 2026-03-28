@@ -176,6 +176,11 @@ export default function App(): ReactElement {
   const [recipeLoading, setRecipeLoading] = useState(true);
   const [recipeDetailLoading, setRecipeDetailLoading] = useState(false);
   const [recipeSavingId, setRecipeSavingId] = useState<string | null>(null);
+  const [recipeImportTone, setRecipeImportTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [recipeImportStatus, setRecipeImportStatus] = useState('Loading recipe import review');
+  const [recipeImportError, setRecipeImportError] = useState<string | null>(null);
+  const [recipeImportLoading, setRecipeImportLoading] = useState(true);
+  const [importedRecipeId, setImportedRecipeId] = useState<string | null>(null);
   const [mealPlanFocus, setMealPlanFocus] = useState<'Day' | 'Week'>('Day');
   const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>(demoMealPlanDays);
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live' | 'demo'>('checking');
@@ -235,6 +240,11 @@ export default function App(): ReactElement {
     }
 
     async function syncBackend() {
+      setRecipeImportLoading(true);
+      setRecipeImportTone('checking');
+      setRecipeImportStatus('Reviewing imported recipe');
+      setRecipeImportError(null);
+
       try {
         const [health, metrics, totals, recipeImport] = await Promise.all([
           fetchBackendHealth(),
@@ -269,6 +279,9 @@ export default function App(): ReactElement {
           ),
           recipeImport
         });
+        setImportedRecipeId(recipeImport.id);
+        setRecipeImportTone('live');
+        setRecipeImportStatus(`Imported "${recipeImport.title}" and selected it for review`);
         setSyncTone('live');
         setSyncLabel('Live backend');
         setSyncDetail('Expo is reading live metrics and recipes from the Python API.');
@@ -286,6 +299,12 @@ export default function App(): ReactElement {
         setSyncDetail(
           error instanceof Error ? error.message : 'Backend unavailable. Showing demo frontend data.'
         );
+        setRecipeImportTone('demo');
+        setRecipeImportStatus('Showing seeded recipe import review');
+        setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
+      }
+      if (!cancelled) {
+        setRecipeImportLoading(false);
       }
     }
 
@@ -754,6 +773,12 @@ export default function App(): ReactElement {
   }, []);
 
   useEffect(() => {
+    if (importedRecipeId) {
+      setSelectedRecipeId(importedRecipeId);
+    }
+  }, [importedRecipeId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadSelectedRecipe() {
@@ -803,6 +828,7 @@ export default function App(): ReactElement {
     () => selectRangeSeries(snapshot.rangeSeries, activeRange),
     [activeRange, snapshot.rangeSeries]
   );
+  const recipeImportResult = snapshot.recipeImport ?? null;
   const selectedFood = useMemo(
     () => selectFoodById(foodResults, selectedFoodId),
     [foodResults, selectedFoodId]
@@ -813,6 +839,7 @@ export default function App(): ReactElement {
   );
   const mealPreview = useMemo(() => scaleMealIngredients(demoMeal, recipeScale), [recipeScale]);
   const recipeTotals = useMemo(() => mealTotals(mealPreview), [mealPreview]);
+  const importedRecipeSelected = importedRecipeId !== null && selectedRecipeId === importedRecipeId;
   const logEntryPreview = useMemo(() => {
     if (!selectedLogFood || selectedLogFood.serving_size <= 0) {
       return null;
@@ -1968,14 +1995,52 @@ export default function App(): ReactElement {
         {section === 'recipes' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Recipes</Text>
-            <Text style={styles.panelTitle}>Saved recipe favorites</Text>
+            <Text style={styles.panelTitle}>Saved recipe favorites and import review</Text>
             <Text style={styles.panelDetail}>
-              Your starred recipes load first, with the selected recipe detail shown below.
+              Your starred recipes load first, and the latest imported recipe is surfaced as a reviewable detail.
             </Text>
 
             <View style={[styles.inlineStatus, { borderColor: toneColor(recipeTone) }]}>
               <Text style={styles.inlineStatusLabel}>{recipeStatus}</Text>
               {recipeError ? <Text style={styles.inlineStatusDetail}>{recipeError}</Text> : null}
+            </View>
+
+            <View style={[styles.inlineStatus, { borderColor: toneColor(recipeImportTone) }]}>
+              <Text style={styles.inlineStatusLabel}>{recipeImportStatus}</Text>
+              {recipeImportError ? <Text style={styles.inlineStatusDetail}>{recipeImportError}</Text> : null}
+            </View>
+
+            <View style={styles.recipeImportCard}>
+              <Text style={styles.recipeMetaLabel}>Import review</Text>
+              {recipeImportLoading ? (
+                <View style={styles.recipeDetailLoading}>
+                  <ActivityIndicator size="small" color="#17324d" />
+                  <Text style={styles.detailSubtitle}>Waiting for the imported recipe result...</Text>
+                </View>
+              ) : recipeImportResult ? (
+                <>
+                  <View style={styles.recipeDetailHeader}>
+                    <View style={styles.recipeDetailHeaderCopy}>
+                      <Text style={styles.detailTitle}>{recipeImportResult.title}</Text>
+                      <Text style={styles.detailSubtitle}>
+                        Imported recipe {recipeImportResult.favorite ? 'saved' : 'not yet starred'} ·{' '}
+                        {importedRecipeSelected ? 'selected for review' : 'tap below to review'}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.recipeStarToggle}
+                      onPress={() => setSelectedRecipeId(recipeImportResult.id)}
+                    >
+                      <Text style={styles.recipeStarToggleLabel}>Review</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.recipeMetaItem}>
+                    Result id: {recipeImportResult.id} · Favorite state: {recipeImportResult.favorite ? 'saved' : 'draft'}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.detailSubtitle}>No recipe import result is available yet.</Text>
+              )}
             </View>
 
             <View style={styles.recipeSection}>
@@ -2039,10 +2104,18 @@ export default function App(): ReactElement {
                 <>
                   <View style={styles.recipeDetailHeader}>
                     <View style={styles.recipeDetailHeaderCopy}>
-                      <Text style={styles.detailTitle}>{selectedRecipe.title}</Text>
+                      <View style={styles.recipeRowTitleWrap}>
+                        <Text style={styles.detailTitle}>{selectedRecipe.title}</Text>
+                        {importedRecipeSelected ? (
+                          <View style={styles.recipeReviewBadge}>
+                            <Text style={styles.recipeReviewBadgeLabel}>Imported review</Text>
+                          </View>
+                        ) : null}
+                      </View>
                       <Text style={styles.detailSubtitle}>
                         {selectedRecipe.steps.length} steps · {selectedRecipe.ingredients.length} ingredients ·{' '}
                         {selectedRecipe.assets.length} assets · {selectedRecipe.default_yield} servings
+                        {importedRecipeSelected ? ' · selected import' : ''}
                       </Text>
                     </View>
                     <Pressable
@@ -2905,6 +2978,24 @@ const styles = StyleSheet.create({
   },
   recipeDetailLoading: {
     gap: 8
+  },
+  recipeImportCard: {
+    backgroundColor: '#f3efe8',
+    borderRadius: 20,
+    padding: 16,
+    gap: 10
+  },
+  recipeReviewBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: '#17324d',
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  recipeReviewBadgeLabel: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
   },
   recipeSecondaryCard: {
     backgroundColor: '#f2f6fb',
