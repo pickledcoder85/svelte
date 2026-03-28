@@ -674,6 +674,15 @@ class SQLiteRepository:
         rows = self._connection.execute("SELECT * FROM food_catalog ORDER BY name").fetchall()
         return [self._row_to_food(row) for row in rows]
 
+    def get_food_by_id(self, food_id: str) -> FoodItem | None:
+        row = self._connection.execute(
+            "SELECT * FROM food_catalog WHERE id = ?",
+            (food_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_food(row)
+
     def search_foods(self, query: str) -> list[FoodItem]:
         normalized = query.strip()
         if not normalized:
@@ -687,6 +696,43 @@ class SQLiteRepository:
             (f"%{normalized}%", f"%{normalized}%"),
         ).fetchall()
         return [self._row_to_food(row) for row in rows]
+
+    def save_food_item(self, food_item: FoodItem) -> FoodItem:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO food_catalog (
+                    id, name, brand, calories, serving_size, serving_unit,
+                    protein, carbs, fat, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    brand = excluded.brand,
+                    calories = excluded.calories,
+                    serving_size = excluded.serving_size,
+                    serving_unit = excluded.serving_unit,
+                    protein = excluded.protein,
+                    carbs = excluded.carbs,
+                    fat = excluded.fat,
+                    source = excluded.source
+                """,
+                (
+                    food_item.id,
+                    food_item.name,
+                    food_item.brand,
+                    food_item.calories,
+                    food_item.serving_size,
+                    food_item.serving_unit,
+                    food_item.macros.protein,
+                    food_item.macros.carbs,
+                    food_item.macros.fat,
+                    food_item.source,
+                ),
+            )
+        persisted = self.get_food_by_id(food_item.id)
+        if persisted is None:
+            raise RuntimeError("Failed to persist food item.")
+        return persisted
 
     def get_weekly_metrics(self) -> WeeklyMetrics:
         row = self._connection.execute("SELECT * FROM weekly_metrics WHERE id = 1").fetchone()
