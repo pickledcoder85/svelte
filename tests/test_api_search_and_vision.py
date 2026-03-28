@@ -9,6 +9,7 @@ async def test_food_search_uses_seed_data(client):
     foods = response.json()
     assert foods
     assert foods[0]["name"].lower().startswith("rolled oats")
+    assert foods[0]["source"] == "CUSTOM"
 
 
 @pytest.mark.asyncio

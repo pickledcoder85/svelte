@@ -4,7 +4,7 @@ from backend.app.dependencies import get_repository
 from backend.app.models.nutrition import FoodItem, MealInput, MealTotals, WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.nutrition import get_weekly_metrics, meal_totals
-from backend.app.services.usda import search_foods_with_fallback
+from backend.app.services.usda import search_standardized_foods
 
 
 router = APIRouter(prefix="/nutrition", tags=["nutrition"])
@@ -20,7 +20,7 @@ async def foods_search(
     q: str = Query(min_length=1), repository: SQLiteRepository = Depends(get_repository)
 ) -> list[FoodItem]:
     try:
-        return await search_foods_with_fallback(q, repository)
+        return await search_standardized_foods(q, repository)
     except Exception as exc:  # pragma: no cover - network path
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
