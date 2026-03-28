@@ -1,11 +1,9 @@
 import type {
   FoodItem,
+  MealInput,
+  MealTotals,
   RecipeImportInput,
   RecipeImportResult,
-  MealInput,
-  MealTemplateInput,
-  MealTemplateResult,
-  MealTotals,
   WeeklyMetrics
 } from '../types';
 
@@ -21,6 +19,11 @@ export interface ApiError extends Error {
 
 const DEFAULT_API_BASE_URL = 'http://localhost:8000/api';
 
+function readExpoPublicApiBaseUrl(): string | undefined {
+  const processRef = globalThis as { process?: { env?: Record<string, string | undefined> } };
+  return processRef.process?.env?.EXPO_PUBLIC_API_BASE_URL;
+}
+
 export function normalizeApiBaseUrl(value: string | undefined): string {
   if (!value || value.trim().length === 0) {
     return DEFAULT_API_BASE_URL;
@@ -30,7 +33,7 @@ export function normalizeApiBaseUrl(value: string | undefined): string {
 }
 
 export function getApiBaseUrl(): string {
-  return normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+  return normalizeApiBaseUrl(readExpoPublicApiBaseUrl());
 }
 
 export function buildApiUrl(path: string): string {
@@ -77,16 +80,6 @@ export async function calculateMeal(meal: MealInput): Promise<MealTotals> {
 export async function importRecipe(payload: RecipeImportInput): Promise<RecipeImportResult> {
   return readJson<RecipeImportResult>(
     await fetch(buildApiUrl('/recipes/import'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-  );
-}
-
-export async function saveMealTemplate(payload: MealTemplateInput): Promise<MealTemplateResult> {
-  return readJson<MealTemplateResult>(
-    await fetch(buildApiUrl('/nutrition/meal-templates'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

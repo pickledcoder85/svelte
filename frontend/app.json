@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Nutrition OS",
+    "slug": "nutrition-os",
+    "scheme": "nutrition-os",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "userInterfaceStyle": "light",
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

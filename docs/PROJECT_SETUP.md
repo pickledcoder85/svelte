@@ -6,7 +6,8 @@ This project assumes all local work happens after activating the dedicated conda
 
 1. `conda activate svelte`
 2. Verify Python is from the conda environment.
-3. Run both Python and Node package installs from that activated shell.
+3. Verify Node is available from the conda environment as well.
+4. Run both Python and Node package installs from that activated shell.
 4. Keep Python dependencies in `pyproject.toml`.
 5. Use `DATABASE_URL=sqlite:///./nutrition_os.db` for local development unless you intentionally want a different database file.
 
@@ -31,14 +32,15 @@ The backend serves:
 1. `conda activate svelte`
 2. `cd frontend`
 3. `npm install`
-4. `npm run dev`
+4. `npm start` for Expo Go / simulator preview
+5. `npm run web` for browser preview
 
-The frontend hot-reloads on source changes.
+The frontend hot-reloads on source changes. Expo Go requires `EXPO_PUBLIC_API_BASE_URL=http://<your-lan-ip>:8000/api` so the phone can reach the backend on your machine.
 
 ## Mobile-first constraint
 
 - Build layouts and flows as phone-first screens.
-- Keep browser APIs and plugin choices compatible with later Capacitor packaging for iPhone.
+- Keep browser APIs and plugin choices compatible with Expo / React Native web support.
 - Avoid desktop-only interaction patterns that would force major mobile refactors later.
 
 ## Environment variables

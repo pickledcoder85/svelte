@@ -4,10 +4,9 @@ import {
   calculateMeal,
   importRecipe,
   normalizeApiBaseUrl,
-  searchFoods,
-  saveMealTemplate
+  searchFoods
 } from './api';
-import { demoFoodStrip, demoMeal, demoRecipeImports } from '../mock-data';
+import { demoMeal, demoRecipeImports } from '../mock-data';
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -42,25 +41,6 @@ describe('api helpers', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/recipes/import',
-      expect.objectContaining({
-        method: 'POST'
-      })
-    );
-  });
-
-  it('posts meal templates to the meal-template endpoint', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 'template-1', name: demoFoodStrip.mealTemplate.name, servings: 2 }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      })
-    );
-    vi.stubGlobal('fetch', fetchMock);
-
-    await saveMealTemplate(demoFoodStrip.mealTemplate);
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/api/nutrition/meal-templates',
       expect.objectContaining({
         method: 'POST'
       })
