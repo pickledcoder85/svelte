@@ -4,6 +4,9 @@ from datetime import date, datetime
 from pathlib import Path
 
 from backend.app.db.database import apply_migrations, connect
+from backend.app.models.meals import MealTemplate
+from backend.app.models.nutrition import IngredientInput, MacroTargets
+from backend.app.models.recipes import RecipeDefinition
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
@@ -32,9 +35,15 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         table_names = {row["name"] for row in table_rows}
         index_names = {row["name"] for row in index_rows}
         self.assertTrue(
-            {"users", "user_profiles", "user_goals", "food_logs", "food_log_entries", "ingestion_jobs"}.issubset(
-                table_names
-            )
+            {
+                "users",
+                "user_profiles",
+                "user_goals",
+                "food_logs",
+                "food_log_entries",
+                "ingestion_jobs",
+                "saved_favorites",
+            }.issubset(table_names)
         )
         self.assertTrue(
             {
@@ -45,6 +54,8 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 "idx_ingestion_outputs_job",
                 "idx_ingestion_outputs_reviewed_at",
                 "idx_ingestion_outputs_pending_review",
+                "idx_saved_favorites_user_type_created",
+                "idx_saved_favorites_entity",
             }.issubset(index_names)
         )
 
@@ -169,6 +180,92 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(rejected_output["review_state"], "rejected")
         self.assertEqual(rejected_output["rejected_at"], "2026-03-27T15:50:00")
         self.assertEqual([output["id"] for output in all_outputs], ["output-2", "output-1"])
+
+    def test_sqlite_repository_persists_saved_favorites_for_recipes_and_meals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+            repo.save_user_identity(user_id="user-2", email="alt@example.com")
+
+            meal_template = MealTemplate(
+                id="meal-breakfast-bowl",
+                name="Breakfast Bowl",
+                serving_count=2,
+                ingredients=[
+                    IngredientInput(
+                        id="ingredient-1",
+                        food_id="food-oats",
+                        name="Rolled oats",
+                        grams=80,
+                        calories_per_100g=389,
+                        macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    )
+                ],
+                favorite=False,
+                calories=311.2,
+                macros=MacroTargets(protein=13.5, carbs=53.0, fat=5.5),
+                per_serving_calories=155.6,
+                per_serving_macros=MacroTargets(protein=6.8, carbs=26.5, fat=2.8),
+            )
+            recipe = RecipeDefinition(
+                id="recipe-overnight-oats",
+                title="Overnight Oats",
+                steps=["Mix ingredients.", "Chill overnight."],
+                ingredients=[
+                    IngredientInput(
+                        id="ingredient-2",
+                        food_id="food-oats",
+                        name="Rolled oats",
+                        grams=80,
+                        calories_per_100g=389,
+                        macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    )
+                ],
+                default_yield=2,
+                favorite=False,
+            )
+
+            repo.save_meal_template(meal_template)
+            repo.save_recipe(recipe)
+
+            meal_favorite = repo.save_favorite(
+                user_id="user-1",
+                entity_type="meal_template",
+                entity_id=meal_template.id,
+            )
+            recipe_favorite_user1 = repo.save_favorite(
+                user_id="user-1",
+                entity_type="recipe",
+                entity_id=recipe.id,
+            )
+            recipe_favorite_user2 = repo.save_favorite(
+                user_id="user-2",
+                entity_type="recipe",
+                entity_id=recipe.id,
+            )
+            duplicate_recipe_favorite = repo.save_favorite(
+                user_id="user-1",
+                entity_type="recipe",
+                entity_id=recipe.id,
+            )
+
+            user1_favorites = repo.list_saved_favorites("user-1")
+            recipe_favorites = repo.list_saved_favorites("user-1", "recipe")
+            meal_favorites = repo.list_saved_favorites("user-1", "meal_template")
+
+            repo.remove_favorite(user_id="user-1", entity_type="recipe", entity_id=recipe.id)
+
+        self.assertEqual(meal_favorite["entity_type"], "meal_template")
+        self.assertEqual(recipe_favorite_user1["entity_id"], recipe.id)
+        self.assertEqual(recipe_favorite_user2["user_id"], "user-2")
+        self.assertEqual(duplicate_recipe_favorite["id"], recipe_favorite_user1["id"])
+        self.assertEqual(len(user1_favorites), 2)
+        self.assertEqual(len(recipe_favorites), 1)
+        self.assertEqual(len(meal_favorites), 1)
+        self.assertTrue(repo.is_saved_favorite("user-1", "meal_template", meal_template.id))
+        self.assertFalse(repo.is_saved_favorite("user-1", "recipe", recipe.id))
+        self.assertTrue(repo.is_saved_favorite("user-2", "recipe", recipe.id))
 
 
 if __name__ == "__main__":
