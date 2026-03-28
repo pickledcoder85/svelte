@@ -35,6 +35,7 @@ The project targets a personal-use nutrition and weight loss application with:
 - Frontend plan: [FRONTEND_PLAN.md](/home/brianminer/workspace/svelte/docs/FRONTEND_PLAN.md)
 - Backend plan: [BACKEND_PLAN.md](/home/brianminer/workspace/svelte/docs/BACKEND_PLAN.md)
 - Database plan: [DATABASE_PLAN.md](/home/brianminer/workspace/svelte/docs/DATABASE_PLAN.md)
+- Phase 1 completion plan: [PHASE1_COMPLETION_PLAN.md](/home/brianminer/workspace/svelte/docs/PHASE1_COMPLETION_PLAN.md)
 
 ## Delivery phases
 
@@ -55,8 +56,8 @@ The project targets a personal-use nutrition and weight loss application with:
 
 Current status:
 
-- mostly implemented for dashboard, search, session-aware logging, and backend persistence
-- still incomplete for first-class favorites persistence, hardened auth/profile flows, and full recipe persistence
+- mostly implemented for dashboard, search, session-aware logging, profile/goals, weight progress, and backend persistence
+- still incomplete for auth/session hardening, favorite-food completion, full meal-builder persistence, and full recipe persistence/scaling
 
 ### Phase 2: ingestion and automation
 

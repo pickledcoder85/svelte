@@ -10,6 +10,10 @@ The format should remain simple:
 
 ## [Unreleased]
 
+### Planned
+
+- Dedicated Phase 1 completion plan covering auth hardening, favorite-food completion, meal-builder completion, recipe persistence/scaling completion, live-data cleanup, and release prep.
+
 ### Added
 
 - Expo / React Native frontend with browser preview and Expo Go support on iPhone.
