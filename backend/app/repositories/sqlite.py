@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import date, timedelta
+from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from backend.app.models.auth import AuthSession
@@ -36,6 +37,44 @@ class SQLiteRepository:
                     provider TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS user_profiles (
+                    user_id TEXT PRIMARY KEY,
+                    display_name TEXT,
+                    timezone TEXT NOT NULL DEFAULT 'UTC',
+                    units TEXT NOT NULL DEFAULT 'imperial',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS user_goals (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    effective_at TEXT NOT NULL,
+                    calorie_goal INTEGER NOT NULL,
+                    protein_goal REAL NOT NULL,
+                    carbs_goal REAL NOT NULL,
+                    fat_goal REAL NOT NULL,
+                    target_weight_lbs REAL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS weight_entries (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    recorded_at TEXT NOT NULL,
+                    weight_lbs REAL NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS weekly_metrics (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     calorie_goal INTEGER NOT NULL,
@@ -50,35 +89,20 @@ class SQLiteRepository:
                     adherence_score INTEGER NOT NULL
                 );
 
-                CREATE TABLE IF NOT EXISTS user_goals (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    effective_at TEXT NOT NULL,
-                    calorie_goal INTEGER NOT NULL,
-                    protein_goal REAL NOT NULL,
-                    carbs_goal REAL NOT NULL,
-                    fat_goal REAL NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS weight_entries (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    recorded_at TEXT NOT NULL,
-                    weight_lbs REAL NOT NULL,
-                    notes TEXT
-                );
-
                 CREATE TABLE IF NOT EXISTS food_logs (
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     log_date TEXT NOT NULL,
                     notes TEXT,
-                    UNIQUE (user_id, log_date)
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (user_id, log_date),
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                 );
 
                 CREATE TABLE IF NOT EXISTS food_log_entries (
                     id TEXT PRIMARY KEY,
-                    food_log_id TEXT NOT NULL REFERENCES food_logs(id) ON DELETE CASCADE,
+                    food_log_id TEXT NOT NULL,
                     entry_type TEXT NOT NULL,
                     food_item_id TEXT,
                     meal_template_id TEXT,
@@ -87,7 +111,36 @@ class SQLiteRepository:
                     calories REAL NOT NULL,
                     protein REAL NOT NULL,
                     carbs REAL NOT NULL,
-                    fat REAL NOT NULL
+                    fat REAL NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (food_log_id) REFERENCES food_logs (id) ON DELETE CASCADE,
+                    FOREIGN KEY (meal_template_id) REFERENCES meal_templates (id) ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ingestion_jobs (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    source_kind TEXT NOT NULL,
+                    source_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TEXT,
+                    error_message TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS ingestion_outputs (
+                    id TEXT PRIMARY KEY,
+                    ingestion_job_id TEXT NOT NULL,
+                    extracted_text TEXT,
+                    structured_json TEXT,
+                    confidence REAL NOT NULL DEFAULT 0,
+                    reviewed_at TEXT,
+                    accepted_at TEXT,
+                    rejected_at TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (ingestion_job_id) REFERENCES ingestion_jobs (id) ON DELETE CASCADE
                 );
 
                 CREATE TABLE IF NOT EXISTS food_catalog (
@@ -163,6 +216,16 @@ class SQLiteRepository:
                     carbs_per_100g REAL NOT NULL,
                     fat_per_100g REAL NOT NULL
                 );
+
+                CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+                CREATE INDEX IF NOT EXISTS idx_user_goals_user_effective ON user_goals (user_id, effective_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_weight_entries_user_recorded ON weight_entries (user_id, recorded_at);
+                CREATE INDEX IF NOT EXISTS idx_food_logs_user_date ON food_logs (user_id, log_date);
+                CREATE INDEX IF NOT EXISTS idx_food_log_entries_log ON food_log_entries (food_log_id);
+                CREATE INDEX IF NOT EXISTS idx_food_log_entries_food_item ON food_log_entries (food_item_id);
+                CREATE INDEX IF NOT EXISTS idx_food_log_entries_meal_template ON food_log_entries (meal_template_id);
+                CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_user_status ON ingestion_jobs (user_id, status);
+                CREATE INDEX IF NOT EXISTS idx_ingestion_outputs_job ON ingestion_outputs (ingestion_job_id);
                 """
             )
         self._seed_data()
@@ -288,264 +351,6 @@ class SQLiteRepository:
             adherence_score=row["adherence_score"],
         )
 
-    def save_user_goal(
-        self,
-        *,
-        user_id: str,
-        effective_at: date,
-        calorie_goal: int,
-        protein_goal: float,
-        carbs_goal: float,
-        fat_goal: float,
-        goal_id: str | None = None,
-    ) -> str:
-        identifier = goal_id or f"goal-{uuid4()}"
-        with self._lock, self._connection:
-            self._connection.execute(
-                """
-                INSERT INTO user_goals (
-                    id, user_id, effective_at, calorie_goal, protein_goal, carbs_goal, fat_goal
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    identifier,
-                    user_id,
-                    effective_at.isoformat(),
-                    calorie_goal,
-                    protein_goal,
-                    carbs_goal,
-                    fat_goal,
-                ),
-            )
-        return identifier
-
-    def create_food_log(
-        self,
-        *,
-        user_id: str,
-        log_date: date,
-        notes: str | None = None,
-        food_log_id: str | None = None,
-    ) -> str:
-        existing = self._connection.execute(
-            "SELECT id FROM food_logs WHERE user_id = ? AND log_date = ?",
-            (user_id, log_date.isoformat()),
-        ).fetchone()
-        if existing is not None:
-            return existing["id"]
-
-        identifier = food_log_id or f"log-{user_id}-{log_date.isoformat()}"
-        with self._lock, self._connection:
-            self._connection.execute(
-                """
-                INSERT INTO food_logs (id, user_id, log_date, notes)
-                VALUES (?, ?, ?, ?)
-                """,
-                (identifier, user_id, log_date.isoformat(), notes),
-            )
-        return identifier
-
-    def add_food_log_entry(
-        self,
-        *,
-        food_log_id: str,
-        calories: float,
-        protein: float,
-        carbs: float,
-        fat: float,
-        grams: float = 0,
-        servings: float = 1,
-        entry_type: str = "food",
-        food_item_id: str | None = None,
-        meal_template_id: str | None = None,
-        entry_id: str | None = None,
-    ) -> str:
-        identifier = entry_id or f"entry-{uuid4()}"
-        with self._lock, self._connection:
-            self._connection.execute(
-                """
-                INSERT INTO food_log_entries (
-                    id, food_log_id, entry_type, food_item_id, meal_template_id,
-                    grams, servings, calories, protein, carbs, fat
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    identifier,
-                    food_log_id,
-                    entry_type,
-                    food_item_id,
-                    meal_template_id,
-                    grams,
-                    servings,
-                    calories,
-                    protein,
-                    carbs,
-                    fat,
-                ),
-            )
-        return identifier
-
-    def record_weight_entry(
-        self,
-        *,
-        user_id: str,
-        recorded_at: date,
-        weight_lbs: float,
-        notes: str | None = None,
-        weight_entry_id: str | None = None,
-    ) -> str:
-        identifier = weight_entry_id or f"weight-{uuid4()}"
-        with self._lock, self._connection:
-            self._connection.execute(
-                """
-                INSERT INTO weight_entries (id, user_id, recorded_at, weight_lbs, notes)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (identifier, user_id, recorded_at.isoformat(), weight_lbs, notes),
-            )
-        return identifier
-
-    def _default_week_bounds(self) -> tuple[date, date]:
-        today = date.today()
-        week_start = today - timedelta(days=today.weekday())
-        return week_start, week_start + timedelta(days=6)
-
-    def _latest_user_goal(self, user_id: str, week_end: date) -> dict[str, float | int]:
-        row = self._connection.execute(
-            """
-            SELECT calorie_goal, protein_goal, carbs_goal, fat_goal
-            FROM user_goals
-            WHERE user_id = ? AND effective_at <= ?
-            ORDER BY effective_at DESC, id DESC
-            LIMIT 1
-            """,
-            (user_id, week_end.isoformat()),
-        ).fetchone()
-        if row is None:
-            fallback = self._connection.execute(
-                "SELECT * FROM weekly_metrics WHERE id = 1"
-            ).fetchone()
-            if fallback is None:
-                return {
-                    "calorie_goal": 0,
-                    "protein_goal": 0.0,
-                    "carbs_goal": 0.0,
-                    "fat_goal": 0.0,
-                }
-            return {
-                "calorie_goal": fallback["calorie_goal"],
-                "protein_goal": fallback["protein_target"],
-                "carbs_goal": fallback["carbs_target"],
-                "fat_goal": fallback["fat_target"],
-            }
-        return {
-            "calorie_goal": row["calorie_goal"],
-            "protein_goal": row["protein_goal"],
-            "carbs_goal": row["carbs_goal"],
-            "fat_goal": row["fat_goal"],
-        }
-
-    def get_weekly_metrics_for_user(
-        self,
-        *,
-        user_id: str,
-        week_start: date | None = None,
-        week_end: date | None = None,
-    ) -> WeeklyMetrics:
-        resolved_start = week_start
-        resolved_end = week_end
-        if resolved_start is None or resolved_end is None:
-            resolved_start, resolved_end = self._default_week_bounds()
-
-        goal_row = self._latest_user_goal(user_id, resolved_end)
-        consumption_row = self._connection.execute(
-            """
-            SELECT
-                COALESCE(SUM(le.calories), 0) AS calories_consumed,
-                COALESCE(SUM(le.protein), 0) AS protein_consumed,
-                COALESCE(SUM(le.carbs), 0) AS carbs_consumed,
-                COALESCE(SUM(le.fat), 0) AS fat_consumed
-            FROM food_logs fl
-            JOIN food_log_entries le ON le.food_log_id = fl.id
-            WHERE fl.user_id = ? AND fl.log_date BETWEEN ? AND ?
-            """,
-            (user_id, resolved_start.isoformat(), resolved_end.isoformat()),
-        ).fetchone()
-        if consumption_row is None:
-            consumption_row = {
-                "calories_consumed": 0,
-                "protein_consumed": 0.0,
-                "carbs_consumed": 0.0,
-                "fat_consumed": 0.0,
-            }
-
-        weight_rows = self._connection.execute(
-            """
-            SELECT weight_lbs
-            FROM weight_entries
-            WHERE user_id = ? AND recorded_at BETWEEN ? AND ?
-            ORDER BY recorded_at ASC, id ASC
-            """,
-            (user_id, resolved_start.isoformat(), resolved_end.isoformat()),
-        ).fetchall()
-
-        weekly_weight_change = 0.0
-        if len(weight_rows) >= 2:
-            weekly_weight_change = round(weight_rows[-1]["weight_lbs"] - weight_rows[0]["weight_lbs"], 1)
-
-        calorie_goal = int(goal_row["calorie_goal"])
-        calories_consumed = int(round(consumption_row["calories_consumed"]))
-        adherence_score = 0
-        if calorie_goal > 0:
-            adherence_score = int(
-                max(0, 100 - round(abs(calories_consumed - calorie_goal) / calorie_goal * 100))
-            )
-
-        return WeeklyMetrics(
-            calorie_goal=calorie_goal,
-            calories_consumed=calories_consumed,
-            macro_targets=MacroTargets(
-                protein=float(goal_row["protein_goal"]),
-                carbs=float(goal_row["carbs_goal"]),
-                fat=float(goal_row["fat_goal"]),
-            ),
-            macro_consumed=MacroTargets(
-                protein=round(float(consumption_row["protein_consumed"]), 1),
-                carbs=round(float(consumption_row["carbs_consumed"]), 1),
-                fat=round(float(consumption_row["fat_consumed"]), 1),
-            ),
-            weekly_weight_change=weekly_weight_change,
-            adherence_score=adherence_score,
-        )
-
-    def get_weekly_metrics(self) -> WeeklyMetrics:
-        row = self._connection.execute("SELECT * FROM weekly_metrics WHERE id = 1").fetchone()
-        if row is None:
-            return WeeklyMetrics(
-                calorie_goal=0,
-                calories_consumed=0,
-                macro_targets=MacroTargets(protein=0, carbs=0, fat=0),
-                macro_consumed=MacroTargets(protein=0, carbs=0, fat=0),
-                weekly_weight_change=0.0,
-                adherence_score=0,
-            )
-        return WeeklyMetrics(
-            calorie_goal=row["calorie_goal"],
-            calories_consumed=row["calories_consumed"],
-            macro_targets=MacroTargets(
-                protein=row["protein_target"],
-                carbs=row["carbs_target"],
-                fat=row["fat_target"],
-            ),
-            macro_consumed=MacroTargets(
-                protein=row["protein_consumed"],
-                carbs=row["carbs_consumed"],
-                fat=row["fat_consumed"],
-            ),
-            weekly_weight_change=row["weekly_weight_change"],
-            adherence_score=row["adherence_score"],
-        )
-
     def save_session(self, session: AuthSession) -> AuthSession:
         with self._lock, self._connection:
             self._connection.execute(
@@ -585,6 +390,411 @@ class SQLiteRepository:
             access_token=row["access_token"],
             expires_at=row["expires_at"],
             provider=row["provider"],
+        )
+
+    def save_user_identity(
+        self,
+        *,
+        user_id: str,
+        email: str,
+        display_name: str | None = None,
+        timezone: str = "UTC",
+        units: str = "imperial",
+    ) -> dict[str, Any]:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO users (id, email)
+                VALUES (?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    email = excluded.email
+                """,
+                (user_id, email),
+            )
+            self._connection.execute(
+                """
+                INSERT INTO user_profiles (user_id, display_name, timezone, units)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    display_name = excluded.display_name,
+                    timezone = excluded.timezone,
+                    units = excluded.units,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (user_id, display_name, timezone, units),
+            )
+        identity = self.get_user_identity(user_id)
+        if identity is None:
+            raise RuntimeError("Failed to persist user identity.")
+        return identity
+
+    def _ensure_user_exists(self, user_id: str) -> None:
+        row = self._connection.execute(
+            "SELECT id FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if row is not None:
+            return
+
+        placeholder_email = f"{user_id}@local.invalid"
+        self.save_user_identity(user_id=user_id, email=placeholder_email)
+
+    def get_user_identity(self, user_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            """
+            SELECT
+                u.id AS user_id,
+                u.email,
+                u.created_at AS user_created_at,
+                p.display_name,
+                p.timezone,
+                p.units,
+                p.created_at AS profile_created_at,
+                p.updated_at AS profile_updated_at
+            FROM users u
+            LEFT JOIN user_profiles p ON p.user_id = u.id
+            WHERE u.id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def save_user_goal(
+        self,
+        *,
+        user_id: str,
+        effective_at: date,
+        calorie_goal: int,
+        protein_goal: float,
+        carbs_goal: float,
+        fat_goal: float,
+        target_weight_lbs: float | None = None,
+        goal_id: str | None = None,
+    ) -> dict[str, Any]:
+        identifier = goal_id or f"goal-{user_id}-{effective_at.isoformat()}"
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO user_goals (
+                    id, user_id, effective_at, calorie_goal, protein_goal,
+                    carbs_goal, fat_goal, target_weight_lbs
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    effective_at = excluded.effective_at,
+                    calorie_goal = excluded.calorie_goal,
+                    protein_goal = excluded.protein_goal,
+                    carbs_goal = excluded.carbs_goal,
+                    fat_goal = excluded.fat_goal,
+                    target_weight_lbs = excluded.target_weight_lbs
+                """,
+                (
+                    identifier,
+                    user_id,
+                    effective_at.isoformat(),
+                    calorie_goal,
+                    protein_goal,
+                    carbs_goal,
+                    fat_goal,
+                    target_weight_lbs,
+                ),
+            )
+        goal = self.get_user_goal(identifier)
+        if goal is None:
+            raise RuntimeError("Failed to persist user goal.")
+        return goal
+
+    def get_user_goal(self, goal_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM user_goals WHERE id = ?",
+            (goal_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_user_goals(self, user_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM user_goals
+            WHERE user_id = ?
+            ORDER BY effective_at DESC, created_at DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def create_food_log(
+        self,
+        *,
+        user_id: str,
+        log_date: date,
+        notes: str | None = None,
+        food_log_id: str | None = None,
+    ) -> str:
+        identifier = food_log_id or f"log-{user_id}-{log_date.isoformat()}"
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO food_logs (id, user_id, log_date, notes)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, log_date) DO UPDATE SET
+                    notes = excluded.notes,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (identifier, user_id, log_date.isoformat(), notes),
+            )
+        return identifier
+
+    def add_food_log_entry(
+        self,
+        *,
+        food_log_id: str,
+        entry_type: str = "food",
+        calories: float,
+        protein: float,
+        carbs: float,
+        fat: float,
+        grams: float = 0,
+        servings: float = 1,
+        food_item_id: str | None = None,
+        meal_template_id: str | None = None,
+        entry_id: str | None = None,
+    ) -> str:
+        identifier = entry_id or str(uuid4())
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO food_log_entries (
+                    id, food_log_id, entry_type, food_item_id, meal_template_id,
+                    grams, servings, calories, protein, carbs, fat
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    food_log_id,
+                    entry_type,
+                    food_item_id,
+                    meal_template_id,
+                    grams,
+                    servings,
+                    calories,
+                    protein,
+                    carbs,
+                    fat,
+                ),
+            )
+        return identifier
+
+    def list_food_log_entries(self, food_log_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM food_log_entries
+            WHERE food_log_id = ?
+            ORDER BY created_at, id
+            """,
+            (food_log_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_food_log(self, food_log_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM food_logs WHERE id = ?",
+            (food_log_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        log = dict(row)
+        log["entries"] = self.list_food_log_entries(food_log_id)
+        return log
+
+    def list_food_logs(self, user_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM food_logs
+            WHERE user_id = ?
+            ORDER BY log_date DESC, created_at DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def create_ingestion_job(
+        self,
+        *,
+        user_id: str,
+        source_kind: str,
+        source_name: str,
+        status: str = "pending",
+        ingestion_job_id: str | None = None,
+    ) -> str:
+        identifier = ingestion_job_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO ingestion_jobs (id, user_id, source_kind, source_name, status)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    source_kind = excluded.source_kind,
+                    source_name = excluded.source_name,
+                    status = excluded.status
+                """,
+                (identifier, user_id, source_kind, source_name, status),
+            )
+        return identifier
+
+    def update_ingestion_job(
+        self,
+        ingestion_job_id: str,
+        *,
+        status: str,
+        completed_at: datetime | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                UPDATE ingestion_jobs
+                SET status = ?, completed_at = ?, error_message = ?
+                WHERE id = ?
+                """,
+                (
+                    status,
+                    completed_at.isoformat() if completed_at is not None else None,
+                    error_message,
+                    ingestion_job_id,
+                ),
+            )
+
+    def get_ingestion_job(self, ingestion_job_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM ingestion_jobs WHERE id = ?",
+            (ingestion_job_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_ingestion_jobs(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        if user_id is None:
+            rows = self._connection.execute(
+                "SELECT * FROM ingestion_jobs ORDER BY requested_at DESC, created_at DESC"
+            ).fetchall()
+        else:
+            rows = self._connection.execute(
+                """
+                SELECT * FROM ingestion_jobs
+                WHERE user_id = ?
+                ORDER BY requested_at DESC, created_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def record_weight_entry(
+        self,
+        *,
+        user_id: str,
+        recorded_at: date,
+        weight_lbs: float,
+        entry_id: str | None = None,
+    ) -> str:
+        identifier = entry_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO weight_entries (id, user_id, recorded_at, weight_lbs)
+                VALUES (?, ?, ?, ?)
+                """,
+                (identifier, user_id, recorded_at.isoformat(), weight_lbs),
+            )
+        return identifier
+
+    def get_weekly_metrics_for_user(
+        self,
+        *,
+        user_id: str,
+        week_start: date | None = None,
+        week_end: date | None = None,
+    ) -> WeeklyMetrics:
+        if week_start is None or week_end is None:
+            return self.get_weekly_metrics()
+
+        goal_row = self._connection.execute(
+            """
+            SELECT * FROM user_goals
+            WHERE user_id = ? AND effective_at <= ?
+            ORDER BY effective_at DESC, created_at DESC
+            LIMIT 1
+            """,
+            (user_id, week_end.isoformat()),
+        ).fetchone()
+
+        totals_row = self._connection.execute(
+            """
+            SELECT
+                COALESCE(SUM(entries.calories), 0) AS calories,
+                COALESCE(SUM(entries.protein), 0) AS protein,
+                COALESCE(SUM(entries.carbs), 0) AS carbs,
+                COALESCE(SUM(entries.fat), 0) AS fat
+            FROM food_log_entries entries
+            JOIN food_logs logs ON logs.id = entries.food_log_id
+            WHERE logs.user_id = ?
+              AND logs.log_date >= ?
+              AND logs.log_date <= ?
+            """,
+            (user_id, week_start.isoformat(), week_end.isoformat()),
+        ).fetchone()
+
+        weight_rows = self._connection.execute(
+            """
+            SELECT recorded_at, weight_lbs
+            FROM weight_entries
+            WHERE user_id = ?
+              AND recorded_at >= ?
+              AND recorded_at <= ?
+            ORDER BY recorded_at ASC, created_at ASC
+            """,
+            (user_id, week_start.isoformat(), week_end.isoformat()),
+        ).fetchall()
+
+        if goal_row is None:
+            return self.get_weekly_metrics()
+
+        calories_consumed = int(round(float(totals_row["calories"])))
+        calorie_goal = int(goal_row["calorie_goal"])
+        protein_consumed = float(totals_row["protein"])
+        carbs_consumed = float(totals_row["carbs"])
+        fat_consumed = float(totals_row["fat"])
+
+        if calorie_goal <= 0:
+            adherence_score = 0
+        else:
+            adherence_score = min(int(round((calories_consumed / calorie_goal) * 100)), 100)
+
+        weekly_weight_change = 0.0
+        if len(weight_rows) >= 2:
+            weekly_weight_change = round(
+                float(weight_rows[-1]["weight_lbs"]) - float(weight_rows[0]["weight_lbs"]),
+                1,
+            )
+
+        return WeeklyMetrics(
+            calorie_goal=calorie_goal,
+            calories_consumed=calories_consumed,
+            macro_targets=MacroTargets(
+                protein=float(goal_row["protein_goal"]),
+                carbs=float(goal_row["carbs_goal"]),
+                fat=float(goal_row["fat_goal"]),
+            ),
+            macro_consumed=MacroTargets(
+                protein=protein_consumed,
+                carbs=carbs_consumed,
+                fat=fat_consumed,
+            ),
+            weekly_weight_change=weekly_weight_change,
+            adherence_score=adherence_score,
         )
 
     def save_meal_template(self, meal_template: MealTemplate) -> MealTemplate:
