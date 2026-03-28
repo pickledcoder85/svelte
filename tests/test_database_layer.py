@@ -6,6 +6,7 @@ from pathlib import Path
 
 from backend.app.db.database import apply_migrations, connect
 from backend.app.repositories.nutrition import MealIngredientInput, NutritionRepository, RecipeStepInput
+from backend.app.repositories.sqlite import SQLiteRepository
 
 
 class DatabaseLayerTests(unittest.TestCase):
@@ -127,6 +128,45 @@ class DatabaseLayerTests(unittest.TestCase):
 
         self.assertTrue(meal_id)
         self.assertTrue(recipe_id)
+
+    def test_sqlite_repository_derives_weekly_metrics_from_persisted_logs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "sqlite-weekly.db"
+            repo = SQLiteRepository(str(db_path))
+
+            user_id = "user-context"
+            repo.save_user_goal(
+                user_id=user_id,
+                effective_at=date(2026, 3, 23),
+                calorie_goal=14000,
+                protein_goal=900,
+                carbs_goal=1200,
+                fat_goal=400,
+            )
+
+            log_id = repo.create_food_log(user_id=user_id, log_date=date(2026, 3, 24))
+            repo.add_food_log_entry(
+                food_log_id=log_id,
+                calories=311.2,
+                protein=13.5,
+                carbs=53.0,
+                fat=5.5,
+                grams=80,
+                food_item_id="food-oats",
+            )
+            repo.record_weight_entry(user_id=user_id, recorded_at=date(2026, 3, 24), weight_lbs=180)
+            repo.record_weight_entry(user_id=user_id, recorded_at=date(2026, 3, 27), weight_lbs=178.8)
+
+            metrics = repo.get_weekly_metrics_for_user(
+                user_id=user_id,
+                week_start=date(2026, 3, 23),
+                week_end=date(2026, 3, 29),
+            )
+
+        self.assertEqual(metrics.calorie_goal, 14000)
+        self.assertEqual(metrics.calories_consumed, 311)
+        self.assertEqual(metrics.macro_consumed.model_dump(), {"protein": 13.5, "carbs": 53.0, "fat": 5.5})
+        self.assertEqual(metrics.weekly_weight_change, -1.2)
 
 
 if __name__ == "__main__":

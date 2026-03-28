@@ -1,6 +1,9 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.dependencies import get_repository
+from backend.app.dependencies import get_current_session, get_repository
+from backend.app.models.auth import AuthSession
 from backend.app.models.nutrition import FoodItem, MealInput, MealTotals, WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.nutrition import get_weekly_metrics, meal_totals
@@ -11,8 +14,14 @@ router = APIRouter(prefix="/nutrition", tags=["nutrition"])
 
 
 @router.get("/weekly-metrics", response_model=WeeklyMetrics)
-async def weekly_metrics(repository: SQLiteRepository = Depends(get_repository)) -> WeeklyMetrics:
-    return get_weekly_metrics(repository)
+async def weekly_metrics(
+    week_start: date | None = Query(default=None),
+    week_end: date | None = Query(default=None),
+    current_session: AuthSession | None = Depends(get_current_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> WeeklyMetrics:
+    user_id = current_session.user_id if current_session is not None else None
+    return get_weekly_metrics(repository, user_id=user_id, week_start=week_start, week_end=week_end)
 
 
 @router.get("/foods/search", response_model=list[FoodItem])
