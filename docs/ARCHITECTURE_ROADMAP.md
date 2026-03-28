@@ -20,7 +20,7 @@ The project targets a personal-use nutrition and weight loss application with:
 
 - mobile-first UX
 - responsive web delivery
-- future Capacitor packaging for iPhone
+- Expo / React Native delivery for browser and iPhone preview
 - a Python backend to keep the system simple
 - a database model that can begin small and grow without major rewrites
 
@@ -53,6 +53,11 @@ The project targets a personal-use nutrition and weight loss application with:
 - persist favorites and recipe scaling
 - add basic database migrations
 
+Current status:
+
+- mostly implemented for dashboard, search, session-aware logging, and backend persistence
+- still incomplete for first-class favorites persistence, hardened auth/profile flows, and full recipe persistence
+
 ### Phase 2: ingestion and automation
 
 - add PDF/text/image recipe import
@@ -60,12 +65,22 @@ The project targets a personal-use nutrition and weight loss application with:
 - add background job handling for slower AI tasks
 - improve ingestion review and correction flows
 
+Current status:
+
+- started, with ingestion queue and review-state persistence in place
+- still missing the full review UI, richer job lifecycle, and AI-assisted correction pipeline
+
 ### Phase 3: mobile packaging and polish
 
-- add Capacitor shell
+- keep Expo runtime healthy on browser and iPhone
 - validate camera/file flows on iPhone
 - optimize touch navigation and forms
-- prepare build, signing, and release workflow
+- prepare native build, signing, and release workflow
+
+Current status:
+
+- Expo browser and iPhone preview are working locally
+- native packaging, signing, and release workflow are not started yet
 
 ## Recommended implementation order
 
@@ -74,7 +89,7 @@ The project targets a personal-use nutrition and weight loss application with:
 3. Connect frontend dashboard and meal builder to persisted backend flows.
 4. Add recipe persistence and scaling UX.
 5. Add ingestion review flows before fully automated save behavior.
-6. Package and validate with Capacitor after core flows are stable.
+6. Package and validate with Expo-native build/export flow after core flows are stable.
 
 ## Review of initial plan
 
@@ -105,11 +120,11 @@ After stable major or minor feature increments, create both:
 Suggested early versioning approach:
 
 - `v0.1.0`: foundation scaffold and architecture alignment
-- `v0.2.0`: auth, weekly metrics, and persisted food logging
-- `v0.3.0`: reusable meals, favorites, and recipe scaling
+- `v0.2.0`: weekly metrics, persisted food logging, ingestion review queue, and current Expo runtime baseline
+- `v0.3.0`: reusable meals, first-class favorites persistence, and recipe scaling
 - `v0.4.0`: USDA sync and food search refinement
 - `v0.5.0`: image/document ingestion and AI-assisted extraction
-- `v0.6.0`: Capacitor packaging and iPhone validation
+- `v0.6.0`: native packaging and iPhone validation
 
 Tag only after:
 

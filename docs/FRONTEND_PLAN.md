@@ -10,12 +10,12 @@ The frontend should be a mobile-first TypeScript application with these responsi
 - custom meal builder with ingredient weights and serving calculations
 - recipe and favorite management
 - upload flows for text, PDF, and image-based recipe input
-- a clean interface that can later be packaged with Capacitor for iPhone
+- a clean interface that runs through Expo on browser and iPhone
 
 ### Initial architecture
 
-- React + Vite in `frontend/`
-- route-based screens
+- Expo / React Native in `frontend/`
+- screen-based navigation inside the Expo app shell
 - typed API client
 - local UI state for simple views
 - dedicated domain state for session, dashboard, meal builder, and recipe flows
@@ -43,11 +43,11 @@ The initial plan is viable but has weaknesses:
 
 ### Screen architecture
 
-- `/`: landing/dashboard
-- `/log`: daily food logging
-- `/meals`: meal builder and saved meals
-- `/recipes`: recipe favorites, imports, and scaling
-- `/profile`: goals, settings, and auth/session info
+- dashboard screen
+- daily log screen
+- meals screen
+- recipes / favorites screen
+- profile / goals screen
 
 ### State architecture
 
@@ -81,7 +81,7 @@ The initial plan is viable but has weaknesses:
 
 ### Step 1: core shell
 
-- add route structure
+- add Expo app shell and section navigation
 - create shared layout, typography, spacing, and color tokens
 - add API client and environment config
 - add app-level error and loading states
@@ -102,7 +102,7 @@ The initial plan is viable but has weaknesses:
 ### Step 4: recipes and favorites
 
 - direct recipe entry
-- scaling controls for `1.25x`, `1.5x`, and `2.0x`
+- scaling controls and favorite toggles backed by persistence
 - favorites list and detail views
 - placeholders for imported assets
 
@@ -126,15 +126,26 @@ The initial plan is viable but has weaknesses:
 - renders real backend metrics
 - handles loading, empty, and error states cleanly
 - works at phone widths without layout breakage
+- supports timeframe switching for `1D`, `1W`, `1M`, and `3M`
+- uses a trend chart, not placeholder-only visualization
 
 ### Meal builder done
 
 - user can edit ingredients and servings
 - totals round consistently with backend values
 - saved meal flow is reachable and test-covered
+- scaling defaults to `1.0x` and exposes common increments in a mobile-friendly control
 
 ### Recipe module done
 
 - user can create, scale, and favorite recipes
 - imported recipe assets are visible in the UI
 - review and correction flow exists for extracted content
+
+## Current implementation status
+
+- dashboard shell exists and now includes timeframe switching, trend visualization, and macro progress
+- daily log screen is wired to persisted backend food-log flows
+- food search and detail selection are present
+- recipe and favorites UI is only partially complete and still needs first-class persistence backing
+- ingestion UI remains largely planned rather than complete
