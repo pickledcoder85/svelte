@@ -36,6 +36,32 @@ export interface MealTotals {
   per_serving_macros: MacroTargets;
 }
 
+export interface FoodLogEntryInput {
+  food_id: string;
+  grams: number;
+}
+
+export interface FoodLogEntry {
+  id: string;
+  food_id: string;
+  food_name: string;
+  brand: string | null;
+  source: FoodItem['source'];
+  grams: number;
+  calories: number;
+  macros: MacroTargets;
+  logged_at: string;
+}
+
+export interface FoodLogSummary {
+  date: string;
+  entries: FoodLogEntry[];
+  totals: {
+    calories: number;
+    macros: MacroTargets;
+  };
+}
+
 export type DashboardRange = '1D' | '1W' | '1M' | '3M';
 
 export interface DashboardTrendPoint {
@@ -65,7 +91,7 @@ export interface FoodItem {
   source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM';
 }
 
-export type AppSection = 'dashboard' | 'meals' | 'recipes' | 'foods';
+export type AppSection = 'dashboard' | 'log' | 'foods' | 'meals' | 'recipes';
 
 export interface DashboardSnapshot {
   connectionLabel: string;
