@@ -4,6 +4,7 @@ import type {
   FoodItem,
   FoodLogSummary,
   MealInput,
+  RecipeDefinition,
   RecipeImportInput,
   WeeklyMetrics
 } from './types';
@@ -49,12 +50,92 @@ export const demoWeeklyMetrics: WeeklyMetrics = {
   adherence_score: 87
 };
 
-export const demoRecipe = {
+export const demoRecipe: RecipeDefinition = {
   id: 'recipe-overnight-oats',
   title: 'Overnight Oats Base',
   favorite: true,
-  steps: ['Combine oats, yogurt, and fruit.', 'Rest chilled overnight.', 'Portion into two servings.']
+  steps: ['Combine oats, yogurt, and fruit.', 'Rest chilled overnight.', 'Portion into two servings.'],
+  ingredients: [
+    {
+      id: 'ingredient-oats',
+      food_id: 'food-oats',
+      name: 'Rolled oats',
+      grams: 80,
+      calories_per_100g: 389,
+      macros_per_100g: { protein: 16.9, carbs: 66.3, fat: 6.9 }
+    },
+    {
+      id: 'ingredient-yogurt',
+      food_id: 'food-greek-yogurt',
+      name: 'Greek yogurt',
+      grams: 300,
+      calories_per_100g: 59,
+      macros_per_100g: { protein: 10.3, carbs: 3.6, fat: 0.4 }
+    }
+  ],
+  assets: [{ kind: 'text', url: null, content: 'Combine oats, yogurt, and fruit.' }],
+  default_yield: 2
 };
+
+export const demoRecipeFavorites: RecipeDefinition[] = [
+  demoRecipe,
+  {
+    id: 'recipe-summer-parfait',
+    title: 'Summer Berry Parfait',
+    favorite: true,
+    steps: ['Layer yogurt, granola, and berries.', 'Chill briefly before serving.'],
+    ingredients: [
+      {
+        id: 'ingredient-yogurt-parfait',
+        food_id: 'food-greek-yogurt',
+        name: 'Greek yogurt',
+        grams: 200,
+        calories_per_100g: 59,
+        macros_per_100g: { protein: 10.3, carbs: 3.6, fat: 0.4 }
+      },
+      {
+        id: 'ingredient-granola',
+        food_id: 'food-granola',
+        name: 'Granola',
+        grams: 60,
+        calories_per_100g: 471,
+        macros_per_100g: { protein: 10, carbs: 64, fat: 20 }
+      }
+    ],
+    assets: [{ kind: 'image', url: null, content: null }],
+    default_yield: 2
+  }
+];
+
+export const demoRecipeCatalog: RecipeDefinition[] = [
+  ...demoRecipeFavorites,
+  {
+    id: 'recipe-citrus-chicken',
+    title: 'Citrus Chicken Bowl',
+    favorite: false,
+    steps: ['Roast chicken and citrus vegetables.', 'Divide into bowls with grains.', 'Top with fresh herbs.'],
+    ingredients: [
+      {
+        id: 'ingredient-chicken',
+        food_id: 'food-chicken',
+        name: 'Chicken breast',
+        grams: 250,
+        calories_per_100g: 165,
+        macros_per_100g: { protein: 31, carbs: 0, fat: 3.6 }
+      },
+      {
+        id: 'ingredient-rice',
+        food_id: 'food-rice',
+        name: 'Cooked rice',
+        grams: 180,
+        calories_per_100g: 130,
+        macros_per_100g: { protein: 2.7, carbs: 28.2, fat: 0.3 }
+      }
+    ],
+    assets: [{ kind: 'text', url: null, content: 'Roast chicken with citrus vegetables and grains.' }],
+    default_yield: 4
+  }
+];
 
 export const demoRecipeImports: RecipeImportInput & { sources: Array<{ kind: 'text' | 'pdf' | 'image'; label: string }> } = {
   title: demoRecipe.title,

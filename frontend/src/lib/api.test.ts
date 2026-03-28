@@ -3,12 +3,24 @@ import {
   buildApiUrl,
   addFoodLogEntry,
   calculateMeal,
+  favoriteRecipe,
+  fetchFavoriteRecipes,
+  fetchRecipes,
+  fetchRecipe,
   importRecipe,
   fetchTodaysFoodLog,
   normalizeApiBaseUrl,
-  searchFoods
+  searchFoods,
+  unfavoriteRecipe
 } from './api';
-import { demoFoodLog, demoMeal, demoRecipeImports } from '../mock-data';
+import {
+  demoFoodLog,
+  demoMeal,
+  demoRecipe,
+  demoRecipeCatalog,
+  demoRecipeFavorites,
+  demoRecipeImports
+} from '../mock-data';
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -46,6 +58,80 @@ describe('api helpers', () => {
       expect.objectContaining({
         method: 'POST'
       })
+    );
+  });
+
+  it('fetches favorite recipes from the favorites endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoRecipeFavorites), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchFavoriteRecipes();
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/recipes/favorites');
+  });
+
+  it('fetches the recipe catalog from the recipes endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoRecipeCatalog), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchRecipes();
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/recipes');
+  });
+
+  it('fetches a recipe by id for detail views', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoRecipe), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchRecipe(demoRecipe.id);
+
+    expect(fetchMock).toHaveBeenCalledWith(`http://localhost:8000/api/recipes/${demoRecipe.id}`);
+  });
+
+  it('favorites recipes with POST and unfavorites with DELETE', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(demoRecipe), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...demoRecipe, favorite: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await favoriteRecipe(demoRecipe.id);
+    await unfavoriteRecipe(demoRecipe.id);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `http://localhost:8000/api/recipes/${demoRecipe.id}/favorite`,
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `http://localhost:8000/api/recipes/${demoRecipe.id}/favorite`,
+      expect.objectContaining({ method: 'DELETE' })
     );
   });
 

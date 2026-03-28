@@ -18,9 +18,14 @@ import {
   addFoodLogEntry,
   calculateMeal,
   fetchBackendHealth,
+  fetchFavoriteRecipes,
+  fetchRecipes,
+  fetchRecipe,
   fetchTodaysFoodLog,
   fetchWeeklyMetrics,
+  favoriteRecipe,
   importRecipe,
+  unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
@@ -33,10 +38,18 @@ import {
   demoMeal,
   demoFoodLog,
   demoRangeSeries,
-  demoRecipe,
+  demoRecipeFavorites,
+  demoRecipeCatalog,
   demoRecipeImports
 } from './src/mock-data';
-import type { AppSection, DashboardRange, DashboardSnapshot, FoodItem, FoodLogSummary } from './src/types';
+import type {
+  AppSection,
+  DashboardRange,
+  DashboardSnapshot,
+  FoodItem,
+  FoodLogSummary,
+  RecipeDefinition
+} from './src/types';
 
 const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
 const sectionOrder: AppSection[] = ['dashboard', 'log', 'foods', 'meals', 'recipes'];
@@ -87,6 +100,16 @@ export default function App(): ReactElement {
   const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
+  const [recipeFavorites, setRecipeFavorites] = useState<RecipeDefinition[]>([]);
+  const [recipeCatalog, setRecipeCatalog] = useState<RecipeDefinition[]>([]);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeDefinition | null>(null);
+  const [recipeTone, setRecipeTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [recipeStatus, setRecipeStatus] = useState('Loading recipe favorites');
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [recipeLoading, setRecipeLoading] = useState(true);
+  const [recipeDetailLoading, setRecipeDetailLoading] = useState(false);
+  const [recipeSavingId, setRecipeSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -296,6 +319,126 @@ export default function App(): ReactElement {
     };
   }, [logFoodSearchTerm]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecipeFavorites() {
+      setRecipeLoading(true);
+      setRecipeTone('checking');
+      setRecipeStatus('Loading recipe favorites');
+      setRecipeError(null);
+
+      try {
+        const [catalog, favorites] = await Promise.all([fetchRecipes(), fetchFavoriteRecipes()]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const favoriteIds = new Set(favorites.map((recipe) => recipe.id));
+        const mergedCatalog = catalog.map((recipe) => ({
+          ...recipe,
+          favorite: favoriteIds.has(recipe.id)
+        }));
+        const appendedFavorites = favorites
+          .filter((recipe) => !mergedCatalog.some((current) => current.id === recipe.id))
+          .map((recipe) => ({ ...recipe, favorite: true }));
+        const nextCatalog = [...mergedCatalog, ...appendedFavorites];
+
+        setRecipeCatalog(nextCatalog);
+        setRecipeFavorites(favorites);
+        setRecipeTone('live');
+        setRecipeStatus(
+          favorites.length === 0
+            ? 'No saved recipe favorites yet'
+            : `${favorites.length} saved favorite${favorites.length === 1 ? '' : 's'} loaded`
+        );
+
+        setSelectedRecipeId((current) => {
+          if (current && nextCatalog.some((recipe) => recipe.id === current)) {
+            return current;
+          }
+          return favorites[0]?.id ?? nextCatalog[0]?.id ?? null;
+        });
+
+        setSelectedRecipe((current) => {
+          if (current && nextCatalog.some((recipe) => recipe.id === current.id)) {
+            return current;
+          }
+          return favorites[0] ?? nextCatalog[0] ?? null;
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setRecipeCatalog(demoRecipeCatalog);
+        setRecipeFavorites(demoRecipeFavorites);
+        setSelectedRecipeId(demoRecipeFavorites[0]?.id ?? demoRecipeCatalog[0]?.id ?? null);
+        setSelectedRecipe(demoRecipeFavorites[0] ?? demoRecipeCatalog[0] ?? null);
+        setRecipeTone('demo');
+        setRecipeStatus('Showing demo recipe favorites');
+        setRecipeError(error instanceof Error ? error.message : 'Recipe favorites unavailable.');
+      } finally {
+        if (!cancelled) {
+          setRecipeLoading(false);
+        }
+      }
+    }
+
+    void loadRecipeFavorites();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSelectedRecipe() {
+      if (!selectedRecipeId) {
+        setSelectedRecipe(null);
+        setRecipeDetailLoading(false);
+        return;
+      }
+
+      setRecipeDetailLoading(true);
+
+      try {
+        const recipe = await fetchRecipe(selectedRecipeId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setSelectedRecipe(recipe);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const fallback = recipeFavorites.find((item) => item.id === selectedRecipeId) ?? null;
+        setSelectedRecipe(fallback);
+        if (fallback === null) {
+          setRecipeTone('demo');
+          setRecipeStatus('Showing demo recipe detail');
+          setRecipeError(error instanceof Error ? error.message : 'Recipe detail unavailable.');
+        }
+      } finally {
+        if (!cancelled) {
+          setRecipeDetailLoading(false);
+        }
+      }
+    }
+
+    void loadSelectedRecipe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recipeFavorites, selectedRecipeId]);
+
   const selectedSeries = useMemo(
     () => selectRangeSeries(snapshot.rangeSeries, activeRange),
     [activeRange, snapshot.rangeSeries]
@@ -374,6 +517,63 @@ export default function App(): ReactElement {
       setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
     } finally {
       setIsSavingLogEntry(false);
+    }
+  }
+
+  function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
+    const remaining = recipes.filter((recipe) => recipe.id !== updatedRecipe.id);
+    return updatedRecipe.favorite ? [updatedRecipe, ...remaining] : remaining;
+  }
+
+  async function toggleRecipeFavorite(recipe: RecipeDefinition, nextFavorite: boolean) {
+    if (recipeSavingId === recipe.id) {
+      return;
+    }
+
+    setRecipeSavingId(recipe.id);
+    setRecipeTone('checking');
+    setRecipeStatus(
+      nextFavorite ? `Saving ${recipe.title} to favorites` : `Removing ${recipe.title} from favorites`
+    );
+    setRecipeError(null);
+
+    const previousCatalog = recipeCatalog;
+    const previousFavorites = recipeFavorites;
+    const previousSelected = selectedRecipe;
+    const previousSelectedId = selectedRecipeId;
+
+    const optimisticRecipe = { ...recipe, favorite: nextFavorite };
+    setRecipeCatalog((current) => updateRecipeCollection(current, optimisticRecipe));
+    setRecipeFavorites((current) => updateRecipeCollection(current, optimisticRecipe));
+    if (previousSelectedId === recipe.id) {
+      setSelectedRecipe(optimisticRecipe);
+    } else if (previousSelected?.id === recipe.id) {
+      setSelectedRecipe(optimisticRecipe);
+    }
+
+    try {
+      const updated = nextFavorite
+        ? await favoriteRecipe(recipe.id)
+        : await unfavoriteRecipe(recipe.id);
+
+      setRecipeCatalog((current) => updateRecipeCollection(current, updated));
+      setRecipeFavorites((current) => updateRecipeCollection(current, updated));
+      setSelectedRecipe(updated);
+      setSelectedRecipeId(updated.id);
+      setRecipeTone('live');
+      setRecipeStatus(
+        nextFavorite ? `${updated.title} saved to favorites` : `${updated.title} removed from favorites`
+      );
+    } catch (error) {
+      setRecipeCatalog(previousCatalog);
+      setRecipeFavorites(previousFavorites);
+      setSelectedRecipe(previousSelected);
+      setSelectedRecipeId(previousSelectedId);
+      setRecipeTone('demo');
+      setRecipeStatus(`Could not update ${recipe.title}`);
+      setRecipeError(error instanceof Error ? error.message : 'Unable to update recipe favorite.');
+    } finally {
+      setRecipeSavingId(null);
     }
   }
 
@@ -787,17 +987,166 @@ export default function App(): ReactElement {
         {section === 'recipes' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Recipes</Text>
-            <Text style={styles.panelTitle}>{demoRecipe.title}</Text>
-            <Text style={styles.panelDetail}>Text, PDF, and image ingestion are preserved in the Expo version.</Text>
-            {demoRecipeImports.sources.map((source) => (
-              <View key={source.kind} style={styles.listRow}>
-                <View>
-                  <Text style={styles.listTitle}>{source.label}</Text>
-                  <Text style={styles.listCaption}>{source.kind.toUpperCase()}</Text>
+            <Text style={styles.panelTitle}>Saved recipe favorites</Text>
+            <Text style={styles.panelDetail}>
+              Your starred recipes load first, with the selected recipe detail shown below.
+            </Text>
+
+            <View style={[styles.inlineStatus, { borderColor: toneColor(recipeTone) }]}>
+              <Text style={styles.inlineStatusLabel}>{recipeStatus}</Text>
+              {recipeError ? <Text style={styles.inlineStatusDetail}>{recipeError}</Text> : null}
+            </View>
+
+            <View style={styles.recipeSection}>
+              {recipeLoading ? (
+                <View style={styles.detailCard}>
+                  <ActivityIndicator size="small" color="#17324d" />
+                  <Text style={styles.detailSubtitle}>Fetching saved recipe favorites...</Text>
                 </View>
-                <Text style={styles.listMetric}>Ready</Text>
-              </View>
-            ))}
+              ) : recipeFavorites.length === 0 ? (
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailTitle}>No saved favorites yet</Text>
+                  <Text style={styles.detailSubtitle}>
+                    Save a recipe from the detail card once it appears, or import a new one below.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.foodList}>
+                  {recipeFavorites.map((recipe) => {
+                    const active = recipe.id === selectedRecipe?.id;
+                    const saving = recipeSavingId === recipe.id;
+
+                    return (
+                      <Pressable
+                        key={recipe.id}
+                        style={[styles.foodRow, active && styles.foodRowActive]}
+                        onPress={() => setSelectedRecipeId(recipe.id)}
+                      >
+                        <View style={styles.foodRowCopy}>
+                          <View style={styles.recipeRowTitleWrap}>
+                            <Text style={styles.listTitle}>{recipe.title}</Text>
+                            <Pressable
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                void toggleRecipeFavorite(recipe, false);
+                              }}
+                              style={styles.recipeStarButton}
+                              disabled={saving}
+                            >
+                              <Text style={styles.recipeStarButtonLabel}>{saving ? 'Saving...' : '★'}</Text>
+                            </Pressable>
+                          </View>
+                          <Text style={styles.listCaption}>
+                            {recipe.steps.length} steps · {recipe.ingredients.length} ingredients · {recipe.assets.length} assets
+                          </Text>
+                        </View>
+                        <Text style={styles.listMetric}>{recipe.default_yield} servings</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.detailCard}>
+              {recipeDetailLoading && selectedRecipe ? (
+                <View style={styles.recipeDetailLoading}>
+                  <ActivityIndicator size="small" color="#17324d" />
+                  <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
+                </View>
+              ) : selectedRecipe ? (
+                <>
+                  <View style={styles.recipeDetailHeader}>
+                    <View style={styles.recipeDetailHeaderCopy}>
+                      <Text style={styles.detailTitle}>{selectedRecipe.title}</Text>
+                      <Text style={styles.detailSubtitle}>
+                        {selectedRecipe.steps.length} steps · {selectedRecipe.ingredients.length} ingredients ·{' '}
+                        {selectedRecipe.assets.length} assets · {selectedRecipe.default_yield} servings
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => void toggleRecipeFavorite(selectedRecipe, !selectedRecipe.favorite)}
+                      style={[
+                        styles.recipeStarToggle,
+                        selectedRecipe.favorite ? styles.recipeStarToggleActive : styles.recipeStarToggleInactive
+                      ]}
+                      disabled={recipeSavingId === selectedRecipe.id}
+                    >
+                      <Text
+                        style={[
+                          styles.recipeStarToggleLabel,
+                          selectedRecipe.favorite && styles.recipeStarToggleLabelActive
+                        ]}
+                      >
+                        {recipeSavingId === selectedRecipe.id
+                          ? 'Saving...'
+                          : selectedRecipe.favorite
+                          ? 'Unfavorite'
+                          : 'Favorite'}
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  {selectedRecipe.steps.length > 0 ? (
+                    <View style={styles.recipeMetaBlock}>
+                      <Text style={styles.recipeMetaLabel}>Steps</Text>
+                      {selectedRecipe.steps.slice(0, 3).map((step, index) => (
+                        <Text key={`${selectedRecipe.id}-step-${index}`} style={styles.recipeStep}>
+                          {index + 1}. {step}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {selectedRecipe.ingredients.length > 0 ? (
+                    <View style={styles.recipeMetaBlock}>
+                      <Text style={styles.recipeMetaLabel}>Ingredients</Text>
+                      {selectedRecipe.ingredients.slice(0, 3).map((ingredient) => (
+                        <Text key={ingredient.id} style={styles.recipeMetaItem}>
+                          {ingredient.name} · {ingredient.grams} g
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  <View style={styles.recipeMetaBlock}>
+                    <Text style={styles.recipeMetaLabel}>Assets</Text>
+                    {selectedRecipe.assets.length === 0 ? (
+                      <Text style={styles.recipeMetaItem}>No imported assets attached yet.</Text>
+                    ) : (
+                      selectedRecipe.assets.slice(0, 3).map((asset, index) => (
+                        <Text key={`${selectedRecipe.id}-asset-${index}`} style={styles.recipeMetaItem}>
+                          {asset.kind.toUpperCase()} asset {asset.url ? 'linked' : 'embedded'}
+                        </Text>
+                      ))
+                    )}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.recipeDetailLoading}>
+                  <Text style={styles.detailTitle}>Select a recipe</Text>
+                  <Text style={styles.detailSubtitle}>
+                    The selected recipe detail will appear here, including its steps, ingredients, and favorite toggle.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.recipeSecondaryCard}>
+              <Text style={styles.panelEyebrow}>Import and scale</Text>
+              <Text style={styles.panelDetail}>
+                Text, PDF, and image ingestion stay in the secondary flow while favorites remain primary.
+              </Text>
+              {demoRecipeImports.sources.map((source) => (
+                <View key={source.kind} style={styles.listRow}>
+                  <View>
+                    <Text style={styles.listTitle}>{source.label}</Text>
+                    <Text style={styles.listCaption}>{source.kind.toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.listMetric}>Ready</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -1381,8 +1730,89 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2
   },
+  recipeSection: {
+    gap: 12
+  },
+  recipeRowTitleWrap: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10
+  },
+  recipeStarButton: {
+    borderRadius: 999,
+    backgroundColor: '#17324d',
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  recipeStarButtonLabel: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
   detailCard: {
     backgroundColor: '#f7f4ef',
+    borderRadius: 20,
+    padding: 16,
+    gap: 10
+  },
+  recipeDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  recipeDetailHeaderCopy: {
+    flex: 1,
+    gap: 4
+  },
+  recipeStarToggle: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    alignSelf: 'flex-start'
+  },
+  recipeStarToggleActive: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  recipeStarToggleInactive: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#cbd5e1'
+  },
+  recipeStarToggleLabel: {
+    color: '#17324d',
+    fontWeight: '800'
+  },
+  recipeStarToggleLabelActive: {
+    color: '#ffffff'
+  },
+  recipeMetaBlock: {
+    gap: 6,
+    paddingTop: 4
+  },
+  recipeMetaLabel: {
+    color: '#6b7b90',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  recipeStep: {
+    color: '#132536',
+    fontSize: 13,
+    lineHeight: 18
+  },
+  recipeMetaItem: {
+    color: '#132536',
+    fontSize: 13,
+    lineHeight: 18
+  },
+  recipeDetailLoading: {
+    gap: 8
+  },
+  recipeSecondaryCard: {
+    backgroundColor: '#f2f6fb',
     borderRadius: 20,
     padding: 16,
     gap: 10
