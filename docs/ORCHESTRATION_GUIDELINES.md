@@ -70,6 +70,23 @@ If any verification fails:
 4. Delete the completed feature branch.
 5. Delete temporary recovery branches and worktrees immediately.
 
+## Orchestrator control loop
+
+The orchestrator must follow this sequence until the implementation plan is complete:
+
+1. Dispatch the next bounded slices from clean `main`.
+2. Verify actual branch and worktree state immediately after dispatch.
+3. Poll every 2 minutes while any worker is active.
+4. Surface consolidated worker status updates to the user.
+5. When a worker reaches a commit-ready boundary, stop further dispatch in that area.
+6. Validate the slice locally.
+7. Commit the slice atomically.
+8. Merge the feature branch into `main`.
+9. Delete the completed feature branch or temporary worktree.
+10. Dispatch the next bounded slice automatically without waiting for user instruction.
+
+If this loop is broken, treat it as a workflow bug and correct it before continuing implementation.
+
 ## Default safe mode
 
 When there is any doubt about branch or worktree isolation:
