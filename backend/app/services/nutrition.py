@@ -1,4 +1,5 @@
 from backend.app.models.nutrition import IngredientInput, MacroTargets, MealInput, MealTotals
+from backend.app.repositories.sqlite import SQLiteRepository
 
 
 def round1(value: float) -> float:
@@ -49,3 +50,7 @@ def meal_totals(meal: MealInput) -> MealTotals:
             fat=round1(total_macros.fat / meal.serving_count),
         ),
     )
+
+
+def get_weekly_metrics(repository: SQLiteRepository):
+    return repository.get_weekly_metrics()

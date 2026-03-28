@@ -8,6 +8,8 @@ class Settings(BaseSettings):
 
     app_name: str = "Nutrition OS API"
     app_env: str = "development"
+    database_path: str = "./nutrition.db"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     usda_api_key: str = ""
     openai_api_key: str = ""
     supabase_url: str = ""

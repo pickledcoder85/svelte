@@ -1,29 +1,26 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.app.dependencies import get_repository
 from backend.app.models.nutrition import FoodItem, MealInput, MealTotals, WeeklyMetrics
-from backend.app.services.nutrition import meal_totals
-from backend.app.services.usda import search_foods
+from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.nutrition import get_weekly_metrics, meal_totals
+from backend.app.services.usda import search_foods_with_fallback
 
 
 router = APIRouter(prefix="/nutrition", tags=["nutrition"])
 
 
 @router.get("/weekly-metrics", response_model=WeeklyMetrics)
-async def get_weekly_metrics() -> WeeklyMetrics:
-    return WeeklyMetrics(
-        calorie_goal=14800,
-        calories_consumed=10360,
-        macro_targets={"protein": 980, "carbs": 1260, "fat": 420},
-        macro_consumed={"protein": 742, "carbs": 901, "fat": 308},
-        weekly_weight_change=-1.2,
-        adherence_score=87,
-    )
+async def weekly_metrics(repository: SQLiteRepository = Depends(get_repository)) -> WeeklyMetrics:
+    return get_weekly_metrics(repository)
 
 
 @router.get("/foods/search", response_model=list[FoodItem])
-async def foods_search(q: str = Query(min_length=1)) -> list[FoodItem]:
+async def foods_search(
+    q: str = Query(min_length=1), repository: SQLiteRepository = Depends(get_repository)
+) -> list[FoodItem]:
     try:
-        return await search_foods(q)
+        return await search_foods_with_fallback(q, repository)
     except Exception as exc:  # pragma: no cover - network path
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

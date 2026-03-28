@@ -4,6 +4,7 @@ import httpx
 
 from backend.app.config import get_settings
 from backend.app.models.nutrition import FoodItem, MacroTargets
+from backend.app.repositories.sqlite import SQLiteRepository
 
 
 USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
@@ -24,7 +25,11 @@ async def search_foods(query: str) -> list[FoodItem]:
     settings = get_settings()
 
     if not settings.usda_api_key:
-        raise RuntimeError("USDA_API_KEY is not configured.")
+        repository = SQLiteRepository(settings.database_path)
+        try:
+            return repository.search_foods(query)
+        finally:
+            repository.close()
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.get(
@@ -58,3 +63,13 @@ async def search_foods(query: str) -> list[FoodItem]:
         )
         for food in foods
     ]
+
+
+async def search_foods_with_fallback(query: str, repository: SQLiteRepository) -> list[FoodItem]:
+    settings = get_settings()
+    if not settings.usda_api_key:
+        return repository.search_foods(query)
+    try:
+        return await search_foods(query)
+    except Exception:
+        return repository.search_foods(query)

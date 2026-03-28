@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from backend.app.models.nutrition import VisionNutritionExtraction
 from backend.app.services.vision import analyze_label_image
