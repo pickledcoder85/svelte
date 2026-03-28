@@ -6,4 +6,4 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "svelte" ]]; then
   exit 1
 fi
 
-uvicorn backend.app.main:app --reload --port 8000
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000

@@ -31,7 +31,7 @@ Backend:
 - `conda activate svelte`
 - `pip install -e ".[dev]"`
 - `python -m backend.app.db.bootstrap`
-- `uvicorn backend.app.main:app --reload --port 8000`
+- `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
 - `pytest`
 
 Frontend:
@@ -40,11 +40,12 @@ Frontend:
 - `cd frontend`
 - `npm install`
 - `npm start`
+- `npm start -- --tunnel`
 - `npm run web`
 - `npm run check`
 - `npm test`
 
-The frontend and backend both support hot reload in local development. `npm start` opens the Expo dev server for phone and simulator preview, and `npm run web` opens the Expo web build in the browser.
+The frontend and backend both support hot reload in local development. `npm start` opens the Expo dev server for phone and simulator preview, `npm start -- --tunnel` is the safer fallback when the phone cannot reach the local LAN, and `npm run web` opens the Expo web build in the browser.
 
 ## Database model to implement next
 
@@ -75,11 +76,13 @@ Recommended relational notes:
 5. Install frontend dependencies with `npm install`.
 6. Return to the repo root.
 7. Copy `.env.example` to `.env` and set API credentials.
-8. Run the backend with `uvicorn backend.app.main:app --reload --port 8000`.
-9. For browser preview, run the frontend from `frontend/` with `npm run web`.
-10. For iPhone preview, run `npm start` in `frontend/` and scan the QR code with Expo Go.
-11. Set `EXPO_PUBLIC_API_BASE_URL` to `http://<your-lan-ip>:8000/api` when using Expo Go on a phone, because `localhost` points at the device rather than your laptop.
-12. Verify the backend at `http://localhost:8000/api/health`.
+8. Get your computer's LAN IP with `hostname -I` or `ip addr`.
+9. In `frontend/`, copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL=http://<your-lan-ip>:8000/api`.
+10. Run the backend with `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`.
+11. For browser preview, run the frontend from `frontend/` with `npm run web`.
+12. For iPhone preview on the same Wi-Fi, run `npm start` in `frontend/` and scan the QR code with Expo Go.
+13. If the phone is not on the same Wi-Fi or Expo Go stalls on the bundle download, run `npm start -- --tunnel` instead.
+14. Verify the backend at `http://localhost:8000/api/health`.
 
 ## Engineering guidance
 

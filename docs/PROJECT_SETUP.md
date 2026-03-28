@@ -16,7 +16,7 @@ This project assumes all local work happens after activating the dedicated conda
 1. `conda activate svelte`
 2. `pip install -e ".[dev]"`
 3. `python -m backend.app.db.bootstrap`
-4. `uvicorn backend.app.main:app --reload --port 8000`
+4. `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
 
 The backend serves:
 
@@ -32,10 +32,14 @@ The backend serves:
 1. `conda activate svelte`
 2. `cd frontend`
 3. `npm install`
-4. `npm start` for Expo Go / simulator preview
-5. `npm run web` for browser preview
+4. Get your computer's LAN IP with `hostname -I` or `ip addr`
+5. Copy `.env.example` to `.env`
+6. Set `EXPO_PUBLIC_API_BASE_URL=http://<your-lan-ip>:8000/api`
+7. `npm start` for Expo Go / simulator preview on the same Wi-Fi
+8. `npm start -- --tunnel` if the phone is not on the same Wi-Fi or Expo Go stalls on the bundle download
+9. `npm run web` for browser preview
 
-The frontend hot-reloads on source changes. Expo Go requires `EXPO_PUBLIC_API_BASE_URL=http://<your-lan-ip>:8000/api` so the phone can reach the backend on your machine.
+The frontend hot-reloads on source changes. Expo Go cannot use `localhost` for the backend because `localhost` points at the phone itself, not your computer.
 
 ## Mobile-first constraint
 
