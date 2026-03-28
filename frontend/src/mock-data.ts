@@ -10,6 +10,8 @@ import type {
   MealPrepTask,
   RecipeDefinition,
   RecipeImportInput,
+  ProfileProgress,
+  WeightEntry,
   WeeklyMetrics
 } from './types';
 
@@ -51,6 +53,46 @@ export const demoWeeklyMetrics: WeeklyMetrics = {
   macro_targets: { protein: 980, carbs: 1260, fat: 420 },
   macro_consumed: { protein: 742, carbs: 901, fat: 308 },
   weekly_weight_change: -1.2,
+  adherence_score: 87
+};
+
+export const demoWeightEntries: WeightEntry[] = [
+  {
+    id: 'weight-2026-03-21',
+    user_id: 'demo-user',
+    recorded_at: '2026-03-21',
+    weight_lbs: 181.2
+  },
+  {
+    id: 'weight-2026-03-24',
+    user_id: 'demo-user',
+    recorded_at: '2026-03-24',
+    weight_lbs: 180.6
+  },
+  {
+    id: 'weight-2026-03-27',
+    user_id: 'demo-user',
+    recorded_at: '2026-03-27',
+    weight_lbs: 179.8
+  },
+  {
+    id: 'weight-2026-03-28',
+    user_id: 'demo-user',
+    recorded_at: '2026-03-28',
+    weight_lbs: 179.4
+  }
+];
+
+export const demoProfileProgress: ProfileProgress = {
+  user_id: 'demo-user',
+  display_name: 'Nutrition User',
+  current_weight_lbs: 179.4,
+  start_weight_lbs: 181.2,
+  target_weight_lbs: 175,
+  weekly_weight_change: -0.8,
+  weight_entries: demoWeightEntries.length,
+  calorie_goal: 2100,
+  calories_consumed: 1685,
   adherence_score: 87
 };
 

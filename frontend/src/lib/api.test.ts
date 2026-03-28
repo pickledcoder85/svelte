@@ -19,11 +19,13 @@ import {
   fetchMealPlanDays,
   fetchMealPrepTasks,
   fetchProfile,
+  fetchProfileProgress,
   fetchUserGoals,
   fetchRecipes,
   fetchRecipe,
   importRecipe,
   fetchTodaysFoodLog,
+  fetchWeightEntries,
   normalizeApiBaseUrl,
   rejectIngestionOutput,
   searchFoods,
@@ -481,6 +483,42 @@ describe('api helpers', () => {
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            user_id: 'user-123',
+            display_name: 'Profile User',
+            current_weight_lbs: 179.4,
+            start_weight_lbs: 181.2,
+            target_weight_lbs: 175,
+            weekly_weight_change: -0.8,
+            weight_entries: 4,
+            calorie_goal: 2100,
+            calories_consumed: 1685,
+            adherence_score: 87
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'weight-1',
+              user_id: 'user-123',
+              recorded_at: '2026-03-21',
+              weight_lbs: 181.2
+            },
+            {
+              id: 'weight-2',
+              user_id: 'user-123',
+              recorded_at: '2026-03-28',
+              weight_lbs: 179.4
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
       );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -494,6 +532,8 @@ describe('api helpers', () => {
       'token-123'
     );
     await fetchUserGoals('token-123');
+    await fetchProfileProgress('token-123');
+    await fetchWeightEntries('token-123');
     await createUserGoal(
       {
         effective_at: '2026-04-06',
@@ -533,6 +573,20 @@ describe('api helpers', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       4,
+      'http://localhost:8000/api/profile/progress',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      'http://localhost:8000/api/profile/weights',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
       'http://localhost:8000/api/profile/goals',
       expect.objectContaining({
         method: 'POST',

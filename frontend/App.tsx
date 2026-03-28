@@ -30,10 +30,12 @@ import {
   fetchFavoriteRecipes,
   fetchMealPlanDays,
   fetchMealPrepTasks,
+  fetchProfileProgress,
   fetchProfile,
   fetchUserGoals,
   fetchRecipes,
   fetchRecipe,
+  fetchWeightEntries,
   fetchTodaysFoodLog,
   fetchWeeklyMetrics,
   favoriteRecipe,
@@ -45,6 +47,7 @@ import {
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
+import { buildTrackerTotals, buildWeightProgressSummary } from './src/lib/progress';
 import {
   filterFoodsFuzzy,
   foodMacroLine,
@@ -58,12 +61,13 @@ import {
   demoDashboardSnapshot,
   demoExerciseEntries,
   demoFoodResults,
-  demoFoodStrip,
   demoMeal,
   demoFoodLog,
   demoMealPlanDays,
   demoMealPrepTasks,
   demoRangeSeries,
+  demoProfileProgress,
+  demoWeightEntries,
   demoRecipeFavorites,
   demoRecipeCatalog,
   demoRecipeImports
@@ -77,9 +81,11 @@ import type {
   FoodLogSummary,
   MealPlanDay,
   MealPrepTask,
+  ProfileProgress,
   RecipeDefinition,
   UserGoal,
-  UserProfile
+  UserProfile,
+  WeightEntry
 } from './src/types';
 
 const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
@@ -138,6 +144,8 @@ export default function App(): ReactElement {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
+  const [profileProgress, setProfileProgress] = useState<ProfileProgress | null>(null);
+  const [weightEntries, setWeightEntries] = useState<WeightEntry[]>(demoWeightEntries);
   const [profileDisplayNameDraft, setProfileDisplayNameDraft] = useState('');
   const [profileTimezoneDraft, setProfileTimezoneDraft] = useState('UTC');
   const [profileUnitsDraft, setProfileUnitsDraft] = useState<'imperial' | 'metric'>('imperial');
@@ -332,11 +340,15 @@ export default function App(): ReactElement {
         };
         setProfile(fallbackProfile);
         setProfileGoals([]);
+        setProfileProgress(demoProfileProgress);
+        setWeightEntries(demoWeightEntries);
         setProfileDisplayNameDraft(fallbackProfile.display_name ?? '');
         setProfileTimezoneDraft(fallbackProfile.timezone);
         setProfileUnitsDraft(fallbackProfile.units);
         setProfileTone('demo');
-        setProfileStatus('Showing local profile defaults');
+        setProfileStatus(
+          `${demoProfileProgress.weight_entries} weight entries and ${demoProfileProgress.adherence_score}% adherence loaded from local demo data`
+        );
         setProfileError(null);
         return;
       }
@@ -346,9 +358,11 @@ export default function App(): ReactElement {
       setProfileError(null);
 
       try {
-        const [loadedProfile, goals] = await Promise.all([
+        const [loadedProfile, goals, progress, weights] = await Promise.all([
           fetchProfile(foodSessionToken),
-          fetchUserGoals(foodSessionToken)
+          fetchUserGoals(foodSessionToken),
+          fetchProfileProgress(foodSessionToken),
+          fetchWeightEntries(foodSessionToken)
         ]);
 
         if (cancelled) {
@@ -357,14 +371,16 @@ export default function App(): ReactElement {
 
         setProfile(loadedProfile);
         setProfileGoals(goals);
+        setProfileProgress(progress);
+        setWeightEntries(weights);
         setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
         setProfileTimezoneDraft(loadedProfile.timezone);
         setProfileUnitsDraft(loadedProfile.units);
         setProfileTone('live');
         setProfileStatus(
-          goals.length === 0
-            ? 'Profile loaded; create a new goal below'
-            : `${goals.length} goal${goals.length === 1 ? '' : 's'} loaded`
+          `${goals.length} goal${goals.length === 1 ? '' : 's'}, ${progress.weight_entries} weight entr${
+            progress.weight_entries === 1 ? 'y' : 'ies'
+          }, and ${progress.adherence_score}% adherence loaded`
         );
       } catch (error) {
         if (cancelled) {
@@ -380,11 +396,15 @@ export default function App(): ReactElement {
         };
         setProfile(fallbackProfile);
         setProfileGoals([]);
+        setProfileProgress(demoProfileProgress);
+        setWeightEntries(demoWeightEntries);
         setProfileDisplayNameDraft(fallbackProfile.display_name ?? '');
         setProfileTimezoneDraft(fallbackProfile.timezone);
         setProfileUnitsDraft(fallbackProfile.units);
         setProfileTone('demo');
-        setProfileStatus('Showing local profile defaults');
+        setProfileStatus(
+          `${demoProfileProgress.weight_entries} weight entries and ${demoProfileProgress.adherence_score}% adherence loaded from local demo data`
+        );
         setProfileError(error instanceof Error ? error.message : 'Profile settings unavailable.');
       }
     }
@@ -839,6 +859,11 @@ export default function App(): ReactElement {
     () => selectFoodById(logFoodResults, selectedLogFoodId),
     [logFoodResults, selectedLogFoodId]
   );
+  const trackerTotals = useMemo(() => buildTrackerTotals(foodLog, exerciseEntries), [exerciseEntries, foodLog]);
+  const weightProgress = useMemo(
+    () => buildWeightProgressSummary(profileProgress, weightEntries),
+    [profileProgress, weightEntries]
+  );
   const mealPreview = useMemo(() => scaleMealIngredients(demoMeal, recipeScale), [recipeScale]);
   const recipeTotals = useMemo(() => mealTotals(mealPreview), [mealPreview]);
   const importedRecipeSelected = importedRecipeId !== null && selectedRecipeId === importedRecipeId;
@@ -1279,23 +1304,73 @@ export default function App(): ReactElement {
                 <MetricTile label="Remaining" value={`${rangeRemaining.toLocaleString()} kcal`} />
               </View>
 
-              <View style={styles.quickLogCard}>
-                <View style={styles.quickLogHeader}>
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
                   <View>
-                    <Text style={styles.panelEyebrow}>Quick log</Text>
-                    <Text style={styles.quickLogTitle}>Today’s seeded foods</Text>
+                    <Text style={styles.panelEyebrow}>Live progress</Text>
+                    <Text style={styles.detailTitle}>Weekly metrics, goals, and tracker totals</Text>
                   </View>
-                  <Text style={styles.quickLogHint}>Visible in the dashboard flow</Text>
+                  <Text style={styles.detailSubtitle}>
+                    Live data already on main, summarized without the seeded dashboard copy.
+                  </Text>
                 </View>
-                {demoFoodStrip.items.map((item) => (
-                  <View key={item.name} style={styles.listRow}>
-                    <View>
-                      <Text style={styles.listTitle}>{item.name}</Text>
-                      <Text style={styles.listCaption}>{item.serving}</Text>
-                    </View>
-                    <Text style={styles.listMetric}>{item.calories} kcal</Text>
+
+                <View style={styles.metricRow}>
+                  <MetricTile
+                    label="Weekly calories"
+                    value={`${snapshot.weeklyMetrics.calories_consumed.toLocaleString()} / ${snapshot.weeklyMetrics.calorie_goal.toLocaleString()} kcal`}
+                  />
+                  <MetricTile label="Adherence" value={`${snapshot.weeklyMetrics.adherence_score}%`} />
+                  <MetricTile
+                    label="Weekly change"
+                    value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
+                  />
+                </View>
+
+                <View style={styles.metricRow}>
+                  <MetricTile
+                    label="Current weight"
+                    value={
+                      weightProgress.currentWeightLbs !== null
+                        ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
+                        : '—'
+                    }
+                  />
+                  <MetricTile
+                    label="Target weight"
+                    value={
+                      weightProgress.targetWeightLbs !== null
+                        ? `${weightProgress.targetWeightLbs.toLocaleString()} lb`
+                        : '—'
+                    }
+                  />
+                  <MetricTile
+                    label="Exercise burn"
+                    value={`${trackerTotals.exerciseCalories.toLocaleString()} kcal`}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.panelEyebrow}>Tracker totals</Text>
+                    <Text style={styles.detailTitle}>Food, movement, and net calories</Text>
                   </View>
-                ))}
+                  <Text style={styles.detailSubtitle}>
+                    Today’s tracker data updates from the live food log and exercise entries.
+                  </Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <MetricTile label="Food" value={`${trackerTotals.foodCalories.toLocaleString()} kcal`} />
+                  <MetricTile label="Exercise" value={`${trackerTotals.exerciseCalories.toLocaleString()} kcal`} />
+                  <MetricTile label="Net" value={`${trackerTotals.netCalories.toLocaleString()} kcal`} />
+                </View>
+                <View style={styles.metricRow}>
+                  <MetricTile label="Log entries" value={`${trackerTotals.foodEntryCount}`} />
+                  <MetricTile label="Exercise entries" value={`${trackerTotals.exerciseEntryCount}`} />
+                  <MetricTile label="Exercise minutes" value={`${trackerTotals.exerciseMinutes} min`} />
+                </View>
               </View>
 
               <View style={styles.chartCard}>
@@ -1326,6 +1401,56 @@ export default function App(): ReactElement {
                   color="#2563eb"
                 />
               </View>
+
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.panelEyebrow}>Weight history</Text>
+                    <Text style={styles.detailTitle}>Latest weigh-ins and trend</Text>
+                  </View>
+                  <Text style={styles.detailSubtitle}>
+                    {weightProgress.weightEntryCount} recorded weigh-ins · current{' '}
+                    {weightProgress.currentWeightLbs !== null
+                      ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
+                      : '—'}
+                  </Text>
+                </View>
+
+                <View style={styles.metricRow}>
+                  <MetricTile
+                    label="Start"
+                    value={
+                      weightProgress.startWeightLbs !== null
+                        ? `${weightProgress.startWeightLbs.toLocaleString()} lb`
+                        : '—'
+                    }
+                  />
+                  <MetricTile
+                    label="Change"
+                    value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
+                  />
+                  <MetricTile
+                    label="Current"
+                    value={
+                      weightProgress.currentWeightLbs !== null
+                        ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
+                        : '—'
+                    }
+                  />
+                </View>
+
+                <View style={styles.foodList}>
+                  {weightEntries.slice(-3).reverse().map((entry) => (
+                    <View key={entry.id} style={styles.listRow}>
+                      <View>
+                        <Text style={styles.listTitle}>{entry.weight_lbs.toLocaleString()} lb</Text>
+                        <Text style={styles.listCaption}>{entry.recorded_at}</Text>
+                      </View>
+                      <Text style={styles.listMetric}>weigh-in</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
             </View>
 
           </>
@@ -1345,6 +1470,51 @@ export default function App(): ReactElement {
               <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
                 <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
                 {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
+              </View>
+
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.panelEyebrow}>Progress snapshot</Text>
+                    <Text style={styles.detailTitle}>Weight, goal, and adherence</Text>
+                  </View>
+                  <Text style={styles.detailSubtitle}>
+                    Live progress is pulled from the profile, goal, and weight history APIs.
+                  </Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <MetricTile
+                    label="Current weight"
+                    value={
+                      weightProgress.currentWeightLbs !== null
+                        ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
+                        : '—'
+                    }
+                  />
+                  <MetricTile
+                    label="Target"
+                    value={
+                      weightProgress.targetWeightLbs !== null
+                        ? `${weightProgress.targetWeightLbs.toLocaleString()} lb`
+                        : '—'
+                    }
+                  />
+                  <MetricTile label="Adherence" value={`${profileProgress?.adherence_score ?? 0}%`} />
+                </View>
+                <View style={styles.metricRow}>
+                  <MetricTile
+                    label="Goals"
+                    value={`${profileGoals.length} saved`}
+                  />
+                  <MetricTile
+                    label="Weights"
+                    value={`${weightProgress.weightEntryCount} entries`}
+                  />
+                  <MetricTile
+                    label="Weekly change"
+                    value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
+                  />
+                </View>
               </View>
 
               {profile ? (
