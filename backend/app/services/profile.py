@@ -101,15 +101,21 @@ def get_profile_progress(
     goals = repository.list_user_goals(user_id)
     weight_entries = _list_weight_entries(repository, user_id)
     if week_start is None or week_end is None:
-        current_date = date.today()
-        week_start = current_date - timedelta(days=current_date.weekday())
-        week_end = week_start + timedelta(days=6)
-
-    weekly_metrics = repository.get_weekly_metrics_for_user(
-        user_id=user_id,
-        week_start=week_start,
-        week_end=week_end,
-    )
+        resolved_end = _latest_activity_date(repository, user_id)
+        if resolved_end is None:
+            weekly_metrics = repository.get_weekly_metrics_for_user(user_id=user_id)
+        else:
+            weekly_metrics = repository.get_weekly_metrics_for_user(
+                user_id=user_id,
+                week_start=resolved_end - timedelta(days=6),
+                week_end=resolved_end,
+            )
+    else:
+        weekly_metrics = repository.get_weekly_metrics_for_user(
+            user_id=user_id,
+            week_start=week_start,
+            week_end=week_end,
+        )
 
     current_weight = float(weight_entries[-1]["weight_lbs"]) if weight_entries else None
     start_weight = float(weight_entries[0]["weight_lbs"]) if weight_entries else None
@@ -148,3 +154,24 @@ def _get_weight_entry(repository: SQLiteRepository, entry_id: str) -> dict | Non
         (entry_id,),
     ).fetchone()
     return dict(row) if row is not None else None
+
+
+def _latest_activity_date(repository: SQLiteRepository, user_id: str) -> date | None:
+    row = repository._connection.execute(
+        """
+        SELECT MAX(activity_date) AS activity_date
+        FROM (
+            SELECT MAX(recorded_at) AS activity_date
+            FROM weight_entries
+            WHERE user_id = ?
+            UNION ALL
+            SELECT MAX(log_date) AS activity_date
+            FROM food_logs
+            WHERE user_id = ?
+        )
+        """,
+        (user_id, user_id),
+    ).fetchone()
+    if row is None or row["activity_date"] is None:
+        return None
+    return date.fromisoformat(row["activity_date"])
