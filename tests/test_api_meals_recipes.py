@@ -2,7 +2,15 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_persist_meal_template(client):
+async def test_meal_template_favorites_are_session_scoped(client, repository):
+    session_response = await client.post(
+        "/api/auth/session",
+        json={"email": "meal-favorites@example.com", "display_name": "Meal Favorites"},
+    )
+    assert session_response.status_code == 200
+    session = session_response.json()["session"]
+    headers = {"Authorization": f"Bearer {session['access_token']}"}
+
     response = await client.post(
         "/api/meals/templates",
         json={
@@ -34,23 +42,47 @@ async def test_persist_meal_template(client):
     assert fetched.json()["name"] == "Blueberry Protein Bowl"
 
     favorites = await client.get("/api/meals/favorites")
+    assert favorites.status_code == 401
+
+    favorites = await client.get("/api/meals/favorites", headers=headers)
     assert favorites.status_code == 200
     assert favorites.json() == []
 
-    favorite_update = await client.put(
+    favorite_update = await client.post(
         "/api/meals/templates/meal-breakfast-bowl/favorite",
-        json={"favorite": True},
+        headers=headers,
     )
     assert favorite_update.status_code == 200
     assert favorite_update.json()["favorite"] is True
+    assert repository.list_saved_favorites(session["user_id"], "meal_template")
 
-    favorites = await client.get("/api/meals/favorites")
+    favorites = await client.get("/api/meals/favorites", headers=headers)
     assert favorites.status_code == 200
     assert len(favorites.json()) == 1
 
+    unfavorite_update = await client.delete(
+        "/api/meals/templates/meal-breakfast-bowl/favorite",
+        headers=headers,
+    )
+    assert unfavorite_update.status_code == 200
+    assert unfavorite_update.json()["favorite"] is False
+    assert repository.list_saved_favorites(session["user_id"], "meal_template") == []
+
+    favorites = await client.get("/api/meals/favorites", headers=headers)
+    assert favorites.status_code == 200
+    assert favorites.json() == []
+
 
 @pytest.mark.asyncio
-async def test_persist_recipe_import_and_scale(client):
+async def test_recipe_favorites_are_session_scoped(client, repository):
+    session_response = await client.post(
+        "/api/auth/session",
+        json={"email": "recipe-favorites@example.com", "display_name": "Recipe Favorites"},
+    )
+    assert session_response.status_code == 200
+    session = session_response.json()["session"]
+    headers = {"Authorization": f"Bearer {session['access_token']}"}
+
     response = await client.post(
         "/api/recipes/import",
         json={
@@ -76,16 +108,32 @@ async def test_persist_recipe_import_and_scale(client):
     assert scaled.json()["default_yield"] == 3.0
 
     favorites = await client.get("/api/recipes/favorites")
+    assert favorites.status_code == 401
+
+    favorites = await client.get("/api/recipes/favorites", headers=headers)
+    assert favorites.status_code == 200
+    assert favorites.json() == []
+
+    favorite_update = await client.post(
+        f"/api/recipes/{recipe_id}/favorite",
+        headers=headers,
+    )
+    assert favorite_update.status_code == 200
+    assert favorite_update.json()["favorite"] is True
+    assert repository.list_saved_favorites(session["user_id"], "recipe")
+
+    favorites = await client.get("/api/recipes/favorites", headers=headers)
     assert favorites.status_code == 200
     assert len(favorites.json()) == 1
 
-    favorite_update = await client.put(
+    unfavorite_update = await client.delete(
         f"/api/recipes/{recipe_id}/favorite",
-        json={"favorite": False},
+        headers=headers,
     )
-    assert favorite_update.status_code == 200
-    assert favorite_update.json()["favorite"] is False
+    assert unfavorite_update.status_code == 200
+    assert unfavorite_update.json()["favorite"] is False
+    assert repository.list_saved_favorites(session["user_id"], "recipe") == []
 
-    favorites = await client.get("/api/recipes/favorites")
+    favorites = await client.get("/api/recipes/favorites", headers=headers)
     assert favorites.status_code == 200
     assert favorites.json() == []
