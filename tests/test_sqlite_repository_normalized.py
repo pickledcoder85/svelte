@@ -24,6 +24,13 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                     WHERE type = 'table'
                     """
                 ).fetchall()
+                saved_favorites_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'saved_favorites'
+                    """
+                ).fetchone()
                 index_rows = connection.execute(
                     """
                     SELECT name
@@ -45,6 +52,8 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 "saved_favorites",
             }.issubset(table_names)
         )
+        self.assertIsNotNone(saved_favorites_row)
+        self.assertIn("food", saved_favorites_row["sql"])
         self.assertTrue(
             {
                 "idx_user_goals_user_effective",
@@ -181,7 +190,7 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(rejected_output["rejected_at"], "2026-03-27T15:50:00")
         self.assertEqual([output["id"] for output in all_outputs], ["output-2", "output-1"])
 
-    def test_sqlite_repository_persists_saved_favorites_for_recipes_and_meals(self) -> None:
+    def test_sqlite_repository_persists_saved_favorites_for_recipes_meals_and_foods(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = Path(tmp_dir) / "normalized.db"
             repo = SQLiteRepository(str(db_path))
@@ -234,38 +243,49 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 entity_type="meal_template",
                 entity_id=meal_template.id,
             )
-            recipe_favorite_user1 = repo.save_favorite(
+            recipe_favorite = repo.save_favorite(
                 user_id="user-1",
                 entity_type="recipe",
                 entity_id=recipe.id,
             )
-            recipe_favorite_user2 = repo.save_favorite(
+
+            food_favorite = repo.save_favorite(
+                user_id="user-1",
+                entity_type="food",
+                entity_id="food-oats",
+            )
+            duplicate_food_favorite = repo.save_favorite(
+                user_id="user-1",
+                entity_type="food",
+                entity_id="food-oats",
+            )
+            other_user_food_favorite = repo.save_favorite(
                 user_id="user-2",
-                entity_type="recipe",
-                entity_id=recipe.id,
-            )
-            duplicate_recipe_favorite = repo.save_favorite(
-                user_id="user-1",
-                entity_type="recipe",
-                entity_id=recipe.id,
+                entity_type="food",
+                entity_id="food-oats",
             )
 
             user1_favorites = repo.list_saved_favorites("user-1")
-            recipe_favorites = repo.list_saved_favorites("user-1", "recipe")
+            food_favorites = repo.list_saved_favorites("user-1", "food")
             meal_favorites = repo.list_saved_favorites("user-1", "meal_template")
+            recipe_favorites = repo.list_saved_favorites("user-1", "recipe")
 
-            repo.remove_favorite(user_id="user-1", entity_type="recipe", entity_id=recipe.id)
+            repo.remove_favorite(user_id="user-1", entity_type="food", entity_id="food-oats")
 
         self.assertEqual(meal_favorite["entity_type"], "meal_template")
-        self.assertEqual(recipe_favorite_user1["entity_id"], recipe.id)
-        self.assertEqual(recipe_favorite_user2["user_id"], "user-2")
-        self.assertEqual(duplicate_recipe_favorite["id"], recipe_favorite_user1["id"])
-        self.assertEqual(len(user1_favorites), 2)
-        self.assertEqual(len(recipe_favorites), 1)
+        self.assertEqual(recipe_favorite["entity_type"], "recipe")
+        self.assertEqual(food_favorite["entity_type"], "food")
+        self.assertEqual(food_favorite["entity_id"], "food-oats")
+        self.assertEqual(duplicate_food_favorite["id"], food_favorite["id"])
+        self.assertEqual(other_user_food_favorite["user_id"], "user-2")
+        self.assertEqual(len(user1_favorites), 3)
+        self.assertEqual(len(food_favorites), 1)
         self.assertEqual(len(meal_favorites), 1)
+        self.assertEqual(len(recipe_favorites), 1)
         self.assertTrue(repo.is_saved_favorite("user-1", "meal_template", meal_template.id))
-        self.assertFalse(repo.is_saved_favorite("user-1", "recipe", recipe.id))
-        self.assertTrue(repo.is_saved_favorite("user-2", "recipe", recipe.id))
+        self.assertTrue(repo.is_saved_favorite("user-1", "recipe", recipe.id))
+        self.assertFalse(repo.is_saved_favorite("user-1", "food", "food-oats"))
+        self.assertTrue(repo.is_saved_favorite("user-2", "food", "food-oats"))
 
 
 if __name__ == "__main__":
