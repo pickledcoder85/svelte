@@ -4,11 +4,18 @@
     "slug": "nutrition-os",
     "scheme": "nutrition-os",
     "version": "0.1.0",
+    "icon": "./assets/favicon.png",
     "orientation": "portrait",
     "platforms": ["ios", "android", "web"],
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/favicon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f4efe4"
+    },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     }
   }
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   type DimensionValue,
+  Image,
   Platform,
   Pressable,
   SafeAreaView,
@@ -55,6 +56,7 @@ const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
 const sectionOrder: AppSection[] = ['dashboard', 'log', 'foods', 'meals', 'recipes'];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const chartHeight = 160;
+const heroBrandImage = require('./assets/favicon.png');
 
 function toneColor(tone: 'checking' | 'live' | 'demo'): string {
   if (tone === 'live') {
@@ -590,12 +592,20 @@ export default function App(): ReactElement {
                 The frontend now runs as an Expo app with web support, so you can preview in a browser and in Expo Go while the FastAPI backend stays unchanged.
               </Text>
             </View>
-            <View style={styles.ringCard}>
-              <Text style={styles.ringValue}>{calorieProgress}%</Text>
-              <Text style={styles.ringLabel}>{selectedSeries.label}</Text>
-              <Text style={styles.ringCaption}>
-                {selectedSeries.caloriesConsumed.toLocaleString()} / {selectedSeries.targetCalories.toLocaleString()} kcal
-              </Text>
+
+            <View style={styles.heroAside}>
+              <View style={styles.ringCard}>
+                <Text style={styles.ringValue}>{calorieProgress}%</Text>
+                <Text style={styles.ringLabel}>{selectedSeries.label}</Text>
+                <Text style={styles.ringCaption}>
+                  {selectedSeries.caloriesConsumed.toLocaleString()} / {selectedSeries.targetCalories.toLocaleString()} kcal
+                </Text>
+              </View>
+
+              <View style={styles.mascotCard}>
+                <Image source={heroBrandImage} style={styles.mascotImage} resizeMode="contain" />
+                <Text style={styles.mascotLabel}>Pickle keeps the cut on track.</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -1329,6 +1339,10 @@ const styles = StyleSheet.create({
   heroHeader: {
     gap: 16
   },
+  heroAside: {
+    gap: 14,
+    alignItems: 'stretch'
+  },
   heroCopy: {
     gap: 10
   },
@@ -1365,6 +1379,24 @@ const styles = StyleSheet.create({
     color: '#5c6d80',
     marginTop: 4,
     fontSize: 12
+  },
+  mascotCard: {
+    backgroundColor: '#f6f0e7',
+    borderRadius: 24,
+    padding: 14,
+    alignItems: 'center',
+    gap: 10
+  },
+  mascotImage: {
+    width: '100%',
+    maxWidth: 220,
+    height: 220
+  },
+  mascotLabel: {
+    color: '#17324d',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center'
   },
   statusBanner: {
     backgroundColor: '#fffaf0',
