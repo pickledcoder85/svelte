@@ -596,6 +596,7 @@ export const demoMealPlanDays: MealPlanDay[] = [
     id: 'meal-plan-mon',
     label: 'Mon',
     focus: 'Training day',
+    plan_date: '2026-03-30',
     slots: [
       { id: 'mon-breakfast', meal_label: 'Breakfast', title: 'Greek yogurt + berries', calories: 320, prep_status: 'Prepped' },
       { id: 'mon-lunch', meal_label: 'Lunch', title: 'Chicken rice bowls', calories: 610, prep_status: 'Prepped' },
@@ -606,6 +607,7 @@ export const demoMealPlanDays: MealPlanDay[] = [
     id: 'meal-plan-tue',
     label: 'Tue',
     focus: 'Desk day',
+    plan_date: '2026-03-31',
     slots: [
       { id: 'tue-breakfast', meal_label: 'Breakfast', title: 'Overnight oats', calories: 380, prep_status: 'Prepped' },
       { id: 'tue-lunch', meal_label: 'Lunch', title: 'Turkey wraps + carrots', calories: 540, prep_status: 'Flexible' },
@@ -616,6 +618,7 @@ export const demoMealPlanDays: MealPlanDay[] = [
     id: 'meal-plan-wed',
     label: 'Wed',
     focus: 'Recovery day',
+    plan_date: '2026-04-01',
     slots: [
       { id: 'wed-breakfast', meal_label: 'Breakfast', title: 'Egg scramble + toast', calories: 410, prep_status: 'Needs prep' },
       { id: 'wed-lunch', meal_label: 'Lunch', title: 'Chicken thigh salad', calories: 520, prep_status: 'Prepped' },
