@@ -34,6 +34,18 @@ Each worker must stop only at a commit-ready boundary and report:
 
 The orchestrator must verify the branch and changed files before allowing more work.
 
+## Polling and visibility rules
+
+- While any worker is active, the orchestrator must poll worker status on a regular cadence.
+- Default cadence for this repository is every 2 minutes unless a shorter blocking step is in progress.
+- Poll results must be surfaced to the user as a consolidated update covering:
+  - active workers
+  - completed workers
+  - commit-ready boundaries
+  - blockers
+- If no worker is active, the orchestrator must say that explicitly rather than implying work is still in flight.
+- Polling is part of orchestration, not an optional courtesy.
+
 ## Verification rules
 
 After each dispatch, the orchestrator must verify:
