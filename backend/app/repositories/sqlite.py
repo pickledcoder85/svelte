@@ -144,6 +144,16 @@ class SQLiteRepository:
                     FOREIGN KEY (ingestion_job_id) REFERENCES ingestion_jobs (id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS saved_favorites (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    entity_type TEXT NOT NULL CHECK (entity_type IN ('recipe', 'meal_template')),
+                    entity_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    UNIQUE (user_id, entity_type, entity_id)
+                );
+
                 CREATE TABLE IF NOT EXISTS food_catalog (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -231,6 +241,10 @@ class SQLiteRepository:
                 CREATE INDEX IF NOT EXISTS idx_ingestion_outputs_pending_review
                     ON ingestion_outputs (created_at DESC, id)
                     WHERE reviewed_at IS NULL AND accepted_at IS NULL AND rejected_at IS NULL;
+                CREATE INDEX IF NOT EXISTS idx_saved_favorites_user_type_created
+                    ON saved_favorites (user_id, entity_type, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_saved_favorites_entity
+                    ON saved_favorites (entity_type, entity_id);
                 """
             )
         self._seed_data()
@@ -463,6 +477,89 @@ class SQLiteRepository:
             (user_id,),
         ).fetchone()
         return dict(row) if row is not None else None
+
+    def save_favorite(
+        self,
+        *,
+        user_id: str,
+        entity_type: str,
+        entity_id: str,
+        favorite_id: str | None = None,
+    ) -> dict[str, Any]:
+        if entity_type not in {"recipe", "meal_template"}:
+            raise ValueError("entity_type must be 'recipe' or 'meal_template'.")
+
+        identifier = favorite_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO saved_favorites (id, user_id, entity_type, entity_id)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, entity_type, entity_id) DO NOTHING
+                """,
+                (identifier, user_id, entity_type, entity_id),
+            )
+
+        favorite = self.get_saved_favorite(user_id, entity_type, entity_id)
+        if favorite is None:
+            raise RuntimeError("Failed to persist favorite.")
+        return favorite
+
+    def get_saved_favorite(
+        self,
+        user_id: str,
+        entity_type: str,
+        entity_id: str,
+    ) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            """
+            SELECT *
+            FROM saved_favorites
+            WHERE user_id = ? AND entity_type = ? AND entity_id = ?
+            """,
+            (user_id, entity_type, entity_id),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_saved_favorites(
+        self,
+        user_id: str,
+        entity_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params: list[Any] = [user_id]
+        entity_type_clause = ""
+        if entity_type is not None:
+            if entity_type not in {"recipe", "meal_template"}:
+                raise ValueError("entity_type must be 'recipe' or 'meal_template'.")
+            entity_type_clause = " AND entity_type = ?"
+            params.append(entity_type)
+
+        rows = self._connection.execute(
+            f"""
+            SELECT *
+            FROM saved_favorites
+            WHERE user_id = ?{entity_type_clause}
+            ORDER BY created_at DESC, id DESC
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def is_saved_favorite(self, user_id: str, entity_type: str, entity_id: str) -> bool:
+        return self.get_saved_favorite(user_id, entity_type, entity_id) is not None
+
+    def remove_favorite(self, *, user_id: str, entity_type: str, entity_id: str) -> None:
+        if entity_type not in {"recipe", "meal_template"}:
+            raise ValueError("entity_type must be 'recipe' or 'meal_template'.")
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                DELETE FROM saved_favorites
+                WHERE user_id = ? AND entity_type = ? AND entity_id = ?
+                """,
+                (user_id, entity_type, entity_id),
+            )
 
     def save_user_goal(
         self,
