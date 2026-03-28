@@ -230,13 +230,69 @@ export const demoDashboardSnapshot: DashboardSnapshot = {
 
 export const demoFoodStrip = {
   items: [
-    { name: 'Rolled oats', calories: 389, serving: '100 g' },
-    { name: 'Greek yogurt', calories: 59, serving: '100 g' },
-    { name: 'Blueberries', calories: 57, serving: '100 g' }
+    { name: 'Chicken breast', calories: 165, serving: '100 g' },
+    { name: 'Eggs, whole', calories: 143, serving: '100 g' },
+    { name: 'Apples, Granny Smith', calories: 52, serving: '100 g' },
+    { name: 'Bread, whole wheat', calories: 247, serving: '100 g' }
   ]
 };
 
 export const demoFoodResults: FoodItem[] = [
+  {
+    id: 'food-apples-granny-smith',
+    name: 'Apples, Granny Smith',
+    brand: null,
+    calories: 52,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 0.3, carbs: 13.8, fat: 0.2 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-avocado',
+    name: 'Avocado',
+    brand: null,
+    calories: 160,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 2, carbs: 8.5, fat: 14.7 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-bananas',
+    name: 'Bananas',
+    brand: null,
+    calories: 89,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 1.1, carbs: 22.8, fat: 0.3 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-bread-whole-wheat',
+    name: 'Bread, whole wheat',
+    brand: 'Generic',
+    calories: 247,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 12.5, carbs: 41.4, fat: 4.2 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-broccoli',
+    name: 'Broccoli',
+    brand: null,
+    calories: 34,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 2.8, carbs: 6.6, fat: 0.4 },
+    source: 'USDA',
+    favorite: true
+  },
   {
     id: 'food-greek-yogurt',
     name: 'Greek yogurt, plain nonfat',
@@ -245,17 +301,8 @@ export const demoFoodResults: FoodItem[] = [
     serving_size: 100,
     serving_unit: 'g',
     macros: { protein: 10.3, carbs: 3.6, fat: 0.4 },
-    source: 'USDA'
-  },
-  {
-    id: 'food-rolled-oats',
-    name: 'Rolled oats',
-    brand: 'Generic',
-    calories: 389,
-    serving_size: 100,
-    serving_unit: 'g',
-    macros: { protein: 16.9, carbs: 66.3, fat: 6.9 },
-    source: 'USDA'
+    source: 'USDA',
+    favorite: true
   },
   {
     id: 'food-blueberries',
@@ -265,7 +312,217 @@ export const demoFoodResults: FoodItem[] = [
     serving_size: 100,
     serving_unit: 'g',
     macros: { protein: 0.7, carbs: 14.5, fat: 0.3 },
-    source: 'USDA'
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-carrots',
+    name: 'Carrots',
+    brand: null,
+    calories: 41,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 0.9, carbs: 9.6, fat: 0.2 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-chicken-breast',
+    name: 'Chicken breast, boneless skinless',
+    brand: null,
+    calories: 165,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 31, carbs: 0, fat: 3.6 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-chicken-thigh',
+    name: 'Chicken thighs, boneless skinless',
+    brand: null,
+    calories: 209,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 26, carbs: 0, fat: 10.9 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-cottage-cheese',
+    name: 'Cottage cheese, low fat',
+    brand: 'Generic',
+    calories: 81,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 10.5, carbs: 3.4, fat: 2.3 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-eggs',
+    name: 'Eggs, whole',
+    brand: '12 count carton',
+    calories: 143,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 12.6, carbs: 0.7, fat: 9.5 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-ground-beef-8020',
+    name: 'Beef, ground 80/20',
+    brand: null,
+    calories: 254,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 17.2, carbs: 0, fat: 20 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-jasmine-rice',
+    name: 'Rice, jasmine cooked',
+    brand: null,
+    calories: 129,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 2.7, carbs: 27.8, fat: 0.3 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-milk-2pct',
+    name: 'Milk, 2%',
+    brand: 'Generic',
+    calories: 50,
+    serving_size: 100,
+    serving_unit: 'ml',
+    macros: { protein: 3.4, carbs: 4.8, fat: 2 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-rolled-oats',
+    name: 'Rolled oats',
+    brand: 'Generic',
+    calories: 389,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 16.9, carbs: 66.3, fat: 6.9 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-peanut-butter',
+    name: 'Peanut butter',
+    brand: 'Generic',
+    calories: 588,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 25.1, carbs: 19.6, fat: 50.4 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-potatoes-russet',
+    name: 'Potatoes, russet',
+    brand: null,
+    calories: 79,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 2.9, carbs: 18.1, fat: 0.1 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-salmon',
+    name: 'Salmon, Atlantic',
+    brand: null,
+    calories: 208,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 20.4, carbs: 0, fat: 13.4 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-spinach',
+    name: 'Spinach',
+    brand: null,
+    calories: 23,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 2.9, carbs: 3.6, fat: 0.4 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-strawberries',
+    name: 'Strawberries',
+    brand: null,
+    calories: 32,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 0.7, carbs: 7.7, fat: 0.3 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-sweet-potato',
+    name: 'Sweet potato',
+    brand: null,
+    calories: 86,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 1.6, carbs: 20.1, fat: 0.1 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-white-onion',
+    name: 'Onion, white',
+    brand: null,
+    calories: 40,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 1.1, carbs: 9.3, fat: 0.1 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-whey-protein',
+    name: 'Whey protein powder',
+    brand: 'Generic',
+    calories: 412,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 80, carbs: 8, fat: 7 },
+    source: 'CUSTOM',
+    favorite: true
+  },
+  {
+    id: 'food-white-rice',
+    name: 'Rice, white cooked',
+    brand: null,
+    calories: 130,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 2.7, carbs: 28.2, fat: 0.3 },
+    source: 'USDA',
+    favorite: true
+  },
+  {
+    id: 'food-zucchini',
+    name: 'Zucchini',
+    brand: null,
+    calories: 17,
+    serving_size: 100,
+    serving_unit: 'g',
+    macros: { protein: 1.2, carbs: 3.1, fat: 0.3 },
+    source: 'USDA',
+    favorite: true
   }
 ];
 

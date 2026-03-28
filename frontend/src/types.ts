@@ -124,6 +124,7 @@ export interface FoodItem {
   serving_unit: string;
   macros: MacroTargets;
   source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM';
+  favorite: boolean;
 }
 
 export type AppSection = 'dashboard' | 'log' | 'foods' | 'meals' | 'recipes';

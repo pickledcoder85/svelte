@@ -10,6 +10,14 @@ import type {
   WeeklyMetrics
 } from '../types';
 
+interface AuthSession {
+  access_token: string;
+}
+
+interface SessionResponse {
+  session: AuthSession;
+}
+
 export interface ApiHealth {
   ok: boolean;
   service: string;
@@ -67,6 +75,50 @@ export async function searchFoods(query: string): Promise<FoodItem[]> {
 
   return readJson<FoodItem[]>(
     await fetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`))
+  );
+}
+
+function authHeaders(accessToken: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${accessToken}`
+  };
+}
+
+export async function createLocalSession(email: string, displayName: string): Promise<AuthSession> {
+  const response = await readJson<SessionResponse>(
+    await fetch(buildApiUrl('/auth/session'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, display_name: displayName })
+    })
+  );
+  return response.session;
+}
+
+export async function fetchFavoriteFoods(accessToken: string): Promise<FoodItem[]> {
+  return readJson<FoodItem[]>(
+    await fetch(buildApiUrl('/nutrition/favorites/foods'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function searchFoodsWithSession(query: string, accessToken: string): Promise<FoodItem[]> {
+  const normalizedQuery = query.trim();
+
+  return readJson<FoodItem[]>(
+    await fetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function addFavoriteFood(foodId: string, accessToken: string): Promise<{ food_id: string; favorite: boolean }> {
+  return readJson<{ food_id: string; favorite: boolean }>(
+    await fetch(buildApiUrl(`/nutrition/favorites/foods/${foodId}`), {
+      method: 'POST',
+      headers: authHeaders(accessToken)
+    })
   );
 }
 

@@ -17,8 +17,11 @@ import {
 
 import {
   addFoodLogEntry,
+  addFavoriteFood,
   calculateMeal,
+  createLocalSession,
   fetchBackendHealth,
+  fetchFavoriteFoods,
   fetchFavoriteRecipes,
   fetchRecipes,
   fetchRecipe,
@@ -26,11 +29,18 @@ import {
   fetchWeeklyMetrics,
   favoriteRecipe,
   importRecipe,
+  searchFoodsWithSession,
   unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
-import { filterFoodsFuzzy, foodMacroLine, selectFoodById, sortFoodsAlphabetically } from './src/lib/foods';
+import {
+  filterFoodsFuzzy,
+  foodMacroLine,
+  mergeFoodsById,
+  selectFoodById,
+  sortFoodsForPicker
+} from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import {
   demoDashboardSnapshot,
@@ -82,12 +92,15 @@ export default function App(): ReactElement {
   const [showScaleOptions, setShowScaleOptions] = useState(false);
   const [foodDraft, setFoodDraft] = useState('');
   const [foodSearchTerm, setFoodSearchTerm] = useState('');
-  const [foodResults, setFoodResults] = useState<FoodItem[]>(() => sortFoodsAlphabetically(demoFoodResults));
-  const [selectedFoodId, setSelectedFoodId] = useState(() => sortFoodsAlphabetically(demoFoodResults)[0]?.id ?? '');
+  const [foodSessionToken, setFoodSessionToken] = useState<string | null>(null);
+  const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>(() => sortFoodsForPicker(demoFoodResults));
+  const [foodResults, setFoodResults] = useState<FoodItem[]>(() => sortFoodsForPicker(demoFoodResults));
+  const [selectedFoodId, setSelectedFoodId] = useState(() => sortFoodsForPicker(demoFoodResults)[0]?.id ?? '');
   const [foodTone, setFoodTone] = useState<'checking' | 'live' | 'demo'>('checking');
-  const [foodStatus, setFoodStatus] = useState('Ready to search');
+  const [foodStatus, setFoodStatus] = useState('Starter favorites ready');
   const [foodError, setFoodError] = useState<string | null>(null);
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
+  const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
   const [logFoodDraft, setLogFoodDraft] = useState('yogurt');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('yogurt');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>(demoFoodResults);
@@ -115,6 +128,49 @@ export default function App(): ReactElement {
 
   useEffect(() => {
     let cancelled = false;
+
+    async function loadFavoriteFoods() {
+      setFoodTone('checking');
+      setFoodStatus('Loading favorite foods');
+      setFoodError(null);
+
+      try {
+        const session = await createLocalSession('foods@example.com', 'Food Favorites');
+        if (cancelled) {
+          return;
+        }
+
+        setFoodSessionToken(session.access_token);
+        const favorites = await fetchFavoriteFoods(session.access_token);
+        if (cancelled) {
+          return;
+        }
+
+        const mergedFavorites = sortFoodsForPicker(
+          mergeFoodsById(demoFoodResults, favorites.map((food) => ({ ...food, favorite: true })))
+        );
+        setFavoriteFoods(mergedFavorites);
+        setFoodResults((current) =>
+          foodSearchTerm.trim() ? current : mergedFavorites
+        );
+        setSelectedFoodId((current) => selectFoodById(mergedFavorites, current)?.id ?? mergedFavorites[0]?.id ?? '');
+        setFoodTone('live');
+        setFoodStatus(`${mergedFavorites.length} favorite foods cached for this session`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const seededFavorites = sortFoodsForPicker(demoFoodResults);
+        setFoodSessionToken(null);
+        setFavoriteFoods(seededFavorites);
+        setFoodResults((current) => (foodSearchTerm.trim() ? current : seededFavorites));
+        setSelectedFoodId((current) => selectFoodById(seededFavorites, current)?.id ?? seededFavorites[0]?.id ?? '');
+        setFoodTone('demo');
+        setFoodStatus(`${seededFavorites.length} seeded favorite foods ready`);
+        setFoodError(error instanceof Error ? error.message : 'Favorite foods unavailable.');
+      }
+    }
 
     async function syncBackend() {
       try {
@@ -171,6 +227,7 @@ export default function App(): ReactElement {
       }
     }
 
+    void loadFavoriteFoods();
     void syncBackend();
 
     return () => {
@@ -230,42 +287,54 @@ export default function App(): ReactElement {
     async function syncFoodSearch() {
       const query = foodSearchTerm.trim();
       if (!query) {
-        const sortedFoods = sortFoodsAlphabetically(demoFoodResults);
-        setFoodStatus('Alphabetical starter list');
-        setFoodTone('checking');
+        const seededFoods = sortFoodsForPicker(favoriteFoods);
+        setFoodStatus(
+          seededFoods.length === 0
+            ? 'No favorites cached yet'
+            : `${seededFoods.length} cached favorites ready`
+        );
+        setFoodTone(foodSessionToken ? 'live' : 'demo');
         setFoodError(null);
-        setFoodResults(sortedFoods);
-        setSelectedFoodId((current) => selectFoodById(sortedFoods, current)?.id ?? sortedFoods[0]?.id ?? '');
+        setFoodResults(seededFoods);
+        setSelectedFoodId((current) => selectFoodById(seededFoods, current)?.id ?? seededFoods[0]?.id ?? '');
         return;
       }
 
       setFoodTone('checking');
-      setFoodStatus(`Refining matches for "${query}"`);
+      setFoodStatus(`Refining matches for "${query}" from favorites`);
       setFoodError(null);
 
+      const localMatches = filterFoodsFuzzy(favoriteFoods, query);
+      setFoodResults(localMatches);
+      setSelectedFoodId((current) => selectFoodById(localMatches, current)?.id ?? localMatches[0]?.id ?? '');
+
       try {
-        const results = await searchFoods(query);
+        const results = foodSessionToken
+          ? await searchFoodsWithSession(query, foodSessionToken)
+          : await searchFoods(query);
 
         if (cancelled) {
           return;
         }
 
-        const mergedResults = mergeFoods(demoFoodResults, results);
+        const mergedResults = mergeFoodsById(favoriteFoods, results);
         const filteredResults = filterFoodsFuzzy(mergedResults, query);
         setFoodResults(filteredResults);
         setSelectedFoodId((current) => selectFoodById(filteredResults, current)?.id ?? filteredResults[0]?.id ?? '');
-        setFoodTone('live');
-        setFoodStatus(`${filteredResults.length} fuzzy match${filteredResults.length === 1 ? '' : 'es'} available`);
+        setFoodTone(foodSessionToken ? 'live' : 'demo');
+        setFoodStatus(
+          `${filteredResults.length} match${filteredResults.length === 1 ? '' : 'es'} across favorites and live search`
+        );
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        const filteredResults = filterFoodsFuzzy(demoFoodResults, query);
+        const filteredResults = filterFoodsFuzzy(favoriteFoods, query);
         setFoodResults(filteredResults);
         setSelectedFoodId((current) => selectFoodById(filteredResults, current)?.id ?? filteredResults[0]?.id ?? '');
         setFoodTone('demo');
-        setFoodStatus('Showing fuzzy matches from the seeded food list');
+        setFoodStatus('Showing fuzzy matches from cached favorites');
         setFoodError(error instanceof Error ? error.message : 'Food search unavailable.');
       }
     }
@@ -275,7 +344,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [foodSearchTerm]);
+  }, [favoriteFoods, foodSearchTerm, foodSessionToken]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => setFoodSearchTerm(foodDraft), 150);
@@ -498,6 +567,50 @@ export default function App(): ReactElement {
     setIsSubmittingSearch(true);
     setFoodSearchTerm(foodDraft);
     setTimeout(() => setIsSubmittingSearch(false), 250);
+  }
+
+  async function saveFoodAsFavorite(food: FoodItem) {
+    if (food.favorite || foodFavoriteSavingId === food.id) {
+      return;
+    }
+
+    const optimisticFood = { ...food, favorite: true };
+    const nextFavorites = sortFoodsForPicker(mergeFoodsById(favoriteFoods, [optimisticFood]));
+    const nextResults = sortFoodsForPicker(
+      foodSearchTerm.trim()
+        ? mergeFoodsById(
+            foodResults.map((item) => (item.id === food.id ? optimisticFood : item)),
+            nextFavorites
+          )
+        : nextFavorites
+    );
+
+    setFoodFavoriteSavingId(food.id);
+    setFavoriteFoods(nextFavorites);
+    setFoodResults(nextResults);
+    setSelectedFoodId(food.id);
+    setFoodTone(foodSessionToken ? 'checking' : 'demo');
+    setFoodStatus(`Saving ${food.name} to favorite foods`);
+    setFoodError(null);
+
+    try {
+      if (foodSessionToken) {
+        await addFavoriteFood(food.id, foodSessionToken);
+      }
+      setFoodTone(foodSessionToken ? 'live' : 'demo');
+      setFoodStatus(`${food.name} added to favorite foods`);
+    } catch (error) {
+      const revertedFavorites = favoriteFoods;
+      const revertedResults = foodResults;
+      setFavoriteFoods(revertedFavorites);
+      setFoodResults(revertedResults);
+      setSelectedFoodId((current) => selectFoodById(revertedResults, current)?.id ?? revertedResults[0]?.id ?? '');
+      setFoodTone('demo');
+      setFoodStatus(`Could not save ${food.name}`);
+      setFoodError(error instanceof Error ? error.message : 'Unable to save favorite food.');
+    } finally {
+      setFoodFavoriteSavingId(null);
+    }
   }
 
   async function submitFoodLogEntry() {
@@ -886,9 +999,9 @@ export default function App(): ReactElement {
         {section === 'foods' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Food search</Text>
-            <Text style={styles.panelTitle}>Fuzzy food picker</Text>
+            <Text style={styles.panelTitle}>Favorite foods first</Text>
             <Text style={styles.panelDetail}>
-              Start from an alphabetized food list, then narrow it down as you type. Backend matches still enrich the list when available.
+              Start from a cached favorite-food list on app load, then narrow it as you type. When a search reaches beyond favorites, live USDA matches can be added back into favorites.
             </Text>
             <View style={styles.searchRow}>
               <TextInput
@@ -922,10 +1035,26 @@ export default function App(): ReactElement {
                     <View style={styles.foodRowCopy}>
                       <Text style={styles.listTitle}>{food.name}</Text>
                       <Text style={styles.listCaption}>
-                        {(food.brand ?? 'Unbranded')} · {food.source}
+                        {(food.brand ?? 'Unbranded')} · {food.source} · {food.favorite ? 'Favorite' : 'Search match'}
                       </Text>
                     </View>
-                    <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                    <View style={styles.foodRowActions}>
+                      {!food.favorite ? (
+                        <Pressable
+                          style={styles.inlinePillButton}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            void saveFoodAsFavorite(food);
+                          }}
+                          disabled={foodFavoriteSavingId === food.id}
+                        >
+                          <Text style={styles.inlinePillButtonLabel}>
+                            {foodFavoriteSavingId === food.id ? 'Saving...' : 'Add to faves'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                      <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -942,6 +1071,19 @@ export default function App(): ReactElement {
                   <MetricTile label="Calories" value={`${selectedFood.calories}`} compact />
                   <MetricTile label="Macros" value={foodMacroLine(selectedFood)} compact />
                 </View>
+                {!selectedFood.favorite ? (
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={() => void saveFoodAsFavorite(selectedFood)}
+                    disabled={foodFavoriteSavingId === selectedFood.id}
+                  >
+                    <Text style={styles.primaryButtonLabel}>
+                      {foodFavoriteSavingId === selectedFood.id ? 'Saving...' : 'Add to favorites'}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.detailSubtitle}>Already cached in this session’s favorite foods.</Text>
+                )}
               </View>
             ) : null}
           </View>
@@ -1240,14 +1382,6 @@ function formatLogDate(value: string): string {
     month: 'short',
     day: 'numeric'
   });
-}
-
-function mergeFoods(seedFoods: FoodItem[], liveFoods: FoodItem[]): FoodItem[] {
-  const merged = new Map<string, FoodItem>();
-  [...seedFoods, ...liveFoods].forEach((food) => {
-    merged.set(food.id, food);
-  });
-  return [...merged.values()];
 }
 
 function createEmptyFoodLog(date = new Date().toISOString().slice(0, 10)): FoodLogSummary {
@@ -1779,6 +1913,23 @@ const styles = StyleSheet.create({
   foodRowCopy: {
     flex: 1,
     gap: 2
+  },
+  foodRowActions: {
+    alignItems: 'flex-end',
+    gap: 8
+  },
+  inlinePillButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#17324d',
+    backgroundColor: '#eef3f8',
+    paddingHorizontal: 12,
+    paddingVertical: 7
+  },
+  inlinePillButtonLabel: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '800'
   },
   recipeSection: {
     gap: 12
