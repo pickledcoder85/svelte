@@ -35,3 +35,37 @@ export interface MealTotals {
   per_serving_calories: number;
   per_serving_macros: MacroTargets;
 }
+
+export type AppSection = 'dashboard' | 'meals' | 'recipes';
+
+export interface DashboardSnapshot {
+  connectionLabel: string;
+  connectionDetail: string;
+  weeklyMetrics: WeeklyMetrics;
+  mealTotals: MealTotals;
+  recipeImport?: RecipeImportResult;
+  mealTemplate?: MealTemplateResult;
+}
+
+export interface RecipeImportInput {
+  title: string;
+  sourceType: 'text' | 'pdf' | 'image';
+  rawContent: string;
+}
+
+export interface RecipeImportResult {
+  id: string;
+  title: string;
+  favorite: boolean;
+}
+
+export interface MealTemplateInput {
+  name: string;
+  servings: number;
+}
+
+export interface MealTemplateResult {
+  id: string;
+  name: string;
+  servings: number;
+}
