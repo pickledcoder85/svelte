@@ -1,8 +1,12 @@
 import type {
+  ExerciseEntry,
   FoodItem,
   FoodLogEntryInput,
   FoodLogSummary,
   MealInput,
+  MealPlanDay,
+  MealPlanSlot,
+  MealPrepTask,
   MealTotals,
   RecipeDefinition,
   RecipeImportInput,
@@ -180,6 +184,119 @@ export async function unfavoriteRecipe(recipeId: string): Promise<RecipeDefiniti
   return readJson<RecipeDefinition>(
     await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
       method: 'DELETE'
+    })
+  );
+}
+
+interface ExerciseEntryCreatePayload {
+  title: string;
+  duration_minutes: number;
+  calories_burned: number;
+  logged_on: string;
+  logged_at: string;
+  intensity: ExerciseEntry['intensity'];
+}
+
+interface MealPlanDayCreatePayload {
+  plan_date: string;
+  label: string;
+  focus: string;
+  slots: Array<Pick<MealPlanSlot, 'meal_label' | 'title' | 'calories' | 'prep_status'>>;
+}
+
+interface MealPrepTaskCreatePayload {
+  title: string;
+  category: MealPrepTask['category'];
+  portions: string;
+  status: MealPrepTask['status'];
+  scheduled_for?: string | null;
+}
+
+export async function fetchExerciseEntries(accessToken: string): Promise<ExerciseEntry[]> {
+  return readJson<ExerciseEntry[]>(
+    await fetch(buildApiUrl('/tracker/exercise'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function createExerciseEntry(
+  payload: ExerciseEntryCreatePayload,
+  accessToken: string
+): Promise<ExerciseEntry> {
+  return readJson<ExerciseEntry>(
+    await fetch(buildApiUrl('/tracker/exercise'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function fetchMealPlanDays(accessToken: string): Promise<MealPlanDay[]> {
+  return readJson<MealPlanDay[]>(
+    await fetch(buildApiUrl('/tracker/meal-plan'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function createMealPlanDay(
+  payload: MealPlanDayCreatePayload,
+  accessToken: string
+): Promise<MealPlanDay> {
+  return readJson<MealPlanDay>(
+    await fetch(buildApiUrl('/tracker/meal-plan'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function fetchMealPrepTasks(accessToken: string): Promise<MealPrepTask[]> {
+  return readJson<MealPrepTask[]>(
+    await fetch(buildApiUrl('/tracker/meal-prep'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function createMealPrepTask(
+  payload: MealPrepTaskCreatePayload,
+  accessToken: string
+): Promise<MealPrepTask> {
+  return readJson<MealPrepTask>(
+    await fetch(buildApiUrl('/tracker/meal-prep'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function updateMealPrepTaskStatus(
+  taskId: string,
+  status: MealPrepTask['status'],
+  accessToken: string
+): Promise<MealPrepTask> {
+  return readJson<MealPrepTask>(
+    await fetch(buildApiUrl(`/tracker/meal-prep/${taskId}`), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ status })
     })
   );
 }

@@ -75,6 +75,7 @@ export interface ExerciseEntry {
   calories_burned: number;
   logged_at: string;
   intensity: 'Low' | 'Moderate' | 'High';
+  created_at?: string;
 }
 
 export interface RecipeDefinition {
@@ -148,6 +149,9 @@ export interface MealPlanDay {
   id: string;
   label: string;
   focus: string;
+  plan_date?: string;
+  created_at?: string;
+  updated_at?: string;
   slots: MealPlanSlot[];
 }
 
@@ -157,6 +161,9 @@ export interface MealPrepTask {
   category: 'Protein' | 'Carb' | 'Produce' | 'Assembly';
   portions: string;
   status: 'Queued' | 'In progress' | 'Done';
+  scheduled_for?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type AppSection =

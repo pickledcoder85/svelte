@@ -3,11 +3,17 @@ import {
   buildApiUrl,
   addFoodLogEntry,
   addFavoriteFood,
+  createExerciseEntry,
+  createMealPlanDay,
+  createMealPrepTask,
   calculateMeal,
   createLocalSession,
   favoriteRecipe,
   fetchFavoriteFoods,
+  fetchExerciseEntries,
   fetchFavoriteRecipes,
+  fetchMealPlanDays,
+  fetchMealPrepTasks,
   fetchRecipes,
   fetchRecipe,
   importRecipe,
@@ -15,6 +21,7 @@ import {
   normalizeApiBaseUrl,
   searchFoods,
   searchFoodsWithSession,
+  updateMealPrepTaskStatus,
   unfavoriteRecipe
 } from './api';
 import {
@@ -269,6 +276,174 @@ describe('api helpers', () => {
       expect.objectContaining({
         method: 'POST',
         headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('fetches exercise entries and posts new exercise logs with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'exercise-1',
+              title: 'Incline walk',
+              duration_minutes: 35,
+              calories_burned: 240,
+              logged_on: '2026-03-28',
+              logged_at: '07:15',
+              intensity: 'Moderate'
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'exercise-2',
+            title: 'Bike ride',
+            duration_minutes: 30,
+            calories_burned: 220,
+            logged_on: '2026-03-28',
+            logged_at: '08:30',
+            intensity: 'Moderate'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchExerciseEntries('token-123');
+    await createExerciseEntry(
+      {
+        title: 'Bike ride',
+        duration_minutes: 30,
+        calories_burned: 220,
+        logged_on: '2026-03-28',
+        logged_at: '08:30',
+        intensity: 'Moderate'
+      },
+      'token-123'
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/tracker/exercise',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/tracker/exercise',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+  });
+
+  it('fetches meal plan days and meal prep tasks with auth headers and mutates meal prep status', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'meal-plan-mon',
+              label: 'Mon',
+              focus: 'Training day',
+              plan_date: '2026-03-30',
+              slots: []
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'meal-prep-1',
+            title: 'Bake chicken breast',
+            category: 'Protein',
+            portions: '8 portions',
+            status: 'Queued'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'meal-prep-1',
+            title: 'Bake chicken breast',
+            category: 'Protein',
+            portions: '8 portions',
+            status: 'Done'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchMealPlanDays('token-123');
+    await fetchMealPrepTasks('token-123');
+    await createMealPrepTask(
+      {
+        title: 'Bake chicken breast',
+        category: 'Protein',
+        portions: '8 portions',
+        status: 'Queued'
+      },
+      'token-123'
+    );
+    await updateMealPrepTaskStatus('meal-prep-1', 'Done', 'token-123');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/tracker/meal-plan',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/tracker/meal-prep',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://localhost:8000/api/tracker/meal-prep',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      'http://localhost:8000/api/tracker/meal-prep/meal-prep-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
       })
     );
   });

@@ -18,11 +18,17 @@ import {
 import {
   addFoodLogEntry,
   addFavoriteFood,
+  createExerciseEntry,
+  createMealPlanDay,
+  createMealPrepTask,
   calculateMeal,
   createLocalSession,
   fetchBackendHealth,
+  fetchExerciseEntries,
   fetchFavoriteFoods,
   fetchFavoriteRecipes,
+  fetchMealPlanDays,
+  fetchMealPrepTasks,
   fetchRecipes,
   fetchRecipe,
   fetchTodaysFoodLog,
@@ -30,6 +36,7 @@ import {
   favoriteRecipe,
   importRecipe,
   searchFoodsWithSession,
+  updateMealPrepTaskStatus,
   unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
@@ -133,6 +140,9 @@ export default function App(): ReactElement {
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
   const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
   const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
+  const [trackerTone, setTrackerTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [trackerStatus, setTrackerStatus] = useState('Loading tracker data');
+  const [trackerError, setTrackerError] = useState<string | null>(null);
   const [recipeFavorites, setRecipeFavorites] = useState<RecipeDefinition[]>([]);
   const [recipeCatalog, setRecipeCatalog] = useState<RecipeDefinition[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
@@ -144,8 +154,16 @@ export default function App(): ReactElement {
   const [recipeDetailLoading, setRecipeDetailLoading] = useState(false);
   const [recipeSavingId, setRecipeSavingId] = useState<string | null>(null);
   const [mealPlanFocus, setMealPlanFocus] = useState<'Day' | 'Week'>('Day');
-  const [mealPlanDays] = useState<MealPlanDay[]>(demoMealPlanDays);
+  const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>(demoMealPlanDays);
+  const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
+  const [mealPlanError, setMealPlanError] = useState<string | null>(null);
   const [mealPrepTasks, setMealPrepTasks] = useState<MealPrepTask[]>(demoMealPrepTasks);
+  const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
+  const [mealPrepError, setMealPrepError] = useState<string | null>(null);
+  const [exerciseSaving, setExerciseSaving] = useState(false);
+  const [mealPrepSavingId, setMealPrepSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -255,6 +273,145 @@ export default function App(): ReactElement {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTrackerSections() {
+      if (!foodSessionToken) {
+        setTrackerTone('demo');
+        setTrackerStatus('Showing seeded tracker items');
+        setTrackerError(null);
+        setMealPlanTone('demo');
+        setMealPlanStatus('Showing seeded meal plan');
+        setMealPlanError(null);
+        setMealPrepTone('demo');
+        setMealPrepStatus('Showing seeded meal prep');
+        setMealPrepError(null);
+        setExerciseEntries(demoExerciseEntries);
+        setMealPlanDays(demoMealPlanDays);
+        setMealPrepTasks(demoMealPrepTasks);
+        return;
+      }
+
+      setTrackerTone('checking');
+      setTrackerStatus('Loading tracker items');
+      setTrackerError(null);
+      setMealPlanTone('checking');
+      setMealPlanStatus('Loading meal plan');
+      setMealPlanError(null);
+      setMealPrepTone('checking');
+      setMealPrepStatus('Loading meal prep');
+      setMealPrepError(null);
+
+      try {
+        const [exercise, mealPlan, mealPrep] = await Promise.all([
+          fetchExerciseEntries(foodSessionToken),
+          fetchMealPlanDays(foodSessionToken),
+          fetchMealPrepTasks(foodSessionToken)
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setExerciseEntries(exercise.length > 0 ? exercise : demoExerciseEntries);
+        setTrackerTone('live');
+        setTrackerStatus(
+          exercise.length > 0
+            ? `${exercise.length} tracked exercise entr${exercise.length === 1 ? 'y' : 'ies'} loaded`
+            : 'No saved exercise yet; showing seeded activities'
+        );
+
+        if (mealPlan.length > 0) {
+          setMealPlanDays(mealPlan);
+          setMealPlanTone('live');
+          setMealPlanStatus(`${mealPlan.length} meal plan day${mealPlan.length === 1 ? '' : 's'} loaded`);
+        } else {
+          const seededPlan = await Promise.all(
+            demoMealPlanDays.map((day, index) =>
+              createMealPlanDay(
+                {
+                  plan_date:
+                    day.plan_date ??
+                    new Date(Date.now() + index * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+                  label: day.label,
+                  focus: day.focus,
+                  slots: day.slots.map((slot) => ({
+                    meal_label: slot.meal_label,
+                    title: slot.title,
+                    calories: slot.calories,
+                    prep_status: slot.prep_status
+                  }))
+                },
+                foodSessionToken
+              )
+            )
+          );
+
+          if (cancelled) {
+            return;
+          }
+
+          setMealPlanDays(seededPlan);
+          setMealPlanTone('live');
+          setMealPlanStatus('Seeded meal plan days for this session');
+        }
+
+        if (mealPrep.length > 0) {
+          setMealPrepTasks(mealPrep);
+          setMealPrepTone('live');
+          setMealPrepStatus(`${mealPrep.length} meal prep task${mealPrep.length === 1 ? '' : 's'} loaded`);
+        } else {
+          const seededPrep = await Promise.all(
+            demoMealPrepTasks.map((task) =>
+              createMealPrepTask(
+                {
+                  title: task.title,
+                  category: task.category,
+                  portions: task.portions,
+                  status: task.status,
+                  scheduled_for: task.scheduled_for ?? null
+                },
+                foodSessionToken
+              )
+            )
+          );
+
+          if (cancelled) {
+            return;
+          }
+
+          setMealPrepTasks(seededPrep);
+          setMealPrepTone('live');
+          setMealPrepStatus('Seeded meal prep tasks for this session');
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setExerciseEntries(demoExerciseEntries);
+        setMealPlanDays(demoMealPlanDays);
+        setMealPrepTasks(demoMealPrepTasks);
+        setTrackerTone('demo');
+        setTrackerStatus('Showing seeded tracker items');
+        setTrackerError(error instanceof Error ? error.message : 'Tracker data unavailable.');
+        setMealPlanTone('demo');
+        setMealPlanStatus('Showing seeded meal plan');
+        setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
+        setMealPrepTone('demo');
+        setMealPrepStatus('Showing seeded meal prep');
+        setMealPrepError(error instanceof Error ? error.message : 'Meal prep unavailable.');
+      }
+    }
+
+    void loadTrackerSections();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [foodSessionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -666,7 +823,7 @@ export default function App(): ReactElement {
     }
   }
 
-  function addExerciseEntry() {
+  async function addExerciseEntry() {
     const duration_minutes = Number(exerciseMinutesDraft);
     const calories_burned = Number(exerciseCaloriesDraft);
     const title = exerciseTitleDraft.trim();
@@ -675,34 +832,81 @@ export default function App(): ReactElement {
       return;
     }
 
-    setExerciseEntries((current) => [
-      {
-        id: `exercise-${Date.now()}`,
-        title,
-        duration_minutes,
-        calories_burned,
-        logged_at: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-        intensity: calories_burned >= 300 ? 'High' : duration_minutes >= 30 ? 'Moderate' : 'Low'
-      },
-      ...current
-    ]);
-    setExerciseTitleDraft('Walk');
-    setExerciseMinutesDraft('20');
-    setExerciseCaloriesDraft('120');
+    const payload = {
+      title,
+      duration_minutes: Math.round(duration_minutes),
+      calories_burned: Math.round(calories_burned),
+      logged_on: new Date().toISOString().slice(0, 10),
+      logged_at: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      intensity: calories_burned >= 300 ? 'High' : duration_minutes >= 30 ? 'Moderate' : 'Low'
+    } as const;
+
+    const optimisticEntry: ExerciseEntry = {
+      id: `exercise-${Date.now()}`,
+      ...payload
+    };
+
+    setExerciseSaving(true);
+    setTrackerTone('checking');
+    setTrackerStatus(`Saving ${title}`);
+    setTrackerError(null);
+    setExerciseEntries((current) => [optimisticEntry, ...current]);
+
+    try {
+      if (foodSessionToken) {
+        const saved = await createExerciseEntry(payload, foodSessionToken);
+        setExerciseEntries((current) => [saved, ...current.filter((entry) => entry.id !== optimisticEntry.id)]);
+      }
+      setTrackerTone(foodSessionToken ? 'live' : 'demo');
+      setTrackerStatus(`${title} added to tracker`);
+      setExerciseTitleDraft('Walk');
+      setExerciseMinutesDraft('20');
+      setExerciseCaloriesDraft('120');
+    } catch (error) {
+      setExerciseEntries((current) => current.filter((entry) => entry.id !== optimisticEntry.id));
+      setTrackerTone('demo');
+      setTrackerStatus(`Could not save ${title}`);
+      setTrackerError(error instanceof Error ? error.message : 'Unable to save tracker entry.');
+    } finally {
+      setExerciseSaving(false);
+    }
   }
 
-  function cycleMealPrepStatus(taskId: string) {
+  async function cycleMealPrepStatus(taskId: string) {
     const nextStatusByCurrent: Record<MealPrepTask['status'], MealPrepTask['status']> = {
       Queued: 'In progress',
       'In progress': 'Done',
       Done: 'Queued'
     };
+    const currentTask = mealPrepTasks.find((task) => task.id === taskId);
+    if (!currentTask) {
+      return;
+    }
 
-    setMealPrepTasks((current) =>
-      current.map((task) =>
-        task.id === taskId ? { ...task, status: nextStatusByCurrent[task.status] } : task
-      )
-    );
+    const nextStatus = nextStatusByCurrent[currentTask.status];
+    const optimisticTask = { ...currentTask, status: nextStatus };
+
+    setMealPrepSavingId(taskId);
+    setMealPrepTone('checking');
+    setMealPrepStatus(`Marking ${currentTask.title} as ${nextStatus.toLowerCase()}`);
+    setMealPrepError(null);
+    setMealPrepTasks((current) => current.map((task) => (task.id === taskId ? optimisticTask : task)));
+
+    try {
+      if (foodSessionToken) {
+        const updated = await updateMealPrepTaskStatus(taskId, nextStatus, foodSessionToken);
+        setMealPrepTasks((current) => current.map((task) => (task.id === taskId ? updated : task)));
+      }
+      setMealPrepTone(foodSessionToken ? 'live' : 'demo');
+      setMealPrepStatus(`${currentTask.title} marked ${nextStatus.toLowerCase()}`);
+    } catch (error) {
+      setMealPrepTasks((current) => current.map((task) => (task.id === taskId ? currentTask : task)));
+      setMealPrepTone('demo');
+      setMealPrepStatus(`Could not update ${currentTask.title}`);
+      setMealPrepError(error instanceof Error ? error.message : 'Unable to update meal prep task.');
+    } finally {
+      setMealPrepSavingId(null);
+    }
   }
 
   function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
@@ -912,6 +1116,11 @@ export default function App(): ReactElement {
                 <Text style={styles.panelDetail}>Use one home for intake and output while backend exercise persistence is still pending.</Text>
               </View>
 
+              <View style={[styles.inlineStatus, { borderColor: toneColor(trackerTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{trackerStatus}</Text>
+                {trackerError ? <Text style={styles.inlineStatusDetail}>{trackerError}</Text> : null}
+              </View>
+
               <View style={styles.metricRow}>
                 <MetricTile label="Calories" value={`${foodLog.totals.calories.toLocaleString()} kcal`} />
                 <MetricTile
@@ -1044,8 +1253,8 @@ export default function App(): ReactElement {
                   style={styles.searchInput}
                   autoCorrect={false}
                 />
-                <Pressable style={styles.primaryButton} onPress={addExerciseEntry}>
-                  <Text style={styles.primaryButtonLabel}>Add exercise</Text>
+                <Pressable style={styles.primaryButton} onPress={() => void addExerciseEntry()}>
+                  <Text style={styles.primaryButtonLabel}>{exerciseSaving ? 'Saving...' : 'Add exercise'}</Text>
                 </Pressable>
               </View>
 
@@ -1223,6 +1432,11 @@ export default function App(): ReactElement {
               Keep the meal plan simple and visual so it can drive logging and prep later.
             </Text>
 
+            <View style={[styles.inlineStatus, { borderColor: toneColor(mealPlanTone) }]}>
+              <Text style={styles.inlineStatusLabel}>{mealPlanStatus}</Text>
+              {mealPlanError ? <Text style={styles.inlineStatusDetail}>{mealPlanError}</Text> : null}
+            </View>
+
             <View style={styles.rangeTabs}>
               {(['Day', 'Week'] as const).map((focus) => {
                 const active = focus === mealPlanFocus;
@@ -1271,9 +1485,19 @@ export default function App(): ReactElement {
               Track what to cook, portion, and assemble so the meal plan is realistic.
             </Text>
 
+            <View style={[styles.inlineStatus, { borderColor: toneColor(mealPrepTone) }]}>
+              <Text style={styles.inlineStatusLabel}>{mealPrepStatus}</Text>
+              {mealPrepError ? <Text style={styles.inlineStatusDetail}>{mealPrepError}</Text> : null}
+            </View>
+
             <View style={styles.foodList}>
               {mealPrepTasks.map((task) => (
-                <Pressable key={task.id} style={styles.foodRow} onPress={() => cycleMealPrepStatus(task.id)}>
+                <Pressable
+                  key={task.id}
+                  style={styles.foodRow}
+                  onPress={() => void cycleMealPrepStatus(task.id)}
+                  disabled={mealPrepSavingId === task.id}
+                >
                   <View style={styles.foodRowCopy}>
                     <Text style={styles.listTitle}>{task.title}</Text>
                     <Text style={styles.listCaption}>
@@ -1281,7 +1505,7 @@ export default function App(): ReactElement {
                     </Text>
                   </View>
                   <View style={styles.foodRowActions}>
-                    <Text style={styles.listMetric}>{task.status}</Text>
+                    <Text style={styles.listMetric}>{mealPrepSavingId === task.id ? 'Saving...' : task.status}</Text>
                     <Text style={styles.listCaption}>Tap to cycle</Text>
                   </View>
                 </Pressable>
