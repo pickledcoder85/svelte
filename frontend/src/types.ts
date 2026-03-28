@@ -36,6 +36,12 @@ export interface MealTotals {
   per_serving_macros: MacroTargets;
 }
 
+export interface RecipeAsset {
+  kind: 'text' | 'pdf' | 'image';
+  url: string | null;
+  content: string | null;
+}
+
 export interface FoodLogEntryInput {
   food_id: string;
   grams: number;
@@ -60,6 +66,35 @@ export interface FoodLogSummary {
     calories: number;
     macros: MacroTargets;
   };
+}
+
+export interface RecipeDefinition {
+  id: string;
+  title: string;
+  steps: string[];
+  assets: RecipeAsset[];
+  ingredients: IngredientInput[];
+  default_yield: number;
+  favorite: boolean;
+}
+
+export interface RecipeFavoriteSummary {
+  id: string;
+  title: string;
+  favorite: boolean;
+  updated_at: string;
+  step_count: number;
+  ingredient_count: number;
+  asset_count: number;
+}
+
+export interface RecipeFavoritesResponse {
+  items: RecipeFavoriteSummary[];
+}
+
+export interface RecipeFavoriteToggleResult {
+  id: string;
+  favorite: boolean;
 }
 
 export type DashboardRange = '1D' | '1W' | '1M' | '3M';

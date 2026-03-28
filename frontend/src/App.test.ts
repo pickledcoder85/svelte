@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { demoFoodLog, demoMeal, demoRangeSeries, demoRecipeImports } from './mock-data';
+import {
+  demoFoodLog,
+  demoMeal,
+  demoRangeSeries,
+  demoRecipe,
+  demoRecipeFavorites,
+  demoRecipeCatalog,
+  demoRecipeImports
+} from './mock-data';
 
 describe('frontend demo data', () => {
   it('keeps the seed meal aligned to two servings', () => {
@@ -16,5 +24,13 @@ describe('frontend demo data', () => {
   it('seeds a persisted daily log for the new log screen', () => {
     expect(demoFoodLog.entries).toHaveLength(3);
     expect(demoFoodLog.totals.calories).toBeGreaterThan(0);
+  });
+
+  it('seeds recipe favorites for the new recipes screen', () => {
+    expect(demoRecipeFavorites).toHaveLength(2);
+    expect(demoRecipeCatalog).toHaveLength(3);
+    expect(demoRecipeCatalog.some((recipe) => !recipe.favorite)).toBe(true);
+    expect(demoRecipe.favorite).toBe(true);
+    expect(demoRecipe.steps).toHaveLength(3);
   });
 });

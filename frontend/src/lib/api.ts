@@ -4,6 +4,7 @@ import type {
   FoodLogSummary,
   MealInput,
   MealTotals,
+  RecipeDefinition,
   RecipeImportInput,
   RecipeImportResult,
   WeeklyMetrics
@@ -99,6 +100,34 @@ export async function importRecipe(payload: RecipeImportInput): Promise<RecipeIm
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function fetchRecipes(): Promise<RecipeDefinition[]> {
+  return readJson<RecipeDefinition[]>(await fetch(buildApiUrl('/recipes')));
+}
+
+export async function fetchFavoriteRecipes(): Promise<RecipeDefinition[]> {
+  return readJson<RecipeDefinition[]>(await fetch(buildApiUrl('/recipes/favorites')));
+}
+
+export async function fetchRecipe(recipeId: string): Promise<RecipeDefinition> {
+  return readJson<RecipeDefinition>(await fetch(buildApiUrl(`/recipes/${recipeId}`)));
+}
+
+export async function favoriteRecipe(recipeId: string): Promise<RecipeDefinition> {
+  return readJson<RecipeDefinition>(
+    await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
+      method: 'POST'
+    })
+  );
+}
+
+export async function unfavoriteRecipe(recipeId: string): Promise<RecipeDefinition> {
+  return readJson<RecipeDefinition>(
+    await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
+      method: 'DELETE'
     })
   );
 }
