@@ -168,6 +168,40 @@ class DatabaseLayerTests(unittest.TestCase):
         self.assertEqual(metrics.macro_consumed.model_dump(), {"protein": 13.5, "carbs": 53.0, "fat": 5.5})
         self.assertEqual(metrics.weekly_weight_change, -1.2)
 
+    def test_repository_lists_weight_history_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "weights.db"
+            repo = SQLiteRepository(str(db_path))
+
+            repo.save_user_identity(user_id="user-weights", email="weights@example.com")
+            first_id = repo.record_weight_entry(
+                user_id="user-weights",
+                recorded_at=date(2026, 3, 24),
+                weight_lbs=180,
+            )
+            second_id = repo.record_weight_entry(
+                user_id="user-weights",
+                recorded_at=date(2026, 3, 27),
+                weight_lbs=178.8,
+            )
+
+            entries = repo.list_weight_entries(
+                "user-weights",
+                recorded_start=date(2026, 3, 23),
+                recorded_end=date(2026, 3, 29),
+            )
+
+            weekly = repo.get_weekly_metrics_for_user(
+                user_id="user-weights",
+                week_start=date(2026, 3, 23),
+                week_end=date(2026, 3, 29),
+            )
+
+        self.assertEqual([entry["id"] for entry in entries], [first_id, second_id])
+        self.assertEqual(entries[0]["weight_lbs"], 180)
+        self.assertEqual(entries[1]["weight_lbs"], 178.8)
+        self.assertEqual(weekly.weekly_weight_change, -1.2)
+
 
 if __name__ == "__main__":
     unittest.main()

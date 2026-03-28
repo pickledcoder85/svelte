@@ -126,6 +126,36 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(log_entries[0]["food_item_id"], "food-oats")
         self.assertEqual(len(logs), 1)
 
+    def test_sqlite_repository_persists_weight_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+
+            first_id = repo.record_weight_entry(
+                user_id="user-1",
+                recorded_at=date(2026, 3, 24),
+                weight_lbs=180,
+            )
+            second_id = repo.record_weight_entry(
+                user_id="user-1",
+                recorded_at=date(2026, 3, 27),
+                weight_lbs=178.8,
+            )
+
+            first_entry = repo.get_weight_entry(first_id)
+            entries = repo.list_weight_entries(
+                "user-1",
+                recorded_start=date(2026, 3, 23),
+                recorded_end=date(2026, 3, 29),
+            )
+
+        self.assertIsNotNone(first_entry)
+        self.assertEqual(first_entry["weight_lbs"], 180)
+        self.assertEqual(first_entry["recorded_at"], "2026-03-24")
+        self.assertEqual([entry["id"] for entry in entries], [first_id, second_id])
+        self.assertEqual(entries[-1]["weight_lbs"], 178.8)
+
     def test_sqlite_repository_tracks_ingestion_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = Path(tmp_dir) / "normalized.db"

@@ -1217,6 +1217,42 @@ class SQLiteRepository:
             )
         return identifier
 
+    def get_weight_entry(self, entry_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM weight_entries WHERE id = ?",
+            (entry_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_weight_entries(
+        self,
+        user_id: str,
+        *,
+        recorded_start: date | None = None,
+        recorded_end: date | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses = ["user_id = ?"]
+        params: list[Any] = [user_id]
+
+        if recorded_start is not None:
+            clauses.append("recorded_at >= ?")
+            params.append(recorded_start.isoformat())
+
+        if recorded_end is not None:
+            clauses.append("recorded_at <= ?")
+            params.append(recorded_end.isoformat())
+
+        rows = self._connection.execute(
+            f"""
+            SELECT *
+            FROM weight_entries
+            WHERE {' AND '.join(clauses)}
+            ORDER BY recorded_at ASC, created_at ASC, id ASC
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_weekly_metrics_for_user(
         self,
         *,
@@ -1253,17 +1289,11 @@ class SQLiteRepository:
             (user_id, week_start.isoformat(), week_end.isoformat()),
         ).fetchone()
 
-        weight_rows = self._connection.execute(
-            """
-            SELECT recorded_at, weight_lbs
-            FROM weight_entries
-            WHERE user_id = ?
-              AND recorded_at >= ?
-              AND recorded_at <= ?
-            ORDER BY recorded_at ASC, created_at ASC
-            """,
-            (user_id, week_start.isoformat(), week_end.isoformat()),
-        ).fetchall()
+        weight_rows = self.list_weight_entries(
+            user_id,
+            recorded_start=week_start,
+            recorded_end=week_end,
+        )
 
         if goal_row is None:
             return self.get_weekly_metrics()
