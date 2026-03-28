@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.config import get_settings
 from backend.app.routes.auth import router as auth_router
+from backend.app.routes.ingestion import router as ingestion_router
 from backend.app.routes.food_logs import router as food_logs_router
 from backend.app.routes.health import router as health_router
 from backend.app.routes.meals import router as meals_router
@@ -37,6 +38,7 @@ def create_app(database_path: str | None = None) -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(nutrition_router, prefix="/api")
     app.include_router(food_logs_router, prefix="/api")
+    app.include_router(ingestion_router, prefix="/api")
     app.include_router(meals_router, prefix="/api")
     app.include_router(recipes_router, prefix="/api")
     app.include_router(vision_router, prefix="/api")
