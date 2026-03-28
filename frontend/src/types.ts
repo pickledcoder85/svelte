@@ -35,3 +35,33 @@ export interface MealTotals {
   per_serving_calories: number;
   per_serving_macros: MacroTargets;
 }
+
+export type AppSection = 'dashboard' | 'meals' | 'recipes';
+
+export interface RecipeAsset {
+  kind: 'text' | 'pdf' | 'image';
+  label: string;
+}
+
+export interface RecipeCard {
+  id: string;
+  title: string;
+  favorite: boolean;
+  default_yield: number;
+  steps: string[];
+  ingredients: IngredientInput[];
+  assets: RecipeAsset[];
+}
+
+export interface BackendHealth {
+  ok: boolean;
+  service: string;
+  timestamp: string;
+}
+
+export interface DashboardSnapshot {
+  connectionLabel: string;
+  connectionDetail: string;
+  weeklyMetrics: WeeklyMetrics;
+  mealTotals: MealTotals;
+}
