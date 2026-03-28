@@ -38,30 +38,34 @@ export interface MealTotals {
 
 export type AppSection = 'dashboard' | 'meals' | 'recipes';
 
-export interface RecipeAsset {
-  kind: 'text' | 'pdf' | 'image';
-  label: string;
-}
-
-export interface RecipeCard {
-  id: string;
-  title: string;
-  favorite: boolean;
-  default_yield: number;
-  steps: string[];
-  ingredients: IngredientInput[];
-  assets: RecipeAsset[];
-}
-
-export interface BackendHealth {
-  ok: boolean;
-  service: string;
-  timestamp: string;
-}
-
 export interface DashboardSnapshot {
   connectionLabel: string;
   connectionDetail: string;
   weeklyMetrics: WeeklyMetrics;
   mealTotals: MealTotals;
+  recipeImport?: RecipeImportResult;
+  mealTemplate?: MealTemplateResult;
+}
+
+export interface RecipeImportInput {
+  title: string;
+  sourceType: 'text' | 'pdf' | 'image';
+  rawContent: string;
+}
+
+export interface RecipeImportResult {
+  id: string;
+  title: string;
+  favorite: boolean;
+}
+
+export interface MealTemplateInput {
+  name: string;
+  servings: number;
+}
+
+export interface MealTemplateResult {
+  id: string;
+  name: string;
+  servings: number;
 }

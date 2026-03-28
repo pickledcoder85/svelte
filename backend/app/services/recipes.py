@@ -1,15 +1,11 @@
 from uuid import uuid4
 
-from backend.app.models.nutrition import MealInput, MealTotals
-from backend.app.models.meals import MealTemplate
 from backend.app.models.recipes import RecipeDefinition, RecipeImportRequest
-from backend.app.repositories.memory import InMemoryBackendRepository
-
-from backend.app.services.nutrition import meal_totals
+from backend.app.repositories.sqlite import SQLiteRepository
 
 
 def import_recipe(
-    repository: InMemoryBackendRepository, payload: RecipeImportRequest
+    repository: SQLiteRepository, payload: RecipeImportRequest
 ) -> RecipeDefinition:
     recipe = RecipeDefinition(
         id=str(uuid4()),
@@ -23,11 +19,11 @@ def import_recipe(
     return repository.save_recipe(recipe)
 
 
-def list_recipes(repository: InMemoryBackendRepository) -> list[RecipeDefinition]:
+def list_recipes(repository: SQLiteRepository) -> list[RecipeDefinition]:
     return repository.list_recipes()
 
 
-def get_recipe(repository: InMemoryBackendRepository, recipe_id: str) -> RecipeDefinition | None:
+def get_recipe(repository: SQLiteRepository, recipe_id: str) -> RecipeDefinition | None:
     return repository.get_recipe(recipe_id)
 
 
@@ -44,20 +40,3 @@ def scale_recipe(recipe: RecipeDefinition, factor: float) -> RecipeDefinition:
         default_yield=round(recipe.default_yield * factor, 1),
         favorite=recipe.favorite,
     )
-
-
-def save_meal_template(repository: InMemoryBackendRepository, meal: MealInput):
-    totals: MealTotals = meal_totals(meal)
-
-    template = MealTemplate(
-        id=meal.id,
-        name=meal.name,
-        serving_count=meal.serving_count,
-        ingredients=meal.ingredients,
-        favorite=False,
-        calories=totals.calories,
-        macros=totals.macros,
-        per_serving_calories=totals.per_serving_calories,
-        per_serving_macros=totals.per_serving_macros,
-    )
-    return repository.save_meal_template(template)

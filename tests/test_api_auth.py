@@ -10,7 +10,9 @@ def test_create_and_fetch_session(client):
     assert session["display_name"] == "Tester"
     assert session["provider"] == "local"
 
-    token = session["access_token"]
-    lookup = client.get("/api/auth/session", headers={"Authorization": f"Bearer {token}"})
+    lookup = client.get(
+        "/api/auth/session",
+        headers={"Authorization": f"Bearer {session['access_token']}"},
+    )
     assert lookup.status_code == 200
-    assert lookup.json()["session"]["access_token"] == token
+    assert lookup.json()["session"]["access_token"] == session["access_token"]

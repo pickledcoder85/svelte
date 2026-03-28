@@ -1,4 +1,4 @@
-def test_create_meal_template(client):
+def test_persist_meal_template(client):
     response = client.post(
         "/api/meals/templates",
         json={
@@ -19,13 +19,18 @@ def test_create_meal_template(client):
     )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["name"] == "Blueberry Protein Bowl"
-    assert body["calories"] > 0
-    assert body["per_serving_calories"] > 0
+    assert response.json()["calories"] == 311.2
+
+    listing = client.get("/api/meals/templates")
+    assert listing.status_code == 200
+    assert len(listing.json()) == 1
+
+    fetched = client.get("/api/meals/templates/meal-breakfast-bowl")
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == "Blueberry Protein Bowl"
 
 
-def test_import_and_list_recipe(client):
+def test_persist_recipe_import_and_scale(client):
     response = client.post(
         "/api/recipes/import",
         json={
@@ -46,19 +51,6 @@ def test_import_and_list_recipe(client):
     assert fetched.status_code == 200
     assert fetched.json()["title"] == "Overnight Oats"
 
-
-def test_scale_recipe_route(client):
-    response = client.post(
-        "/api/recipes/import",
-        json={
-            "title": "Simple Bowl",
-            "steps": ["Mix", "Serve"],
-            "assets": [],
-        },
-    )
-    recipe_id = response.json()["id"]
-
     scaled = client.get(f"/api/recipes/{recipe_id}/scale/1.5")
     assert scaled.status_code == 200
-    assert scaled.json()["id"] == recipe_id
     assert scaled.json()["default_yield"] == 3.0

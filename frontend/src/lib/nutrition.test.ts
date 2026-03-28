@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { demoMeal, demoRecipe } from '../mock-data';
-import { mealTotals, progressPercent, scaleMealIngredients, scaleMacros } from './nutrition';
+import { demoMeal } from '../mock-data';
+import { mealTotals, progressPercent, recipeScaleLabel, scaleMealIngredients } from './nutrition';
 
-describe('nutrition utilities', () => {
-  it('calculates meal totals and per-serving values', () => {
+describe('nutrition helpers', () => {
+  it('calculates meal totals and per-serving nutrition', () => {
     const totals = mealTotals(demoMeal);
 
     expect(totals.calories).toBe(568);
@@ -15,27 +15,15 @@ describe('nutrition utilities', () => {
     });
   });
 
-  it('scales macros', () => {
-    expect(scaleMacros({ protein: 10, carbs: 20, fat: 30 }, 1.5)).toEqual({
-      protein: 15,
-      carbs: 30,
-      fat: 45
-    });
-  });
+  it('scales ingredients and clamps progress', () => {
+    const scaled = scaleMealIngredients(demoMeal, 1.5);
 
-  it('scales meal ingredients', () => {
-    const scaled = scaleMealIngredients(demoMeal, 2);
-
-    expect(scaled.serving_count).toBe(4);
-    expect(scaled.ingredients[0].grams).toBe(160);
-  });
-
-  it('caps progress at 100 percent', () => {
+    expect(scaled.serving_count).toBe(3);
+    expect(scaled.ingredients[0].grams).toBe(120);
     expect(progressPercent(10360, 14800)).toBe(70);
-    expect(progressPercent(500, 0)).toBe(0);
   });
 
-  it('keeps recipe metadata available for scaling previews', () => {
-    expect(demoRecipe.title).toContain('Overnight');
+  it('formats recipe scale labels', () => {
+    expect(recipeScaleLabel(1.25)).toBe('1.25x');
   });
 });

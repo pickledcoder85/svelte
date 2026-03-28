@@ -1,2 +1,1 @@
-"""Database repositories for Nutrition OS."""
-
+"""Repository implementations for the backend."""

@@ -8,11 +8,13 @@ from backend.app.routes.meals import router as meals_router
 from backend.app.routes.nutrition import router as nutrition_router
 from backend.app.routes.recipes import router as recipes_router
 from backend.app.routes.vision import router as vision_router
+from backend.app.repositories.sqlite import SQLiteRepository
 
 
-def create_app() -> FastAPI:
+def create_app(database_path: str | None = None) -> FastAPI:
     settings = get_settings()
-    cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+    origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+    db_path = database_path or settings.database_path
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
@@ -20,9 +22,11 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    app.state.repository = SQLiteRepository(db_path)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins or ["http://localhost:5173"],
+        allow_origins=origins or ["http://localhost:5173", "http://127.0.0.1:5173"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

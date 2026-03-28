@@ -1,4 +1,10 @@
-import type { DashboardSnapshot, MealInput, RecipeCard, WeeklyMetrics } from './types';
+import type {
+  DashboardSnapshot,
+  MealInput,
+  MealTemplateInput,
+  RecipeImportInput,
+  WeeklyMetrics
+} from './types';
 
 export const demoMeal: MealInput = {
   id: 'meal-breakfast-bowl',
@@ -32,20 +38,6 @@ export const demoMeal: MealInput = {
   ]
 };
 
-export const demoRecipe: RecipeCard = {
-  id: 'recipe-overnight-oats',
-  title: 'Overnight Oats Base',
-  favorite: true,
-  default_yield: 2,
-  steps: ['Combine oats, yogurt, and fruit.', 'Rest chilled overnight.', 'Portion into two servings.'],
-  ingredients: demoMeal.ingredients,
-  assets: [
-    { kind: 'text', label: 'Manual recipe entry' },
-    { kind: 'pdf', label: 'Uploaded PDF' },
-    { kind: 'image', label: 'Step photo capture' }
-  ]
-};
-
 export const demoWeeklyMetrics: WeeklyMetrics = {
   calorie_goal: 14800,
   calories_consumed: 10360,
@@ -55,20 +47,44 @@ export const demoWeeklyMetrics: WeeklyMetrics = {
   adherence_score: 87
 };
 
+export const demoRecipe = {
+  id: 'recipe-overnight-oats',
+  title: 'Overnight Oats Base',
+  favorite: true,
+  steps: ['Combine oats, yogurt, and fruit.', 'Rest chilled overnight.', 'Portion into two servings.']
+};
+
+export const demoRecipeImports: RecipeImportInput & { sources: Array<{ kind: 'text' | 'pdf' | 'image'; label: string }> } = {
+  title: demoRecipe.title,
+  sourceType: 'text',
+  rawContent: 'Combine oats, yogurt, and fruit. Rest chilled overnight.',
+  sources: [
+    { kind: 'text', label: 'Manual text input' },
+    { kind: 'pdf', label: 'PDF upload' },
+    { kind: 'image', label: 'Recipe photos' }
+  ]
+};
+
 export const demoDashboardSnapshot: DashboardSnapshot = {
   connectionLabel: 'Demo data',
   connectionDetail: 'Use the backend to sync live weekly metrics and meal totals.',
   weeklyMetrics: demoWeeklyMetrics,
   mealTotals: {
-    calories: 567,
-    macros: { protein: 44.6, carbs: 73.1, fat: 6.9 },
-    per_serving_calories: 283.5,
-    per_serving_macros: { protein: 22.3, carbs: 36.6, fat: 3.4 }
+    calories: 568,
+    macros: { protein: 45.4, carbs: 84.1, fat: 7.1 },
+    per_serving_calories: 284,
+    per_serving_macros: { protein: 22.7, carbs: 42.1, fat: 3.6 }
   }
 };
 
-export const demoFoodStrip = [
-  { name: 'Rolled oats', calories: 389, serving: '100 g' },
-  { name: 'Greek yogurt', calories: 59, serving: '100 g' },
-  { name: 'Blueberries', calories: 57, serving: '100 g' }
-];
+export const demoFoodStrip = {
+  items: [
+    { name: 'Rolled oats', calories: 389, serving: '100 g' },
+    { name: 'Greek yogurt', calories: 59, serving: '100 g' },
+    { name: 'Blueberries', calories: 57, serving: '100 g' }
+  ],
+  mealTemplate: {
+    name: 'Protein breakfast bowl',
+    servings: 2
+  } satisfies MealTemplateInput
+};

@@ -34,13 +34,6 @@ export function mealTotals(meal: MealInput): MealTotals {
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
-  const perServingCalories = round1(totals.calories / meal.serving_count);
-  const perServingMacros = {
-    protein: round1(totals.protein / meal.serving_count),
-    carbs: round1(totals.carbs / meal.serving_count),
-    fat: round1(totals.fat / meal.serving_count)
-  };
-
   return {
     calories: round1(totals.calories),
     macros: {
@@ -48,8 +41,12 @@ export function mealTotals(meal: MealInput): MealTotals {
       carbs: round1(totals.carbs),
       fat: round1(totals.fat)
     },
-    per_serving_calories: perServingCalories,
-    per_serving_macros: perServingMacros
+    per_serving_calories: round1(totals.calories / meal.serving_count),
+    per_serving_macros: {
+      protein: round1(totals.protein / meal.serving_count),
+      carbs: round1(totals.carbs / meal.serving_count),
+      fat: round1(totals.fat / meal.serving_count)
+    }
   };
 }
 
@@ -70,4 +67,8 @@ export function progressPercent(consumed: number, target: number): number {
   }
 
   return Math.min(Math.round((consumed / target) * 100), 100);
+}
+
+export function recipeScaleLabel(multiplier: number): string {
+  return `${multiplier.toFixed(2)}x`;
 }

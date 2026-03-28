@@ -1,16 +1,15 @@
-from pydantic import BaseModel, Field
-
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from backend.app.models.nutrition import VisionNutritionExtraction
 from backend.app.services.vision import analyze_label_image
 
 
-router = APIRouter(prefix="/vision", tags=["vision"])
-
-
 class VisionRequest(BaseModel):
     image_base64: str = Field(min_length=1)
+
+
+router = APIRouter(prefix="/vision", tags=["vision"])
 
 
 @router.post("/label", response_model=VisionNutritionExtraction)
