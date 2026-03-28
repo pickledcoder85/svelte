@@ -9,7 +9,7 @@ from backend.app.integrations.usda import UsdaSearchError
 @pytest.mark.asyncio
 async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch):
     async def fake_search_usda_foods(query: str, api_key: str):
-        assert query == "yogurt"
+        assert query == "quinoa"
         assert api_key == "test-key"
         return [
             FoodItem(
@@ -33,13 +33,14 @@ async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch
         fake_search_usda_foods,
     )
 
-    response = await client.get("/api/nutrition/foods/search?q=yogurt")
+    response = await client.get("/api/nutrition/foods/search?q=quinoa")
 
     assert response.status_code == 200
     foods = response.json()
     assert len(foods) == 1
     assert foods[0]["id"] == "usda-123"
     assert foods[0]["source"] == "USDA"
+    assert foods[0]["favorite"] is False
 
 
 @pytest.mark.asyncio

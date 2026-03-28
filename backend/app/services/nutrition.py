@@ -1,7 +1,37 @@
+from typing import Protocol
+
 from datetime import date
 
-from backend.app.models.nutrition import IngredientInput, MacroTargets, MealInput, MealTotals
+from backend.app.models.nutrition import (
+    FoodFavoriteState,
+    FoodItem,
+    IngredientInput,
+    MacroTargets,
+    MealInput,
+    MealTotals,
+)
 from backend.app.repositories.sqlite import SQLiteRepository
+
+
+class FavoriteFoodRepository(Protocol):
+    def list_foods(self) -> list[FoodItem]: ...
+
+    def list_saved_favorites(
+        self,
+        user_id: str,
+        entity_type: str | None = None,
+    ) -> list[dict[str, object]]: ...
+
+    def save_favorite(
+        self,
+        *,
+        user_id: str,
+        entity_type: str,
+        entity_id: str,
+        favorite_id: str | None = None,
+    ) -> dict[str, object]: ...
+
+    def remove_favorite(self, *, user_id: str, entity_type: str, entity_id: str) -> None: ...
 
 
 def round1(value: float) -> float:
@@ -67,3 +97,38 @@ def get_weekly_metrics(
             week_end=week_end,
         )
     return repository.get_weekly_metrics()
+
+
+def list_favorite_foods(
+    repository: FavoriteFoodRepository,
+    user_id: str,
+) -> list[FoodItem]:
+    favorite_ids = [
+        payload["entity_id"]
+        for payload in repository.list_saved_favorites(user_id, entity_type="food")
+    ]
+    foods_by_id = {food.id: food for food in repository.list_foods()}
+    favorites = [
+        foods_by_id[food_id].model_copy(update={"favorite": True})
+        for food_id in favorite_ids
+        if food_id in foods_by_id
+    ]
+    return favorites
+
+
+def favorite_food(
+    repository: FavoriteFoodRepository,
+    user_id: str,
+    food_id: str,
+) -> FoodFavoriteState:
+    repository.save_favorite(user_id=user_id, entity_type="food", entity_id=food_id)
+    return FoodFavoriteState(food_id=food_id, favorite=True)
+
+
+def unfavorite_food(
+    repository: FavoriteFoodRepository,
+    user_id: str,
+    food_id: str,
+) -> FoodFavoriteState:
+    repository.remove_favorite(user_id=user_id, entity_type="food", entity_id=food_id)
+    return FoodFavoriteState(food_id=food_id, favorite=False)
