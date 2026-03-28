@@ -1,3 +1,5 @@
+from datetime import date
+
 from backend.app.models.nutrition import IngredientInput, MacroTargets, MealInput, MealTotals
 from backend.app.repositories.sqlite import SQLiteRepository
 
@@ -52,5 +54,16 @@ def meal_totals(meal: MealInput) -> MealTotals:
     )
 
 
-def get_weekly_metrics(repository: SQLiteRepository):
+def get_weekly_metrics(
+    repository: SQLiteRepository,
+    user_id: str | None = None,
+    week_start: date | None = None,
+    week_end: date | None = None,
+):
+    if user_id is not None:
+        return repository.get_weekly_metrics_for_user(
+            user_id=user_id,
+            week_start=week_start,
+            week_end=week_end,
+        )
     return repository.get_weekly_metrics()

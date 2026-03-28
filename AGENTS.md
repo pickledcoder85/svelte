@@ -49,6 +49,8 @@ This repository is expected to be developed with disciplined software engineerin
   - files changed
 - While any worker is active, poll worker status every 2 minutes and report consolidated status updates to the user.
 - If no worker is active, say that explicitly instead of implying ongoing background work.
+- Follow the orchestrator control loop strictly: dispatch, verify, poll, integrate, validate, commit, merge, delete branch, and automatically dispatch the next slice.
+- Treat any break in that control loop as a workflow bug that must be corrected before more implementation continues.
 - Merge or discard a completed worker slice before dispatching another slice in the same area.
 - Delete intermediate worker and recovery branches immediately after merge.
 
