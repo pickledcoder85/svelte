@@ -18,6 +18,7 @@ class FoodItem(BaseModel):
     serving_unit: str
     macros: MacroTargets
     source: Literal["USDA", "LABEL_SCAN", "CUSTOM"]
+    favorite: bool = False
 
 
 class IngredientInput(BaseModel):
@@ -50,6 +51,11 @@ class WeeklyMetrics(BaseModel):
     macro_consumed: MacroTargets
     weekly_weight_change: float
     adherence_score: int = Field(ge=0, le=100)
+
+
+class FoodFavoriteState(BaseModel):
+    food_id: str
+    favorite: bool
 
 
 class VisionNutritionExtraction(BaseModel):
