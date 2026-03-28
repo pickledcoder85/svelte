@@ -30,7 +30,7 @@ import {
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
-import { foodMacroLine, selectFoodById } from './src/lib/foods';
+import { filterFoodsFuzzy, foodMacroLine, selectFoodById, sortFoodsAlphabetically } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import {
   demoDashboardSnapshot,
@@ -80,10 +80,10 @@ export default function App(): ReactElement {
   const [syncDetail, setSyncDetail] = useState('Starting with seeded data.');
   const [recipeScale, setRecipeScale] = useState<(typeof recipeScales)[number]>(1);
   const [showScaleOptions, setShowScaleOptions] = useState(false);
-  const [foodDraft, setFoodDraft] = useState('yogurt');
-  const [foodSearchTerm, setFoodSearchTerm] = useState('yogurt');
-  const [foodResults, setFoodResults] = useState<FoodItem[]>(demoFoodResults);
-  const [selectedFoodId, setSelectedFoodId] = useState(demoFoodResults[0].id);
+  const [foodDraft, setFoodDraft] = useState('');
+  const [foodSearchTerm, setFoodSearchTerm] = useState('');
+  const [foodResults, setFoodResults] = useState<FoodItem[]>(() => sortFoodsAlphabetically(demoFoodResults));
+  const [selectedFoodId, setSelectedFoodId] = useState(() => sortFoodsAlphabetically(demoFoodResults)[0]?.id ?? '');
   const [foodTone, setFoodTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [foodStatus, setFoodStatus] = useState('Ready to search');
   const [foodError, setFoodError] = useState<string | null>(null);
@@ -230,15 +230,17 @@ export default function App(): ReactElement {
     async function syncFoodSearch() {
       const query = foodSearchTerm.trim();
       if (!query) {
-        setFoodStatus('Enter a search term');
+        const sortedFoods = sortFoodsAlphabetically(demoFoodResults);
+        setFoodStatus('Alphabetical starter list');
         setFoodTone('checking');
         setFoodError(null);
-        setFoodResults(demoFoodResults);
+        setFoodResults(sortedFoods);
+        setSelectedFoodId((current) => selectFoodById(sortedFoods, current)?.id ?? sortedFoods[0]?.id ?? '');
         return;
       }
 
       setFoodTone('checking');
-      setFoodStatus(`Searching for "${query}"`);
+      setFoodStatus(`Refining matches for "${query}"`);
       setFoodError(null);
 
       try {
@@ -248,19 +250,22 @@ export default function App(): ReactElement {
           return;
         }
 
-        setFoodResults(results);
-        setSelectedFoodId((current) => selectFoodById(results, current)?.id ?? results[0]?.id ?? '');
+        const mergedResults = mergeFoods(demoFoodResults, results);
+        const filteredResults = filterFoodsFuzzy(mergedResults, query);
+        setFoodResults(filteredResults);
+        setSelectedFoodId((current) => selectFoodById(filteredResults, current)?.id ?? filteredResults[0]?.id ?? '');
         setFoodTone('live');
-        setFoodStatus(`${results.length} result${results.length === 1 ? '' : 's'} from the backend`);
+        setFoodStatus(`${filteredResults.length} fuzzy match${filteredResults.length === 1 ? '' : 'es'} available`);
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        setFoodResults(demoFoodResults);
-        setSelectedFoodId(demoFoodResults[0].id);
+        const filteredResults = filterFoodsFuzzy(demoFoodResults, query);
+        setFoodResults(filteredResults);
+        setSelectedFoodId((current) => selectFoodById(filteredResults, current)?.id ?? filteredResults[0]?.id ?? '');
         setFoodTone('demo');
-        setFoodStatus('Showing demo food search results');
+        setFoodStatus('Showing fuzzy matches from the seeded food list');
         setFoodError(error instanceof Error ? error.message : 'Food search unavailable.');
       }
     }
@@ -271,6 +276,11 @@ export default function App(): ReactElement {
       cancelled = true;
     };
   }, [foodSearchTerm]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setFoodSearchTerm(foodDraft), 150);
+    return () => clearTimeout(timeoutId);
+  }, [foodDraft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -876,9 +886,9 @@ export default function App(): ReactElement {
         {section === 'foods' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Food search</Text>
-            <Text style={styles.panelTitle}>Search standardized foods</Text>
+            <Text style={styles.panelTitle}>Fuzzy food picker</Text>
             <Text style={styles.panelDetail}>
-              On phone, set `EXPO_PUBLIC_API_BASE_URL` to your laptop’s LAN IP so Expo Go can reach the backend.
+              Start from an alphabetized food list, then narrow it down as you type. Backend matches still enrich the list when available.
             </Text>
             <View style={styles.searchRow}>
               <TextInput
@@ -890,8 +900,8 @@ export default function App(): ReactElement {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Pressable style={styles.primaryButton} onPress={submitFoodSearch}>
-                <Text style={styles.primaryButtonLabel}>{isSubmittingSearch ? '...' : 'Search'}</Text>
+                <Pressable style={styles.primaryButton} onPress={submitFoodSearch}>
+                <Text style={styles.primaryButtonLabel}>{isSubmittingSearch ? '...' : 'Refresh'}</Text>
               </Pressable>
             </View>
 
@@ -1230,6 +1240,14 @@ function formatLogDate(value: string): string {
     month: 'short',
     day: 'numeric'
   });
+}
+
+function mergeFoods(seedFoods: FoodItem[], liveFoods: FoodItem[]): FoodItem[] {
+  const merged = new Map<string, FoodItem>();
+  [...seedFoods, ...liveFoods].forEach((food) => {
+    merged.set(food.id, food);
+  });
+  return [...merged.values()];
 }
 
 function createEmptyFoodLog(date = new Date().toISOString().slice(0, 10)): FoodLogSummary {
