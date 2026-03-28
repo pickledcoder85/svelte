@@ -14,7 +14,7 @@ def import_recipe(
         assets=payload.assets,
         ingredients=[],
         default_yield=2,
-        favorite=True,
+        favorite=False,
     )
     return repository.save_recipe(recipe)
 
