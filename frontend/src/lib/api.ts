@@ -14,6 +14,8 @@ import type {
   RecipeImportResult,
   UserGoal,
   UserGoalCreate,
+  ProfileProgress,
+  WeightEntry,
   UserProfile,
   UserProfileUpdate,
   WeeklyMetrics
@@ -106,6 +108,22 @@ export async function updateProfile(
 export async function fetchUserGoals(accessToken: string): Promise<UserGoal[]> {
   return readJson<UserGoal[]>(
     await fetch(buildApiUrl('/profile/goals'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function fetchProfileProgress(accessToken: string): Promise<ProfileProgress> {
+  return readJson<ProfileProgress>(
+    await fetch(buildApiUrl('/profile/progress'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function fetchWeightEntries(accessToken: string): Promise<WeightEntry[]> {
+  return readJson<WeightEntry[]>(
+    await fetch(buildApiUrl('/profile/weights'), {
       headers: authHeaders(accessToken)
     })
   );

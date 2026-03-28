@@ -106,6 +106,27 @@ export interface UserGoalCreate {
   target_weight_lbs: number | null;
 }
 
+export interface WeightEntry {
+  id: string;
+  user_id: string;
+  recorded_at: string;
+  weight_lbs: number;
+  created_at?: string | null;
+}
+
+export interface ProfileProgress {
+  user_id: string;
+  display_name: string | null;
+  current_weight_lbs: number | null;
+  start_weight_lbs: number | null;
+  target_weight_lbs: number | null;
+  weekly_weight_change: number;
+  weight_entries: number;
+  calorie_goal: number;
+  calories_consumed: number;
+  adherence_score: number;
+}
+
 export interface ExerciseEntry {
   id: string;
   title: string;

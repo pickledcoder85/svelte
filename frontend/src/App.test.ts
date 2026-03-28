@@ -7,6 +7,8 @@ import {
   demoMealPlanDays,
   demoMealPrepTasks,
   demoRangeSeries,
+  demoWeightEntries,
+  demoProfileProgress,
   demoRecipe,
   demoRecipeFavorites,
   demoRecipeCatalog,
@@ -34,6 +36,8 @@ describe('frontend demo data', () => {
     expect(demoExerciseEntries).toHaveLength(2);
     expect(demoMealPlanDays).toHaveLength(3);
     expect(demoMealPrepTasks).toHaveLength(4);
+    expect(demoWeightEntries).toHaveLength(4);
+    expect(demoProfileProgress.weight_entries).toBe(demoWeightEntries.length);
   });
 
   it('seeds recipe favorites for the new recipes screen', () => {
