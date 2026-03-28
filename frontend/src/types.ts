@@ -36,6 +36,24 @@ export interface MealTotals {
   per_serving_macros: MacroTargets;
 }
 
+export type DashboardRange = '1D' | '1W' | '1M' | '3M';
+
+export interface DashboardTrendPoint {
+  label: string;
+  calories: number;
+}
+
+export interface DashboardRangeSeries {
+  range: DashboardRange;
+  label: string;
+  detail: string;
+  targetCalories: number;
+  caloriesConsumed: number;
+  macroTargets: MacroTargets;
+  macroConsumed: MacroTargets;
+  points: DashboardTrendPoint[];
+}
+
 export interface FoodItem {
   id: string;
   name: string;
@@ -54,8 +72,8 @@ export interface DashboardSnapshot {
   connectionDetail: string;
   weeklyMetrics: WeeklyMetrics;
   mealTotals: MealTotals;
+  rangeSeries: DashboardRangeSeries[];
   recipeImport?: RecipeImportResult;
-  mealTemplate?: MealTemplateResult;
 }
 
 export interface RecipeImportInput {
@@ -68,15 +86,4 @@ export interface RecipeImportResult {
   id: string;
   title: string;
   favorite: boolean;
-}
-
-export interface MealTemplateInput {
-  name: string;
-  servings: number;
-}
-
-export interface MealTemplateResult {
-  id: string;
-  name: string;
-  servings: number;
 }
