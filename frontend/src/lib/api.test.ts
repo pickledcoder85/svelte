@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildApiUrl,
   addFoodLogEntry,
+  addFavoriteFood,
   calculateMeal,
+  createLocalSession,
   favoriteRecipe,
+  fetchFavoriteFoods,
   fetchFavoriteRecipes,
   fetchRecipes,
   fetchRecipe,
@@ -11,10 +14,12 @@ import {
   fetchTodaysFoodLog,
   normalizeApiBaseUrl,
   searchFoods,
+  searchFoodsWithSession,
   unfavoriteRecipe
 } from './api';
 import {
   demoFoodLog,
+  demoFoodResults,
   demoMeal,
   demoRecipe,
   demoRecipeCatalog,
@@ -39,6 +44,24 @@ describe('api helpers', () => {
   it('builds api urls from relative paths', () => {
     expect(buildApiUrl('/nutrition/weekly-metrics')).toBe(
       'http://localhost:8000/api/nutrition/weekly-metrics'
+    );
+  });
+
+  it('creates a local session for session-scoped favorites', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ session: { access_token: 'token-123' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await createLocalSession('tester@example.com', 'Tester');
+
+    expect(session.access_token).toBe('token-123');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/auth/session',
+      expect.objectContaining({ method: 'POST' })
     );
   });
 
@@ -189,6 +212,64 @@ describe('api helpers', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/nutrition/foods/search?q=yogurt'
+    );
+  });
+
+  it('fetches favorite foods with auth headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoFoodResults.filter((food) => food.favorite)), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchFavoriteFoods('token-123');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/favorites/foods',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('searches foods with session auth to hydrate favorite state', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(demoFoodResults), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchFoodsWithSession('oats', 'token-123');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/foods/search?q=oats',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('adds a food to favorites with auth headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ food_id: 'food-blueberries', favorite: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await addFavoriteFood('food-blueberries', 'token-123');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/favorites/foods/food-blueberries',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token-123' }
+      })
     );
   });
 

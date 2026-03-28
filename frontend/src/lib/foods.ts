@@ -19,16 +19,37 @@ export function sortFoodsAlphabetically(foods: FoodItem[]): FoodItem[] {
   return [...foods].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+export function sortFoodsForPicker(foods: FoodItem[]): FoodItem[] {
+  return [...foods].sort((left, right) => {
+    if (left.favorite !== right.favorite) {
+      return left.favorite ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+export function mergeFoodsById(...groups: FoodItem[][]): FoodItem[] {
+  const merged = new Map<string, FoodItem>();
+  groups.flat().forEach((food) => {
+    const current = merged.get(food.id);
+    merged.set(food.id, current ? { ...current, ...food, favorite: current.favorite || food.favorite } : food);
+  });
+  return [...merged.values()];
+}
+
 export function filterFoodsFuzzy(foods: FoodItem[], query: string): FoodItem[] {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
-    return sortFoodsAlphabetically(foods);
+    return sortFoodsForPicker(foods);
   }
 
   return [...foods]
     .map((food) => ({ food, score: fuzzyScore(food.name, normalizedQuery) }))
     .filter((entry) => entry.score >= 0)
     .sort((left, right) => {
+      if (left.food.favorite !== right.food.favorite) {
+        return left.food.favorite ? -1 : 1;
+      }
       if (right.score !== left.score) {
         return right.score - left.score;
       }
