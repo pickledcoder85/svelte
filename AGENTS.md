@@ -46,17 +46,40 @@ This repository is expected to be developed with disciplined software engineerin
 
 ## Worker orchestration
 
-- Parallel code-writing is only allowed when each worker has a separate verified branch and worktree.
-- If separate worktrees are not verified, workers may only do analysis, planning, or review, not code edits.
+- Default to one code-writing worker at a time. Only use parallel code-writing when the orchestrator has explicitly verified separate worktrees and disjoint write scopes for each worker.
+- If separate worktrees are not verified, workers may only do analysis, planning, review, or other read-only tasks.
 - One worker owns one layer and one write scope at a time.
-- If a worker writes outside its assigned scope, stop the slice and repair git state before dispatching more work.
+- Backend worker scope is `backend/` plus backend tests.
+- Frontend worker scope is `frontend/` plus frontend tests.
+- Database worker scope is migrations, seed data, repository persistence helpers, and database-focused tests.
+- Cross-layer edits stay with the orchestrator unless the slice is explicitly defined as single-owner and still commit-ready.
+- Before dispatching any code-writing worker, the orchestrator must verify:
+  - current branch and cleanliness of the source worktree
+  - worker branch name
+  - worker worktree path
+  - worker base commit is `main`
+  - assigned file scope
+  - expected tests for the slice
+- After dispatching a worker, the orchestrator must immediately verify the actual branch and diff in that worker worktree before treating the worker as active.
+- If a worker writes outside its assigned scope, writes on `main`, or mixes unrelated changes into the slice, stop that slice immediately and repair git state before dispatching more work.
 - Workers must stop only at commit-ready boundaries and report:
   - branch name
+  - worktree path
+  - base commit
   - intended commit message
   - tests run
   - files changed
-- While any worker is active, poll worker status every 2 minutes and report consolidated status updates to the user.
+  - blockers or known risks
+- "Commit-ready" means the slice is bounded, the owned files are consistent, required tests for that slice have been run or explicitly reported as blocked, and the worker is not leaving partial follow-up edits in the same scope.
+- While any worker is active, poll worker status every 2 minutes and also after any long-running or blocking step that could change status materially.
+- Poll updates to the user must be consolidated and must include:
+  - active workers
+  - completed workers
+  - current verification state
+  - blockers
 - If no worker is active, say that explicitly instead of implying ongoing background work.
+- Do not claim work is happening "in the background" unless a worker is actually active and has been verified.
+- The orchestrator must keep the immediate blocking task local. Do not delegate the very next step if progress depends on its result.
 - Follow the orchestrator control loop strictly: dispatch, verify, poll, integrate, validate, commit, merge, delete branch, and automatically dispatch the next slice.
 - Treat any break in that control loop as a workflow bug that must be corrected before more implementation continues.
 - Merge or discard a completed worker slice before dispatching another slice in the same area.
