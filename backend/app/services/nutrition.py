@@ -1,6 +1,5 @@
+from datetime import date, timedelta
 from typing import Protocol
-
-from datetime import date
 
 from backend.app.models.nutrition import (
     FoodFavoriteState,
@@ -91,12 +90,43 @@ def get_weekly_metrics(
     week_end: date | None = None,
 ):
     if user_id is not None:
+        if week_start is not None and week_end is not None:
+            return repository.get_weekly_metrics_for_user(
+                user_id=user_id,
+                week_start=week_start,
+                week_end=week_end,
+            )
+
+        resolved_end = _latest_activity_date(repository, user_id)
+        if resolved_end is None:
+            return repository.get_weekly_metrics_for_user(user_id=user_id)
         return repository.get_weekly_metrics_for_user(
             user_id=user_id,
-            week_start=week_start,
-            week_end=week_end,
+            week_start=resolved_end - timedelta(days=6),
+            week_end=resolved_end,
         )
     return repository.get_weekly_metrics()
+
+
+def _latest_activity_date(repository: SQLiteRepository, user_id: str) -> date | None:
+    row = repository._connection.execute(
+        """
+        SELECT MAX(activity_date) AS activity_date
+        FROM (
+            SELECT MAX(recorded_at) AS activity_date
+            FROM weight_entries
+            WHERE user_id = ?
+            UNION ALL
+            SELECT MAX(log_date) AS activity_date
+            FROM food_logs
+            WHERE user_id = ?
+        )
+        """,
+        (user_id, user_id),
+    ).fetchone()
+    if row is None or row["activity_date"] is None:
+        return None
+    return date.fromisoformat(row["activity_date"])
 
 
 def list_favorite_foods(
