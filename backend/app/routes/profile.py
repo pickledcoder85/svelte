@@ -46,7 +46,10 @@ async def write_profile(
     session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
 ) -> UserProfile:
-    return update_user_profile(repository, session, payload)
+    try:
+        return update_user_profile(repository, session, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/goals", response_model=list[UserGoal])

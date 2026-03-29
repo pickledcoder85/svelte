@@ -137,6 +137,22 @@ function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | und
   return '—';
 }
 
+function splitHeightCm(heightCm: number | null | undefined): { feet: string; inches: string } {
+  if (heightCm === null || heightCm === undefined || !Number.isFinite(heightCm) || heightCm <= 0) {
+    return { feet: '5', inches: '10' };
+  }
+
+  const totalInches = heightCm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches - feet * 12);
+
+  if (inches === 12) {
+    return { feet: String(feet + 1), inches: '0' };
+  }
+
+  return { feet: String(feet), inches: String(inches) };
+}
+
 function createEmptyWeeklyMetrics(): WeeklyMetrics {
   return {
     calorie_goal: 0,
@@ -307,6 +323,57 @@ export default function App(): ReactElement {
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
   const [exerciseSaving, setExerciseSaving] = useState(false);
   const [mealPrepSavingId, setMealPrepSavingId] = useState<string | null>(null);
+
+  function resetPreviewProfileDrafts() {
+    setProfileDisplayNameDraft('');
+    setProfileTimezoneDraft('UTC');
+    setProfileUnitsDraft('imperial');
+    setOnboardingSexDraft('female');
+    setOnboardingAgeDraft('34');
+    setOnboardingHeightFeetDraft('5');
+    setOnboardingHeightInchesDraft('10');
+    setOnboardingCurrentWeightDraft('180');
+    setOnboardingGoalTypeDraft('lose');
+    setOnboardingTargetWeightDraft('170');
+    setOnboardingActivityLevelDraft('moderate');
+  }
+
+  function applyProfileDrafts(loadedProfile: UserProfile, goals: UserGoal[] = []) {
+    const { feet, inches } = splitHeightCm(loadedProfile.height_cm);
+    setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
+    setProfileTimezoneDraft(loadedProfile.timezone);
+    setProfileUnitsDraft(loadedProfile.units);
+    setOnboardingSexDraft(loadedProfile.sex ?? 'female');
+    setOnboardingAgeDraft(
+      loadedProfile.age_years !== null && loadedProfile.age_years !== undefined
+        ? String(loadedProfile.age_years)
+        : '34'
+    );
+    setOnboardingHeightFeetDraft(feet);
+    setOnboardingHeightInchesDraft(inches);
+    setOnboardingCurrentWeightDraft(
+      loadedProfile.current_weight_lbs !== null && loadedProfile.current_weight_lbs !== undefined
+        ? String(loadedProfile.current_weight_lbs)
+        : '180'
+    );
+    setOnboardingGoalTypeDraft(loadedProfile.goal_type ?? 'lose');
+    setOnboardingTargetWeightDraft(
+      loadedProfile.target_weight_lbs !== null && loadedProfile.target_weight_lbs !== undefined
+        ? String(loadedProfile.target_weight_lbs)
+        : ''
+    );
+    setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'moderate');
+
+    const latestGoal = goals[0];
+    if (latestGoal) {
+      setGoalEffectiveAtDraft(latestGoal.effective_at);
+      setGoalCaloriesDraft(String(latestGoal.calorie_goal));
+      setGoalProteinDraft(String(latestGoal.protein_goal));
+      setGoalCarbsDraft(String(latestGoal.carbs_goal));
+      setGoalFatDraft(String(latestGoal.fat_goal));
+      setGoalWeightDraft(latestGoal.target_weight_lbs !== null ? String(latestGoal.target_weight_lbs) : '');
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -487,9 +554,7 @@ export default function App(): ReactElement {
         setProfileGoals([]);
         setProfileProgress(demoProfileProgress);
         setWeightEntries(demoWeightEntries);
-        setProfileDisplayNameDraft('');
-        setProfileTimezoneDraft('UTC');
-        setProfileUnitsDraft('imperial');
+        resetPreviewProfileDrafts();
         setProfileTone('checking');
         setProfileStatus('Preview profile loaded');
         setProfileError('No active profile session. Showing preview progress data.');
@@ -516,9 +581,7 @@ export default function App(): ReactElement {
         setProfileGoals(goals);
         setProfileProgress(progress);
         setWeightEntries(weights);
-        setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
-        setProfileTimezoneDraft(loadedProfile.timezone);
-        setProfileUnitsDraft(loadedProfile.units);
+        applyProfileDrafts(loadedProfile, goals);
         setProfileTone('live');
         setProfileStatus(
           `${goals.length} goal${goals.length === 1 ? '' : 's'}, ${progress.weight_entries} weight entr${
@@ -534,9 +597,7 @@ export default function App(): ReactElement {
         setProfileGoals([]);
         setProfileProgress(demoProfileProgress);
         setWeightEntries(demoWeightEntries);
-        setProfileDisplayNameDraft('');
-        setProfileTimezoneDraft('UTC');
-        setProfileUnitsDraft('imperial');
+        resetPreviewProfileDrafts();
         setProfileTone('checking');
         setProfileStatus('Preview profile loaded');
         setProfileError(error instanceof Error ? `${error.message} Showing preview progress data.` : 'Profile settings unavailable. Showing preview progress data.');
@@ -1023,6 +1084,7 @@ export default function App(): ReactElement {
     () => buildWeightProgressSummary(profileProgress, weightEntries),
     [profileProgress, weightEntries]
   );
+  const latestProfileGoal = useMemo(() => profileGoals[0] ?? null, [profileGoals]);
   const filteredRecipeCatalog = useMemo(
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
@@ -1364,7 +1426,14 @@ export default function App(): ReactElement {
       !Number.isFinite(target_weight_lbs) ||
       target_weight_lbs <= 0
     ) {
+      setOnboardingStatus('Could not save onboarding');
       setOnboardingError('Enter a valid age, height, weight, and target weight before continuing.');
+      return;
+    }
+
+    if (!foodSessionToken) {
+      setOnboardingStatus('Could not save onboarding');
+      setOnboardingError('Create a live local session before continuing to the app.');
       return;
     }
 
@@ -1375,36 +1444,32 @@ export default function App(): ReactElement {
     setOnboardingError(null);
 
     try {
-      if (foodSessionToken) {
-        const completed = await completeOnboarding(
-          {
-            sex: onboardingSexDraft,
-            age_years: Math.round(age_years),
-            height_cm,
-            current_weight_lbs: round1(current_weight_lbs),
-            goal_type: onboardingGoalTypeDraft,
-            target_weight_lbs: round1(target_weight_lbs),
-            activity_level: onboardingActivityLevelDraft
-          },
-          foodSessionToken
-        );
-        setProfile(completed);
+      const completed = await completeOnboarding(
+        {
+          sex: onboardingSexDraft,
+          age_years: Math.round(age_years),
+          height_cm,
+          current_weight_lbs: round1(current_weight_lbs),
+          goal_type: onboardingGoalTypeDraft,
+          target_weight_lbs: round1(target_weight_lbs),
+          activity_level: onboardingActivityLevelDraft
+        },
+        foodSessionToken
+      );
+      setProfile(completed);
 
-        const [loadedProfile, goals, progress, weights] = await Promise.all([
-          fetchProfile(foodSessionToken),
-          fetchUserGoals(foodSessionToken),
-          fetchProfileProgress(foodSessionToken),
-          fetchWeightEntries(foodSessionToken)
-        ]);
+      const [loadedProfile, goals, progress, weights] = await Promise.all([
+        fetchProfile(foodSessionToken),
+        fetchUserGoals(foodSessionToken),
+        fetchProfileProgress(foodSessionToken),
+        fetchWeightEntries(foodSessionToken)
+      ]);
 
-        setProfile(loadedProfile);
-        setProfileGoals(goals);
-        setProfileProgress(progress);
-        setWeightEntries(weights);
-        setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
-        setProfileTimezoneDraft(loadedProfile.timezone);
-        setProfileUnitsDraft(loadedProfile.units);
-      }
+      setProfile(loadedProfile);
+      setProfileGoals(goals);
+      setProfileProgress(progress);
+      setWeightEntries(weights);
+      applyProfileDrafts(loadedProfile, goals);
 
       setProfileLoaded(true);
       setProfileTone('live');
@@ -1515,27 +1580,66 @@ export default function App(): ReactElement {
       return;
     }
 
+    const age_years = Number(onboardingAgeDraft);
+    const feet = Number(onboardingHeightFeetDraft);
+    const inches = Number(onboardingHeightInchesDraft);
+    const current_weight_lbs = Number(onboardingCurrentWeightDraft);
+    const target_weight_lbs =
+      onboardingTargetWeightDraft.trim().length === 0 ? null : Number(onboardingTargetWeightDraft);
+
+    if (
+      !Number.isFinite(age_years) ||
+      age_years <= 0 ||
+      !Number.isFinite(feet) ||
+      feet <= 0 ||
+      !Number.isFinite(inches) ||
+      inches < 0 ||
+      !Number.isFinite(current_weight_lbs) ||
+      current_weight_lbs <= 0 ||
+      (target_weight_lbs !== null && (!Number.isFinite(target_weight_lbs) || target_weight_lbs <= 0))
+    ) {
+      setProfileTone('checking');
+      setProfileStatus('Could not save profile settings');
+      setProfileError('Enter a valid age, height, weight, and optional target weight before saving.');
+      return;
+    }
+
+    const height_cm = round1(((feet * 12 + inches) * 2.54));
+
     const payload = {
       display_name: profileDisplayNameDraft.trim().length > 0 ? profileDisplayNameDraft.trim() : null,
       timezone: profileTimezoneDraft.trim() || 'UTC',
-      units: profileUnitsDraft
+      units: profileUnitsDraft,
+      sex: onboardingSexDraft,
+      age_years: Math.round(age_years),
+      height_cm,
+      current_weight_lbs: round1(current_weight_lbs),
+      goal_type: onboardingGoalTypeDraft,
+      target_weight_lbs: target_weight_lbs === null ? null : round1(target_weight_lbs),
+      activity_level: onboardingActivityLevelDraft
     } satisfies Parameters<typeof updateProfile>[0];
 
     setProfileSaving(true);
     setProfileTone('checking');
-    setProfileStatus('Saving profile settings');
+    setProfileStatus('Saving profile and recalculating targets');
     setProfileError(null);
 
     try {
       if (foodSessionToken) {
         const updated = await updateProfile(payload, foodSessionToken);
+        const [goals, progress, weights] = await Promise.all([
+          fetchUserGoals(foodSessionToken),
+          fetchProfileProgress(foodSessionToken),
+          fetchWeightEntries(foodSessionToken)
+        ]);
         setProfile(updated);
-        setProfileDisplayNameDraft(updated.display_name ?? '');
-        setProfileTimezoneDraft(updated.timezone);
-        setProfileUnitsDraft(updated.units);
+        setProfileGoals(goals);
+        setProfileProgress(progress);
+        setWeightEntries(weights);
+        applyProfileDrafts(updated, goals);
       }
       setProfileTone('live');
-      setProfileStatus('Profile settings saved');
+      setProfileStatus('Profile and targets saved');
     } catch (error) {
       setProfileTone('checking');
       setProfileStatus('Could not save profile settings');
@@ -2347,44 +2451,179 @@ export default function App(): ReactElement {
                   </Text>
 
                   <View style={styles.profileFieldStack}>
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Display name</Text>
-                      <TextInput
-                        value={profileDisplayNameDraft}
-                        onChangeText={setProfileDisplayNameDraft}
-                        placeholder="Nutrition User"
-                        placeholderTextColor="#7c8aa5"
-                        style={styles.profileFieldInput}
-                      />
+                    <View style={styles.profileFieldRow}>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Display name</Text>
+                        <TextInput
+                          value={profileDisplayNameDraft}
+                          onChangeText={setProfileDisplayNameDraft}
+                          placeholder="Nutrition User"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Timezone</Text>
+                        <TextInput
+                          value={profileTimezoneDraft}
+                          onChangeText={setProfileTimezoneDraft}
+                          placeholder="America/New_York"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
                     </View>
 
                     <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Timezone</Text>
-                      <TextInput
-                        value={profileTimezoneDraft}
-                        onChangeText={setProfileTimezoneDraft}
-                        placeholder="America/New_York"
-                        placeholderTextColor="#7c8aa5"
-                        style={styles.profileFieldInput}
-                      />
+                      <Text style={styles.profileFieldLabel}>Units</Text>
+                      <View style={styles.profileToggleRow}>
+                        {(['imperial', 'metric'] as const).map((units) => {
+                          const active = units === profileUnitsDraft;
+                          return (
+                            <Pressable
+                              key={units}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setProfileUnitsDraft(units)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                                {units === 'imperial' ? 'Imperial' : 'Metric'}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
                     </View>
-                  </View>
 
-                  <View style={styles.profileToggleRow}>
-                    {(['imperial', 'metric'] as const).map((units) => {
-                      const active = units === profileUnitsDraft;
-                      return (
-                        <Pressable
-                          key={units}
-                          style={[styles.profileToggle, active && styles.profileToggleActive]}
-                          onPress={() => setProfileUnitsDraft(units)}
-                        >
-                          <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                            {units === 'imperial' ? 'Imperial' : 'Metric'}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Sex</Text>
+                      <View style={styles.profileToggleRow}>
+                        {(['female', 'male'] as const).map((option) => {
+                          const active = onboardingSexDraft === option;
+                          return (
+                            <Pressable
+                              key={option}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setOnboardingSexDraft(option)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                                {option === 'male' ? 'Male' : 'Female'}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.profileFieldRow}>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Age</Text>
+                        <TextInput
+                          value={onboardingAgeDraft}
+                          onChangeText={setOnboardingAgeDraft}
+                          keyboardType="numeric"
+                          placeholder="34"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
+                        <TextInput
+                          value={onboardingCurrentWeightDraft}
+                          onChangeText={setOnboardingCurrentWeightDraft}
+                          keyboardType="decimal-pad"
+                          placeholder="180"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.profileFieldRow}>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Height, ft</Text>
+                        <TextInput
+                          value={onboardingHeightFeetDraft}
+                          onChangeText={setOnboardingHeightFeetDraft}
+                          keyboardType="numeric"
+                          placeholder="5"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Height, in</Text>
+                        <TextInput
+                          value={onboardingHeightInchesDraft}
+                          onChangeText={setOnboardingHeightInchesDraft}
+                          keyboardType="numeric"
+                          placeholder="10"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Goal</Text>
+                      <View style={styles.profileToggleRow}>
+                        {(['lose', 'maintain', 'gain'] as const).map((option) => {
+                          const active = onboardingGoalTypeDraft === option;
+                          return (
+                            <Pressable
+                              key={option}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setOnboardingGoalTypeDraft(option)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                                {option === 'lose' ? 'Weight Loss' : option === 'maintain' ? 'Maintenance' : 'Weight Gain'}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.profileFieldRow}>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
+                        <TextInput
+                          value={onboardingTargetWeightDraft}
+                          onChangeText={setOnboardingTargetWeightDraft}
+                          keyboardType="decimal-pad"
+                          placeholder="170"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                      <View style={styles.profileFieldHalf}>
+                        <Text style={styles.profileFieldLabel}>Activity level</Text>
+                        <View style={styles.profileToggleRow}>
+                          {(['sedentary', 'light', 'moderate', 'very_active', 'extra_active'] as const).map((option) => {
+                            const active = onboardingActivityLevelDraft === option;
+                            return (
+                              <Pressable
+                                key={option}
+                                style={[styles.profileToggle, active && styles.profileToggleActive]}
+                                onPress={() => setOnboardingActivityLevelDraft(option)}
+                              >
+                                <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                                  {option === 'very_active'
+                                    ? 'Very active'
+                                    : option === 'extra_active'
+                                      ? 'Extra active'
+                                      : option === 'sedentary'
+                                        ? 'Sedentary'
+                                        : option === 'light'
+                                          ? 'Light'
+                                          : 'Moderate'}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </View>
                   </View>
 
                   <Pressable
@@ -2393,7 +2632,7 @@ export default function App(): ReactElement {
                     disabled={profileSaving}
                   >
                     <Text style={styles.primaryButtonLabel}>
-                      {profileSaving ? 'Saving...' : 'Save profile settings'}
+                      {profileSaving ? 'Saving...' : 'Save profile and recalculate targets'}
                     </Text>
                   </Pressable>
                 </View>
@@ -2403,7 +2642,25 @@ export default function App(): ReactElement {
             <View style={styles.panel}>
               <Text style={styles.panelEyebrow}>Goals</Text>
               <Text style={styles.panelTitle}>Target management</Text>
-              <Text style={styles.panelDetail}>Current goals are visible below, and you can add a new target block without leaving the app.</Text>
+              <Text style={styles.panelDetail}>The profile form above now drives the active targets. Manual goal entries remain available below for temporary overrides or experiments.</Text>
+
+              {latestProfileGoal ? (
+                <View style={styles.detailCard}>
+                  <View style={styles.recipeRowTitleWrap}>
+                    <View>
+                      <Text style={styles.panelEyebrow}>Active target</Text>
+                      <Text style={styles.detailTitle}>Latest generated target block</Text>
+                    </View>
+                    <Text style={styles.detailSubtitle}>{latestProfileGoal.effective_at}</Text>
+                  </View>
+                  <View style={styles.metricRow}>
+                    <MetricTile label="Calories" value={`${latestProfileGoal.calorie_goal} kcal`} />
+                    <MetricTile label="Protein" value={`${latestProfileGoal.protein_goal} g`} />
+                    <MetricTile label="Carbs" value={`${latestProfileGoal.carbs_goal} g`} />
+                    <MetricTile label="Fat" value={`${latestProfileGoal.fat_goal} g`} />
+                  </View>
+                </View>
+              ) : null}
 
               <View style={styles.foodList}>
                 {profileGoals.length > 0 ? (

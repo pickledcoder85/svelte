@@ -664,6 +664,15 @@ describe('api helpers', () => {
         }
       })
     );
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        body: JSON.stringify({
+          display_name: 'Cut Phase',
+          timezone: 'America/New_York',
+          units: 'imperial'
+        })
+      })
+    );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       'http://localhost:8000/api/profile/goals',
@@ -705,6 +714,70 @@ describe('api helpers', () => {
           'Content-Type': 'application/json',
           Authorization: 'Bearer token-123'
         }
+      })
+    );
+  });
+
+  it('sends full editable profile fields when updating a live profile', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          user_id: 'user-123',
+          email: 'tester@example.com',
+          display_name: 'Lean Bulk',
+          timezone: 'America/New_York',
+          units: 'imperial',
+          setup_complete: true,
+          sex: 'male',
+          age_years: 30,
+          height_cm: 180,
+          current_weight_lbs: 195,
+          goal_type: 'gain',
+          target_weight_lbs: 205,
+          activity_level: 'light',
+          initial_calorie_target: 2624
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await updateProfile(
+      {
+        display_name: 'Lean Bulk',
+        timezone: 'America/New_York',
+        units: 'imperial',
+        sex: 'male',
+        age_years: 30,
+        height_cm: 180,
+        current_weight_lbs: 195,
+        goal_type: 'gain',
+        target_weight_lbs: 205,
+        activity_level: 'light'
+      },
+      'token-123'
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/profile',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        },
+        body: JSON.stringify({
+          display_name: 'Lean Bulk',
+          timezone: 'America/New_York',
+          units: 'imperial',
+          sex: 'male',
+          age_years: 30,
+          height_cm: 180,
+          current_weight_lbs: 195,
+          goal_type: 'gain',
+          target_weight_lbs: 205,
+          activity_level: 'light'
+        })
       })
     );
   });

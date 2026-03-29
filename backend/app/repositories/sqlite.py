@@ -1481,7 +1481,7 @@ class SQLiteRepository:
         height_cm: float,
         current_weight_lbs: float,
         goal_type: str,
-        target_weight_lbs: float,
+        target_weight_lbs: float | None,
         activity_level: str,
         bmr_calories: int,
         tdee_calories: int,
@@ -1625,7 +1625,7 @@ class SQLiteRepository:
         target_weight_lbs: float | None = None,
         goal_id: str | None = None,
     ) -> dict[str, Any]:
-        identifier = goal_id or f"goal-{user_id}-{effective_at.isoformat()}"
+        identifier = goal_id or str(uuid4())
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
             self._connection.execute(
@@ -1671,7 +1671,7 @@ class SQLiteRepository:
             """
             SELECT * FROM user_goals
             WHERE user_id = ?
-            ORDER BY effective_at DESC, created_at DESC
+            ORDER BY effective_at DESC, created_at DESC, rowid DESC
             """,
             (user_id,),
         ).fetchall()

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from uuid import uuid4
 
 from backend.app.models.auth import AuthSession
 from backend.app.models.profile import (
@@ -17,6 +18,7 @@ from backend.app.models.nutrition import WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.calculations.energy import calculate_onboarding_energy_targets
 from backend.app.services.calculations.macros import generate_macro_targets
+from backend.app.services.calculations.energy import calculate_energy_targets
 
 
 class OnboardingAlreadyCompletedError(RuntimeError):
@@ -87,6 +89,8 @@ def update_user_profile(
     session: AuthSession,
     payload: UserProfileUpdateRequest,
 ) -> UserProfile:
+    existing_profile = repository.get_user_identity(session.user_id) or {}
+    provided_fields = payload.model_fields_set
     repository.save_user_identity(
         user_id=session.user_id,
         email=session.email,
@@ -94,7 +98,95 @@ def update_user_profile(
         timezone=payload.timezone,
         units=payload.units,
     )
-    profile = repository.mark_user_setup_completed(session.user_id)
+
+    resolved = {
+        "sex": payload.sex if "sex" in provided_fields else existing_profile.get("sex"),
+        "age_years": payload.age_years if "age_years" in provided_fields else existing_profile.get("age_years"),
+        "height_cm": payload.height_cm if "height_cm" in provided_fields else existing_profile.get("height_cm"),
+        "current_weight_lbs": (
+            payload.current_weight_lbs
+            if "current_weight_lbs" in provided_fields
+            else existing_profile.get("current_weight_lbs")
+        ),
+        "goal_type": payload.goal_type if "goal_type" in provided_fields else existing_profile.get("goal_type"),
+        "target_weight_lbs": (
+            payload.target_weight_lbs
+            if "target_weight_lbs" in provided_fields
+            else existing_profile.get("target_weight_lbs")
+        ),
+        "activity_level": (
+            payload.activity_level
+            if "activity_level" in provided_fields
+            else existing_profile.get("activity_level")
+        ),
+    }
+    derived_fields_changed = any(
+        resolved[key] != existing_profile.get(key)
+        for key in (
+            "sex",
+            "age_years",
+            "height_cm",
+            "current_weight_lbs",
+            "goal_type",
+            "target_weight_lbs",
+            "activity_level",
+        )
+    )
+
+    if derived_fields_changed:
+        required_keys = ("sex", "age_years", "height_cm", "current_weight_lbs", "goal_type", "activity_level")
+        missing_keys = [key for key in required_keys if resolved[key] is None]
+        if missing_keys:
+            missing_summary = ", ".join(missing_keys)
+            raise ValueError(f"Profile recalculation requires: {missing_summary}.")
+
+        bmr_calories, tdee_calories, initial_calorie_target = calculate_energy_targets(
+            sex=str(resolved["sex"]),
+            age_years=int(resolved["age_years"]),
+            height_cm=float(resolved["height_cm"]),
+            current_weight_lbs=float(resolved["current_weight_lbs"]),
+            activity_level=str(resolved["activity_level"]),
+            goal_type=str(resolved["goal_type"]),
+        )
+        protein_goal, carbs_goal, fat_goal = generate_macro_targets(
+            calorie_target=initial_calorie_target,
+            current_weight_lbs=float(resolved["current_weight_lbs"]),
+            goal_type=str(resolved["goal_type"]),
+        )
+        profile = repository.save_user_onboarding(
+            user_id=session.user_id,
+            sex=str(resolved["sex"]),
+            age_years=int(resolved["age_years"]),
+            height_cm=float(resolved["height_cm"]),
+            current_weight_lbs=float(resolved["current_weight_lbs"]),
+            goal_type=str(resolved["goal_type"]),
+            target_weight_lbs=(
+                float(resolved["target_weight_lbs"])
+                if resolved["target_weight_lbs"] is not None
+                else None
+            ),
+            activity_level=str(resolved["activity_level"]),
+            bmr_calories=bmr_calories,
+            tdee_calories=tdee_calories,
+            initial_calorie_target=initial_calorie_target,
+        )
+        repository.save_user_goal(
+            user_id=session.user_id,
+            effective_at=date.today(),
+            calorie_goal=initial_calorie_target,
+            protein_goal=protein_goal,
+            carbs_goal=carbs_goal,
+            fat_goal=fat_goal,
+            target_weight_lbs=(
+                float(resolved["target_weight_lbs"])
+                if resolved["target_weight_lbs"] is not None
+                else None
+            ),
+            goal_id=str(uuid4()),
+        )
+    else:
+        profile = repository.mark_user_setup_completed(session.user_id)
+
     if profile is None:
         raise RuntimeError("Failed to persist user profile setup state.")
     return UserProfile.model_validate(profile)

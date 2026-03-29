@@ -94,6 +94,7 @@ Current status:
 - started on the current dev workflow branch
 - onboarding now uses dedicated energy and macro calculation helpers instead of inline fixed-ratio logic
 - explicit goal labels are clearer in the frontend onboarding and profile experience
+- full editable profile management is now underway, with live profile edits recalculating targets and appending new goal-history rows
 - adaptive maintenance, fiber-target persistence, and structured exercise-estimation metadata are still pending
 
 ### Phase 3: mobile packaging and polish
@@ -115,8 +116,10 @@ Current status:
 3. Connect frontend dashboard and meal builder to persisted backend flows.
 4. Add recipe persistence and scaling UX.
 5. Refactor the nutrition and exercise calculation engine around explicit goal types and versioned targets.
-6. Add ingestion review flows before fully automated save behavior.
-7. Package and validate with Expo-native build/export flow after core flows are stable.
+6. Finish full editable profile management so calculation targets and food-ingestion flows have a stable user foundation.
+7. Add ingestion review flows before fully automated save behavior.
+8. Add camera-assisted food-bank creation with explicit review before save.
+9. Package and validate with Expo-native build/export flow after core flows are stable.
 
 ## Review of initial plan
 
