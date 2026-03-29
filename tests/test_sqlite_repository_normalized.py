@@ -6,7 +6,7 @@ from pathlib import Path
 from backend.app.db.database import apply_migrations, connect
 from backend.app.models.meals import MealTemplate
 from backend.app.models.nutrition import IngredientInput, MacroTargets
-from backend.app.models.recipes import RecipeDefinition
+from backend.app.models.recipes import RecipeAsset, RecipeDefinition
 from backend.app.repositories.sqlite import DEFAULT_FAVORITE_FOOD_IDS, SQLiteRepository
 
 
@@ -442,6 +442,241 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(fetched.calories, 389.0)
         self.assertEqual(fetched.per_serving_calories, 97.2)
         self.assertEqual([row["grams"] for row in ingredient_rows], [100])
+
+    def test_sqlite_repository_repairs_legacy_meal_and_recipe_schema_from_migrations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            apply_migrations(f"sqlite:///{db_path}")
+
+            with connect(f"sqlite:///{db_path}") as connection:
+                legacy_meal_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'meal_templates'
+                    """
+                ).fetchone()
+                legacy_meal_ingredient_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'meal_template_ingredients'
+                    """
+                ).fetchone()
+                legacy_recipe_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipes'
+                    """
+                ).fetchone()
+                legacy_recipe_step_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipe_steps'
+                    """
+                ).fetchone()
+                legacy_recipe_asset_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipe_assets'
+                    """
+                ).fetchone()
+                legacy_recipe_ingredient_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipe_ingredients'
+                    """
+                ).fetchone()
+
+            assert legacy_meal_row is not None
+            assert legacy_meal_ingredient_row is not None
+            assert legacy_recipe_row is not None
+            assert legacy_recipe_step_row is not None
+            assert legacy_recipe_asset_row is not None
+            assert legacy_recipe_ingredient_row is not None
+            self.assertIn("user_id", legacy_meal_row["sql"])
+            self.assertIn("ingredient_name", legacy_meal_ingredient_row["sql"])
+            self.assertIn("step_index", legacy_recipe_step_row["sql"])
+            self.assertIn("asset_kind", legacy_recipe_asset_row["sql"])
+            self.assertIn("food_item_id", legacy_recipe_ingredient_row["sql"])
+
+            repo = SQLiteRepository(str(db_path))
+
+            with connect(f"sqlite:///{db_path}") as connection:
+                repaired_meal_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'meal_templates'
+                    """
+                ).fetchone()
+                repaired_meal_ingredient_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'meal_template_ingredients'
+                    """
+                ).fetchone()
+                repaired_recipe_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipes'
+                    """
+                ).fetchone()
+                repaired_recipe_step_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipe_steps'
+                    """
+                ).fetchone()
+                repaired_recipe_asset_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipe_assets'
+                    """
+                ).fetchone()
+                repaired_recipe_ingredient_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'recipe_ingredients'
+                    """
+                ).fetchone()
+
+            assert repaired_meal_row is not None
+            assert repaired_meal_ingredient_row is not None
+            assert repaired_recipe_row is not None
+            assert repaired_recipe_step_row is not None
+            assert repaired_recipe_asset_row is not None
+            assert repaired_recipe_ingredient_row is not None
+            self.assertNotIn("user_id", repaired_meal_row["sql"])
+            self.assertIn("calories", repaired_meal_row["sql"])
+            self.assertIn("food_id", repaired_meal_ingredient_row["sql"])
+            self.assertIn("name", repaired_meal_ingredient_row["sql"])
+            self.assertIn("position", repaired_recipe_step_row["sql"])
+            self.assertIn("kind", repaired_recipe_asset_row["sql"])
+            self.assertIn("content", repaired_recipe_asset_row["sql"])
+            self.assertIn("food_id", repaired_recipe_ingredient_row["sql"])
+            self.assertIn("name", repaired_recipe_ingredient_row["sql"])
+
+            meal_template = MealTemplate(
+                id="meal-protein-bowl",
+                name="Protein Bowl",
+                serving_count=2,
+                ingredients=[
+                    IngredientInput(
+                        id="ingredient-1",
+                        food_id="food-oats",
+                        name="Rolled oats",
+                        grams=80,
+                        calories_per_100g=389,
+                        macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    )
+                ],
+                favorite=False,
+                calories=311.2,
+                macros=MacroTargets(protein=13.5, carbs=53.0, fat=5.5),
+                per_serving_calories=155.6,
+                per_serving_macros=MacroTargets(protein=6.8, carbs=26.5, fat=2.8),
+            )
+            recipe = RecipeDefinition(
+                id="recipe-overnight-oats",
+                title="Overnight Oats",
+                steps=["Mix ingredients.", "Chill overnight."],
+                assets=[RecipeAsset(kind="text", content="base recipe")],
+                ingredients=[
+                    IngredientInput(
+                        id="ingredient-2",
+                        food_id="food-oats",
+                        name="Rolled oats",
+                        grams=80,
+                        calories_per_100g=389,
+                        macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    )
+                ],
+                default_yield=2,
+                favorite=False,
+            )
+
+            repo.save_meal_template(meal_template)
+            repo.save_recipe(recipe)
+
+            updated_meal = meal_template.model_copy(
+                update={
+                    "name": "Protein Bowl Deluxe",
+                    "serving_count": 4,
+                    "ingredients": [
+                        IngredientInput(
+                            id="ingredient-1",
+                            food_id="food-oats",
+                            name="Rolled oats",
+                            grams=100,
+                            calories_per_100g=389,
+                            macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                        )
+                    ],
+                    "calories": 389.0,
+                    "macros": MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    "per_serving_calories": 97.2,
+                    "per_serving_macros": MacroTargets(protein=4.2, carbs=16.6, fat=1.7),
+                    "favorite": True,
+                }
+            )
+            updated_recipe = recipe.model_copy(
+                update={
+                    "title": "Overnight Oats Deluxe",
+                    "steps": ["Mix ingredients.", "Chill overnight.", "Serve cold."],
+                    "assets": [
+                        RecipeAsset(kind="text", content="base recipe"),
+                        RecipeAsset(kind="image", url="https://example.com/oats.jpg"),
+                    ],
+                    "ingredients": [
+                        IngredientInput(
+                            id="ingredient-2",
+                            food_id="food-oats",
+                            name="Rolled oats",
+                            grams=100,
+                            calories_per_100g=389,
+                            macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                        )
+                    ],
+                    "default_yield": 3,
+                    "favorite": True,
+                }
+            )
+
+            repo.save_meal_template(updated_meal)
+            repo.save_recipe(updated_recipe)
+
+            fetched_meal = repo.get_meal_template(meal_template.id)
+            fetched_recipe = repo.get_recipe(recipe.id)
+            meal_templates = repo.list_meal_templates()
+            recipes = repo.list_recipes()
+
+        self.assertIsNotNone(fetched_meal)
+        self.assertIsNotNone(fetched_recipe)
+        assert fetched_meal is not None
+        assert fetched_recipe is not None
+        self.assertEqual(fetched_meal.name, "Protein Bowl Deluxe")
+        self.assertEqual(fetched_meal.serving_count, 4)
+        self.assertEqual(fetched_meal.favorite, True)
+        self.assertEqual(fetched_meal.ingredients[0].grams, 100)
+        self.assertEqual(fetched_meal.per_serving_calories, 97.2)
+        self.assertEqual(fetched_recipe.title, "Overnight Oats Deluxe")
+        self.assertEqual(fetched_recipe.default_yield, 3)
+        self.assertEqual(fetched_recipe.favorite, True)
+        self.assertEqual(fetched_recipe.steps, ["Mix ingredients.", "Chill overnight.", "Serve cold."])
+        self.assertEqual(len(fetched_recipe.assets), 2)
+        self.assertEqual(fetched_recipe.ingredients[0].grams, 100)
+        self.assertEqual([meal.id for meal in meal_templates], [meal_template.id])
+        self.assertEqual([recipe.id for recipe in recipes], [recipe.id])
 
     def test_sqlite_repository_persists_exercise_meal_plan_and_meal_prep(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

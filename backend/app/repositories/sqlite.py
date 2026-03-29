@@ -663,6 +663,8 @@ class SQLiteRepository:
         self._ensure_user_profiles_columns()
         self._ensure_user_goals_columns()
         self._ensure_weight_entries_columns()
+        self._ensure_meal_template_schema()
+        self._ensure_recipe_schema()
         self._ensure_saved_favorites_supports_food()
         self._ensure_default_favorite_food_tables()
         self._seed_data()
@@ -765,6 +767,297 @@ class SQLiteRepository:
                 self._connection.execute(
                     f"ALTER TABLE weight_entries ADD COLUMN {column_name} {column_type}"
                 )
+
+    def _table_columns(self, table_name: str) -> set[str]:
+        return {
+            row["name"]
+            for row in self._connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+
+    def _ensure_meal_template_schema(self) -> None:
+        existing_columns = self._table_columns("meal_templates")
+        ingredient_columns = self._table_columns("meal_template_ingredients")
+
+        current_meal_columns = {
+            "id",
+            "name",
+            "serving_count",
+            "favorite",
+            "calories",
+            "protein",
+            "carbs",
+            "fat",
+            "per_serving_calories",
+            "per_serving_protein",
+            "per_serving_carbs",
+            "per_serving_fat",
+        }
+        current_ingredient_columns = {
+            "id",
+            "meal_template_id",
+            "food_id",
+            "name",
+            "grams",
+            "calories_per_100g",
+            "protein_per_100g",
+            "carbs_per_100g",
+            "fat_per_100g",
+        }
+        if (
+            current_meal_columns.issubset(existing_columns)
+            and current_ingredient_columns.issubset(ingredient_columns)
+            and "user_id" not in existing_columns
+            and "ingredient_name" not in ingredient_columns
+            and "food_item_id" not in ingredient_columns
+        ):
+            return
+
+        if not existing_columns or not ingredient_columns:
+            return
+
+        with self._lock, self._connection:
+            self._connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                self._connection.execute(
+                    "ALTER TABLE meal_template_ingredients RENAME TO meal_template_ingredients_legacy"
+                )
+                self._connection.execute("ALTER TABLE meal_templates RENAME TO meal_templates_legacy")
+                self._connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS meal_templates (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        serving_count REAL NOT NULL,
+                        favorite INTEGER NOT NULL DEFAULT 0,
+                        calories REAL NOT NULL,
+                        protein REAL NOT NULL,
+                        carbs REAL NOT NULL,
+                        fat REAL NOT NULL,
+                        per_serving_calories REAL NOT NULL,
+                        per_serving_protein REAL NOT NULL,
+                        per_serving_carbs REAL NOT NULL,
+                        per_serving_fat REAL NOT NULL
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO meal_templates (
+                        id, name, serving_count, favorite, calories, protein, carbs, fat,
+                        per_serving_calories, per_serving_protein, per_serving_carbs, per_serving_fat
+                    )
+                    SELECT
+                        mt.id,
+                        mt.name,
+                        mt.serving_count,
+                        mt.favorite,
+                        ROUND(COALESCE(SUM(ROUND(mti.grams * mti.calories_per_100g / 100.0, 1)), 0), 1),
+                        ROUND(COALESCE(SUM(ROUND(mti.grams * mti.protein_per_100g / 100.0, 1)), 0), 1),
+                        ROUND(COALESCE(SUM(ROUND(mti.grams * mti.carbs_per_100g / 100.0, 1)), 0), 1),
+                        ROUND(COALESCE(SUM(ROUND(mti.grams * mti.fat_per_100g / 100.0, 1)), 0), 1),
+                        ROUND(
+                            ROUND(COALESCE(SUM(ROUND(mti.grams * mti.calories_per_100g / 100.0, 1)), 0), 1)
+                                / mt.serving_count,
+                            1
+                        ),
+                        ROUND(
+                            ROUND(COALESCE(SUM(ROUND(mti.grams * mti.protein_per_100g / 100.0, 1)), 0), 1)
+                                / mt.serving_count,
+                            1
+                        ),
+                        ROUND(
+                            ROUND(COALESCE(SUM(ROUND(mti.grams * mti.carbs_per_100g / 100.0, 1)), 0), 1)
+                                / mt.serving_count,
+                            1
+                        ),
+                        ROUND(
+                            ROUND(COALESCE(SUM(ROUND(mti.grams * mti.fat_per_100g / 100.0, 1)), 0), 1)
+                                / mt.serving_count,
+                            1
+                        )
+                    FROM meal_templates_legacy mt
+                    LEFT JOIN meal_template_ingredients_legacy mti ON mti.meal_template_id = mt.id
+                    GROUP BY mt.id, mt.name, mt.serving_count, mt.favorite
+                    """
+                )
+                self._connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS meal_template_ingredients (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        meal_template_id TEXT NOT NULL REFERENCES meal_templates(id) ON DELETE CASCADE,
+                        food_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        grams REAL NOT NULL,
+                        calories_per_100g REAL NOT NULL,
+                        protein_per_100g REAL NOT NULL,
+                        carbs_per_100g REAL NOT NULL,
+                        fat_per_100g REAL NOT NULL
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO meal_template_ingredients (
+                        meal_template_id, food_id, name, grams, calories_per_100g,
+                        protein_per_100g, carbs_per_100g, fat_per_100g
+                    )
+                    SELECT
+                        meal_template_id,
+                        COALESCE(food_item_id, id),
+                        ingredient_name,
+                        grams,
+                        calories_per_100g,
+                        protein_per_100g,
+                        carbs_per_100g,
+                        fat_per_100g
+                    FROM meal_template_ingredients_legacy
+                    ORDER BY created_at ASC, id ASC
+                    """
+                )
+                self._connection.execute("DROP TABLE meal_template_ingredients_legacy")
+                self._connection.execute("DROP TABLE meal_templates_legacy")
+            finally:
+                self._connection.execute("PRAGMA foreign_keys = ON")
+
+    def _ensure_recipe_schema(self) -> None:
+        existing_columns = self._table_columns("recipes")
+        step_columns = self._table_columns("recipe_steps")
+        asset_columns = self._table_columns("recipe_assets")
+        ingredient_columns = self._table_columns("recipe_ingredients")
+
+        current_recipe_columns = {"id", "title", "default_yield", "favorite"}
+        current_step_columns = {"id", "recipe_id", "position", "step_text"}
+        current_asset_columns = {"id", "recipe_id", "kind", "url", "content"}
+        current_ingredient_columns = {
+            "id",
+            "recipe_id",
+            "food_id",
+            "name",
+            "grams",
+            "calories_per_100g",
+            "protein_per_100g",
+            "carbs_per_100g",
+            "fat_per_100g",
+        }
+        if (
+            current_recipe_columns.issubset(existing_columns)
+            and current_step_columns.issubset(step_columns)
+            and current_asset_columns.issubset(asset_columns)
+            and current_ingredient_columns.issubset(ingredient_columns)
+            and "user_id" not in existing_columns
+            and "step_index" not in step_columns
+            and "asset_kind" not in asset_columns
+            and "ingredient_name" not in ingredient_columns
+            and "food_item_id" not in ingredient_columns
+        ):
+            return
+
+        if not existing_columns or not step_columns or not asset_columns or not ingredient_columns:
+            return
+
+        with self._lock, self._connection:
+            self._connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                self._connection.execute("ALTER TABLE recipe_steps RENAME TO recipe_steps_legacy")
+                self._connection.execute("ALTER TABLE recipe_assets RENAME TO recipe_assets_legacy")
+                self._connection.execute(
+                    "ALTER TABLE recipe_ingredients RENAME TO recipe_ingredients_legacy"
+                )
+                self._connection.execute("ALTER TABLE recipes RENAME TO recipes_legacy")
+                self._connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS recipes (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        default_yield REAL NOT NULL,
+                        favorite INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO recipes (id, title, default_yield, favorite)
+                    SELECT id, title, default_yield, favorite
+                    FROM recipes_legacy
+                    """
+                )
+                self._connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS recipe_steps (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        recipe_id TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                        position INTEGER NOT NULL,
+                        step_text TEXT NOT NULL
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO recipe_steps (recipe_id, position, step_text)
+                    SELECT recipe_id, step_index, step_text
+                    FROM recipe_steps_legacy
+                    ORDER BY created_at ASC, id ASC
+                    """
+                )
+                self._connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS recipe_assets (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        recipe_id TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                        kind TEXT NOT NULL,
+                        url TEXT,
+                        content TEXT
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO recipe_assets (recipe_id, kind, url, content)
+                    SELECT recipe_id, asset_kind, asset_uri, content_text
+                    FROM recipe_assets_legacy
+                    ORDER BY created_at ASC, id ASC
+                    """
+                )
+                self._connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS recipe_ingredients (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        recipe_id TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                        food_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        grams REAL NOT NULL,
+                        calories_per_100g REAL NOT NULL,
+                        protein_per_100g REAL NOT NULL,
+                        carbs_per_100g REAL NOT NULL,
+                        fat_per_100g REAL NOT NULL
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO recipe_ingredients (
+                        recipe_id, food_id, name, grams, calories_per_100g,
+                        protein_per_100g, carbs_per_100g, fat_per_100g
+                    )
+                    SELECT
+                        recipe_id,
+                        COALESCE(food_item_id, id),
+                        ingredient_name,
+                        grams,
+                        calories_per_100g,
+                        protein_per_100g,
+                        carbs_per_100g,
+                        fat_per_100g
+                    FROM recipe_ingredients_legacy
+                    ORDER BY created_at ASC, id ASC
+                    """
+                )
+                self._connection.execute("DROP TABLE recipe_ingredients_legacy")
+                self._connection.execute("DROP TABLE recipe_assets_legacy")
+                self._connection.execute("DROP TABLE recipe_steps_legacy")
+                self._connection.execute("DROP TABLE recipes_legacy")
+            finally:
+                self._connection.execute("PRAGMA foreign_keys = ON")
 
     def _ensure_saved_favorites_supports_food(self) -> None:
         row = self._connection.execute(
