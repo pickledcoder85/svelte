@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { demoFoodResults } from '../mock-data';
 import {
+  calculateFoodGrams,
+  clampFoodQuantity,
   filterFoodsFuzzy,
   foodMacroLine,
+  formatFoodQuantity,
+  formatFoodReference,
   mergeFoodsById,
   selectFoodById,
   sortFoodsAlphabetically,
@@ -19,6 +23,22 @@ describe('food helpers', () => {
     const yogurt = demoFoodResults.find((food) => food.id === 'food-greek-yogurt');
     expect(yogurt).toBeDefined();
     expect(foodMacroLine(yogurt!)).toBe('10.3P / 3.6C / 0.4F');
+  });
+
+  it('formats food card reference weights and quantities', () => {
+    const yogurt = demoFoodResults.find((food) => food.id === 'food-greek-yogurt');
+    expect(yogurt).toBeDefined();
+    expect(formatFoodReference(yogurt!)).toBe('100 g');
+    expect(formatFoodQuantity(1)).toBe('1.0×');
+    expect(formatFoodQuantity(1.26)).toBe('1.3×');
+  });
+
+  it('clamps food quantities before converting to grams', () => {
+    const yogurt = demoFoodResults.find((food) => food.id === 'food-greek-yogurt');
+    expect(yogurt).toBeDefined();
+    expect(clampFoodQuantity(0)).toBe(1);
+    expect(clampFoodQuantity(0.4)).toBe(0.5);
+    expect(calculateFoodGrams(yogurt!, 1.5)).toBe(150);
   });
 
   it('sorts foods alphabetically for the default list', () => {

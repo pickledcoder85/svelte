@@ -39,6 +39,7 @@ import {
   favoriteRecipe,
   importRecipe,
   searchFoodsWithSession,
+  unfavoriteFood,
   updateProfile,
   updateMealPrepTaskStatus,
   unfavoriteRecipe,
@@ -54,8 +55,12 @@ import {
 } from './src/lib/meal-plan';
 import { buildTrackerTotals, buildWeightProgressSummary } from './src/lib/progress';
 import {
+  calculateFoodGrams,
+  clampFoodQuantity,
   filterFoodsFuzzy,
   foodMacroLine,
+  formatFoodQuantity,
+  formatFoodReference,
   mergeFoodsById,
   selectFoodById,
   sortFoodsForPicker
@@ -131,6 +136,7 @@ export default function App(): ReactElement {
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>(() => sortFoodsForPicker(demoFoodResults));
   const [foodResults, setFoodResults] = useState<FoodItem[]>(() => sortFoodsForPicker(demoFoodResults));
   const [selectedFoodId, setSelectedFoodId] = useState(() => sortFoodsForPicker(demoFoodResults)[0]?.id ?? '');
+  const [foodQuantities, setFoodQuantities] = useState<Record<string, number>>({});
   const [foodTone, setFoodTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [foodStatus, setFoodStatus] = useState('Starter favorites ready');
   const [foodError, setFoodError] = useState<string | null>(null);
@@ -842,13 +848,27 @@ export default function App(): ReactElement {
     setTimeout(() => setIsSubmittingSearch(false), 250);
   }
 
-  async function saveFoodAsFavorite(food: FoodItem) {
-    if (food.favorite || foodFavoriteSavingId === food.id) {
+  function foodQuantityForId(foodId: string): number {
+    return foodQuantities[foodId] ?? 1;
+  }
+
+  function adjustFoodQuantity(foodId: string, delta: number) {
+    setFoodQuantities((current) => ({
+      ...current,
+      [foodId]: clampFoodQuantity((current[foodId] ?? 1) + delta)
+    }));
+  }
+
+  async function toggleFoodFavorite(food: FoodItem) {
+    if (foodFavoriteSavingId === food.id) {
       return;
     }
 
-    const optimisticFood = { ...food, favorite: true };
-    const nextFavorites = sortFoodsForPicker(mergeFoodsById(favoriteFoods, [optimisticFood]));
+    const nextFavorite = !food.favorite;
+    const optimisticFood = { ...food, favorite: nextFavorite };
+    const nextFavorites = nextFavorite
+      ? sortFoodsForPicker(mergeFoodsById(favoriteFoods, [optimisticFood]))
+      : sortFoodsForPicker(favoriteFoods.filter((item) => item.id !== food.id));
     const nextResults = sortFoodsForPicker(
       foodSearchTerm.trim()
         ? mergeFoodsById(
@@ -863,15 +883,19 @@ export default function App(): ReactElement {
     setFoodResults(nextResults);
     setSelectedFoodId(food.id);
     setFoodTone(foodSessionToken ? 'checking' : 'demo');
-    setFoodStatus(`Saving ${food.name} to favorite foods`);
+    setFoodStatus(nextFavorite ? `Saving ${food.name} to favorite foods` : `Removing ${food.name} from favorite foods`);
     setFoodError(null);
 
     try {
       if (foodSessionToken) {
-        await addFavoriteFood(food.id, foodSessionToken);
+        if (nextFavorite) {
+          await addFavoriteFood(food.id, foodSessionToken);
+        } else {
+          await unfavoriteFood(food.id, foodSessionToken);
+        }
       }
       setFoodTone(foodSessionToken ? 'live' : 'demo');
-      setFoodStatus(`${food.name} added to favorite foods`);
+      setFoodStatus(nextFavorite ? `${food.name} added to favorite foods` : `${food.name} removed from favorite foods`);
     } catch (error) {
       const revertedFavorites = favoriteFoods;
       const revertedResults = foodResults;
@@ -883,6 +907,39 @@ export default function App(): ReactElement {
       setFoodError(error instanceof Error ? error.message : 'Unable to save favorite food.');
     } finally {
       setFoodFavoriteSavingId(null);
+    }
+  }
+
+  async function quickAddFoodToToday(food: FoodItem) {
+    const quantity = foodQuantityForId(food.id);
+    const grams = calculateFoodGrams(food, quantity);
+
+    if (!Number.isFinite(grams) || grams <= 0) {
+      setFoodLogTone('checking');
+      setFoodLogStatus('Choose a valid quantity before adding.');
+      setFoodLogError('Choose a valid quantity before adding.');
+      return;
+    }
+
+    setIsSavingLogEntry(true);
+    setFoodLogTone('checking');
+    setFoodLogStatus(`Adding ${formatFoodQuantity(quantity)} of ${food.name} to today`);
+    setFoodLogError(null);
+
+    try {
+      const updatedLog = await addFoodLogEntry({
+        food_id: food.id,
+        grams
+      });
+      setFoodLog(updatedLog);
+      setFoodLogTone('live');
+      setFoodLogStatus(`Added ${food.name} to today at ${grams.toLocaleString()} g`);
+    } catch (error) {
+      setFoodLogTone('checking');
+      setFoodLogStatus(`Could not save ${food.name}`);
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
+    } finally {
+      setIsSavingLogEntry(false);
     }
   }
 
@@ -1937,34 +1994,88 @@ export default function App(): ReactElement {
             <View style={styles.foodList}>
               {foodResults.map((food) => {
                 const active = food.id === selectedFood?.id;
+                const quantity = foodQuantityForId(food.id);
+                const grams = calculateFoodGrams(food, quantity);
                 return (
                   <Pressable
                     key={food.id}
                     style={[styles.foodRow, active && styles.foodRowActive]}
                     onPress={() => setSelectedFoodId(food.id)}
                   >
-                    <View style={styles.foodRowCopy}>
-                      <Text style={styles.listTitle}>{food.name}</Text>
-                      <Text style={styles.listCaption}>
-                        {(food.brand ?? 'Unbranded')} · {food.source} · {food.favorite ? 'Favorite' : 'Search match'}
-                      </Text>
-                    </View>
-                    <View style={styles.foodRowActions}>
-                      {!food.favorite ? (
+                    <View style={styles.foodCardCopy}>
+                      <View style={styles.foodRowHeader}>
+                        <View style={styles.foodRowCopy}>
+                          <Text style={styles.listTitle}>{food.name}</Text>
+                          <Text style={styles.listCaption}>
+                            {(food.brand ?? 'Unbranded')} · {food.source} · {food.favorite ? 'Favorite' : 'Search match'}
+                          </Text>
+                        </View>
+                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                      </View>
+
+                      <View style={styles.foodCardMetaRow}>
+                        <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(food)}`}</Text>
+                        <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(quantity)}`}</Text>
+                      </View>
+
+                      <View style={styles.foodCardActionsRow}>
+                        <View style={styles.quantityStepper}>
+                          <Pressable
+                            style={styles.quantityStepperButton}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              adjustFoodQuantity(food.id, -0.5);
+                            }}
+                            disabled={quantity <= 0.5}
+                          >
+                            <Text style={styles.quantityStepperButtonLabel}>−</Text>
+                          </Pressable>
+                          <Text style={styles.quantityStepperValue}>{formatFoodQuantity(quantity)}</Text>
+                          <Pressable
+                            style={styles.quantityStepperButton}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              adjustFoodQuantity(food.id, 0.5);
+                            }}
+                          >
+                            <Text style={styles.quantityStepperButtonLabel}>+</Text>
+                          </Pressable>
+                        </View>
+
                         <Pressable
                           style={styles.inlinePillButton}
                           onPress={(event) => {
                             event.stopPropagation();
-                            void saveFoodAsFavorite(food);
+                            void quickAddFoodToToday(food);
+                          }}
+                          disabled={isSavingLogEntry}
+                        >
+                          <Text style={styles.inlinePillButtonLabel}>
+                            {isSavingLogEntry ? 'Saving...' : `Add ${grams.toLocaleString()} g to today`}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          style={[
+                            styles.favoriteToggleButton,
+                            food.favorite && styles.favoriteToggleButtonActive
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            void toggleFoodFavorite(food);
                           }}
                           disabled={foodFavoriteSavingId === food.id}
                         >
-                          <Text style={styles.inlinePillButtonLabel}>
-                            {foodFavoriteSavingId === food.id ? 'Saving...' : 'Add to faves'}
+                          <Text
+                            style={[
+                              styles.favoriteToggleButtonLabel,
+                              food.favorite && styles.favoriteToggleButtonLabelActive
+                            ]}
+                          >
+                            {foodFavoriteSavingId === food.id ? '...' : food.favorite ? '♥' : '♡'}
                           </Text>
                         </Pressable>
-                      ) : null}
-                      <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                      </View>
                     </View>
                   </Pressable>
                 );
@@ -1973,28 +2084,74 @@ export default function App(): ReactElement {
 
             {selectedFood ? (
               <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>{selectedFood.name}</Text>
-                <Text style={styles.detailSubtitle}>
-                  {selectedFood.serving_size}
-                  {selectedFood.serving_unit} serving
-                </Text>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.detailTitle}>{selectedFood.name}</Text>
+                    <Text style={styles.detailSubtitle}>
+                      {selectedFood.brand ?? 'Unbranded'} · {selectedFood.source}
+                    </Text>
+                  </View>
+                  <Text style={styles.detailSubtitle}>{selectedFood.favorite ? 'Favorite' : 'Search match'}</Text>
+                </View>
                 <View style={styles.metricRow}>
                   <MetricTile label="Calories" value={`${selectedFood.calories}`} compact />
                   <MetricTile label="Macros" value={foodMacroLine(selectedFood)} compact />
                 </View>
-                {!selectedFood.favorite ? (
+                <View style={styles.foodCardMetaRow}>
+                  <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(selectedFood)}`}</Text>
+                  <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(foodQuantityForId(selectedFood.id))}`}</Text>
+                </View>
+                <View style={styles.foodCardActionsRow}>
+                  <View style={styles.quantityStepper}>
+                    <Pressable
+                      style={styles.quantityStepperButton}
+                      onPress={() => adjustFoodQuantity(selectedFood.id, -0.5)}
+                      disabled={foodQuantityForId(selectedFood.id) <= 0.5}
+                    >
+                      <Text style={styles.quantityStepperButtonLabel}>−</Text>
+                    </Pressable>
+                    <Text style={styles.quantityStepperValue}>{formatFoodQuantity(foodQuantityForId(selectedFood.id))}</Text>
+                    <Pressable
+                      style={styles.quantityStepperButton}
+                      onPress={() => adjustFoodQuantity(selectedFood.id, 0.5)}
+                    >
+                      <Text style={styles.quantityStepperButtonLabel}>+</Text>
+                    </Pressable>
+                  </View>
+
                   <Pressable
-                    style={styles.primaryButton}
-                    onPress={() => void saveFoodAsFavorite(selectedFood)}
-                    disabled={foodFavoriteSavingId === selectedFood.id}
+                    style={styles.inlinePillButton}
+                    onPress={() => void quickAddFoodToToday(selectedFood)}
+                    disabled={isSavingLogEntry}
                   >
-                    <Text style={styles.primaryButtonLabel}>
-                      {foodFavoriteSavingId === selectedFood.id ? 'Saving...' : 'Add to favorites'}
+                    <Text style={styles.inlinePillButtonLabel}>
+                      {isSavingLogEntry ? 'Saving...' : `Add ${calculateFoodGrams(selectedFood, foodQuantityForId(selectedFood.id)).toLocaleString()} g to today`}
                     </Text>
                   </Pressable>
-                ) : (
-                  <Text style={styles.detailSubtitle}>Already cached in this session’s favorite foods.</Text>
-                )}
+
+                  <Pressable
+                    style={[
+                      styles.favoriteToggleButton,
+                      selectedFood.favorite && styles.favoriteToggleButtonActive
+                    ]}
+                    onPress={() => void toggleFoodFavorite(selectedFood)}
+                    disabled={foodFavoriteSavingId === selectedFood.id}
+                  >
+                    <Text
+                      style={[
+                        styles.favoriteToggleButtonLabel,
+                        selectedFood.favorite && styles.favoriteToggleButtonLabelActive
+                      ]}
+                    >
+                      {foodFavoriteSavingId === selectedFood.id ? '...' : selectedFood.favorite ? '♥' : '♡'}
+                    </Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.detailSubtitle}>
+                  {selectedFood.favorite
+                    ? 'Already cached in this session’s favorite foods.'
+                    : 'Tap the heart to save this search result into favorites.'}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -3043,6 +3200,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12
   },
+  foodCardCopy: {
+    flex: 1,
+    gap: 10
+  },
   foodRowActive: {
     borderColor: '#17324d',
     backgroundColor: '#eef3f8'
@@ -3058,6 +3219,58 @@ const styles = StyleSheet.create({
   foodRowActions: {
     alignItems: 'flex-end',
     gap: 8
+  },
+  foodRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'flex-start'
+  },
+  foodCardMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  foodCardChip: {
+    backgroundColor: '#edf1f5',
+    color: '#17324d',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  foodCardActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8
+  },
+  quantityStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff'
+  },
+  quantityStepperButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f8fafc'
+  },
+  quantityStepperButtonLabel: {
+    color: '#17324d',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  quantityStepperValue: {
+    minWidth: 56,
+    paddingHorizontal: 10,
+    textAlign: 'center',
+    color: '#17324d',
+    fontWeight: '800'
   },
   mealPlanCheck: {
     width: 28,
@@ -3093,6 +3306,28 @@ const styles = StyleSheet.create({
     color: '#17324d',
     fontSize: 12,
     fontWeight: '800'
+  },
+  favoriteToggleButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    backgroundColor: '#fff8ea',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  favoriteToggleButtonActive: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  favoriteToggleButtonLabel: {
+    color: '#b45309',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  favoriteToggleButtonLabelActive: {
+    color: '#ffffff'
   },
   recipeSection: {
     gap: 12
