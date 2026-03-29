@@ -74,6 +74,75 @@ async def test_meal_template_favorites_are_session_scoped(client, repository):
 
 
 @pytest.mark.asyncio
+async def test_meal_template_update_recalculates_totals_and_ingredients(client, repository):
+    create_response = await client.post(
+        "/api/meals/templates",
+        json={
+            "id": "meal-protein-bowl",
+            "name": "Protein Bowl",
+            "serving_count": 2,
+            "ingredients": [
+                {
+                    "id": "ingredient-oats",
+                    "food_id": "food-oats",
+                    "name": "Rolled oats",
+                    "grams": 80,
+                    "calories_per_100g": 389,
+                    "macros_per_100g": {"protein": 16.9, "carbs": 66.3, "fat": 6.9},
+                }
+            ],
+        },
+    )
+
+    assert create_response.status_code == 200
+    assert create_response.json()["calories"] == 311.2
+    assert create_response.json()["per_serving_calories"] == 155.6
+
+    update_response = await client.put(
+        "/api/meals/templates/meal-protein-bowl",
+        json={
+            "name": "Protein Bowl Deluxe",
+            "serving_count": 4,
+            "ingredients": [
+                {
+                    "id": "ingredient-oats",
+                    "food_id": "food-oats",
+                    "name": "Rolled oats",
+                    "grams": 100,
+                    "calories_per_100g": 389,
+                    "macros_per_100g": {"protein": 16.9, "carbs": 66.3, "fat": 6.9},
+                }
+            ],
+        },
+    )
+
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["name"] == "Protein Bowl Deluxe"
+    assert updated["serving_count"] == 4
+    assert updated["calories"] == 389.0
+    assert updated["macros"] == {"protein": 16.9, "carbs": 66.3, "fat": 6.9}
+    assert updated["per_serving_calories"] == 97.2
+    assert updated["per_serving_macros"] == {"protein": 4.2, "carbs": 16.6, "fat": 1.7}
+    assert updated["ingredients"][0]["grams"] == 100
+
+    fetched = await client.get("/api/meals/templates/meal-protein-bowl")
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == "Protein Bowl Deluxe"
+    assert fetched.json()["ingredients"][0]["grams"] == 100
+
+    missing_update = await client.put(
+        "/api/meals/templates/missing-template",
+        json={
+            "name": "Missing Template",
+            "serving_count": 1,
+            "ingredients": [],
+        },
+    )
+    assert missing_update.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_recipe_favorites_are_session_scoped(client, repository):
     session_response = await client.post(
         "/api/auth/session",

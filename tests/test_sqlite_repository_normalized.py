@@ -376,6 +376,73 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertFalse(repo.is_saved_favorite("user-1", "food", "food-oats"))
         self.assertTrue(repo.is_saved_favorite("user-2", "food", "food-oats"))
 
+    def test_sqlite_repository_updates_meal_template_totals_and_ingredients(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+
+            meal_template = MealTemplate(
+                id="meal-protein-bowl",
+                name="Protein Bowl",
+                serving_count=2,
+                ingredients=[
+                    IngredientInput(
+                        id="ingredient-1",
+                        food_id="food-oats",
+                        name="Rolled oats",
+                        grams=80,
+                        calories_per_100g=389,
+                        macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    )
+                ],
+                favorite=False,
+                calories=311.2,
+                macros=MacroTargets(protein=13.5, carbs=53.0, fat=5.5),
+                per_serving_calories=155.6,
+                per_serving_macros=MacroTargets(protein=6.8, carbs=26.5, fat=2.8),
+            )
+            repo.save_meal_template(meal_template)
+
+            updated_template = meal_template.model_copy(
+                update={
+                    "name": "Protein Bowl Deluxe",
+                    "serving_count": 4,
+                    "ingredients": [
+                        IngredientInput(
+                            id="ingredient-1",
+                            food_id="food-oats",
+                            name="Rolled oats",
+                            grams=100,
+                            calories_per_100g=389,
+                            macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                        )
+                    ],
+                    "calories": 389.0,
+                    "macros": MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    "per_serving_calories": 97.2,
+                    "per_serving_macros": MacroTargets(protein=4.2, carbs=16.6, fat=1.7),
+                }
+            )
+            repo.save_meal_template(updated_template)
+
+            fetched = repo.get_meal_template(meal_template.id)
+            ingredient_rows = repo._connection.execute(
+                """
+                SELECT grams
+                FROM meal_template_ingredients
+                WHERE meal_template_id = ?
+                ORDER BY id
+                """,
+                (meal_template.id,),
+            ).fetchall()
+
+        self.assertIsNotNone(fetched)
+        self.assertEqual(fetched.name, "Protein Bowl Deluxe")
+        self.assertEqual(fetched.serving_count, 4)
+        self.assertEqual(fetched.calories, 389.0)
+        self.assertEqual(fetched.per_serving_calories, 97.2)
+        self.assertEqual([row["grams"] for row in ingredient_rows], [100])
+
     def test_sqlite_repository_persists_exercise_meal_plan_and_meal_prep(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = Path(tmp_dir) / "normalized.db"
