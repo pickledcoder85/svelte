@@ -202,6 +202,105 @@ class DatabaseLayerTests(unittest.TestCase):
         self.assertEqual(entries[1]["weight_lbs"], 178.8)
         self.assertEqual(weekly.weekly_weight_change, -1.2)
 
+    def test_sqlite_repository_repairs_legacy_user_profile_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "stale.db"
+            with sqlite3.connect(db_path) as connection:
+                connection.execute(
+                    """
+                    CREATE TABLE users (
+                        id TEXT PRIMARY KEY,
+                        email TEXT NOT NULL UNIQUE,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE user_profiles (
+                        user_id TEXT PRIMARY KEY,
+                        display_name TEXT,
+                        timezone TEXT NOT NULL DEFAULT 'UTC',
+                        units TEXT NOT NULL DEFAULT 'imperial',
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE user_goals (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        effective_at TEXT NOT NULL,
+                        calorie_goal INTEGER NOT NULL,
+                        protein_goal REAL NOT NULL,
+                        carbs_goal REAL NOT NULL,
+                        fat_goal REAL NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE weight_entries (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        recorded_at TEXT NOT NULL,
+                        weight_lbs REAL NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE saved_favorites (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        entity_type TEXT NOT NULL CHECK (entity_type IN ('recipe', 'meal_template')),
+                        entity_id TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (user_id, entity_type, entity_id)
+                    )
+                    """
+                )
+
+            repo = SQLiteRepository(str(db_path))
+
+            with sqlite3.connect(db_path) as connection:
+                profile_columns = [
+                    row[1] for row in connection.execute("PRAGMA table_info(user_profiles)").fetchall()
+                ]
+                goal_columns = [
+                    row[1] for row in connection.execute("PRAGMA table_info(user_goals)").fetchall()
+                ]
+                weight_columns = [
+                    row[1] for row in connection.execute("PRAGMA table_info(weight_entries)").fetchall()
+                ]
+                table_names = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    ).fetchall()
+                }
+                saved_favorites_sql = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'saved_favorites'
+                    """
+                ).fetchone()[0]
+
+            self.assertIn("setup_completed_at", profile_columns)
+            self.assertIn("goal_type", profile_columns)
+            self.assertIn("activity_level", profile_columns)
+            self.assertIn("target_weight_lbs", goal_columns)
+            self.assertIn("created_at", goal_columns)
+            self.assertIn("notes", weight_columns)
+            self.assertIn("created_at", weight_columns)
+            self.assertIn("default_favorite_foods", table_names)
+            self.assertIn("user_default_favorite_food_seed_runs", table_names)
+            self.assertIn("'food'", saved_favorites_sql)
+            self.assertIsNotNone(repo)
+
 
 if __name__ == "__main__":
     unittest.main()
