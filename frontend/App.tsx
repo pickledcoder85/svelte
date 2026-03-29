@@ -118,11 +118,11 @@ const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
 type EntryMode = 'live' | 'preview';
 const chartHeight = 160;
-const mascotDefaultImage = require('../assets/favicon.png');
-const mascotWeightsImage = require('../assets/weights.png');
-const mascotBikeImage = require('../assets/bike.png');
-const mascotRunImage = require('../assets/run.png');
-const mascotSwimImage = require('../assets/swim.png');
+const mascotDefaultImage = require('./assets/mascot.png');
+const mascotWeightsImage = require('./assets/weights.png');
+const mascotBikeImage = require('./assets/bike.png');
+const mascotRunImage = require('./assets/run.png');
+const mascotSwimImage = require('./assets/swim.png');
 const exercisePresets: Array<{
   id: 'weights' | 'bike' | 'run' | 'swim';
   label: string;
