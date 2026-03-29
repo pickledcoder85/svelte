@@ -52,6 +52,12 @@ describe('food helpers', () => {
     expect(filterFoodsFuzzy(demoFoodResults, 'blu')[0]?.name).toBe('Blueberries');
     expect(filterFoodsFuzzy(demoFoodResults, 'gyrt')[0]?.name).toBe('Greek yogurt, plain nonfat');
     expect(filterFoodsFuzzy(demoFoodResults, 'oat')[0]?.name).toBe('Rolled oats');
+    expect(
+      filterFoodsFuzzy(
+        [{ ...demoFoodResults.find((food) => food.name === 'Rolled oats')!, brand: 'Quaker' }],
+        'quaker'
+      )[0]?.name
+    ).toBe('Rolled oats');
   });
 
   it('keeps favorite foods first in picker ordering', () => {

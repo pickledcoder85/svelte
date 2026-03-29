@@ -64,7 +64,13 @@ export function filterFoodsFuzzy(foods: FoodItem[], query: string): FoodItem[] {
   }
 
   return [...foods]
-    .map((food) => ({ food, score: fuzzyScore(food.name, normalizedQuery) }))
+    .map((food) => ({
+      food,
+      score: Math.max(
+        fuzzyScore(food.name, normalizedQuery),
+        food.brand ? fuzzyScore(food.brand, normalizedQuery) - 5 : -1
+      )
+    }))
     .filter((entry) => entry.score >= 0)
     .sort((left, right) => {
       if (left.food.favorite !== right.food.favorite) {
