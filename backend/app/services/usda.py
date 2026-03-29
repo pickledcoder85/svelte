@@ -9,33 +9,56 @@ async def search_standardized_foods(
     repository: SQLiteRepository,
     user_id: str | None = None,
 ) -> list[FoodItem]:
-    favorite_ids: set[str] = set()
     if user_id is not None:
         favorite_ids = {
             payload["entity_id"]
             for payload in repository.list_saved_favorites(user_id, entity_type="food")
         }
+        favorite_foods = [
+            food.model_copy(update={"favorite": True})
+            for food in repository.list_foods()
+            if food.id in favorite_ids and _matches_food_query(food, query)
+        ]
+        if favorite_foods:
+            return _sort_foods(favorite_foods)
 
-    local_foods = [
-        food.model_copy(update={"favorite": food.id in favorite_ids})
-        for food in repository.search_foods(query)
-    ]
+        settings = get_settings()
+        if not settings.usda_api_key:
+            return []
+
+        try:
+            usda_foods = await search_usda_foods(query, settings.usda_api_key)
+        except UsdaSearchError:
+            return []
+
+        persisted_foods = [repository.save_food_item(food) for food in usda_foods]
+        return _sort_foods(
+            [food.model_copy(update={"favorite": food.id in favorite_ids}) for food in persisted_foods]
+        )
+
+    local_foods = repository.search_foods(query)
     if local_foods:
-        return sorted(local_foods, key=lambda food: (not food.favorite, food.name.lower(), food.id))
+        return _sort_foods(local_foods)
 
     settings = get_settings()
     if not settings.usda_api_key:
-        return local_foods
+        return []
 
     try:
         usda_foods = await search_usda_foods(query, settings.usda_api_key)
     except UsdaSearchError:
-        return local_foods
+        return []
 
-    if user_id is not None:
-        usda_foods = [
-            food.model_copy(update={"favorite": food.id in favorite_ids})
-            for food in usda_foods
-        ]
-        return sorted(usda_foods, key=lambda food: (not food.favorite, food.name.lower(), food.id))
-    return usda_foods
+    persisted_foods = [repository.save_food_item(food) for food in usda_foods]
+    return _sort_foods(persisted_foods)
+
+
+def _matches_food_query(food: FoodItem, query: str) -> bool:
+    normalized = query.strip().lower()
+    if not normalized:
+        return True
+    return normalized in food.name.lower() or (food.brand is not None and normalized in food.brand.lower())
+
+
+def _sort_foods(foods: list[FoodItem]) -> list[FoodItem]:
+    return sorted(foods, key=lambda food: (not food.favorite, food.name.lower(), food.id))

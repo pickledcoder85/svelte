@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.app.dependencies import get_current_session, get_required_session, get_repository
+from backend.app.models.auth import AuthSession
 from backend.app.models.nutrition import FoodFavoriteState, FoodItem, MealInput, MealTotals, WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.nutrition import (
