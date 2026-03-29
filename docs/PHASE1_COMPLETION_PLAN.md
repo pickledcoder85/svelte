@@ -1,6 +1,6 @@
 # Phase 1 Completion Plan
 
-This document narrows the remaining work needed to move Phase 1 from "mostly implemented" to complete.
+This document now captures the final release-prep work needed to turn the shipped Phase 1 milestone into a tagged release.
 
 Phase 1 target:
 
@@ -11,7 +11,7 @@ Phase 1 target:
 
 ## Current assessment
 
-Already in place:
+Already in place in the current shipped milestone:
 
 - Expo / React Native frontend running in browser and on iPhone via Expo Go
 - FastAPI backend with hot reload
@@ -19,16 +19,17 @@ Already in place:
 - daily food logging and dashboard progress flows
 - profile, goals, and weight-history APIs
 - ingestion review queue and editable review support
+- auth/session hardening and onboarding flows
+- favorite-food persistence and search-first behavior
+- persisted meal templates with ingredient rows and serving counts
+- persisted recipes with steps, assets, ingredients, favorites, and scaling
+- live dashboard and tracker summary support backed by persisted data
 
-Still blocking Phase 1 completion:
+Still blocking the release boundary:
 
-- auth/session flow is still lighter than the intended finished boundary
-- first-run onboarding is missing for collecting baseline user stats and goal intent
-- meal builder is not fully completed end to end with persistence-backed UX
-- recipes are not fully complete as a persisted CRUD plus scaling flow
-- favorite foods behavior is not fully finished as the primary search source
-- some screens still rely on fallback or demo-shaped data paths
-- roadmap and changelog are behind the actual shipped milestone state
+- release validation across backend tests, frontend checks, and mobile/browser smoke tests
+- docs and changelog reconciliation against the shipped app state
+- milestone tagging on the validated commit
 
 ## Exit criteria
 
@@ -45,7 +46,9 @@ Phase 1 is complete only when all of these are true:
 - docs and changelog reflect the implemented product state
 - a stable Phase 1 milestone tag is created after validation
 
-## Remaining implementation slices
+## Completed implementation slices
+
+The implementation slices below are now reflected in the shipped milestone. They remain here as a compact record of the phase plan, but the only remaining work for release prep is validation and tagging.
 
 ### Slice 1: auth and session hardening
 
@@ -232,13 +235,9 @@ Suggested branch:
 
 ## Tagging guidance
 
-Recommended next tag path:
+Current milestone tag candidate:
 
-- keep `v0.3.0` for reusable meals, favorite-food completion, and recipe scaling only if those are all truly shipped together
-- if the work lands across multiple stable increments, prefer:
-  - `v0.3.0`: auth hardening plus favorite-food completion
-  - `v0.4.0`: meal builder and recipe persistence completion
-  - `v0.5.0`: Phase 1 release-ready validation checkpoint
+- `v0.5.0`
 
 Do not tag until:
 

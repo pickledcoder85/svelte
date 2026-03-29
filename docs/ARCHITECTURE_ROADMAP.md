@@ -56,8 +56,8 @@ The project targets a personal-use nutrition and weight loss application with:
 
 Current status:
 
-- mostly implemented for dashboard, search, session-aware logging, profile/goals, weight progress, and backend persistence
-- still incomplete for auth/session hardening, favorite-food completion, full meal-builder persistence, and full recipe persistence/scaling
+- implemented for dashboard, search, session-aware logging, profile/goals, onboarding, favorite-food persistence, meal-builder persistence, recipe persistence/scaling, weight progress, and backend persistence
+- release prep remains for validation, documentation reconciliation, and milestone tagging
 
 ### Phase 2: ingestion and automation
 
@@ -118,7 +118,11 @@ After stable major or minor feature increments, create both:
 - an atomic commit or small set of atomic commits
 - a version tag on the stable commit
 
-Suggested early versioning approach:
+Current Phase 1 milestone candidate:
+
+- `v0.5.0`
+
+Historical early versioning sketch:
 
 - `v0.1.0`: foundation scaffold and architecture alignment
 - `v0.2.0`: weekly metrics, persisted food logging, ingestion review queue, and current Expo runtime baseline
