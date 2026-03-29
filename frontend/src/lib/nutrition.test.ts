@@ -17,9 +17,12 @@ describe('nutrition helpers', () => {
 
   it('scales ingredients and clamps progress', () => {
     const scaled = scaleMealIngredients(demoMeal, 1.5);
+    const halfScaled = scaleMealIngredients(demoMeal, 0.5);
 
     expect(scaled.serving_count).toBe(3);
     expect(scaled.ingredients[0].grams).toBe(120);
+    expect(halfScaled.serving_count).toBe(1);
+    expect(halfScaled.ingredients[0].grams).toBe(40);
     expect(progressPercent(10360, 14800)).toBe(70);
   });
 

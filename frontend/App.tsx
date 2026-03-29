@@ -85,6 +85,7 @@ import type {
   ExerciseEntry,
   FoodItem,
   FoodLogSummary,
+  MealInput,
   MealPlanDay,
   MealPrepTask,
   ProfileProgress,
@@ -94,7 +95,6 @@ import type {
   WeightEntry
 } from './src/types';
 
-const recipeScales = [0.5, 1, 1.25, 1.5, 2] as const;
 const sectionTabs: Array<{ id: AppSection; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'profile', label: 'Profile' },
@@ -107,6 +107,8 @@ const sectionTabs: Array<{ id: AppSection; label: string }> = [
   { id: 'ingestion', label: 'Ingestion' }
 ];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
+const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
+type ScaleStop = (typeof scaleStops)[number];
 const chartHeight = 160;
 const heroBrandImage = require('./assets/favicon.png');
 
@@ -130,8 +132,9 @@ export default function App(): ReactElement {
   const [syncTone, setSyncTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [syncLabel, setSyncLabel] = useState('Checking backend');
   const [syncDetail, setSyncDetail] = useState('Waiting for live backend data.');
-  const [recipeScale, setRecipeScale] = useState<(typeof recipeScales)[number]>(1);
-  const [showScaleOptions, setShowScaleOptions] = useState(false);
+  const [mealScale, setMealScale] = useState<ScaleStop>(1);
+  const [recipeScale, setRecipeScale] = useState<ScaleStop>(1);
+  const [mealDraft, setMealDraft] = useState<MealInput>(() => demoMeal);
   const [foodDraft, setFoodDraft] = useState('');
   const [foodSearchTerm, setFoodSearchTerm] = useState('');
   const [foodSessionToken, setFoodSessionToken] = useState<string | null>(null);
@@ -839,8 +842,27 @@ export default function App(): ReactElement {
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
   );
-  const mealPreview = useMemo(() => scaleMealIngredients(demoMeal, recipeScale), [recipeScale]);
-  const recipeTotals = useMemo(() => mealTotals(mealPreview), [mealPreview]);
+  const mealPreview = useMemo(() => scaleMealIngredients(mealDraft, mealScale), [mealDraft, mealScale]);
+  const mealTotalsPreview = useMemo(() => mealTotals(mealPreview), [mealPreview]);
+  const selectedRecipePreview = useMemo(() => {
+    if (!selectedRecipe) {
+      return null;
+    }
+
+    return scaleMealIngredients(
+      {
+        id: selectedRecipe.id,
+        name: selectedRecipe.title,
+        serving_count: selectedRecipe.default_yield,
+        ingredients: selectedRecipe.ingredients
+      },
+      recipeScale
+    );
+  }, [recipeScale, selectedRecipe]);
+  const selectedRecipeTotals = useMemo(
+    () => (selectedRecipePreview ? mealTotals(selectedRecipePreview) : null),
+    [selectedRecipePreview]
+  );
   const importedRecipeSelected = importedRecipeId !== null && selectedRecipeId === importedRecipeId;
   const logEntryPreview = useMemo(() => {
     if (!selectedLogFood || selectedLogFood.serving_size <= 0) {
@@ -1284,6 +1306,25 @@ export default function App(): ReactElement {
 
     setMealPlanTone('live');
     setMealPlanStatus(`${slotLabel} ${currentlyLogged ? 'unchecked' : 'logged as eaten'} for ${day.label}`);
+  }
+
+  function updateMealIngredientGrams(ingredientId: string, gramsValue: string) {
+    const grams = Number(gramsValue);
+    if (!Number.isFinite(grams) || grams < 0) {
+      return;
+    }
+
+    setMealDraft((current) => ({
+      ...current,
+      ingredients: current.ingredients.map((ingredient) =>
+        ingredient.id === ingredientId ? { ...ingredient, grams: round1(grams) } : ingredient
+      )
+    }));
+  }
+
+  function resetMealDraft() {
+    setMealDraft(demoMeal);
+    setMealScale(1);
   }
 
   function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
@@ -2587,55 +2628,66 @@ export default function App(): ReactElement {
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal builder</Text>
             <Text style={styles.panelTitle}>{demoMeal.name}</Text>
-            <Text style={styles.panelDetail}>Scale the ingredient weights and serving count like you would on mobile.</Text>
+            <Text style={styles.panelDetail}>
+              Adjust the draft ingredients, then snap the serving scale to a fixed stop for a fast mobile-friendly preview.
+            </Text>
 
-            <View style={styles.dropdownWrap}>
-              <Text style={styles.dropdownLabel}>Recipe scale</Text>
-              <Pressable
-                style={styles.dropdownTrigger}
-                onPress={() => setShowScaleOptions((current) => !current)}
-              >
-                <Text style={styles.dropdownValue}>{recipeScaleLabel(recipeScale)}</Text>
-                <Text style={styles.dropdownCaret}>{showScaleOptions ? '▲' : '▼'}</Text>
+            <ScaleStopSelector
+              label="Meal scale"
+              helperText="Fixed stops keep the preview predictable while you edit the draft."
+              value={mealScale}
+              values={scaleStops}
+              onChange={setMealScale}
+            />
+
+            <View style={styles.mealBuilderActionsRow}>
+              <Pressable style={styles.inlinePillButton} onPress={resetMealDraft}>
+                <Text style={styles.inlinePillButtonLabel}>Reset draft</Text>
               </Pressable>
-              {showScaleOptions ? (
-                <View style={styles.dropdownMenu}>
-                  {recipeScales.map((scale) => {
-                    const active = scale === recipeScale;
-                    return (
-                      <Pressable
-                        key={scale}
-                        style={[styles.dropdownOption, active && styles.dropdownOptionActive]}
-                        onPress={() => {
-                          setRecipeScale(scale);
-                          setShowScaleOptions(false);
-                        }}
-                      >
-                        <Text style={[styles.dropdownOptionLabel, active && styles.dropdownOptionLabelActive]}>
-                          {recipeScaleLabel(scale)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : null}
+              <Text style={styles.mealBuilderHint}>Meal save is still backend-gated, so this stays as a live preview.</Text>
             </View>
 
-            {mealPreview.ingredients.map((ingredient) => (
-              <View key={ingredient.id} style={styles.listRow}>
-                <View>
-                  <Text style={styles.listTitle}>{ingredient.name}</Text>
-                  <Text style={styles.listCaption}>{ingredient.grams} g</Text>
+            <View style={styles.mealIngredientEditor}>
+              {mealDraft.ingredients.map((ingredient) => (
+                <View key={ingredient.id} style={styles.mealIngredientRow}>
+                  <View style={styles.foodRowCopy}>
+                    <Text style={styles.listTitle}>{ingredient.name}</Text>
+                    <Text style={styles.listCaption}>
+                      {ingredient.food_id} · {ingredient.calories_per_100g} kcal / 100g
+                    </Text>
+                  </View>
+                  <View style={styles.mealIngredientInputWrap}>
+                    <TextInput
+                      value={String(ingredient.grams)}
+                      onChangeText={(value) => updateMealIngredientGrams(ingredient.id, value)}
+                      keyboardType="numeric"
+                      inputMode="decimal"
+                      style={styles.mealIngredientInput}
+                    />
+                    <Text style={styles.mealIngredientUnit}>g</Text>
+                  </View>
                 </View>
-                <Text style={styles.listMetric}>
-                  {Math.round((ingredient.calories_per_100g * ingredient.grams) / 100)} kcal
-                </Text>
-              </View>
-            ))}
+              ))}
+            </View>
 
-            <View style={styles.metricRow}>
-              <MetricTile label="Meal calories" value={`${recipeTotals.calories} kcal`} />
-              <MetricTile label="Per serving" value={`${recipeTotals.per_serving_calories} kcal`} />
+            <View style={styles.detailCard}>
+              <Text style={styles.recipeMetaLabel}>Scaled preview</Text>
+              {mealPreview.ingredients.map((ingredient) => (
+                <View key={ingredient.id} style={styles.listRow}>
+                  <View>
+                    <Text style={styles.listTitle}>{ingredient.name}</Text>
+                    <Text style={styles.listCaption}>{ingredient.grams} g · {ingredient.food_id}</Text>
+                  </View>
+                  <Text style={styles.listMetric}>
+                    {Math.round((ingredient.calories_per_100g * ingredient.grams) / 100)} kcal
+                  </Text>
+                </View>
+              ))}
+
+              <View style={styles.metricRow}>
+                <MetricTile label="Meal calories" value={`${mealTotalsPreview.calories} kcal`} />
+                <MetricTile label="Per serving" value={`${mealTotalsPreview.per_serving_calories} kcal`} />
+              </View>
             </View>
           </View>
         )}
@@ -2722,6 +2774,16 @@ export default function App(): ReactElement {
                     const active = recipe.id === selectedRecipeId;
                     const saving = recipeSavingId === recipe.id;
                     const detailRecipe = active && selectedRecipe?.id === recipe.id ? selectedRecipe : recipe;
+                    const scaledRecipe = active && selectedRecipePreview?.id === recipe.id ? selectedRecipePreview : detailRecipe;
+                    const scaledTotals =
+                      active && selectedRecipeTotals && selectedRecipe?.id === recipe.id
+                        ? selectedRecipeTotals
+                        : mealTotals({
+                            id: detailRecipe.id,
+                            name: detailRecipe.title,
+                            serving_count: detailRecipe.default_yield,
+                            ingredients: detailRecipe.ingredients
+                          });
 
                     return (
                       <View key={recipe.id} style={[styles.recipeAccordionCard, active && styles.recipeAccordionCardActive]}>
@@ -2781,6 +2843,26 @@ export default function App(): ReactElement {
                                   </View>
                                 </View>
 
+                                <ScaleStopSelector
+                                  label="Recipe scale"
+                                  helperText="The fixed stops keep the serving preview readable while you step through the accordion."
+                                  value={recipeScale}
+                                  values={scaleStops}
+                                  onChange={setRecipeScale}
+                                />
+
+                                <View style={styles.metricRow}>
+                                  <MetricTile
+                                    label="Scaled yield"
+                                    value={`${round1(detailRecipe.default_yield * recipeScale)} servings`}
+                                  />
+                                  <MetricTile label="Recipe calories" value={`${scaledTotals.calories} kcal`} />
+                                  <MetricTile
+                                    label="Per serving"
+                                    value={`${scaledTotals.per_serving_calories} kcal`}
+                                  />
+                                </View>
+
                                 {detailRecipe.steps.length > 0 ? (
                                   <View style={styles.recipeMetaBlock}>
                                     <Text style={styles.recipeMetaLabel}>Steps</Text>
@@ -2792,9 +2874,20 @@ export default function App(): ReactElement {
                                   </View>
                                 ) : null}
 
+                                {scaledRecipe.ingredients.length > 0 ? (
+                                  <View style={styles.recipeMetaBlock}>
+                                    <Text style={styles.recipeMetaLabel}>Scaled ingredients</Text>
+                                    {scaledRecipe.ingredients.map((ingredient) => (
+                                      <Text key={`${detailRecipe.id}-${ingredient.id}`} style={styles.recipeMetaItem}>
+                                        {ingredient.name} · {ingredient.grams} g
+                                      </Text>
+                                    ))}
+                                  </View>
+                                ) : null}
+
                                 {detailRecipe.ingredients.length > 0 ? (
                                   <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Ingredients</Text>
+                                    <Text style={styles.recipeMetaLabel}>Original ingredients</Text>
                                     {detailRecipe.ingredients.map((ingredient) => (
                                       <Text key={ingredient.id} style={styles.recipeMetaItem}>
                                         {ingredient.name} · {ingredient.grams} g
@@ -2900,6 +2993,60 @@ function MacroProgress({
       </View>
       <View style={styles.macroTrack}>
         <View style={[styles.macroFill, { width, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function ScaleStopSelector({
+  label,
+  helperText,
+  value,
+  values,
+  onChange
+}: {
+  label: string;
+  helperText?: string;
+  value: ScaleStop;
+  values: readonly ScaleStop[];
+  onChange: (value: ScaleStop) => void;
+}): ReactElement {
+  const activeIndex = Math.max(values.indexOf(value), 0);
+  const fillWidth = (values.length > 1 ? `${(activeIndex / (values.length - 1)) * 100}%` : '100%') as DimensionValue;
+
+  return (
+    <View style={styles.scaleSelectorCard}>
+      <View style={styles.scaleSelectorHeader}>
+        <View>
+          <Text style={styles.scaleSelectorLabel}>{label}</Text>
+          {helperText ? <Text style={styles.scaleSelectorHint}>{helperText}</Text> : null}
+        </View>
+        <Text style={styles.scaleSelectorValue}>{recipeScaleLabel(value)}</Text>
+      </View>
+      <View style={styles.scaleSelectorRailWrap}>
+        <View style={styles.scaleSelectorRail} />
+        <View style={[styles.scaleSelectorRailFill, { width: fillWidth }]} />
+        <View style={styles.scaleSelectorStops}>
+          {values.map((option) => {
+            const active = option === value;
+
+            return (
+              <Pressable
+                key={option}
+                style={styles.scaleSelectorStop}
+                onPress={() => onChange(option)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={recipeScaleLabel(option)}
+              >
+                <View style={[styles.scaleSelectorDot, active && styles.scaleSelectorDotActive]} />
+                <Text style={[styles.scaleSelectorStopLabel, active && styles.scaleSelectorStopLabelActive]}>
+                  {recipeScaleLabel(option)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -3190,6 +3337,86 @@ const styles = StyleSheet.create({
   rangeTabLabelActive: {
     color: '#ffffff'
   },
+  scaleSelectorCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    padding: 14,
+    gap: 12
+  },
+  scaleSelectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  scaleSelectorLabel: {
+    color: '#6b7b90',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8
+  },
+  scaleSelectorValue: {
+    color: '#17324d',
+    fontSize: 18,
+    fontWeight: '800'
+  },
+  scaleSelectorHint: {
+    color: '#7c8aa5',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4
+  },
+  scaleSelectorRailWrap: {
+    gap: 8
+  },
+  scaleSelectorRail: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0'
+  },
+  scaleSelectorRailFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#0f766e'
+  },
+  scaleSelectorStops: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: -2
+  },
+  scaleSelectorStop: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 2,
+    paddingBottom: 2
+  },
+  scaleSelectorDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc'
+  },
+  scaleSelectorDotActive: {
+    borderColor: '#17324d',
+    backgroundColor: '#17324d'
+  },
+  scaleSelectorStopLabel: {
+    color: '#7c8aa5',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  scaleSelectorStopLabelActive: {
+    color: '#17324d'
+  },
   mealPlanDateStrip: {
     flexDirection: 'row',
     gap: 10
@@ -3237,6 +3464,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     flexWrap: 'wrap'
+  },
+  mealBuilderActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
+  },
+  mealBuilderHint: {
+    flex: 1,
+    minWidth: 180,
+    color: '#7c8aa5',
+    fontSize: 12,
+    lineHeight: 17
+  },
+  mealIngredientEditor: {
+    gap: 10
+  },
+  mealIngredientRow: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    padding: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12
+  },
+  mealIngredientInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  mealIngredientInput: {
+    minWidth: 64,
+    color: '#17324d',
+    fontWeight: '800',
+    textAlign: 'right'
+  },
+  mealIngredientUnit: {
+    color: '#6b7b90',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase'
   },
   metricTile: {
     flexGrow: 1,
