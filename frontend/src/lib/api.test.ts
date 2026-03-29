@@ -89,6 +89,20 @@ describe('api helpers', () => {
     );
   });
 
+  it('includes backend error detail in thrown api errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Vision response did not include structured text output.' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(scanFoodPackage('ZmFrZS1wYWNrYWdl', 'token-123')).rejects.toThrow(
+      'Request failed with status 502: Vision response did not include structured text output.'
+    );
+  });
+
   it('submits onboarding data to the profile onboarding endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
@@ -176,6 +177,33 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         )
         self.assertEqual(len(seeded_favorites), len(DEFAULT_FAVORITE_FOOD_IDS))
         self.assertEqual(len(repeated_favorites), len(DEFAULT_FAVORITE_FOOD_IDS))
+
+    def test_sqlite_repository_repairs_missing_default_favorite_seed_run_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            SQLiteRepository(str(db_path))
+
+            with sqlite3.connect(db_path) as connection:
+                connection.execute("DROP TABLE user_default_favorite_food_seed_runs")
+
+            repaired_repo = SQLiteRepository(str(db_path))
+            repaired_repo.save_user_identity(
+                user_id="user-legacy",
+                email="legacy@example.com",
+                display_name="Legacy User",
+            )
+
+            with sqlite3.connect(db_path) as connection:
+                seeded_row = connection.execute(
+                    """
+                    SELECT user_id
+                    FROM user_default_favorite_food_seed_runs
+                    WHERE user_id = ?
+                    """,
+                    ("user-legacy",),
+                ).fetchone()
+
+            self.assertEqual(seeded_row[0], "user-legacy")
 
     def test_sqlite_repository_persists_weight_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -136,6 +136,11 @@ async def _request_vision_json(api_key: str, image_base64: str, instructions: st
         },
         json={
             "model": VISION_MODEL,
+            "text": {
+                "format": {
+                    "type": "json_object"
+                }
+            },
             "input": [
                 {
                     "role": "user",
@@ -149,10 +154,58 @@ async def _request_vision_json(api_key: str, image_base64: str, instructions: st
     )
     response.raise_for_status()
     payload = response.json()
-    output_text = payload.get("output_text")
+    output_text = _extract_output_text(payload)
     if not isinstance(output_text, str) or not output_text.strip():
         raise ValueError("Vision response did not include structured text output.")
-    parsed = json.loads(output_text)
+    parsed = _parse_json_object(output_text)
+    if not isinstance(parsed, dict):
+        raise ValueError("Vision response JSON was not an object.")
+    return parsed
+
+
+def _extract_output_text(payload: dict[str, Any]) -> str | None:
+    direct_output = payload.get("output_text")
+    if isinstance(direct_output, str) and direct_output.strip():
+        return direct_output.strip()
+
+    output_items = payload.get("output")
+    if not isinstance(output_items, list):
+        return None
+
+    text_parts: list[str] = []
+    for item in output_items:
+        if not isinstance(item, dict):
+            continue
+        content_items = item.get("content")
+        if not isinstance(content_items, list):
+            continue
+        for content in content_items:
+            if not isinstance(content, dict):
+                continue
+            text_value = content.get("text")
+            if isinstance(text_value, str) and text_value.strip():
+                text_parts.append(text_value.strip())
+
+    if not text_parts:
+        return None
+    return "\n".join(text_parts)
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise ValueError(f"Vision response was not valid JSON: {stripped[:240]}") from None
+        candidate = stripped[start : end + 1]
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            raise ValueError(f"Vision response was not valid JSON: {stripped[:240]}") from None
+
     if not isinstance(parsed, dict):
         raise ValueError("Vision response JSON was not an object.")
     return parsed

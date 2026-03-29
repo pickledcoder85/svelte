@@ -16,7 +16,16 @@ This project assumes all local work happens after activating the dedicated conda
 1. `conda activate svelte`
 2. `pip install -e ".[dev]"`
 3. `python -m backend.app.db.bootstrap --reset --seed-dev`
-4. `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
+4. `scripts/dev-backend.sh`
+
+Use `scripts/dev-backend.sh` as the default local backend runner. It:
+
+- starts uvicorn on `0.0.0.0:8000`
+- creates `tmp/` if it does not exist
+- creates or refreshes `tmp/backend.log`
+- mirrors backend stdout and stderr into `tmp/backend.log` for scan/debug review
+
+When debugging live phone scans or session creation, check `tmp/backend.log` first.
 
 The backend serves:
 
@@ -61,7 +70,8 @@ Create `.env` from `.env.example` and define:
 For the phone and browser camera-food flow:
 
 - set `OPENAI_API_KEY` in the backend `.env` if you want real package and label extraction instead of the demo fallback
-- run the backend with `--host 0.0.0.0` so Expo Go on your phone can reach it on the local network
+- run `scripts/dev-backend.sh` so Expo Go on your phone can reach the backend on the local network and so failures are captured in `tmp/backend.log`
+- use `tail -f tmp/backend.log` if you want to watch backend scan failures live while testing from the phone
 
 Run `python -m backend.app.db.bootstrap` any time you need to create the local SQLite database file or apply schema changes.
 
@@ -71,3 +81,4 @@ For repeatable local iteration:
 - `python -m backend.app.db.bootstrap --reset --seed-dev` recreates the target SQLite file and seeds a stable local development user.
 - The seeded local development user email is `dev@example.com`.
 - `scripts/dev-backend.sh` defaults `DATABASE_URL` to `sqlite:///./nutrition_os.dev.db` when you do not set it explicitly.
+- `scripts/dev-backend.sh` always creates `tmp/backend.log`, and that log file should be the first place to inspect backend state during live app debugging.

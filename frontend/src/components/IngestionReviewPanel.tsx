@@ -148,7 +148,11 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   }
 
   async function createPackageScan() {
-    if (!accessToken || captureLoading) {
+    await createPackageScanFromBase64(packageBase64.trim());
+  }
+
+  async function createPackageScanFromBase64(imageBase64: string) {
+    if (!accessToken || captureLoading || imageBase64.length === 0) {
       return;
     }
 
@@ -160,7 +164,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     setStatusDetail('Creating a package-ingestion output from the provided image payload.');
 
     try {
-      const scan = await scanFoodPackage(packageBase64.trim(), accessToken);
+      const scan = await scanFoodPackage(imageBase64, accessToken);
       const output = buildPendingOutput(scan.output_id, scan.ingestion_job_id, scan.confidence, scan.extraction);
       setLastPackageScan(scan);
       setSelectedOutputId(output.id);
@@ -186,7 +190,11 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   }
 
   async function createLabelScan() {
-    if (!accessToken || captureLoading) {
+    await createLabelScanFromBase64(labelBase64.trim());
+  }
+
+  async function createLabelScanFromBase64(imageBase64: string) {
+    if (!accessToken || captureLoading || imageBase64.length === 0) {
       return;
     }
 
@@ -198,7 +206,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     setStatusDetail('Creating a label-ingestion output from the provided image payload.');
 
     try {
-      const scan = await ingestNutritionLabel(labelBase64.trim(), accessToken);
+      const scan = await ingestNutritionLabel(imageBase64, accessToken);
       const output = buildPendingOutput(scan.output_id, scan.ingestion_job_id, scan.confidence, scan.extraction);
       setSelectedOutputId(output.id);
       setSelectedOutput(output);
@@ -302,6 +310,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       return;
     }
 
+    const activeMode = cameraMode;
     setCaptureLoading(cameraMode);
     setQueueError(null);
 
@@ -312,18 +321,22 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         throw new Error('Camera capture did not return image data.');
       }
 
-      if (cameraMode === 'package') {
+      if (activeMode === 'package') {
         setPackageBase64(base64);
         setPackageFileName(`live-package-${Date.now()}.jpg`);
+        setCameraMode(null);
+        await createPackageScanFromBase64(base64);
       } else {
         setLabelBase64(base64);
         setLabelFileName(`live-label-${Date.now()}.jpg`);
+        setCameraMode(null);
+        await createLabelScanFromBase64(base64);
       }
-      setCameraMode(null);
     } catch (error) {
       setQueueError(error instanceof Error ? error.message : 'Unable to capture image from camera.');
     } finally {
       setCaptureLoading(null);
+      setCameraMode(null);
     }
   }
 
@@ -366,7 +379,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         <Text style={styles.detailText}>
           {browserUploadsSupported
             ? 'Choose images in the browser, then run the same scan, review, and save flow.'
-            : 'Use the live camera preview, then tap Scan to capture the current frame without saving a photo.'}
+            : 'Open the live camera and tap Scan Current Frame. The app captures and submits that frame immediately without saving a photo.'}
         </Text>
 
         <View style={styles.detailBlock}>
@@ -412,20 +425,22 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                 disabled={captureLoading !== null}
               >
                 <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {packageFileName ? 'Retake Package Scan' : 'Open Live Package Scanner'}
+                  {packageFileName ? 'Scan Package Front Again' : 'Open Live Package Scanner'}
                 </Text>
               </Pressable>
             </>
           )}
-          <Pressable
-            style={[styles.actionButton, styles.acceptButton]}
-            onPress={() => void createPackageScan()}
-            disabled={!accessToken || captureLoading !== null || packageBase64.trim().length === 0}
-          >
-            <Text style={styles.actionButtonLabel}>
-              {captureLoading === 'package' ? 'Scanning...' : 'Scan Package Front'}
-            </Text>
-          </Pressable>
+          {browserUploadsSupported ? (
+            <Pressable
+              style={[styles.actionButton, styles.acceptButton]}
+              onPress={() => void createPackageScan()}
+              disabled={!accessToken || captureLoading !== null || packageBase64.trim().length === 0}
+            >
+              <Text style={styles.actionButtonLabel}>
+                {captureLoading === 'package' ? 'Scanning...' : 'Scan Package Front'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {lastPackageScan ? (
@@ -494,20 +509,22 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                 disabled={captureLoading !== null}
               >
                 <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {labelFileName ? 'Retake Label Scan' : 'Open Live Label Scanner'}
+                  {labelFileName ? 'Scan Nutrition Label Again' : 'Open Live Label Scanner'}
                 </Text>
               </Pressable>
             </>
           )}
-          <Pressable
-            style={[styles.actionButton, styles.acceptButton]}
-            onPress={() => void createLabelScan()}
-            disabled={!accessToken || captureLoading !== null || labelBase64.trim().length === 0}
-          >
-            <Text style={styles.actionButtonLabel}>
-              {captureLoading === 'label' ? 'Scanning...' : 'Scan Nutrition Label'}
-            </Text>
-          </Pressable>
+          {browserUploadsSupported ? (
+            <Pressable
+              style={[styles.actionButton, styles.acceptButton]}
+              onPress={() => void createLabelScan()}
+              disabled={!accessToken || captureLoading !== null || labelBase64.trim().length === 0}
+            >
+              <Text style={styles.actionButtonLabel}>
+                {captureLoading === 'label' ? 'Scanning...' : 'Scan Nutrition Label'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -702,8 +719,14 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
             </View>
           </View>
           <View style={styles.cameraActionRow}>
-            <Pressable style={[styles.actionButton, styles.acceptButton]} onPress={() => void captureFromCamera()}>
-              <Text style={styles.actionButtonLabel}>Scan Current Frame</Text>
+            <Pressable
+              style={[styles.actionButton, styles.acceptButton]}
+              onPress={() => void captureFromCamera()}
+              disabled={captureLoading !== null}
+            >
+              <Text style={styles.actionButtonLabel}>
+                {captureLoading === cameraMode ? 'Scanning...' : 'Scan Current Frame'}
+              </Text>
             </Pressable>
           </View>
         </View>

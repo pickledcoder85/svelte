@@ -95,7 +95,17 @@ export function buildApiUrl(path: string): string {
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = new Error(`Request failed with status ${response.status}`) as ApiError;
+    let detail = '';
+    try {
+      const payload = (await response.json()) as { detail?: unknown };
+      if (typeof payload.detail === 'string' && payload.detail.trim().length > 0) {
+        detail = payload.detail.trim();
+      }
+    } catch {
+      detail = '';
+    }
+    const message = detail ? `Request failed with status ${response.status}: ${detail}` : `Request failed with status ${response.status}`;
+    const error = new Error(message) as ApiError;
     error.status = response.status;
     throw error;
   }

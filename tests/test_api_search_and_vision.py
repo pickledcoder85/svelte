@@ -1,5 +1,15 @@
 import pytest
 
+from backend.app.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def disable_openai_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
 
 @pytest.mark.asyncio
 async def test_food_search_uses_seed_data(client):
