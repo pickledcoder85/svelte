@@ -11,6 +11,8 @@ import type {
   RecipeDefinition,
   RecipeImportInput,
   ProfileProgress,
+  UserGoal,
+  UserProfile,
   WeightEntry,
   WeeklyMetrics
 } from './types';
@@ -95,6 +97,54 @@ export const demoProfileProgress: ProfileProgress = {
   calories_consumed: 1685,
   adherence_score: 87
 };
+
+export const demoUserProfile: UserProfile = {
+  user_id: 'demo-user',
+  email: 'nutrition.user@example.com',
+  display_name: 'Nutrition User',
+  timezone: 'America/New_York',
+  units: 'imperial',
+  user_created_at: '2026-03-21T10:15:00Z',
+  profile_created_at: '2026-03-21T10:16:00Z',
+  profile_updated_at: '2026-03-28T20:45:00Z',
+  setup_completed_at: '2026-03-21T10:22:00Z',
+  setup_complete: true,
+  sex: 'female',
+  age_years: 34,
+  height_cm: 178,
+  current_weight_lbs: 179.4,
+  goal_type: 'lose',
+  target_weight_lbs: 175,
+  activity_level: 'moderate',
+  bmr_calories: 1648,
+  tdee_calories: 2554,
+  initial_calorie_target: 2100
+};
+
+export const demoUserGoals: UserGoal[] = [
+  {
+    id: 'goal-current-cut',
+    user_id: 'demo-user',
+    effective_at: '2026-03-21',
+    calorie_goal: 2100,
+    protein_goal: 180,
+    carbs_goal: 190,
+    fat_goal: 60,
+    target_weight_lbs: 175,
+    created_at: '2026-03-21T10:25:00Z'
+  },
+  {
+    id: 'goal-recomp-block',
+    user_id: 'demo-user',
+    effective_at: '2026-02-15',
+    calorie_goal: 2250,
+    protein_goal: 175,
+    carbs_goal: 215,
+    fat_goal: 65,
+    target_weight_lbs: 178,
+    created_at: '2026-02-15T09:05:00Z'
+  }
+];
 
 export const demoRecipe: RecipeDefinition = {
   id: 'recipe-overnight-oats',

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { acceptIngestionOutput, fetchIngestionQueue, rejectIngestionOutput } from '../lib/api';
+import { demoIngestionOutputs } from '../mock-data';
 import type { IngestionOutput } from '../types';
 import {
   describeOutput,
@@ -14,7 +15,7 @@ interface IngestionReviewPanelProps {
   accessToken: string | null;
 }
 
-type SyncTone = 'checking' | 'live';
+type SyncTone = 'checking' | 'live' | 'demo';
 
 export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps) {
   const [outputs, setOutputs] = useState<IngestionOutput[]>([]);
@@ -42,12 +43,13 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
           return;
         }
 
-        setOutputs([]);
-        setSelectedOutputId(null);
-        setSelectedOutput(null);
-        setTone('checking');
-        setStatusLabel('Sign in to review ingestion outputs');
-        setStatusDetail('The ingestion queue loads from the live backend session.');
+        const pending = pendingOutputs(demoIngestionOutputs);
+        setOutputs(pending);
+        setSelectedOutputId(pending[0]?.id ?? null);
+        setSelectedOutput(pending[0] ?? null);
+        setTone('demo');
+        setStatusLabel('Previewing seeded ingestion outputs');
+        setStatusDetail('Connect the backend session to review and save live ingestion decisions.');
         setQueueLoading(false);
         return;
       }
@@ -81,12 +83,13 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
           return;
         }
 
-        setOutputs([]);
-        setSelectedOutputId(null);
-        setSelectedOutput(null);
-        setTone('checking');
-        setStatusLabel('Live ingestion queue unavailable');
-        setStatusDetail('The backend queue is unavailable right now.');
+        const pending = pendingOutputs(demoIngestionOutputs);
+        setOutputs(pending);
+        setSelectedOutputId(pending[0]?.id ?? null);
+        setSelectedOutput(pending[0] ?? null);
+        setTone('demo');
+        setStatusLabel('Previewing seeded ingestion outputs');
+        setStatusDetail('The backend queue is unavailable right now, so preview data is shown instead.');
         setQueueError(error instanceof Error ? error.message : 'Ingestion queue unavailable.');
       } finally {
         if (!cancelled) {
@@ -154,7 +157,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
       <View style={styles.metricRow}>
         <MetricTile label="Pending" value={`${outputs.length}`} />
-        <MetricTile label="Session" value={accessToken ? 'Live' : 'Sign in required'} />
+        <MetricTile label="Session" value={accessToken ? 'Live' : 'Preview'} />
       </View>
 
       <View style={styles.card}>
@@ -261,6 +264,9 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 function toneColor(tone: SyncTone): string {
   if (tone === 'live') {
     return '#0f766e';
+  }
+  if (tone === 'demo') {
+    return '#b45309';
   }
   return '#1d4ed8';
 }

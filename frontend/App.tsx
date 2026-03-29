@@ -67,6 +67,23 @@ import {
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
+import {
+  demoDashboardSnapshot,
+  demoExerciseEntries,
+  demoFoodLog,
+  demoFoodResults,
+  demoMeal,
+  demoMealPlanDays,
+  demoMealPrepTasks,
+  demoProfileProgress,
+  demoRangeSeries,
+  demoRecipeCatalog,
+  demoRecipeFavorites,
+  demoRecipeImports,
+  demoUserGoals,
+  demoUserProfile,
+  demoWeightEntries
+} from './src/mock-data';
 import type {
   AppSection,
   DashboardRange,
@@ -104,9 +121,12 @@ type ScaleStop = (typeof scaleStops)[number];
 const chartHeight = 160;
 const heroBrandImage = require('./assets/favicon.png');
 
-function toneColor(tone: 'checking' | 'live'): string {
+function toneColor(tone: 'checking' | 'live' | 'demo'): string {
   if (tone === 'live') {
     return '#0f766e';
+  }
+  if (tone === 'demo') {
+    return '#b45309';
   }
   return '#1d4ed8';
 }
@@ -172,7 +192,7 @@ export default function App(): ReactElement {
   const [section, setSection] = useState<AppSection>('dashboard');
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
-  const [syncTone, setSyncTone] = useState<'checking' | 'live'>('checking');
+  const [syncTone, setSyncTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [syncLabel, setSyncLabel] = useState('Loading live summary');
   const [syncDetail, setSyncDetail] = useState('Waiting for live backend data.');
   const [mealScale, setMealScale] = useState<ScaleStop>(1);
@@ -185,14 +205,14 @@ export default function App(): ReactElement {
   const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
   const [selectedFoodId, setSelectedFoodId] = useState('');
   const [foodQuantities, setFoodQuantities] = useState<Record<string, number>>({});
-  const [foodTone, setFoodTone] = useState<'checking' | 'live'>('checking');
+  const [foodTone, setFoodTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [foodStatus, setFoodStatus] = useState('Loading favorite foods');
   const [foodError, setFoodError] = useState<string | null>(null);
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileGoals, setProfileGoals] = useState<UserGoal[]>([]);
-  const [profileTone, setProfileTone] = useState<'checking' | 'live'>('checking');
+  const [profileTone, setProfileTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [profileStatus, setProfileStatus] = useState('Loading profile settings');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -228,19 +248,19 @@ export default function App(): ReactElement {
   const [selectedLogFoodId, setSelectedLogFoodId] = useState('');
   const [logGrams, setLogGrams] = useState('100');
   const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
-  const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live'>('checking');
+  const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [foodLogStatus, setFoodLogStatus] = useState("Loading today's log");
   const [foodLogError, setFoodLogError] = useState<string | null>(null);
   const [foodLogLoading, setFoodLogLoading] = useState(true);
   const [isSavingLogEntry, setIsSavingLogEntry] = useState(false);
-  const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live'>('checking');
+  const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
   const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
   const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
-  const [trackerTone, setTrackerTone] = useState<'checking' | 'live'>('checking');
+  const [trackerTone, setTrackerTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [trackerStatus, setTrackerStatus] = useState('Loading tracker data');
   const [trackerError, setTrackerError] = useState<string | null>(null);
   const [recipeFavorites, setRecipeFavorites] = useState<RecipeDefinition[]>([]);
@@ -248,23 +268,23 @@ export default function App(): ReactElement {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeDefinition | null>(null);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
-  const [recipeTone, setRecipeTone] = useState<'checking' | 'live'>('checking');
+  const [recipeTone, setRecipeTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [recipeStatus, setRecipeStatus] = useState('Loading recipe favorites');
   const [recipeError, setRecipeError] = useState<string | null>(null);
   const [recipeLoading, setRecipeLoading] = useState(true);
   const [recipeDetailLoading, setRecipeDetailLoading] = useState(false);
   const [recipeSavingId, setRecipeSavingId] = useState<string | null>(null);
-  const [recipeImportTone, setRecipeImportTone] = useState<'checking' | 'live'>('checking');
+  const [recipeImportTone, setRecipeImportTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [recipeImportStatus, setRecipeImportStatus] = useState('No imported recipe selected');
   const [recipeImportError, setRecipeImportError] = useState<string | null>(null);
   const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>([]);
   const [selectedMealPlanDate, setSelectedMealPlanDate] = useState<string | null>(null);
   const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, boolean>>>({});
-  const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live'>('checking');
+  const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
   const [mealPrepTasks, setMealPrepTasks] = useState<MealPrepTask[]>([]);
-  const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live'>('checking');
+  const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
   const [exerciseSaving, setExerciseSaving] = useState(false);
@@ -364,11 +384,16 @@ export default function App(): ReactElement {
           return;
         }
 
-        setSyncTone('checking');
-        setSyncLabel('Backend unavailable');
-        setSyncDetail(error instanceof Error ? error.message : 'Backend unavailable.');
-        setRecipeImportTone('checking');
-        setRecipeImportStatus('Live recipe import unavailable');
+        setSnapshot({
+          ...demoDashboardSnapshot,
+          rangeSeries: demoRangeSeries,
+          mealTotals: mealTotals(mealDraft)
+        });
+        setSyncTone('demo');
+        setSyncLabel('Preview mode');
+        setSyncDetail('Showing seeded profile, tracker, meals, recipes, and food data until the backend reconnects.');
+        setRecipeImportTone('demo');
+        setRecipeImportStatus('Showing seeded recipe import review');
         setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
       }
     }
@@ -387,16 +412,16 @@ export default function App(): ReactElement {
     async function loadProfileSettings() {
       if (!foodSessionToken) {
         setProfileLoaded(true);
-        setProfile(null);
-        setProfileGoals([]);
-        setProfileProgress(null);
-        setWeightEntries([]);
-        setProfileDisplayNameDraft('');
-        setProfileTimezoneDraft('UTC');
-        setProfileUnitsDraft('imperial');
-        setProfileTone('checking');
-        setProfileStatus('Profile session unavailable');
-        setProfileError('No active profile session.');
+        setProfile(demoUserProfile);
+        setProfileGoals(demoUserGoals);
+        setProfileProgress(demoProfileProgress);
+        setWeightEntries(demoWeightEntries);
+        setProfileDisplayNameDraft(demoUserProfile.display_name ?? '');
+        setProfileTimezoneDraft(demoUserProfile.timezone);
+        setProfileUnitsDraft(demoUserProfile.units);
+        setProfileTone('demo');
+        setProfileStatus('Previewing seeded profile and goals');
+        setProfileError(null);
         return;
       }
 
@@ -463,20 +488,20 @@ export default function App(): ReactElement {
 
     async function loadTrackerSections() {
       if (!foodSessionToken) {
-        setTrackerTone('checking');
-        setTrackerStatus('Tracker data unavailable until a backend session is ready');
-        setTrackerError('No active tracker session.');
-        setExerciseEntries([]);
-        setMealPlanTone('checking');
-        setMealPlanStatus('Meal plan unavailable until a backend session is ready');
-        setMealPlanError('No active tracker session.');
-        setMealPlanDays([]);
-        setSelectedMealPlanDate(null);
+        setTrackerTone('demo');
+        setTrackerStatus('Previewing seeded food and exercise history');
+        setTrackerError(null);
+        setExerciseEntries(demoExerciseEntries);
+        setMealPlanTone('demo');
+        setMealPlanStatus('Previewing seeded weekly meal plan');
+        setMealPlanError(null);
+        setMealPlanDays(demoMealPlanDays);
+        setSelectedMealPlanDate(resolveSelectedMealPlanDate(demoMealPlanDays, null));
         setMealPlanEatenSlots({});
-        setMealPrepTone('checking');
-        setMealPrepStatus('Meal prep unavailable until a backend session is ready');
-        setMealPrepError('No active tracker session.');
-        setMealPrepTasks([]);
+        setMealPrepTone('demo');
+        setMealPrepStatus('Previewing seeded meal prep tasks');
+        setMealPrepError(null);
+        setMealPrepTasks(demoMealPrepTasks);
         return;
       }
 
@@ -584,9 +609,9 @@ export default function App(): ReactElement {
           return;
         }
 
-        setFoodLog(createEmptyFoodLog());
-        setFoodLogTone('checking');
-        setFoodLogStatus("Today's log unavailable");
+        setFoodLog(demoFoodLog);
+        setFoodLogTone('demo');
+        setFoodLogStatus("Showing today's seeded log preview");
         setFoodLogError(error instanceof Error ? error.message : 'Daily log unavailable.');
       } finally {
         if (!cancelled) {
