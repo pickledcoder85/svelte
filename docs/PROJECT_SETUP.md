@@ -41,6 +41,8 @@ The backend serves:
 
 The frontend hot-reloads on source changes. Expo Go cannot use `localhost` for the backend because `localhost` points at the phone itself, not your computer.
 
+For browser preview on the same machine, the default backend CORS configuration now allows the common local web origins used by Vite and Expo web, including `localhost:5173`, `localhost:8081`, and `localhost:19006`. If you use a different frontend origin, set `cors_origins` in the backend environment.
+
 ## Mobile-first constraint
 
 - Build layouts and flows as phone-first screens.

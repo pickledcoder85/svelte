@@ -11,7 +11,16 @@ class Settings(BaseSettings):
     app_name: str = "Nutrition OS API"
     app_env: str = "development"
     database_url: str = DEFAULT_DATABASE_URL
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = ",".join(
+        [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:8081",
+            "http://127.0.0.1:8081",
+            "http://localhost:19006",
+            "http://127.0.0.1:19006",
+        ]
+    )
     usda_api_key: str = ""
     openai_api_key: str = ""
     supabase_url: str = ""
