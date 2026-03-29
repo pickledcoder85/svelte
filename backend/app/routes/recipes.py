@@ -1,13 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 
 from backend.app.dependencies import get_current_session, get_required_session, get_repository
-from backend.app.models.recipes import RecipeDefinition, RecipeImportRequest
+from backend.app.models.auth import AuthSession
+from backend.app.models.recipes import RecipeCreateRequest, RecipeDefinition, RecipeImportRequest, RecipeUpdateRequest
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.favorites import favorite_recipe, list_favorite_recipes, unfavorite_recipe
-from backend.app.services.recipes import get_recipe, import_recipe, list_recipes, scale_recipe
+from backend.app.services.recipes import create_recipe, get_recipe, import_recipe, list_recipes, scale_recipe, update_recipe
 
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
+
+
+@router.post("", response_model=RecipeDefinition)
+async def create_recipe_route(
+    payload: RecipeCreateRequest, repository: SQLiteRepository = Depends(get_repository)
+) -> RecipeDefinition:
+    return create_recipe(repository, payload)
+
+
 @router.post("/import", response_model=RecipeDefinition)
 async def import_recipe_route(
     payload: RecipeImportRequest, repository: SQLiteRepository = Depends(get_repository)
@@ -40,6 +50,19 @@ async def get_recipe_route(
 ) -> RecipeDefinition:
     user_id = session.user_id if session is not None else None
     recipe = get_recipe(repository, recipe_id, user_id=user_id)
+    if recipe is None:
+        raise HTTPException(status_code=404, detail="Recipe not found.")
+    return recipe
+
+
+@router.put("/{recipe_id}", response_model=RecipeDefinition)
+async def update_recipe_route(
+    recipe_id: str,
+    payload: RecipeUpdateRequest,
+    session: AuthSession | None = Depends(get_current_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> RecipeDefinition:
+    recipe = update_recipe(repository, recipe_id, payload, user_id=session.user_id if session is not None else None)
     if recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found.")
     return recipe
