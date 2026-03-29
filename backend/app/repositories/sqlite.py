@@ -1743,8 +1743,18 @@ class SQLiteRepository:
     def list_food_log_entries(self, food_log_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
             """
-            SELECT * FROM food_log_entries
-            WHERE food_log_id = ?
+            SELECT
+                entries.*,
+                CASE
+                    WHEN entries.entry_type = 'meal' THEN meals.name
+                    ELSE foods.name
+                END AS display_name,
+                foods.brand AS brand,
+                foods.source AS source
+            FROM food_log_entries entries
+            LEFT JOIN food_catalog foods ON foods.id = entries.food_item_id
+            LEFT JOIN meal_templates meals ON meals.id = entries.meal_template_id
+            WHERE entries.food_log_id = ?
             ORDER BY created_at, id
             """,
             (food_log_id,),

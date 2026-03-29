@@ -48,6 +48,7 @@ The format should remain simple:
 - Onboarding and profile UI now surface clearer `Weight Loss`, `Maintenance`, and `Weight Gain` goal labels.
 - Tracker food logging now uses the authenticated `/nutrition/logs` contract, creates today’s log when needed, and saves real entry nutrition instead of calling the old dead `/food-logs/today` path.
 - Recipe favorites now use the required authenticated session path in the frontend.
+- Food-log API responses now include display-ready saved entry metadata such as food name, brand, and source for tracker rendering.
 - Backend runtime database selection now follows `DATABASE_URL`, matching the migration/bootstrap layer.
 - `scripts/dev-backend.sh` now defaults to `sqlite:///./nutrition_os.dev.db` when no `DATABASE_URL` is set.
 - Dashboard macro rings now display the percentage inside each ring and represent each macro's share of total macro calories, not progress against macro goals.

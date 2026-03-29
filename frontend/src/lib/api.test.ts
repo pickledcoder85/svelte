@@ -866,6 +866,9 @@ describe('api helpers', () => {
                 entry_type: 'food',
                 food_item_id: 'food-greek-yogurt',
                 meal_template_id: null,
+                display_name: 'Greek yogurt, plain nonfat',
+                brand: 'Generic',
+                source: 'USDA',
                 grams: 120,
                 servings: 1,
                 calories: 71,
@@ -898,6 +901,9 @@ describe('api helpers', () => {
 
     expect(log.entries).toHaveLength(1);
     expect(log.totals.calories).toBe(71);
+    expect(log.entries[0].food_name).toBe('Greek yogurt, plain nonfat');
+    expect(log.entries[0].brand).toBe('Generic');
+    expect(log.entries[0].source).toBe('USDA');
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       'http://localhost:8000/api/nutrition/logs',

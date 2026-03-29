@@ -27,6 +27,9 @@ interface ApiFoodLogEntry {
   entry_type: 'food' | 'meal';
   food_item_id: string | null;
   meal_template_id: string | null;
+  display_name: string | null;
+  brand: string | null;
+  source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | null;
   grams: number;
   servings: number;
   calories: number;
@@ -111,11 +114,12 @@ function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
     id: entry.id,
     food_id: entry.food_item_id ?? entry.meal_template_id ?? entry.id,
     food_name:
-      entry.entry_type === 'meal'
+      entry.display_name
+      ?? (entry.entry_type === 'meal'
         ? `Saved meal ${entry.meal_template_id ?? ''}`.trim()
-        : `Saved food ${entry.food_item_id ?? ''}`.trim(),
-    brand: null,
-    source: 'CUSTOM' as const,
+        : `Saved food ${entry.food_item_id ?? ''}`.trim()),
+    brand: entry.brand,
+    source: entry.source ?? 'CUSTOM',
     grams: entry.grams,
     calories: entry.calories,
     macros: {
