@@ -58,6 +58,27 @@ describe('food helpers', () => {
         'quaker'
       )[0]?.name
     ).toBe('Rolled oats');
+    expect(
+      filterFoodsFuzzy(
+        [
+          {
+            ...demoFoodResults[0],
+            id: 'food-power-cakes',
+            name: 'Power Cakes',
+            brand: 'Kodiak',
+            favorite: false
+          },
+          {
+            ...demoFoodResults[1],
+            id: 'food-chicken-breast',
+            name: 'Chicken breast, skinless',
+            brand: null,
+            favorite: true
+          }
+        ],
+        'cake'
+      )[0]?.name
+    ).toBe('Power Cakes');
   });
 
   it('keeps favorite foods first in picker ordering', () => {
