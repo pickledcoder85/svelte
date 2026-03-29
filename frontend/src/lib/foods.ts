@@ -15,6 +15,26 @@ export function foodMacroLine(food: FoodItem): string {
   return `${food.macros.protein}P / ${food.macros.carbs}C / ${food.macros.fat}F`;
 }
 
+export function formatFoodReference(food: FoodItem): string {
+  return `${food.serving_size.toLocaleString()} ${food.serving_unit}`;
+}
+
+export function clampFoodQuantity(quantity: number): number {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return 1;
+  }
+
+  return Math.max(0.5, Math.min(10, Math.round(quantity * 10) / 10));
+}
+
+export function formatFoodQuantity(quantity: number): string {
+  return `${clampFoodQuantity(quantity).toFixed(1)}×`;
+}
+
+export function calculateFoodGrams(food: FoodItem, quantity: number): number {
+  return Math.round(food.serving_size * clampFoodQuantity(quantity) * 10) / 10;
+}
+
 export function sortFoodsAlphabetically(foods: FoodItem[]): FoodItem[] {
   return [...foods].sort((left, right) => left.name.localeCompare(right.name));
 }

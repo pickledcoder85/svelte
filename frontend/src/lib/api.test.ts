@@ -32,6 +32,7 @@ import {
   searchFoodsWithSession,
   updateProfile,
   updateMealPrepTaskStatus,
+  unfavoriteFood,
   unfavoriteRecipe
 } from './api';
 import {
@@ -352,6 +353,26 @@ describe('api helpers', () => {
       'http://localhost:8000/api/nutrition/favorites/foods/food-blueberries',
       expect.objectContaining({
         method: 'POST',
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('removes a food from favorites with auth headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ food_id: 'food-blueberries', favorite: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await unfavoriteFood('food-blueberries', 'token-123');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/favorites/foods/food-blueberries',
+      expect.objectContaining({
+        method: 'DELETE',
         headers: { Authorization: 'Bearer token-123' }
       })
     );

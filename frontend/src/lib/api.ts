@@ -194,6 +194,18 @@ export async function addFavoriteFood(foodId: string, accessToken: string): Prom
   );
 }
 
+export async function unfavoriteFood(
+  foodId: string,
+  accessToken: string
+): Promise<{ food_id: string; favorite: boolean }> {
+  return readJson<{ food_id: string; favorite: boolean }>(
+    await fetch(buildApiUrl(`/nutrition/favorites/foods/${foodId}`), {
+      method: 'DELETE',
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
 export async function fetchTodaysFoodLog(): Promise<FoodLogSummary> {
   return readJson<FoodLogSummary>(await fetch(buildApiUrl('/nutrition/food-logs/today')));
 }
