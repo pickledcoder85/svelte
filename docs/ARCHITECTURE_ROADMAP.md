@@ -75,7 +75,8 @@ Current status:
 Current status:
 
 - started, with ingestion queue and review-state persistence in place
-- still missing the full review UI, richer job lifecycle, and AI-assisted correction pipeline
+- camera-food-bank groundwork is now in progress with package-scan, label-ingest, and save-reviewed-food route scaffolding
+- still missing the full review UI, richer job lifecycle, browser upload/camera UX, and AI-assisted correction pipeline
 
 ### Phase 2.5: calculation engine and adaptive planning
 

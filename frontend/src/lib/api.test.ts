@@ -5,6 +5,7 @@ import {
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
+  ingestNutritionLabel,
   createMealPlanDay,
   createMealPrepTask,
   createWeightEntry,
@@ -30,6 +31,8 @@ import {
   fetchWeightEntries,
   normalizeApiBaseUrl,
   rejectIngestionOutput,
+  saveFoodFromIngestionOutput,
+  scanFoodPackage,
   searchFoods,
   searchFoodsWithSession,
   updateProfile,
@@ -231,6 +234,103 @@ describe('api helpers', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       4,
       `http://localhost:8000/api/ingestion/outputs/${demoIngestionOutputs[1].id}/reject`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('supports camera-food ingestion helpers with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ingestion_job_id: 'job-1',
+            output_id: 'output-1',
+            source_kind: 'camera_package',
+            source_name: 'package-scan',
+            confidence: 0.71,
+            extraction: {
+              package_text: 'Demo package-front output',
+              product_name: 'Rolled oats',
+              brand_name: 'Pantry staple',
+              confidence: 0.71,
+              match_candidates: []
+            }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ingestion_job_id: 'job-2',
+            output_id: 'output-2',
+            source_kind: 'camera_label',
+            source_name: 'nutrition-label-scan',
+            confidence: 0.62,
+            extraction: {
+              label_text: 'Demo OCR output',
+              product_name: 'Scanned food product',
+              brand_name: 'Unknown brand',
+              serving_size: '1 serving',
+              calories: 120,
+              macros: { protein: 8, carbs: 12, fat: 4 },
+              confidence: 0.62
+            }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'food-label-test',
+            name: 'Test protein bar',
+            brand: 'Codex Foods',
+            calories: 220,
+            serving_size: 1,
+            serving_unit: 'bar',
+            macros: { protein: 20, carbs: 24, fat: 7 },
+            source: 'LABEL_SCAN',
+            favorite: false
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await scanFoodPackage('package-base64', 'token-123');
+    await ingestNutritionLabel('label-base64', 'token-123');
+    await saveFoodFromIngestionOutput('output-2', 'token-123');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/vision/package',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/vision/label/ingest',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://localhost:8000/api/ingestion/outputs/output-2/save-food',
       expect.objectContaining({
         method: 'POST',
         headers: { Authorization: 'Bearer token-123' }
