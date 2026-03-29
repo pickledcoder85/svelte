@@ -596,7 +596,10 @@ export default function App(): ReactElement {
       setFoodLogError(null);
 
       try {
-        const log = await fetchTodaysFoodLog();
+        if (!foodSessionToken) {
+          throw new Error('No active food session.');
+        }
+        const log = await fetchTodaysFoodLog(foodSessionToken);
 
         if (cancelled) {
           return;
@@ -631,7 +634,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foodSessionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -762,7 +765,10 @@ export default function App(): ReactElement {
       setRecipeError(null);
 
       try {
-        const [catalog, favorites] = await Promise.all([fetchRecipes(), fetchFavoriteRecipes()]);
+        if (!foodSessionToken) {
+          throw new Error('No active recipe session.');
+        }
+        const [catalog, favorites] = await Promise.all([fetchRecipes(), fetchFavoriteRecipes(foodSessionToken)]);
 
         if (cancelled) {
           return;
@@ -824,7 +830,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foodSessionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1187,10 +1193,20 @@ export default function App(): ReactElement {
     setFoodLogError(null);
 
     try {
-      const updatedLog = await addFoodLogEntry({
-        food_id: food.id,
-        grams
-      });
+      if (!foodSessionToken) {
+        throw new Error('Create a local session before saving food log entries.');
+      }
+      const updatedLog = await addFoodLogEntry(
+        {
+          food_id: food.id,
+          grams,
+          calories: round1((food.calories * grams) / Math.max(food.serving_size, 1)),
+          protein: round1((food.macros.protein * grams) / Math.max(food.serving_size, 1)),
+          carbs: round1((food.macros.carbs * grams) / Math.max(food.serving_size, 1)),
+          fat: round1((food.macros.fat * grams) / Math.max(food.serving_size, 1))
+        },
+        foodSessionToken
+      );
       setFoodLog(updatedLog);
       setFoodLogTone('live');
       setFoodLogStatus(`Added ${food.name} to today at ${grams.toLocaleString()} g`);
@@ -1292,10 +1308,20 @@ export default function App(): ReactElement {
     setFoodLogError(null);
 
     try {
-      const updatedLog = await addFoodLogEntry({
-        food_id: selectedLogFood.id,
-        grams: round1(grams)
-      });
+      if (!foodSessionToken) {
+        throw new Error('Create a local session before saving food log entries.');
+      }
+      const updatedLog = await addFoodLogEntry(
+        {
+          food_id: selectedLogFood.id,
+          grams: round1(grams),
+          calories: logEntryPreview?.calories ?? 0,
+          protein: logEntryPreview?.macros.protein ?? 0,
+          carbs: logEntryPreview?.macros.carbs ?? 0,
+          fat: logEntryPreview?.macros.fat ?? 0
+        },
+        foodSessionToken
+      );
       setFoodLog(updatedLog);
       setFoodLogTone('live');
       setFoodLogStatus(`Added ${selectedLogFood.name} to today's log`);
@@ -1640,9 +1666,12 @@ export default function App(): ReactElement {
     }
 
     try {
+      if (!foodSessionToken) {
+        throw new Error('Create a local session before updating recipe favorites.');
+      }
       const updated = nextFavorite
-        ? await favoriteRecipe(recipe.id)
-        : await unfavoriteRecipe(recipe.id);
+        ? await favoriteRecipe(recipe.id, foodSessionToken)
+        : await unfavoriteRecipe(recipe.id, foodSessionToken);
 
       setRecipeCatalog((current) => updateRecipeCollection(current, updated));
       setRecipeFavorites((current) => updateRecipeCollection(current, updated));

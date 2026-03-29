@@ -153,7 +153,7 @@ describe('api helpers', () => {
     );
   });
 
-  it('fetches favorite recipes from the favorites endpoint', async () => {
+  it('fetches favorite recipes from the favorites endpoint with auth headers', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(demoRecipeFavorites), {
         status: 200,
@@ -162,9 +162,14 @@ describe('api helpers', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchFavoriteRecipes();
+    await fetchFavoriteRecipes('token-123');
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/recipes/favorites');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/recipes/favorites',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
   });
 
   it('loads and reviews ingestion outputs with auth headers', async () => {
@@ -261,7 +266,7 @@ describe('api helpers', () => {
     expect(fetchMock).toHaveBeenCalledWith(`http://localhost:8000/api/recipes/${demoRecipe.id}`);
   });
 
-  it('favorites recipes with POST and unfavorites with DELETE', async () => {
+  it('favorites recipes with POST and unfavorites with DELETE using auth headers', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -275,21 +280,27 @@ describe('api helpers', () => {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         })
-      );
+    );
     vi.stubGlobal('fetch', fetchMock);
 
-    await favoriteRecipe(demoRecipe.id);
-    await unfavoriteRecipe(demoRecipe.id);
+    await favoriteRecipe(demoRecipe.id, 'token-123');
+    await unfavoriteRecipe(demoRecipe.id, 'token-123');
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       `http://localhost:8000/api/recipes/${demoRecipe.id}/favorite`,
-      expect.objectContaining({ method: 'POST' })
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token-123' }
+      })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       `http://localhost:8000/api/recipes/${demoRecipe.id}/favorite`,
-      expect.objectContaining({ method: 'DELETE' })
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer token-123' }
+      })
     );
   });
 
@@ -798,35 +809,121 @@ describe('api helpers', () => {
     );
   });
 
-  it('fetches the current food log from the today endpoint', async () => {
+  it('fetches the current food log from the logs endpoint and returns an empty today summary when missing', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(demoFoodLog), {
+      new Response(JSON.stringify([]), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       })
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchTodaysFoodLog();
+    const log = await fetchTodaysFoodLog('token-123');
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/nutrition/food-logs/today');
+    expect(log.entries).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/logs',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
   });
 
-  it('posts food log entries to the today entries endpoint', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(demoFoodLog), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      })
-    );
+  it('creates todays log when needed and posts food log entries with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'log-today',
+            user_id: 'user-123',
+            log_date: new Date().toISOString().slice(0, 10),
+            notes: null,
+            entries: []
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'log-today',
+            user_id: 'user-123',
+            log_date: new Date().toISOString().slice(0, 10),
+            notes: null,
+            entries: [
+              {
+                id: 'entry-1',
+                entry_type: 'food',
+                food_item_id: 'food-greek-yogurt',
+                meal_template_id: null,
+                grams: 120,
+                servings: 1,
+                calories: 71,
+                protein: 12.4,
+                carbs: 4.3,
+                fat: 0.5,
+                created_at: '2026-03-29T12:00:00Z'
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+      );
     vi.stubGlobal('fetch', fetchMock);
 
-    await addFoodLogEntry({ food_id: 'food-greek-yogurt', grams: 120 });
+    const log = await addFoodLogEntry(
+      {
+        food_id: 'food-greek-yogurt',
+        grams: 120,
+        calories: 71,
+        protein: 12.4,
+        carbs: 4.3,
+        fat: 0.5
+      },
+      'token-123'
+    );
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/api/nutrition/food-logs/today/entries',
+    expect(log.entries).toHaveLength(1);
+    expect(log.totals.calories).toBe(71);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/nutrition/logs',
       expect.objectContaining({
-        method: 'POST'
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/nutrition/logs',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/logs/log-today/entries',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
       })
     );
   });

@@ -22,6 +22,30 @@ import type {
   WeeklyMetrics
 } from '../types';
 
+interface ApiFoodLogEntry {
+  id: string;
+  entry_type: 'food' | 'meal';
+  food_item_id: string | null;
+  meal_template_id: string | null;
+  grams: number;
+  servings: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  created_at: string;
+}
+
+interface ApiFoodLog {
+  id: string;
+  user_id: string;
+  log_date: string;
+  notes: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  entries: ApiFoodLogEntry[];
+}
+
 interface AuthSession {
   access_token: string;
 }
@@ -80,6 +104,43 @@ export async function fetchBackendHealth(): Promise<ApiHealth> {
 
 export async function fetchWeeklyMetrics(): Promise<WeeklyMetrics> {
   return readJson<WeeklyMetrics>(await fetch(buildApiUrl('/nutrition/weekly-metrics')));
+}
+
+function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
+  const entries = log.entries.map((entry) => ({
+    id: entry.id,
+    food_id: entry.food_item_id ?? entry.meal_template_id ?? entry.id,
+    food_name:
+      entry.entry_type === 'meal'
+        ? `Saved meal ${entry.meal_template_id ?? ''}`.trim()
+        : `Saved food ${entry.food_item_id ?? ''}`.trim(),
+    brand: null,
+    source: 'CUSTOM' as const,
+    grams: entry.grams,
+    calories: entry.calories,
+    macros: {
+      protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat
+    },
+    logged_at: entry.created_at
+  }));
+
+  return {
+    date: log.log_date,
+    entries,
+    totals: {
+      calories: entries.reduce((sum, entry) => sum + entry.calories, 0),
+      macros: entries.reduce(
+        (sum, entry) => ({
+          protein: sum.protein + entry.macros.protein,
+          carbs: sum.carbs + entry.macros.carbs,
+          fat: sum.fat + entry.macros.fat
+        }),
+        { protein: 0, carbs: 0, fat: 0 }
+      )
+    }
+  };
 }
 
 export async function fetchProfile(accessToken: string): Promise<UserProfile> {
@@ -239,18 +300,78 @@ export async function unfavoriteFood(
   );
 }
 
-export async function fetchTodaysFoodLog(): Promise<FoodLogSummary> {
-  return readJson<FoodLogSummary>(await fetch(buildApiUrl('/nutrition/food-logs/today')));
-}
-
-export async function addFoodLogEntry(payload: FoodLogEntryInput): Promise<FoodLogSummary> {
-  return readJson<FoodLogSummary>(
-    await fetch(buildApiUrl('/nutrition/food-logs/today/entries'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+async function fetchFoodLogs(accessToken: string): Promise<ApiFoodLog[]> {
+  return readJson<ApiFoodLog[]>(
+    await fetch(buildApiUrl('/nutrition/logs'), {
+      headers: authHeaders(accessToken)
     })
   );
+}
+
+async function createFoodLogForDate(logDate: string, accessToken: string): Promise<ApiFoodLog> {
+  return readJson<ApiFoodLog>(
+    await fetch(buildApiUrl('/nutrition/logs'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ log_date: logDate })
+    })
+  );
+}
+
+export async function fetchTodaysFoodLog(accessToken: string): Promise<FoodLogSummary> {
+  const today = new Date().toISOString().slice(0, 10);
+  const logs = await fetchFoodLogs(accessToken);
+  const todaysLog = logs.find((log) => log.log_date === today);
+  if (!todaysLog) {
+    return {
+      date: today,
+      entries: [],
+      totals: {
+        calories: 0,
+        macros: { protein: 0, carbs: 0, fat: 0 }
+      }
+    };
+  }
+  return summarizeFoodLog(todaysLog);
+}
+
+export async function addFoodLogEntry(
+  payload: FoodLogEntryInput & {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  },
+  accessToken: string
+): Promise<FoodLogSummary> {
+  const today = new Date().toISOString().slice(0, 10);
+  const logs = await fetchFoodLogs(accessToken);
+  const todaysLog = logs.find((log) => log.log_date === today) ?? (await createFoodLogForDate(today, accessToken));
+
+  const updatedLog = await readJson<ApiFoodLog>(
+    await fetch(buildApiUrl(`/nutrition/logs/${todaysLog.id}/entries`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({
+        entry_type: 'food',
+        food_item_id: payload.food_id,
+        grams: payload.grams,
+        servings: 1,
+        calories: payload.calories,
+        protein: payload.protein,
+        carbs: payload.carbs,
+        fat: payload.fat
+      })
+    })
+  );
+
+  return summarizeFoodLog(updatedLog);
 }
 
 export async function calculateMeal(meal: MealInput): Promise<MealTotals> {
@@ -277,8 +398,12 @@ export async function fetchRecipes(): Promise<RecipeDefinition[]> {
   return readJson<RecipeDefinition[]>(await fetch(buildApiUrl('/recipes')));
 }
 
-export async function fetchFavoriteRecipes(): Promise<RecipeDefinition[]> {
-  return readJson<RecipeDefinition[]>(await fetch(buildApiUrl('/recipes/favorites')));
+export async function fetchFavoriteRecipes(accessToken: string): Promise<RecipeDefinition[]> {
+  return readJson<RecipeDefinition[]>(
+    await fetch(buildApiUrl('/recipes/favorites'), {
+      headers: authHeaders(accessToken)
+    })
+  );
 }
 
 export async function fetchIngestionQueue(accessToken: string): Promise<IngestionOutput[]> {
@@ -328,18 +453,20 @@ export async function fetchRecipe(recipeId: string): Promise<RecipeDefinition> {
   return readJson<RecipeDefinition>(await fetch(buildApiUrl(`/recipes/${recipeId}`)));
 }
 
-export async function favoriteRecipe(recipeId: string): Promise<RecipeDefinition> {
+export async function favoriteRecipe(recipeId: string, accessToken: string): Promise<RecipeDefinition> {
   return readJson<RecipeDefinition>(
     await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
-      method: 'POST'
+      method: 'POST',
+      headers: authHeaders(accessToken)
     })
   );
 }
 
-export async function unfavoriteRecipe(recipeId: string): Promise<RecipeDefinition> {
+export async function unfavoriteRecipe(recipeId: string, accessToken: string): Promise<RecipeDefinition> {
   return readJson<RecipeDefinition>(
     await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: authHeaders(accessToken)
     })
   );
 }
