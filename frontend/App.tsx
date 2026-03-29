@@ -1426,7 +1426,14 @@ export default function App(): ReactElement {
       !Number.isFinite(target_weight_lbs) ||
       target_weight_lbs <= 0
     ) {
+      setOnboardingStatus('Could not save onboarding');
       setOnboardingError('Enter a valid age, height, weight, and target weight before continuing.');
+      return;
+    }
+
+    if (!foodSessionToken) {
+      setOnboardingStatus('Could not save onboarding');
+      setOnboardingError('Create a live local session before continuing to the app.');
       return;
     }
 
@@ -1437,34 +1444,32 @@ export default function App(): ReactElement {
     setOnboardingError(null);
 
     try {
-      if (foodSessionToken) {
-        const completed = await completeOnboarding(
-          {
-            sex: onboardingSexDraft,
-            age_years: Math.round(age_years),
-            height_cm,
-            current_weight_lbs: round1(current_weight_lbs),
-            goal_type: onboardingGoalTypeDraft,
-            target_weight_lbs: round1(target_weight_lbs),
-            activity_level: onboardingActivityLevelDraft
-          },
-          foodSessionToken
-        );
-        setProfile(completed);
+      const completed = await completeOnboarding(
+        {
+          sex: onboardingSexDraft,
+          age_years: Math.round(age_years),
+          height_cm,
+          current_weight_lbs: round1(current_weight_lbs),
+          goal_type: onboardingGoalTypeDraft,
+          target_weight_lbs: round1(target_weight_lbs),
+          activity_level: onboardingActivityLevelDraft
+        },
+        foodSessionToken
+      );
+      setProfile(completed);
 
-        const [loadedProfile, goals, progress, weights] = await Promise.all([
-          fetchProfile(foodSessionToken),
-          fetchUserGoals(foodSessionToken),
-          fetchProfileProgress(foodSessionToken),
-          fetchWeightEntries(foodSessionToken)
-        ]);
+      const [loadedProfile, goals, progress, weights] = await Promise.all([
+        fetchProfile(foodSessionToken),
+        fetchUserGoals(foodSessionToken),
+        fetchProfileProgress(foodSessionToken),
+        fetchWeightEntries(foodSessionToken)
+      ]);
 
-        setProfile(loadedProfile);
-        setProfileGoals(goals);
-        setProfileProgress(progress);
-        setWeightEntries(weights);
-        applyProfileDrafts(loadedProfile, goals);
-      }
+      setProfile(loadedProfile);
+      setProfileGoals(goals);
+      setProfileProgress(progress);
+      setWeightEntries(weights);
+      applyProfileDrafts(loadedProfile, goals);
 
       setProfileLoaded(true);
       setProfileTone('live');
