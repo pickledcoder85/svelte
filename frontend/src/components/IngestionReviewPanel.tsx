@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import {
   acceptIngestionOutput,
@@ -27,9 +27,6 @@ interface IngestionReviewPanelProps {
 
 type SyncTone = 'checking' | 'live';
 
-const defaultPackageBase64 = 'ZmFrZS1wYWNrYWdl';
-const defaultLabelBase64 = 'ZmFrZS1sYWJlbA==';
-
 export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps) {
   const [outputs, setOutputs] = useState<IngestionOutput[]>([]);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
@@ -40,8 +37,10 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const [packageBase64, setPackageBase64] = useState(defaultPackageBase64);
-  const [labelBase64, setLabelBase64] = useState(defaultLabelBase64);
+  const [packageBase64, setPackageBase64] = useState('');
+  const [labelBase64, setLabelBase64] = useState('');
+  const [packageFileName, setPackageFileName] = useState<string | null>(null);
+  const [labelFileName, setLabelFileName] = useState<string | null>(null);
   const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | null>(null);
   const [lastPackageScan, setLastPackageScan] = useState<VisionPackageScanResult | null>(null);
   const [savedFood, setSavedFood] = useState<FoodItem | null>(null);
@@ -266,6 +265,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
   const displayOutput = selectedOutput;
   const pendingCount = outputs.length;
+  const browserUploadsSupported = Platform.OS === 'web';
   const canReview =
     displayOutput !== null &&
     displayOutput.review_state === 'pending' &&
@@ -293,21 +293,36 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Camera simulator</Text>
+        <Text style={styles.cardLabel}>Browser image upload</Text>
         <Text style={styles.detailText}>
-          This browser slice uses base64 text inputs as a stand-in for image upload and future device capture.
+          Upload package and label images from the browser, then run the same scan, review, and save flow.
         </Text>
 
         <View style={styles.detailBlock}>
-          <Text style={styles.detailBlockLabel}>Package-front image payload</Text>
-          <TextInput
-            value={packageBase64}
-            onChangeText={setPackageBase64}
-            multiline
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.codeBlock, styles.inputBlock]}
-          />
+          <Text style={styles.detailBlockLabel}>Package-front image</Text>
+          {browserUploadsSupported ? (
+            <>
+              <View style={styles.uploadSummaryCard}>
+                <Text style={styles.uploadSummaryTitle}>{packageFileName ?? 'No package image selected'}</Text>
+                <Text style={styles.uploadSummaryDetail}>
+                  {packageBase64.length > 0
+                    ? 'Image data is ready for package-front analysis.'
+                    : 'Choose a package image to create a scan output.'}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={() => void selectBrowserImage(setPackageBase64, setPackageFileName, setQueueError)}
+                disabled={captureLoading !== null}
+              >
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                  {packageFileName ? 'Replace Package Image' : 'Choose Package Image'}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.detailNote}>Browser upload is the supported path for this slice.</Text>
+          )}
           <Pressable
             style={[styles.actionButton, styles.acceptButton]}
             onPress={() => void createPackageScan()}
@@ -343,15 +358,30 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         ) : null}
 
         <View style={styles.detailBlock}>
-          <Text style={styles.detailBlockLabel}>Nutrition-label image payload</Text>
-          <TextInput
-            value={labelBase64}
-            onChangeText={setLabelBase64}
-            multiline
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.codeBlock, styles.inputBlock]}
-          />
+          <Text style={styles.detailBlockLabel}>Nutrition-label image</Text>
+          {browserUploadsSupported ? (
+            <>
+              <View style={styles.uploadSummaryCard}>
+                <Text style={styles.uploadSummaryTitle}>{labelFileName ?? 'No label image selected'}</Text>
+                <Text style={styles.uploadSummaryDetail}>
+                  {labelBase64.length > 0
+                    ? 'Image data is ready for nutrition-label analysis.'
+                    : 'Choose a label image to create a reviewable label scan.'}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={() => void selectBrowserImage(setLabelBase64, setLabelFileName, setQueueError)}
+                disabled={captureLoading !== null}
+              >
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                  {labelFileName ? 'Replace Label Image' : 'Choose Label Image'}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.detailNote}>Browser upload is the supported path for this slice.</Text>
+          )}
           <Pressable
             style={[styles.actionButton, styles.acceptButton]}
             onPress={() => void createLabelScan()}
@@ -533,6 +563,57 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       </View>
     </View>
   );
+}
+
+async function selectBrowserImage(
+  setBase64: Dispatch<SetStateAction<string>>,
+  setFileName: Dispatch<SetStateAction<string | null>>,
+  setError: Dispatch<SetStateAction<string | null>>
+) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    setError('Browser file upload is unavailable in this environment.');
+    return;
+  }
+
+  try {
+    const selection = await openImageFilePicker();
+    if (!selection) {
+      return;
+    }
+
+    setBase64(selection.base64);
+    setFileName(selection.name);
+    setError(null);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Unable to load selected image.');
+  }
+}
+
+function openImageFilePicker(): Promise<{ base64: string; name: string } | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const [, base64 = ''] = result.split(',', 2);
+        resolve({ base64, name: file.name });
+      };
+      reader.onerror = () => {
+        reject(new Error(`Unable to read ${file.name}.`));
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
 }
 
 function buildPendingOutput(outputId: string, ingestionJobId: string, confidence: number, extraction: unknown): IngestionOutput {
@@ -809,6 +890,24 @@ const styles = StyleSheet.create({
     minHeight: 86,
     textAlignVertical: 'top'
   },
+  uploadSummaryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#d8e1eb',
+    padding: 12,
+    gap: 4
+  },
+  uploadSummaryTitle: {
+    color: '#132536',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  uploadSummaryDetail: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 18
+  },
   detailNote: {
     color: '#7a4e16',
     fontSize: 12,
@@ -840,10 +939,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f766e',
     borderColor: '#0f766e'
   },
+  secondaryButton: {
+    backgroundColor: '#ffffff',
+    borderColor: '#d7dee7'
+  },
   actionButtonLabel: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '800'
+  },
+  secondaryButtonLabel: {
+    color: '#17324d'
   },
   rejectButtonLabel: {
     color: '#8a3328'
