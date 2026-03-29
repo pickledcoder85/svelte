@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { acceptIngestionOutput, fetchIngestionQueue, rejectIngestionOutput } from '../lib/api';
-import { demoIngestionOutputs } from '../mock-data';
 import type { IngestionOutput } from '../types';
 import {
   describeOutput,
@@ -15,16 +14,12 @@ interface IngestionReviewPanelProps {
   accessToken: string | null;
 }
 
-type SyncTone = 'checking' | 'live' | 'demo';
+type SyncTone = 'checking' | 'live';
 
 export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps) {
-  const [outputs, setOutputs] = useState<IngestionOutput[]>(() => pendingOutputs(demoIngestionOutputs));
-  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(
-    () => pendingOutputs(demoIngestionOutputs)[0]?.id ?? null
-  );
-  const [selectedOutput, setSelectedOutput] = useState<IngestionOutput | null>(
-    () => pendingOutputs(demoIngestionOutputs)[0] ?? null
-  );
+  const [outputs, setOutputs] = useState<IngestionOutput[]>([]);
+  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
+  const [selectedOutput, setSelectedOutput] = useState<IngestionOutput | null>(null);
   const [tone, setTone] = useState<SyncTone>('checking');
   const [statusLabel, setStatusLabel] = useState('Loading pending outputs');
   const [statusDetail, setStatusDetail] = useState('Fetching the ingestion review queue.');
@@ -43,17 +38,16 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       setStatusDetail('Fetching the ingestion review queue.');
 
       if (!accessToken) {
-        const seeded = pendingOutputs(demoIngestionOutputs);
         if (cancelled) {
           return;
         }
 
-        setOutputs(seeded);
-        setSelectedOutputId(seeded[0]?.id ?? null);
-        setSelectedOutput(seeded[0] ?? null);
-        setTone('demo');
-        setStatusLabel('Demo ingestion review');
-        setStatusDetail('Reviewing seeded outputs while the backend session is unavailable.');
+        setOutputs([]);
+        setSelectedOutputId(null);
+        setSelectedOutput(null);
+        setTone('checking');
+        setStatusLabel('Sign in to review ingestion outputs');
+        setStatusDetail('The ingestion queue loads from the live backend session.');
         setQueueLoading(false);
         return;
       }
@@ -87,13 +81,12 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
           return;
         }
 
-        const seeded = pendingOutputs(demoIngestionOutputs);
-        setOutputs(seeded);
-        setSelectedOutputId(seeded[0]?.id ?? null);
-        setSelectedOutput(seeded[0] ?? null);
-        setTone('demo');
-        setStatusLabel('Demo ingestion review');
-        setStatusDetail('The backend queue is unavailable, so the app is showing seeded review outputs.');
+        setOutputs([]);
+        setSelectedOutputId(null);
+        setSelectedOutput(null);
+        setTone('checking');
+        setStatusLabel('Live ingestion queue unavailable');
+        setStatusDetail('The backend queue is unavailable right now.');
         setQueueError(error instanceof Error ? error.message : 'Ingestion queue unavailable.');
       } finally {
         if (!cancelled) {
@@ -133,7 +126,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       setStatusLabel(action === 'accept' ? 'Output accepted' : 'Output rejected');
       setStatusDetail(describeOutput(reviewed));
     } catch (error) {
-      setTone('demo');
+      setTone('checking');
       setStatusLabel('Review action failed');
       setStatusDetail('The selected output could not be updated.');
       setQueueError(error instanceof Error ? error.message : 'Unable to update ingestion review.');
@@ -161,7 +154,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
       <View style={styles.metricRow}>
         <MetricTile label="Pending" value={`${outputs.length}`} />
-        <MetricTile label="Session" value={accessToken ? 'Live' : 'Demo'} />
+        <MetricTile label="Session" value={accessToken ? 'Live' : 'Sign in required'} />
       </View>
 
       <View style={styles.card}>
@@ -268,9 +261,6 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 function toneColor(tone: SyncTone): string {
   if (tone === 'live') {
     return '#0f766e';
-  }
-  if (tone === 'demo') {
-    return '#b45309';
   }
   return '#1d4ed8';
 }

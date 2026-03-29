@@ -19,7 +19,6 @@ import {
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
-  calculateMeal,
   createLocalSession,
   completeOnboarding,
   createUserGoal,
@@ -38,7 +37,6 @@ import {
   fetchTodaysFoodLog,
   fetchWeeklyMetrics,
   favoriteRecipe,
-  importRecipe,
   searchFoodsWithSession,
   unfavoriteFood,
   updateProfile,
@@ -69,29 +67,23 @@ import {
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
-import {
-  demoDashboardSnapshot,
-  demoFoodResults,
-  demoMeal,
-  demoRangeSeries,
-  demoRecipeFavorites,
-  demoRecipeCatalog,
-  demoRecipeImports
-} from './src/mock-data';
 import type {
   AppSection,
   DashboardRange,
   DashboardSnapshot,
+  DashboardRangeSeries,
   ExerciseEntry,
   FoodItem,
   FoodLogSummary,
   MealInput,
+  MealTotals,
   MealPlanDay,
   MealPrepTask,
   ProfileProgress,
   RecipeDefinition,
   UserGoal,
   UserProfile,
+  WeeklyMetrics,
   WeightEntry
 } from './src/types';
 
@@ -112,44 +104,95 @@ type ScaleStop = (typeof scaleStops)[number];
 const chartHeight = 160;
 const heroBrandImage = require('./assets/favicon.png');
 
-function toneColor(tone: 'checking' | 'live' | 'demo'): string {
+function toneColor(tone: 'checking' | 'live'): string {
   if (tone === 'live') {
     return '#0f766e';
   }
-  if (tone === 'demo') {
-    return '#b45309';
-  }
   return '#1d4ed8';
+}
+
+function createEmptyWeeklyMetrics(): WeeklyMetrics {
+  return {
+    calorie_goal: 0,
+    calories_consumed: 0,
+    macro_targets: { protein: 0, carbs: 0, fat: 0 },
+    macro_consumed: { protein: 0, carbs: 0, fat: 0 },
+    weekly_weight_change: 0,
+    adherence_score: 0
+  };
+}
+
+function createEmptyMealTotals(): MealTotals {
+  return {
+    calories: 0,
+    macros: { protein: 0, carbs: 0, fat: 0 },
+    per_serving_calories: 0,
+    per_serving_macros: { protein: 0, carbs: 0, fat: 0 }
+  };
+}
+
+function createEmptyDashboardRangeSeries(range: DashboardRange): DashboardRangeSeries {
+  return {
+    range,
+    label: range,
+    detail: 'Live summary is loading',
+    targetCalories: 0,
+    caloriesConsumed: 0,
+    macroTargets: { protein: 0, carbs: 0, fat: 0 },
+    macroConsumed: { protein: 0, carbs: 0, fat: 0 },
+    points: [
+      { label: 'Start', calories: 0 },
+      { label: 'Mid', calories: 0 },
+      { label: 'Late', calories: 0 },
+      { label: 'Now', calories: 0 }
+    ]
+  };
+}
+
+function createEmptyDashboardSnapshot(): DashboardSnapshot {
+  return {
+    connectionLabel: 'Loading live summary',
+    connectionDetail: 'Waiting for backend metrics.',
+    weeklyMetrics: createEmptyWeeklyMetrics(),
+    mealTotals: createEmptyMealTotals(),
+    rangeSeries: rangeTabs.map((range) => createEmptyDashboardRangeSeries(range))
+  };
+}
+
+function createEmptyMealDraft(): MealInput {
+  return {
+    id: 'meal-draft',
+    name: 'Untitled meal',
+    serving_count: 1,
+    ingredients: []
+  };
 }
 
 export default function App(): ReactElement {
   const [section, setSection] = useState<AppSection>('dashboard');
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot>({
-    ...demoDashboardSnapshot,
-    rangeSeries: demoRangeSeries
-  });
-  const [syncTone, setSyncTone] = useState<'checking' | 'live' | 'demo'>('checking');
-  const [syncLabel, setSyncLabel] = useState('Checking backend');
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
+  const [syncTone, setSyncTone] = useState<'checking' | 'live'>('checking');
+  const [syncLabel, setSyncLabel] = useState('Loading live summary');
   const [syncDetail, setSyncDetail] = useState('Waiting for live backend data.');
   const [mealScale, setMealScale] = useState<ScaleStop>(1);
   const [recipeScale, setRecipeScale] = useState<ScaleStop>(1);
-  const [mealDraft, setMealDraft] = useState<MealInput>(() => demoMeal);
+  const [mealDraft, setMealDraft] = useState<MealInput>(() => createEmptyMealDraft());
   const [foodDraft, setFoodDraft] = useState('');
   const [foodSearchTerm, setFoodSearchTerm] = useState('');
   const [foodSessionToken, setFoodSessionToken] = useState<string | null>(null);
-  const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>(() => sortFoodsForPicker(demoFoodResults));
-  const [foodResults, setFoodResults] = useState<FoodItem[]>(() => sortFoodsForPicker(demoFoodResults));
-  const [selectedFoodId, setSelectedFoodId] = useState(() => sortFoodsForPicker(demoFoodResults)[0]?.id ?? '');
+  const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([]);
+  const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
+  const [selectedFoodId, setSelectedFoodId] = useState('');
   const [foodQuantities, setFoodQuantities] = useState<Record<string, number>>({});
-  const [foodTone, setFoodTone] = useState<'checking' | 'live' | 'demo'>('checking');
-  const [foodStatus, setFoodStatus] = useState('Starter favorites ready');
+  const [foodTone, setFoodTone] = useState<'checking' | 'live'>('checking');
+  const [foodStatus, setFoodStatus] = useState('Loading favorite foods');
   const [foodError, setFoodError] = useState<string | null>(null);
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileGoals, setProfileGoals] = useState<UserGoal[]>([]);
-  const [profileTone, setProfileTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [profileTone, setProfileTone] = useState<'checking' | 'live'>('checking');
   const [profileStatus, setProfileStatus] = useState('Loading profile settings');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -185,19 +228,19 @@ export default function App(): ReactElement {
   const [selectedLogFoodId, setSelectedLogFoodId] = useState('');
   const [logGrams, setLogGrams] = useState('100');
   const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
-  const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live'>('checking');
   const [foodLogStatus, setFoodLogStatus] = useState("Loading today's log");
   const [foodLogError, setFoodLogError] = useState<string | null>(null);
   const [foodLogLoading, setFoodLogLoading] = useState(true);
   const [isSavingLogEntry, setIsSavingLogEntry] = useState(false);
-  const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live'>('checking');
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
   const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
   const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
-  const [trackerTone, setTrackerTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [trackerTone, setTrackerTone] = useState<'checking' | 'live'>('checking');
   const [trackerStatus, setTrackerStatus] = useState('Loading tracker data');
   const [trackerError, setTrackerError] = useState<string | null>(null);
   const [recipeFavorites, setRecipeFavorites] = useState<RecipeDefinition[]>([]);
@@ -205,25 +248,23 @@ export default function App(): ReactElement {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeDefinition | null>(null);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
-  const [recipeTone, setRecipeTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [recipeTone, setRecipeTone] = useState<'checking' | 'live'>('checking');
   const [recipeStatus, setRecipeStatus] = useState('Loading recipe favorites');
   const [recipeError, setRecipeError] = useState<string | null>(null);
   const [recipeLoading, setRecipeLoading] = useState(true);
   const [recipeDetailLoading, setRecipeDetailLoading] = useState(false);
   const [recipeSavingId, setRecipeSavingId] = useState<string | null>(null);
-  const [recipeImportTone, setRecipeImportTone] = useState<'checking' | 'live' | 'demo'>('checking');
-  const [recipeImportStatus, setRecipeImportStatus] = useState('Loading recipe import review');
+  const [recipeImportTone, setRecipeImportTone] = useState<'checking' | 'live'>('checking');
+  const [recipeImportStatus, setRecipeImportStatus] = useState('No imported recipe selected');
   const [recipeImportError, setRecipeImportError] = useState<string | null>(null);
-  const [recipeImportLoading, setRecipeImportLoading] = useState(true);
-  const [importedRecipeId, setImportedRecipeId] = useState<string | null>(null);
   const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>([]);
   const [selectedMealPlanDate, setSelectedMealPlanDate] = useState<string | null>(null);
   const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, boolean>>>({});
-  const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
   const [mealPrepTasks, setMealPrepTasks] = useState<MealPrepTask[]>([]);
-  const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live' | 'demo'>('checking');
+  const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live'>('checking');
   const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
   const [exerciseSaving, setExerciseSaving] = useState(false);
@@ -249,44 +290,36 @@ export default function App(): ReactElement {
           return;
         }
 
-        const mergedFavorites = sortFoodsForPicker(
-          mergeFoodsById(demoFoodResults, favorites.map((food) => ({ ...food, favorite: true })))
-        );
-        setFavoriteFoods(mergedFavorites);
-        setFoodResults((current) =>
-          foodSearchTerm.trim() ? current : mergedFavorites
-        );
-        setSelectedFoodId((current) => selectFoodById(mergedFavorites, current)?.id ?? mergedFavorites[0]?.id ?? '');
+        const liveFavorites = sortFoodsForPicker(favorites.map((food) => ({ ...food, favorite: true })));
+        setFavoriteFoods(liveFavorites);
+        setFoodResults((current) => (foodSearchTerm.trim() ? current : liveFavorites));
+        setSelectedFoodId((current) => selectFoodById(liveFavorites, current)?.id ?? liveFavorites[0]?.id ?? '');
         setFoodTone('live');
-        setFoodStatus(`${mergedFavorites.length} favorite foods cached for this session`);
+        setFoodStatus(`${liveFavorites.length} favorite foods loaded`);
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        const seededFavorites = sortFoodsForPicker(demoFoodResults);
         setFoodSessionToken(null);
-        setFavoriteFoods(seededFavorites);
-        setFoodResults((current) => (foodSearchTerm.trim() ? current : seededFavorites));
-        setSelectedFoodId((current) => selectFoodById(seededFavorites, current)?.id ?? seededFavorites[0]?.id ?? '');
-        setFoodTone('demo');
-        setFoodStatus(`${seededFavorites.length} seeded favorite foods ready`);
+        setFavoriteFoods([]);
+        setFoodResults([]);
+        setSelectedFoodId('');
+        setFoodTone('checking');
+        setFoodStatus('Favorite foods unavailable');
         setFoodError(error instanceof Error ? error.message : 'Favorite foods unavailable.');
       }
     }
 
     async function syncBackend() {
-      setRecipeImportLoading(true);
       setRecipeImportTone('checking');
-      setRecipeImportStatus('Reviewing imported recipe');
+      setRecipeImportStatus('Loading live dashboard summary');
       setRecipeImportError(null);
 
       try {
-        const [health, metrics, totals, recipeImport] = await Promise.all([
+        const [health, metrics] = await Promise.all([
           fetchBackendHealth(),
-          fetchWeeklyMetrics(),
-          calculateMeal(demoMeal),
-          importRecipe(demoRecipeImports)
+          fetchWeeklyMetrics()
         ]);
 
         if (cancelled) {
@@ -294,33 +327,38 @@ export default function App(): ReactElement {
         }
 
         setSnapshot({
-          ...demoDashboardSnapshot,
           connectionLabel: health.service,
           connectionDetail: `Connected at ${new Date(health.timestamp).toLocaleTimeString([], {
             hour: 'numeric',
             minute: '2-digit'
           })}`,
           weeklyMetrics: metrics,
-          mealTotals: totals,
-          rangeSeries: demoRangeSeries.map((series) =>
-            series.range === '1W'
+          mealTotals: mealTotals(mealDraft),
+          rangeSeries: rangeTabs.map((range) =>
+            range === '1W'
               ? {
-                  ...series,
+                  range,
+                  label: '1W',
+                  detail: `${metrics.calories_consumed.toLocaleString()} kcal tracked from the live summary`,
                   targetCalories: metrics.calorie_goal,
                   caloriesConsumed: metrics.calories_consumed,
                   macroTargets: metrics.macro_targets,
-                  macroConsumed: metrics.macro_consumed
+                  macroConsumed: metrics.macro_consumed,
+                  points: [
+                    { label: 'Start', calories: Math.round(metrics.calorie_goal * 0.2) },
+                    { label: 'Mid', calories: Math.round(metrics.calories_consumed * 0.4) },
+                    { label: 'Late', calories: Math.round(metrics.calories_consumed * 0.7) },
+                    { label: 'Now', calories: metrics.calories_consumed }
+                  ]
                 }
-              : series
+              : createEmptyDashboardRangeSeries(range)
           ),
-          recipeImport
         });
-        setImportedRecipeId(recipeImport.id);
         setRecipeImportTone('live');
-        setRecipeImportStatus(`Imported "${recipeImport.title}" and selected it for review`);
+        setRecipeImportStatus('No imported recipe selected yet');
         setSyncTone('live');
         setSyncLabel('Live backend');
-        setSyncDetail('Expo is reading live metrics and recipes from the Python API.');
+        setSyncDetail('Expo is reading live summary metrics from the Python API.');
       } catch (error) {
         if (cancelled) {
           return;
@@ -329,12 +367,9 @@ export default function App(): ReactElement {
         setSyncTone('checking');
         setSyncLabel('Backend unavailable');
         setSyncDetail(error instanceof Error ? error.message : 'Backend unavailable.');
-        setRecipeImportTone('demo');
-        setRecipeImportStatus('Showing seeded recipe import review');
+        setRecipeImportTone('checking');
+        setRecipeImportStatus('Live recipe import unavailable');
         setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
-      }
-      if (!cancelled) {
-        setRecipeImportLoading(false);
       }
     }
 
@@ -359,8 +394,8 @@ export default function App(): ReactElement {
         setProfileDisplayNameDraft('');
         setProfileTimezoneDraft('UTC');
         setProfileUnitsDraft('imperial');
-        setProfileTone('demo');
-        setProfileStatus('Profile session unavailable, showing the app in fallback mode');
+        setProfileTone('checking');
+        setProfileStatus('Profile session unavailable');
         setProfileError('No active profile session.');
         return;
       }
@@ -573,16 +608,16 @@ export default function App(): ReactElement {
     async function syncFoodSearch() {
       const query = foodSearchTerm.trim();
       if (!query) {
-        const seededFoods = sortFoodsForPicker(favoriteFoods);
+        const liveFavorites = sortFoodsForPicker(favoriteFoods);
         setFoodStatus(
-          seededFoods.length === 0
-            ? 'No favorites cached yet'
-            : `${seededFoods.length} cached favorites ready`
+          liveFavorites.length === 0
+            ? 'No favorite foods loaded yet'
+            : `${liveFavorites.length} favorite foods loaded`
         );
-        setFoodTone(foodSessionToken ? 'live' : 'demo');
+        setFoodTone(foodSessionToken ? 'live' : 'checking');
         setFoodError(null);
-        setFoodResults(seededFoods);
-        setSelectedFoodId((current) => selectFoodById(seededFoods, current)?.id ?? seededFoods[0]?.id ?? '');
+        setFoodResults(liveFavorites);
+        setSelectedFoodId((current) => selectFoodById(liveFavorites, current)?.id ?? liveFavorites[0]?.id ?? '');
         return;
       }
 
@@ -607,7 +642,7 @@ export default function App(): ReactElement {
         const filteredResults = filterFoodsFuzzy(mergedResults, query);
         setFoodResults(filteredResults);
         setSelectedFoodId((current) => selectFoodById(filteredResults, current)?.id ?? filteredResults[0]?.id ?? '');
-        setFoodTone(foodSessionToken ? 'live' : 'demo');
+        setFoodTone(foodSessionToken ? 'live' : 'checking');
         setFoodStatus(
           `${filteredResults.length} match${filteredResults.length === 1 ? '' : 'es'} across favorites and live search`
         );
@@ -619,8 +654,8 @@ export default function App(): ReactElement {
         const filteredResults = filterFoodsFuzzy(favoriteFoods, query);
         setFoodResults(filteredResults);
         setSelectedFoodId((current) => selectFoodById(filteredResults, current)?.id ?? filteredResults[0]?.id ?? '');
-        setFoodTone('demo');
-        setFoodStatus('Showing fuzzy matches from cached favorites');
+        setFoodTone('checking');
+        setFoodStatus('Showing cached favorite matches');
         setFoodError(error instanceof Error ? error.message : 'Food search unavailable.');
       }
     }
@@ -643,8 +678,8 @@ export default function App(): ReactElement {
     async function syncLogFoodSearch() {
       const query = logFoodSearchTerm.trim();
       if (!query) {
-        setLogFoodResults(demoFoodResults);
-        setSelectedLogFoodId(demoFoodResults[0].id);
+        setLogFoodResults([]);
+        setSelectedLogFoodId('');
         setLogSearchTone('checking');
         setLogSearchStatus('Enter a food search to add something to today');
         setLogSearchError(null);
@@ -739,12 +774,12 @@ export default function App(): ReactElement {
           return;
         }
 
-        setRecipeCatalog(demoRecipeCatalog);
-        setRecipeFavorites(demoRecipeFavorites);
-        setSelectedRecipeId(demoRecipeFavorites[0]?.id ?? demoRecipeCatalog[0]?.id ?? null);
-        setSelectedRecipe(demoRecipeFavorites[0] ?? demoRecipeCatalog[0] ?? null);
-        setRecipeTone('demo');
-        setRecipeStatus('Showing demo recipe favorites');
+        setRecipeCatalog([]);
+        setRecipeFavorites([]);
+        setSelectedRecipeId(null);
+        setSelectedRecipe(null);
+        setRecipeTone('checking');
+        setRecipeStatus('Recipe favorites unavailable');
         setRecipeError(error instanceof Error ? error.message : 'Recipe favorites unavailable.');
       } finally {
         if (!cancelled) {
@@ -759,12 +794,6 @@ export default function App(): ReactElement {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (importedRecipeId) {
-      setSelectedRecipeId(importedRecipeId);
-    }
-  }, [importedRecipeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -791,16 +820,10 @@ export default function App(): ReactElement {
           return;
         }
 
-        const fallback =
-          recipeCatalog.find((item) => item.id === selectedRecipeId) ??
-          recipeFavorites.find((item) => item.id === selectedRecipeId) ??
-          null;
-        setSelectedRecipe(fallback);
-        if (fallback === null) {
-          setRecipeTone('demo');
-          setRecipeStatus('Showing demo recipe detail');
-          setRecipeError(error instanceof Error ? error.message : 'Recipe detail unavailable.');
-        }
+        setSelectedRecipe(null);
+        setRecipeTone('checking');
+        setRecipeStatus('Recipe detail unavailable');
+        setRecipeError(error instanceof Error ? error.message : 'Recipe detail unavailable.');
       } finally {
         if (!cancelled) {
           setRecipeDetailLoading(false);
@@ -819,7 +842,6 @@ export default function App(): ReactElement {
     () => selectRangeSeries(snapshot.rangeSeries, activeRange),
     [activeRange, snapshot.rangeSeries]
   );
-  const recipeImportResult = snapshot.recipeImport ?? null;
   const selectedFood = useMemo(
     () => selectFoodById(foodResults, selectedFoodId),
     [foodResults, selectedFoodId]
@@ -863,7 +885,6 @@ export default function App(): ReactElement {
     () => (selectedRecipePreview ? mealTotals(selectedRecipePreview) : null),
     [selectedRecipePreview]
   );
-  const importedRecipeSelected = importedRecipeId !== null && selectedRecipeId === importedRecipeId;
   const logEntryPreview = useMemo(() => {
     if (!selectedLogFood || selectedLogFood.serving_size <= 0) {
       return null;
@@ -934,7 +955,7 @@ export default function App(): ReactElement {
     setFavoriteFoods(nextFavorites);
     setFoodResults(nextResults);
     setSelectedFoodId(food.id);
-    setFoodTone(foodSessionToken ? 'checking' : 'demo');
+    setFoodTone('checking');
     setFoodStatus(nextFavorite ? `Saving ${food.name} to favorite foods` : `Removing ${food.name} from favorite foods`);
     setFoodError(null);
 
@@ -946,7 +967,7 @@ export default function App(): ReactElement {
           await unfavoriteFood(food.id, foodSessionToken);
         }
       }
-      setFoodTone(foodSessionToken ? 'live' : 'demo');
+      setFoodTone('live');
       setFoodStatus(nextFavorite ? `${food.name} added to favorite foods` : `${food.name} removed from favorite foods`);
     } catch (error) {
       const revertedFavorites = favoriteFoods;
@@ -954,7 +975,7 @@ export default function App(): ReactElement {
       setFavoriteFoods(revertedFavorites);
       setFoodResults(revertedResults);
       setSelectedFoodId((current) => selectFoodById(revertedResults, current)?.id ?? revertedResults[0]?.id ?? '');
-      setFoodTone('demo');
+      setFoodTone('checking');
       setFoodStatus(`Could not save ${food.name}`);
       setFoodError(error instanceof Error ? error.message : 'Unable to save favorite food.');
     } finally {
@@ -1271,11 +1292,11 @@ export default function App(): ReactElement {
         const updated = await updateMealPrepTaskStatus(taskId, nextStatus, foodSessionToken);
         setMealPrepTasks((current) => current.map((task) => (task.id === taskId ? updated : task)));
       }
-      setMealPrepTone(foodSessionToken ? 'live' : 'demo');
+      setMealPrepTone('live');
       setMealPrepStatus(`${currentTask.title} marked ${nextStatus.toLowerCase()}`);
     } catch (error) {
       setMealPrepTasks((current) => current.map((task) => (task.id === taskId ? currentTask : task)));
-      setMealPrepTone('demo');
+      setMealPrepTone('checking');
       setMealPrepStatus(`Could not update ${currentTask.title}`);
       setMealPrepError(error instanceof Error ? error.message : 'Unable to update meal prep task.');
     } finally {
@@ -1323,8 +1344,27 @@ export default function App(): ReactElement {
   }
 
   function resetMealDraft() {
-    setMealDraft(demoMeal);
+    setMealDraft(createEmptyMealDraft());
     setMealScale(1);
+  }
+
+  function updateMealName(name: string) {
+    setMealDraft((current) => ({
+      ...current,
+      name
+    }));
+  }
+
+  function updateMealServings(value: string) {
+    const nextServingCount = Number(value);
+    if (!Number.isFinite(nextServingCount) || nextServingCount <= 0) {
+      return;
+    }
+
+    setMealDraft((current) => ({
+      ...current,
+      serving_count: round1(nextServingCount)
+    }));
   }
 
   function updateRecipeCollection(recipes: RecipeDefinition[], updatedRecipe: RecipeDefinition): RecipeDefinition[] {
@@ -1376,7 +1416,7 @@ export default function App(): ReactElement {
       setRecipeFavorites(previousFavorites);
       setSelectedRecipe(previousSelected);
       setSelectedRecipeId(previousSelectedId);
-      setRecipeTone('demo');
+      setRecipeTone('checking');
       setRecipeStatus(`Could not update ${recipe.title}`);
       setRecipeError(error instanceof Error ? error.message : 'Unable to update recipe favorite.');
     } finally {
@@ -2627,10 +2667,35 @@ export default function App(): ReactElement {
         {section === 'meals' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal builder</Text>
-            <Text style={styles.panelTitle}>{demoMeal.name}</Text>
+            <TextInput
+              value={mealDraft.name}
+              onChangeText={updateMealName}
+              placeholder="Untitled meal"
+              placeholderTextColor="#7c8aa5"
+              style={styles.mealNameInput}
+              autoCapitalize="words"
+            />
             <Text style={styles.panelDetail}>
               Adjust the draft ingredients, then snap the serving scale to a fixed stop for a fast mobile-friendly preview.
             </Text>
+
+            <View style={styles.mealBuilderHeaderRow}>
+              <View style={styles.mealServingWrap}>
+                <Text style={styles.mealMetaLabel}>Servings</Text>
+                <TextInput
+                  value={String(mealDraft.serving_count)}
+                  onChangeText={updateMealServings}
+                  keyboardType="numeric"
+                  inputMode="decimal"
+                  style={styles.mealServingInput}
+                />
+              </View>
+              <View style={styles.mealBuilderHintWrap}>
+                <Text style={styles.mealBuilderHint}>
+                  Local draft only until meal persistence lands on the backend contract.
+                </Text>
+              </View>
+            </View>
 
             <ScaleStopSelector
               label="Meal scale"
@@ -2712,35 +2777,12 @@ export default function App(): ReactElement {
 
             <View style={styles.recipeImportCard}>
               <Text style={styles.recipeMetaLabel}>Import review</Text>
-              {recipeImportLoading ? (
-                <View style={styles.recipeDetailLoading}>
-                  <ActivityIndicator size="small" color="#17324d" />
-                  <Text style={styles.detailSubtitle}>Waiting for the imported recipe result...</Text>
-                </View>
-              ) : recipeImportResult ? (
-                <>
-                  <View style={styles.recipeDetailHeader}>
-                    <View style={styles.recipeDetailHeaderCopy}>
-                      <Text style={styles.detailTitle}>{recipeImportResult.title}</Text>
-                      <Text style={styles.detailSubtitle}>
-                        Imported recipe {recipeImportResult.favorite ? 'saved' : 'not yet starred'} ·{' '}
-                        {importedRecipeSelected ? 'selected for review' : 'tap below to review'}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={styles.recipeStarToggle}
-                      onPress={() => setSelectedRecipeId(recipeImportResult.id)}
-                    >
-                      <Text style={styles.recipeStarToggleLabel}>Review</Text>
-                    </Pressable>
-                  </View>
-                  <Text style={styles.recipeMetaItem}>
-                    Result id: {recipeImportResult.id} · Favorite state: {recipeImportResult.favorite ? 'saved' : 'draft'}
-                  </Text>
-                </>
-              ) : (
-                <Text style={styles.detailSubtitle}>No recipe import result is available yet.</Text>
-              )}
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>No live recipe import selected</Text>
+                <Text style={styles.detailSubtitle}>
+                  Imported recipes will appear here after a real text, PDF, or image upload is submitted.
+                </Text>
+              </View>
             </View>
 
             <View style={styles.recipeSection}>
@@ -2830,11 +2872,6 @@ export default function App(): ReactElement {
                                   <View style={styles.recipeDetailHeaderCopy}>
                                     <View style={styles.recipeRowTitleWrap}>
                                       <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
-                                      {importedRecipeId === recipe.id ? (
-                                        <View style={styles.recipeReviewBadge}>
-                                          <Text style={styles.recipeReviewBadgeLabel}>Imported review</Text>
-                                        </View>
-                                      ) : null}
                                     </View>
                                     <Text style={styles.detailSubtitle}>
                                       {detailRecipe.steps.length} steps · {detailRecipe.ingredients.length} ingredients ·{' '}
@@ -2922,17 +2959,14 @@ export default function App(): ReactElement {
             <View style={styles.recipeSecondaryCard}>
               <Text style={styles.panelEyebrow}>Import and scale</Text>
               <Text style={styles.panelDetail}>
-                Text, PDF, and image ingestion stay in the secondary flow while favorites remain primary.
+                Text, PDF, and image ingestion will appear here once the import composer is wired in.
               </Text>
-              {demoRecipeImports.sources.map((source) => (
-                <View key={source.kind} style={styles.listRow}>
-                  <View>
-                    <Text style={styles.listTitle}>{source.label}</Text>
-                    <Text style={styles.listCaption}>{source.kind.toUpperCase()}</Text>
-                  </View>
-                  <Text style={styles.listMetric}>Ready</Text>
-                </View>
-              ))}
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>No live import composer yet</Text>
+                <Text style={styles.detailSubtitle}>
+                  Imported recipes will show up here after a real text, PDF, or image submission.
+                </Text>
+              </View>
             </View>
           </View>
         )}
@@ -3514,6 +3548,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
+  },
+  mealNameInput: {
+    borderWidth: 1,
+    borderColor: '#d4dbe3',
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    color: '#132536',
+    fontSize: 18,
+    fontWeight: '700',
+    paddingHorizontal: 16,
+    paddingVertical: 12
+  },
+  mealBuilderHeaderRow: {
+    gap: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between'
+  },
+  mealServingWrap: {
+    gap: 6,
+    minWidth: 120
+  },
+  mealMetaLabel: {
+    color: '#7a8797',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  mealServingInput: {
+    borderWidth: 1,
+    borderColor: '#d4dbe3',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    color: '#132536',
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 88,
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  mealBuilderHintWrap: {
+    flex: 1,
+    minWidth: 220
   },
   metricTile: {
     flexGrow: 1,
