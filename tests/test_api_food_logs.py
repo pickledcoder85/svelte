@@ -51,6 +51,9 @@ async def test_food_log_create_read_and_weekly_metrics(client, repository):
     updated_log = entry_response.json()
     assert len(updated_log["entries"]) == 1
     assert updated_log["entries"][0]["calories"] == 311.2
+    assert updated_log["entries"][0]["display_name"] == "Rolled oats"
+    assert updated_log["entries"][0]["brand"] is None
+    assert updated_log["entries"][0]["source"] == "CUSTOM"
 
     list_response = await client.get(
         "/api/nutrition/logs?week_start=2026-03-23&week_end=2026-03-29",
@@ -61,11 +64,13 @@ async def test_food_log_create_read_and_weekly_metrics(client, repository):
     assert len(logs) == 1
     assert logs[0]["id"] == food_log["id"]
     assert logs[0]["entries"][0]["food_item_id"] == "food-oats"
+    assert logs[0]["entries"][0]["display_name"] == "Rolled oats"
 
     read_response = await client.get(f"/api/nutrition/logs/{food_log['id']}", headers=headers)
     assert read_response.status_code == 200
     read_log = read_response.json()
     assert read_log["entries"][0]["id"] == updated_log["entries"][0]["id"]
+    assert read_log["entries"][0]["display_name"] == "Rolled oats"
 
     entries_response = await client.get(
         f"/api/nutrition/logs/{food_log['id']}/entries",

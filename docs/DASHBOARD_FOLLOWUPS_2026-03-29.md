@@ -22,9 +22,18 @@ The dashboard now uses a simpler, analysis-first layout:
 
 - `Net Calories` is the default selected dashboard metric.
 - Tapping `Protein`, `Carbs`, `Fat`, or `Fiber` changes the chart to that metric.
+- The macro rings inside the header cards now display their percentages directly in the ring center.
+- The protein, carb, and fat rings represent calorie-share contribution across the selected range, not percent-of-goal completion.
+- The fiber card remains in the header, but when no persisted fiber intake exists it shows `—` instead of echoing the placeholder goal value.
 - For `1W`, `1M`, and `3M`, the chart currently treats the visible series as daily totals compared against a flat daily goal guide.
 - The chart now includes a legend for the active data series and its goal line.
 - The previous duplicate macro summary section below the chart was removed to keep the page simpler.
+
+## Related profile input work now in place
+
+- The Profile screen now includes a small live weight-entry form.
+- Saving a weigh-in posts to `/profile/weights` and then refreshes both the progress snapshot and weight-entry history from the backend.
+- This is the first intentionally lightweight persisted-input loop added to support safe iteration before the broader tracker input cleanup lands.
 
 ## Important current limitations
 
@@ -66,6 +75,7 @@ Recommended future behavior:
 4. Add an optional `Daily` vs `Cumulative` toggle only if users later need both views for longer timeframes.
 5. Tighten the selected-card styling and chart legend styling for stronger visual emphasis.
 6. Revisit whether `3M` should stay daily or move to weekly aggregation once real data density increases.
+7. Add dedicated profile weight-history UI beyond the current save form, including clearer recent-entry review and edit/delete decisions.
 
 ## Files affected by the current dashboard model
 

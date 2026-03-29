@@ -7,6 +7,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Cross-platform Expo / React Native architecture with browser preview and Expo Go support on iPhone.
 - Weekly dashboard for calorie goals, calories consumed, macro targets, and adherence trends.
 - Session-aware daily food logging with persisted totals and weekly metrics.
+- Goal-based nutrition planning direction documented for future onboarding and profile target generation.
 - USDA-backed nutrition search API route for standardized calorie and macro data.
 - Session-aware auth scaffolding and environment-backed provider config.
 - Persisted meal templates with ingredient rows, serving counts, and per-serving calorie/macro totals.
@@ -30,7 +31,7 @@ Backend:
 
 - `conda activate svelte`
 - `pip install -e ".[dev]"`
-- `python -m backend.app.db.bootstrap`
+- `python -m backend.app.db.bootstrap --reset --seed-dev`
 - `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
 - `pytest`
 
@@ -73,7 +74,7 @@ Relational notes:
 
 1. `conda activate svelte`.
 2. Install Python dependencies with `pip install -e ".[dev]"`.
-3. Initialize the local database with `python -m backend.app.db.bootstrap`.
+3. Initialize the local development database with `python -m backend.app.db.bootstrap --reset --seed-dev`.
 4. `cd frontend`.
 5. Install frontend dependencies with `npm install`.
 6. Return to the repo root.
@@ -86,12 +87,15 @@ Relational notes:
 13. If the phone is not on the same Wi-Fi or Expo Go stalls on the bundle download, run `npm start -- --tunnel` instead.
 14. Verify the backend at `http://localhost:8000/api/health`.
 
+For disposable local testing data, set `DATABASE_URL=sqlite:///./nutrition_os.dev.db` and use `python -m backend.app.db.bootstrap --reset --seed-dev` whenever you want a clean baseline.
+
 ## Engineering guidance
 
 - Process guidance lives in `AGENTS.md`, `SKILLS.md`, and `CONTRIBUTING.md`.
 - Environment and startup guidance lives in `docs/PROJECT_SETUP.md`.
 - Architecture planning lives in `docs/ARCHITECTURE_ROADMAP.md`, `docs/FRONTEND_PLAN.md`, `docs/BACKEND_PLAN.md`, and `docs/DATABASE_PLAN.md`.
 - Release history and planned tagging live in `CHANGELOG.md`.
+- Nutrition and exercise target-generation strategy lives in [docs/CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md).
 - Use feature branches and atomic commits once git is initialized locally.
 - Add tests for business logic changes before merge.
 - Treat mobile-first UX and Expo / React Native compatibility as baseline constraints, not later enhancements.

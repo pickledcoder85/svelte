@@ -19,6 +19,7 @@ import {
   addFavoriteFood,
   createExerciseEntry,
   createLocalSession,
+  createWeightEntry,
   completeOnboarding,
   createUserGoal,
   fetchBackendHealth,
@@ -121,6 +122,19 @@ function toneColor(tone: 'checking' | 'live'): string {
   return '#1d4ed8';
 }
 
+function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | undefined): string {
+  if (goalType === 'lose') {
+    return 'Weight Loss';
+  }
+  if (goalType === 'gain') {
+    return 'Weight Gain';
+  }
+  if (goalType === 'maintain') {
+    return 'Maintenance';
+  }
+  return '—';
+}
+
 function createEmptyWeeklyMetrics(): WeeklyMetrics {
   return {
     calorie_goal: 0,
@@ -211,6 +225,9 @@ export default function App(): ReactElement {
   const [goalSaving, setGoalSaving] = useState(false);
   const [profileProgress, setProfileProgress] = useState<ProfileProgress | null>(null);
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
+  const [weightRecordedAtDraft, setWeightRecordedAtDraft] = useState(() => new Date().toISOString().slice(0, 10));
+  const [weightValueDraft, setWeightValueDraft] = useState('');
+  const [weightSaving, setWeightSaving] = useState(false);
   const [profileDisplayNameDraft, setProfileDisplayNameDraft] = useState('');
   const [profileTimezoneDraft, setProfileTimezoneDraft] = useState('UTC');
   const [profileUnitsDraft, setProfileUnitsDraft] = useState<'imperial' | 'metric'>('imperial');
@@ -579,7 +596,10 @@ export default function App(): ReactElement {
       setFoodLogError(null);
 
       try {
-        const log = await fetchTodaysFoodLog();
+        if (!foodSessionToken) {
+          throw new Error('No active food session.');
+        }
+        const log = await fetchTodaysFoodLog(foodSessionToken);
 
         if (cancelled) {
           return;
@@ -614,7 +634,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foodSessionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -745,7 +765,10 @@ export default function App(): ReactElement {
       setRecipeError(null);
 
       try {
-        const [catalog, favorites] = await Promise.all([fetchRecipes(), fetchFavoriteRecipes()]);
+        if (!foodSessionToken) {
+          throw new Error('No active recipe session.');
+        }
+        const [catalog, favorites] = await Promise.all([fetchRecipes(), fetchFavoriteRecipes(foodSessionToken)]);
 
         if (cancelled) {
           return;
@@ -807,7 +830,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [foodSessionToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -966,6 +989,7 @@ export default function App(): ReactElement {
       points: { label: string; calories: number }[];
       accentColor?: string;
       ringPercentage?: number;
+      ringText?: string;
       chartTitle: string;
       legendLabel: string;
     }
@@ -992,6 +1016,7 @@ export default function App(): ReactElement {
       points: proteinPoints,
       accentColor: '#0f766e',
       ringPercentage: (macroCalories.protein / macroCalorieTotal) * 100,
+      ringText: `${Math.round((macroCalories.protein / macroCalorieTotal) * 100)}%`,
       chartTitle: `Protein tracked across ${activeRange}`,
       legendLabel: 'Daily protein'
     },
@@ -1004,6 +1029,7 @@ export default function App(): ReactElement {
       points: carbsPoints,
       accentColor: '#ea580c',
       ringPercentage: (macroCalories.carbs / macroCalorieTotal) * 100,
+      ringText: `${Math.round((macroCalories.carbs / macroCalorieTotal) * 100)}%`,
       chartTitle: `Carbs tracked across ${activeRange}`,
       legendLabel: 'Daily carbs'
     },
@@ -1016,18 +1042,20 @@ export default function App(): ReactElement {
       points: fatPoints,
       accentColor: '#2563eb',
       ringPercentage: (macroCalories.fat / macroCalorieTotal) * 100,
+      ringText: `${Math.round((macroCalories.fat / macroCalorieTotal) * 100)}%`,
       chartTitle: `Fat tracked across ${activeRange}`,
       legendLabel: 'Daily fat'
     },
     fiber: {
       label: 'Fiber',
-      value: fiberConsumed > 0 ? `${fiberConsumed} g` : `${fiberGoal} g goal`,
+      value: fiberConsumed > 0 ? `${fiberConsumed} g` : '—',
       detail: 'Fiber tracking remains a placeholder until fiber is wired into the saved totals',
       targetLabel: 'Fiber goal',
       targetValue: fiberGoal,
       points: fiberPoints,
       accentColor: '#7c3aed',
-      ringPercentage: fiberGoal > 0 ? (fiberConsumed / fiberGoal) * 100 : 0,
+      ringPercentage: fiberConsumed > 0 && fiberGoal > 0 ? (fiberConsumed / fiberGoal) * 100 : 0,
+      ringText: fiberConsumed > 0 && fiberGoal > 0 ? `${Math.round((fiberConsumed / fiberGoal) * 100)}%` : '—',
       chartTitle: `Fiber tracked across ${activeRange}`,
       legendLabel: 'Daily fiber'
     }
@@ -1044,28 +1072,32 @@ export default function App(): ReactElement {
       label: dashboardMetricConfig.protein.label,
       value: dashboardMetricConfig.protein.value,
       accentColor: dashboardMetricConfig.protein.accentColor,
-      ringPercentage: dashboardMetricConfig.protein.ringPercentage
+      ringPercentage: dashboardMetricConfig.protein.ringPercentage,
+      ringText: dashboardMetricConfig.protein.ringText
     },
     {
       key: 'carbs' as const,
       label: dashboardMetricConfig.carbs.label,
       value: dashboardMetricConfig.carbs.value,
       accentColor: dashboardMetricConfig.carbs.accentColor,
-      ringPercentage: dashboardMetricConfig.carbs.ringPercentage
+      ringPercentage: dashboardMetricConfig.carbs.ringPercentage,
+      ringText: dashboardMetricConfig.carbs.ringText
     },
     {
       key: 'fat' as const,
       label: dashboardMetricConfig.fat.label,
       value: dashboardMetricConfig.fat.value,
       accentColor: dashboardMetricConfig.fat.accentColor,
-      ringPercentage: dashboardMetricConfig.fat.ringPercentage
+      ringPercentage: dashboardMetricConfig.fat.ringPercentage,
+      ringText: dashboardMetricConfig.fat.ringText
     },
     {
       key: 'fiber' as const,
       label: dashboardMetricConfig.fiber.label,
       value: dashboardMetricConfig.fiber.value,
       accentColor: dashboardMetricConfig.fiber.accentColor,
-      ringPercentage: dashboardMetricConfig.fiber.ringPercentage
+      ringPercentage: dashboardMetricConfig.fiber.ringPercentage,
+      ringText: dashboardMetricConfig.fiber.ringText
     }
   ];
   const missingInputs = [
@@ -1161,10 +1193,20 @@ export default function App(): ReactElement {
     setFoodLogError(null);
 
     try {
-      const updatedLog = await addFoodLogEntry({
-        food_id: food.id,
-        grams
-      });
+      if (!foodSessionToken) {
+        throw new Error('Create a local session before saving food log entries.');
+      }
+      const updatedLog = await addFoodLogEntry(
+        {
+          food_id: food.id,
+          grams,
+          calories: round1((food.calories * grams) / Math.max(food.serving_size, 1)),
+          protein: round1((food.macros.protein * grams) / Math.max(food.serving_size, 1)),
+          carbs: round1((food.macros.carbs * grams) / Math.max(food.serving_size, 1)),
+          fat: round1((food.macros.fat * grams) / Math.max(food.serving_size, 1))
+        },
+        foodSessionToken
+      );
       setFoodLog(updatedLog);
       setFoodLogTone('live');
       setFoodLogStatus(`Added ${food.name} to today at ${grams.toLocaleString()} g`);
@@ -1266,10 +1308,20 @@ export default function App(): ReactElement {
     setFoodLogError(null);
 
     try {
-      const updatedLog = await addFoodLogEntry({
-        food_id: selectedLogFood.id,
-        grams: round1(grams)
-      });
+      if (!foodSessionToken) {
+        throw new Error('Create a local session before saving food log entries.');
+      }
+      const updatedLog = await addFoodLogEntry(
+        {
+          food_id: selectedLogFood.id,
+          grams: round1(grams),
+          calories: logEntryPreview?.calories ?? 0,
+          protein: logEntryPreview?.macros.protein ?? 0,
+          carbs: logEntryPreview?.macros.carbs ?? 0,
+          fat: logEntryPreview?.macros.fat ?? 0
+        },
+        foodSessionToken
+      );
       setFoodLog(updatedLog);
       setFoodLogTone('live');
       setFoodLogStatus(`Added ${selectedLogFood.name} to today's log`);
@@ -1428,6 +1480,60 @@ export default function App(): ReactElement {
     }
   }
 
+  async function addWeightRecord() {
+    if (!foodSessionToken) {
+      setProfileTone('checking');
+      setProfileStatus('Preview profile loaded');
+      setProfileError('Create a local session before saving weight entries.');
+      return;
+    }
+
+    const weightLbs = Number(weightValueDraft);
+    if (!Number.isFinite(weightLbs) || weightLbs <= 0) {
+      setProfileTone('checking');
+      setProfileStatus('Could not save weight entry');
+      setProfileError('Enter a valid weight in pounds before saving.');
+      return;
+    }
+
+    if (weightRecordedAtDraft.trim().length === 0) {
+      setProfileTone('checking');
+      setProfileStatus('Could not save weight entry');
+      setProfileError('Enter a valid recorded date before saving.');
+      return;
+    }
+
+    setWeightSaving(true);
+    setProfileTone('checking');
+    setProfileStatus('Saving weight entry');
+    setProfileError(null);
+
+    try {
+      await createWeightEntry(
+        {
+          recorded_at: weightRecordedAtDraft,
+          weight_lbs: Number(weightLbs.toFixed(1))
+        },
+        foodSessionToken
+      );
+      const [progress, weights] = await Promise.all([
+        fetchProfileProgress(foodSessionToken),
+        fetchWeightEntries(foodSessionToken)
+      ]);
+      setProfileProgress(progress);
+      setWeightEntries(weights);
+      setWeightValueDraft('');
+      setProfileTone('live');
+      setProfileStatus('Weight entry saved');
+    } catch (error) {
+      setProfileTone('checking');
+      setProfileStatus('Could not save weight entry');
+      setProfileError(error instanceof Error ? error.message : 'Unable to save weight entry.');
+    } finally {
+      setWeightSaving(false);
+    }
+  }
+
   async function cycleMealPrepStatus(taskId: string) {
     const nextStatusByCurrent: Record<MealPrepTask['status'], MealPrepTask['status']> = {
       Queued: 'In progress',
@@ -1560,9 +1666,12 @@ export default function App(): ReactElement {
     }
 
     try {
+      if (!foodSessionToken) {
+        throw new Error('Create a local session before updating recipe favorites.');
+      }
       const updated = nextFavorite
-        ? await favoriteRecipe(recipe.id)
-        : await unfavoriteRecipe(recipe.id);
+        ? await favoriteRecipe(recipe.id, foodSessionToken)
+        : await unfavoriteRecipe(recipe.id, foodSessionToken);
 
       setRecipeCatalog((current) => updateRecipeCollection(current, updated));
       setRecipeFavorites((current) => updateRecipeCollection(current, updated));
@@ -1624,7 +1733,7 @@ export default function App(): ReactElement {
             <Text style={styles.panelEyebrow}>First run</Text>
             <Text style={styles.panelTitle}>Tell us about you</Text>
             <Text style={styles.panelDetail}>
-              We’ll use these values to calculate your calorie target and unlock the app for this profile.
+              We’ll use these values to calculate a starting calorie and macro target for your selected goal, then unlock the app for this profile.
             </Text>
 
             <View style={styles.profileFieldStack}>
@@ -1710,7 +1819,7 @@ export default function App(): ReactElement {
                         onPress={() => setOnboardingGoalTypeDraft(option)}
                       >
                         <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {option === 'lose' ? 'Lose' : option === 'maintain' ? 'Maintain' : 'Gain'}
+                          {option === 'lose' ? 'Weight Loss' : option === 'maintain' ? 'Maintenance' : 'Weight Gain'}
                         </Text>
                       </Pressable>
                     );
@@ -1890,6 +1999,10 @@ export default function App(): ReactElement {
                 </View>
                 <View style={styles.metricRow}>
                   <MetricTile
+                    label="Goal"
+                    value={formatGoalTypeLabel(profile?.goal_type)}
+                  />
+                  <MetricTile
                     label="Current weight"
                     value={
                       weightProgress.currentWeightLbs !== null
@@ -1909,6 +2022,14 @@ export default function App(): ReactElement {
                 </View>
                 <View style={styles.metricRow}>
                   <MetricTile
+                    label="Initial target"
+                    value={
+                      profile?.initial_calorie_target !== null && profile?.initial_calorie_target !== undefined
+                        ? `${profile.initial_calorie_target.toLocaleString()} kcal`
+                        : '—'
+                    }
+                  />
+                  <MetricTile
                     label="Goals"
                     value={`${profileGoals.length} saved`}
                   />
@@ -1921,6 +2042,53 @@ export default function App(): ReactElement {
                     value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
                   />
                 </View>
+              </View>
+
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.panelEyebrow}>Weight history</Text>
+                    <Text style={styles.detailTitle}>Add a live weigh-in</Text>
+                  </View>
+                  <Text style={styles.detailSubtitle}>
+                    Save a dated weight entry, then refresh the progress snapshot from the backend.
+                  </Text>
+                </View>
+
+                <View style={styles.profileFieldRow}>
+                  <View style={styles.profileFieldHalf}>
+                    <Text style={styles.profileFieldLabel}>Recorded date</Text>
+                    <TextInput
+                      value={weightRecordedAtDraft}
+                      onChangeText={setWeightRecordedAtDraft}
+                      placeholder="2026-03-29"
+                      placeholderTextColor="#7c8aa5"
+                      style={styles.profileFieldInput}
+                    />
+                  </View>
+                  <View style={styles.profileFieldHalf}>
+                    <Text style={styles.profileFieldLabel}>Weight, lb</Text>
+                    <TextInput
+                      value={weightValueDraft}
+                      onChangeText={setWeightValueDraft}
+                      placeholder="181.2"
+                      placeholderTextColor="#7c8aa5"
+                      keyboardType="numeric"
+                      inputMode="decimal"
+                      style={styles.profileFieldInput}
+                    />
+                  </View>
+                </View>
+
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => void addWeightRecord()}
+                  disabled={weightSaving}
+                >
+                  <Text style={styles.primaryButtonLabel}>
+                    {weightSaving ? 'Saving...' : 'Add weight entry'}
+                  </Text>
+                </Pressable>
               </View>
 
               {profile ? (

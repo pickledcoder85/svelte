@@ -36,6 +36,14 @@ This repository is expected to be developed with disciplined software engineerin
 - Document new environment variables and external services in `README.md`.
 - Preserve a clean separation between frontend UI code and backend business logic.
 
+## Documentation and release hygiene
+
+- Any slice that changes user-visible behavior, target-generation logic, schema assumptions, or workflow guidance must update the relevant docs in the same branch.
+- Keep [CHANGELOG.md](/home/brianminer/workspace/svelte/CHANGELOG.md) current as part of implementation, not as a later cleanup step.
+- Keep roadmap and strategy docs in sync when feature direction changes materially, especially [docs/ARCHITECTURE_ROADMAP.md](/home/brianminer/workspace/svelte/docs/ARCHITECTURE_ROADMAP.md) and [docs/CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md).
+- When a feature introduces follow-up work or deferred scope, record it in a repo doc instead of leaving it only in chat.
+- If a stable milestone has effectively moved, update the planned-tagging notes instead of leaving stale future-version claims behind.
+
 ## Worker orchestration
 
 - Parallel code-writing is only allowed when each worker has a separate verified branch and worktree.

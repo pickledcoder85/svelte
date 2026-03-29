@@ -27,6 +27,9 @@ class FoodLogEntry(BaseModel):
     entry_type: Literal["food", "meal"]
     food_item_id: str | None = None
     meal_template_id: str | None = None
+    display_name: str | None = None
+    brand: str | None = None
+    source: Literal["USDA", "LABEL_SCAN", "CUSTOM"] | None = None
     grams: float
     servings: float
     calories: float

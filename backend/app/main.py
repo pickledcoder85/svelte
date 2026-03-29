@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.config import get_settings
+from backend.app.db.database import resolve_sqlite_path
 from backend.app.routes.auth import router as auth_router
 from backend.app.routes.ingestion import router as ingestion_router
 from backend.app.routes.food_logs import router as food_logs_router
@@ -14,11 +15,10 @@ from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
 from backend.app.repositories.sqlite import SQLiteRepository
 
-
-def create_app(database_path: str | None = None) -> FastAPI:
+def create_app(database_path: str | None = None, database_url: str | None = None) -> FastAPI:
     settings = get_settings()
     origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
-    db_path = database_path or settings.database_path
+    db_path = database_path or resolve_sqlite_path(database_url or settings.database_url)
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",

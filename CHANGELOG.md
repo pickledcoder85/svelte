@@ -12,10 +12,15 @@ The format should remain simple:
 
 ### Planned
 
-- Phase 1 release-prep notes now match the shipped app state and the milestone is ready for final validation.
+- Post-Phase-1 planning is now focused on calculation-engine refactoring, safer live input workflows, and premium agent-ready plan infrastructure.
+- Explicit goal-type onboarding, calculation-engine refactor, and structured exercise-estimation work are planned and documented.
 
 ### Added
 
+- Canonical calculation strategy document for onboarding calories, macro targets, exercise estimation, adaptive maintenance, and future agent-driven planning.
+- Local SQLite reset/seed workflow through `python -m backend.app.db.bootstrap --reset --seed-dev` for repeatable development data.
+- First live profile weight-entry save flow in the Expo app, backed by `POST /profile/weights` and immediate progress refresh.
+- Dedicated backend calculation helpers for onboarding energy and macro target generation.
 - Cleaner dashboard landing layout with a compact app header, high-level metric strip, a single overview chart, and macro ring cards.
 - Interactive dashboard header cards for `Net Calories`, `Protein`, `Carbs`, `Fat`, and `Fiber` that now drive the main chart state.
 - Expo / React Native frontend with browser preview and Expo Go support on iPhone.
@@ -38,6 +43,16 @@ The format should remain simple:
 
 ### Changed
 
+- Onboarding now generates goal-based baseline macros instead of the previous fixed `30/40/30` split.
+- Onboarding maintenance calories now use conservative non-exercise activity multipliers so future logged exercise can be layered on without double counting.
+- Onboarding and profile UI now surface clearer `Weight Loss`, `Maintenance`, and `Weight Gain` goal labels.
+- Tracker food logging now uses the authenticated `/nutrition/logs` contract, creates today’s log when needed, and saves real entry nutrition instead of calling the old dead `/food-logs/today` path.
+- Recipe favorites now use the required authenticated session path in the frontend.
+- Food-log API responses now include display-ready saved entry metadata such as food name, brand, and source for tracker rendering.
+- Backend runtime database selection now follows `DATABASE_URL`, matching the migration/bootstrap layer.
+- `scripts/dev-backend.sh` now defaults to `sqlite:///./nutrition_os.dev.db` when no `DATABASE_URL` is set.
+- Dashboard macro rings now display the percentage inside each ring and represent each macro's share of total macro calories, not progress against macro goals.
+- The fiber header card now stays visible as a placeholder metric but shows `—` when no saved fiber data exists instead of repeating the goal value.
 - The first screen now prioritizes intake, targets, and missing-input visibility instead of the previous mascot-heavy hero layout.
 - Dashboard visualization now uses `react-native-svg` primitives for the overview chart and header rings.
 - The previous duplicate macro section below the chart was removed so the header acts as the single metric control surface.
@@ -51,8 +66,10 @@ The format should remain simple:
 ### Notes
 
 - Dashboard follow-up recommendations are documented in [docs/DASHBOARD_FOLLOWUPS_2026-03-29.md](/home/brianminer/workspace/svelte/docs/DASHBOARD_FOLLOWUPS_2026-03-29.md).
+- Calculation-engine and future premium agent-planning direction are documented in [docs/CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md).
 
 ### Planned tagging
 
-- Next candidate stable tag: `v0.5.0`
-- Tag after final Phase 1 validation and release-prep checks on the current merged milestone.
+- Current stable milestone tag already created: `v0.5.0`
+- Next candidate stable tag: `v0.6.0`
+- `v0.6.0` should cover explicit goal-type onboarding, calculation-module refactoring, and structured exercise-estimation groundwork.

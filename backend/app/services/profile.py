@@ -15,25 +15,12 @@ from backend.app.models.profile import (
 )
 from backend.app.models.nutrition import WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.calculations.energy import calculate_onboarding_energy_targets
+from backend.app.services.calculations.macros import generate_macro_targets
 
 
 class OnboardingAlreadyCompletedError(RuntimeError):
     pass
-
-
-_ACTIVITY_FACTORS = {
-    "sedentary": 1.2,
-    "light": 1.375,
-    "moderate": 1.55,
-    "very_active": 1.725,
-    "extra_active": 1.9,
-}
-
-_GOAL_ADJUSTMENTS = {
-    "lose": -500,
-    "maintain": 0,
-    "gain": 250,
-}
 
 
 def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> UserProfile:
@@ -62,7 +49,12 @@ def complete_user_onboarding(
         email=session.email,
         display_name=session.display_name,
     )
-    bmr_calories, tdee_calories, initial_calorie_target = _calculate_onboarding_calories(payload)
+    bmr_calories, tdee_calories, initial_calorie_target = calculate_onboarding_energy_targets(payload)
+    protein_goal, carbs_goal, fat_goal = generate_macro_targets(
+        calorie_target=initial_calorie_target,
+        current_weight_lbs=payload.current_weight_lbs,
+        goal_type=payload.goal_type,
+    )
     profile = repository.save_user_onboarding(
         user_id=session.user_id,
         sex=payload.sex,
@@ -80,9 +72,9 @@ def complete_user_onboarding(
         user_id=session.user_id,
         effective_at=date.today(),
         calorie_goal=initial_calorie_target,
-        protein_goal=round(initial_calorie_target * 0.3 / 4, 1),
-        carbs_goal=round(initial_calorie_target * 0.4 / 4, 1),
-        fat_goal=round(initial_calorie_target * 0.3 / 9, 1),
+        protein_goal=protein_goal,
+        carbs_goal=carbs_goal,
+        fat_goal=fat_goal,
         target_weight_lbs=payload.target_weight_lbs,
     )
     if profile is None:
@@ -283,12 +275,3 @@ def _resolve_weekly_metrics(
         week_start=resolved_end - timedelta(days=6),
         week_end=resolved_end,
     )
-
-
-def _calculate_onboarding_calories(payload: UserOnboardingRequest) -> tuple[int, int, int]:
-    weight_kg = payload.current_weight_lbs / 2.2046226218
-    sex_adjustment = 5 if payload.sex == "male" else -161
-    bmr = 10 * weight_kg + 6.25 * payload.height_cm - 5 * payload.age_years + sex_adjustment
-    tdee = bmr * _ACTIVITY_FACTORS[payload.activity_level]
-    calorie_target = max(1200, tdee + _GOAL_ADJUSTMENTS[payload.goal_type])
-    return round(bmr), round(tdee), round(calorie_target)
