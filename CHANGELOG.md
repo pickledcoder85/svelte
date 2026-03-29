@@ -43,6 +43,8 @@ The format should remain simple:
 
 ### Changed
 
+- Browser startup now begins with an explicit entry screen that lets the user either create a live local profile session or enter preview mode with dummy data.
+- Backend development CORS defaults now allow common Expo web and local browser origins so the live browser profile flow can reach `localhost:8000`.
 - Onboarding now generates goal-based baseline macros instead of the previous fixed `30/40/30` split.
 - Onboarding maintenance calories now use conservative non-exercise activity multipliers so future logged exercise can be layered on without double counting.
 - Onboarding and profile UI now surface clearer `Weight Loss`, `Maintenance`, and `Weight Gain` goal labels.

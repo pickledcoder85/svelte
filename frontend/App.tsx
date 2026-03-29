@@ -23,6 +23,7 @@ import {
   completeOnboarding,
   createUserGoal,
   fetchBackendHealth,
+  getApiBaseUrl,
   fetchExerciseEntries,
   fetchFavoriteFoods,
   fetchFavoriteRecipes,
@@ -113,6 +114,7 @@ const sectionTabs: Array<{ id: AppSection; label: string }> = [
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
+type EntryMode = 'live' | 'preview';
 const chartHeight = 160;
 
 function toneColor(tone: 'checking' | 'live'): string {
@@ -193,6 +195,14 @@ function createEmptyMealDraft(): MealInput {
 }
 
 export default function App(): ReactElement {
+  const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
+  const [entryEmailDraft, setEntryEmailDraft] = useState('dev@example.com');
+  const [entryDisplayNameDraft, setEntryDisplayNameDraft] = useState('Local Dev User');
+  const [entryLoading, setEntryLoading] = useState(false);
+  const [entryError, setEntryError] = useState<string | null>(null);
+  const [entryBackendTone, setEntryBackendTone] = useState<'checking' | 'live'>('checking');
+  const [entryBackendStatus, setEntryBackendStatus] = useState('Checking backend reachability');
+  const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
   const [activeDashboardMetric, setActiveDashboardMetric] = useState<DashboardMetricKey>('net_calories');
@@ -301,19 +311,64 @@ export default function App(): ReactElement {
   useEffect(() => {
     let cancelled = false;
 
+    async function checkEntryBackend() {
+      setEntryBackendTone('checking');
+      setEntryBackendStatus('Checking backend reachability');
+      setEntryBackendDetail(`Using ${getApiBaseUrl()}`);
+
+      try {
+        const health = await fetchBackendHealth();
+        if (cancelled) {
+          return;
+        }
+        setEntryBackendTone('live');
+        setEntryBackendStatus(`${health.service} reachable`);
+        setEntryBackendDetail(`${getApiBaseUrl()} responded at ${new Date(health.timestamp).toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        })}`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setEntryBackendTone('checking');
+        setEntryBackendStatus('Backend unavailable for live profile mode');
+        setEntryBackendDetail(
+          `Could not reach ${getApiBaseUrl()}. Start the backend on port 8000 or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`
+        );
+      }
+    }
+
+    void checkEntryBackend();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
+    let cancelled = false;
+
     async function loadFavoriteFoods() {
       setFoodTone('checking');
       setFoodStatus('Loading favorite foods');
       setFoodError(null);
 
-      try {
-        const session = await createLocalSession('foods@example.com', 'Food Favorites');
-        if (cancelled) {
-          return;
-        }
+      if (entryMode !== 'live' || !foodSessionToken) {
+        setFavoriteFoods([]);
+        setFoodResults([]);
+        setSelectedFoodId('');
+        setFoodTone('checking');
+        setFoodStatus('Preview mode uses demo data instead of a live favorites session');
+        setFoodError(null);
+        return;
+      }
 
-        setFoodSessionToken(session.access_token);
-        const favorites = await fetchFavoriteFoods(session.access_token);
+      try {
+        const favorites = await fetchFavoriteFoods(foodSessionToken);
         if (cancelled) {
           return;
         }
@@ -329,7 +384,6 @@ export default function App(): ReactElement {
           return;
         }
 
-        setFoodSessionToken(null);
         setFavoriteFoods([]);
         setFoodResults([]);
         setSelectedFoodId('');
@@ -340,6 +394,17 @@ export default function App(): ReactElement {
     }
 
     async function syncBackend() {
+      if (entryMode === 'preview') {
+        setSnapshot(demoDashboardSnapshot);
+        setRecipeImportTone('checking');
+        setRecipeImportStatus('Preview mode active');
+        setRecipeImportError(null);
+        setSyncTone('checking');
+        setSyncLabel('Preview mode');
+        setSyncDetail('Showing demo data without a live local profile session.');
+        return;
+      }
+
       setRecipeImportTone('checking');
       setRecipeImportStatus('Loading live dashboard summary');
       setRecipeImportError(null);
@@ -349,7 +414,6 @@ export default function App(): ReactElement {
           fetchBackendHealth(),
           fetchWeeklyMetrics()
         ]);
-
         if (cancelled) {
           return;
         }
@@ -408,9 +472,12 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [entryMode, foodSearchTerm, foodSessionToken, mealDraft]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     let cancelled = false;
 
     async function loadProfileSettings() {
@@ -485,9 +552,12 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [foodSessionToken]);
+  }, [entryMode, foodSessionToken]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     let cancelled = false;
 
     async function loadTrackerSections() {
@@ -584,9 +654,12 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [foodSessionToken]);
+  }, [entryMode, foodSessionToken]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     let cancelled = false;
 
     async function loadFoodLog() {
@@ -634,9 +707,12 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [foodSessionToken]);
+  }, [entryMode, foodSessionToken]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     let cancelled = false;
 
     async function syncFoodSearch() {
@@ -702,11 +778,17 @@ export default function App(): ReactElement {
   }, [favoriteFoods, foodSearchTerm, foodSessionToken]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     const timeoutId = setTimeout(() => setFoodSearchTerm(foodDraft), 150);
     return () => clearTimeout(timeoutId);
-  }, [foodDraft]);
+  }, [entryMode, foodDraft]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     let cancelled = false;
 
     async function syncLogFoodSearch() {
@@ -753,9 +835,12 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [logFoodSearchTerm]);
+  }, [entryMode, logFoodSearchTerm]);
 
   useEffect(() => {
+    if (entryMode === null) {
+      return;
+    }
     let cancelled = false;
 
     async function loadRecipeFavorites() {
@@ -830,7 +915,48 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [foodSessionToken]);
+  }, [entryMode, foodSessionToken]);
+
+  async function enterLiveMode() {
+    const email = entryEmailDraft.trim().toLowerCase();
+    const displayName = entryDisplayNameDraft.trim();
+
+    if (!email || !displayName) {
+      setEntryError('Enter an email and display name before creating a local profile session.');
+      return;
+    }
+
+    setEntryLoading(true);
+    setEntryError(null);
+    setProfileLoaded(false);
+
+    try {
+      const session = await createLocalSession(email, displayName);
+      setFoodSessionToken(session.access_token);
+      setEntryMode('live');
+    } catch (error) {
+      const fallbackMessage = `Unable to create a local profile session via ${getApiBaseUrl()}. Start the backend or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`;
+      setEntryError(error instanceof Error ? `${error.message} ${fallbackMessage}` : fallbackMessage);
+    } finally {
+      setEntryLoading(false);
+    }
+  }
+
+  function enterPreviewMode() {
+    setFoodSessionToken(null);
+    setEntryError(null);
+    setProfileLoaded(false);
+    setSection('dashboard');
+    setEntryMode('preview');
+  }
+
+  function returnToEntryScreen() {
+    setFoodSessionToken(null);
+    setEntryError(null);
+    setProfileLoaded(false);
+    setSection('dashboard');
+    setEntryMode(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1694,6 +1820,89 @@ export default function App(): ReactElement {
     }
   }
 
+  if (entryMode === null) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+          <View style={styles.hero}>
+            <Text style={styles.eyebrow}>Nutrition OS</Text>
+            <View style={styles.heroHeader}>
+              <View style={styles.heroCopy}>
+                <Text style={styles.headline}>Start with a real local profile or open the demo app.</Text>
+                <Text style={styles.lede}>
+                  Use the live path to test session creation, onboarding, and profile-driven business logic. Use preview mode to inspect the post-setup experience with dummy data.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.panel}>
+            <Text style={styles.panelEyebrow}>Entry</Text>
+            <Text style={styles.panelTitle}>Choose how to open the app</Text>
+            <Text style={styles.panelDetail}>
+              The live path creates a local backend session and routes you through profile creation. Preview mode skips session creation and loads demo data only.
+            </Text>
+
+            <View style={[styles.inlineStatus, { borderColor: toneColor(entryBackendTone) }]}>
+              <Text style={styles.inlineStatusLabel}>{entryBackendStatus}</Text>
+              <Text style={styles.inlineStatusDetail}>{entryBackendDetail}</Text>
+            </View>
+
+            <View style={styles.profileFieldStack}>
+              <View style={styles.profileField}>
+                <Text style={styles.profileFieldLabel}>Email</Text>
+                <TextInput
+                  value={entryEmailDraft}
+                  onChangeText={setEntryEmailDraft}
+                  placeholder="dev@example.com"
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.profileFieldInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.profileField}>
+                <Text style={styles.profileFieldLabel}>Display name</Text>
+                <TextInput
+                  value={entryDisplayNameDraft}
+                  onChangeText={setEntryDisplayNameDraft}
+                  placeholder="Local Dev User"
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.profileFieldInput}
+                />
+              </View>
+            </View>
+
+            {entryError ? (
+              <View style={[styles.inlineStatus, { borderColor: toneColor('checking') }]}>
+                <Text style={styles.inlineStatusLabel}>Could not create local profile session</Text>
+                <Text style={styles.inlineStatusDetail}>{entryError}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.profileFieldStack}>
+              <Pressable
+                style={styles.primaryButton}
+                onPress={() => void enterLiveMode()}
+                disabled={entryLoading}
+              >
+                <Text style={styles.primaryButtonLabel}>
+                  {entryLoading ? 'Creating session...' : 'Create local profile'}
+                </Text>
+              </Pressable>
+
+              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode} disabled={entryLoading}>
+                <Text style={styles.inlinePillButtonLabel}>Open preview mode</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (!profileLoaded) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -1727,6 +1936,19 @@ export default function App(): ReactElement {
           <View style={[styles.inlineStatus, { borderColor: toneColor(onboardingSaving ? 'checking' : 'live') }]}>
             <Text style={styles.inlineStatusLabel}>{onboardingStatus}</Text>
             {onboardingError ? <Text style={styles.inlineStatusDetail}>{onboardingError}</Text> : null}
+          </View>
+
+          <View style={styles.modeControlCard}>
+            <Text style={styles.modeControlLabel}>Mode</Text>
+            <Text style={styles.modeControlValue}>Live profile setup</Text>
+            <View style={styles.modeControlActions}>
+              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode} disabled={onboardingSaving}>
+                <Text style={styles.inlinePillButtonLabel}>Switch to preview</Text>
+              </Pressable>
+              <Pressable style={styles.inlinePillButton} onPress={returnToEntryScreen} disabled={onboardingSaving}>
+                <Text style={styles.inlinePillButtonLabel}>Back to entry</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.panel}>
@@ -1894,6 +2116,32 @@ export default function App(): ReactElement {
           <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
             <Text style={styles.appStatusLabel}>{syncLabel}</Text>
             <Text style={styles.appStatusDetail}>{syncDetail}</Text>
+          </View>
+        </View>
+
+        <View style={styles.modeControlCard}>
+          <View style={styles.modeControlHeader}>
+            <View>
+              <Text style={styles.modeControlLabel}>Mode</Text>
+              <Text style={styles.modeControlValue}>{entryMode === 'live' ? 'Live local profile' : 'Preview demo'}</Text>
+            </View>
+            <Text style={styles.modeControlDetail}>
+              {entryMode === 'live' ? profile?.display_name ?? entryDisplayNameDraft : 'Demo state only'}
+            </Text>
+          </View>
+          <View style={styles.modeControlActions}>
+            {entryMode === 'live' ? (
+              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode}>
+                <Text style={styles.inlinePillButtonLabel}>Switch to preview</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.inlinePillButton} onPress={returnToEntryScreen}>
+                <Text style={styles.inlinePillButtonLabel}>Create live profile</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.inlinePillButton} onPress={returnToEntryScreen}>
+              <Text style={styles.inlinePillButtonLabel}>Change entry mode</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -3433,6 +3681,45 @@ const styles = StyleSheet.create({
     color: '#66778c',
     fontSize: 12,
     lineHeight: 17
+  },
+  modeControlCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 14,
+    gap: 10
+  },
+  modeControlHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  modeControlLabel: {
+    color: '#6b7b90',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8
+  },
+  modeControlValue: {
+    color: '#17324d',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 4
+  },
+  modeControlDetail: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 17,
+    flexShrink: 1,
+    textAlign: 'right'
+  },
+  modeControlActions: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap'
   },
   hero: {
     backgroundColor: '#17324d',
