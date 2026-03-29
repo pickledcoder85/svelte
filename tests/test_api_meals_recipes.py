@@ -143,6 +143,95 @@ async def test_meal_template_update_recalculates_totals_and_ingredients(client, 
 
 
 @pytest.mark.asyncio
+async def test_recipe_create_update_read_favorite_and_scale_flow(client, repository):
+    session_response = await client.post(
+        "/api/auth/session",
+        json={"email": "recipe-flow@example.com", "display_name": "Recipe Flow"},
+    )
+    assert session_response.status_code == 200
+    session = session_response.json()["session"]
+    headers = {"Authorization": f"Bearer {session['access_token']}"}
+
+    create_response = await client.post(
+        "/api/recipes",
+        json={
+            "title": "Citrus Chicken Bowl",
+            "steps": ["Roast chicken.", "Add grains.", "Top with herbs."],
+            "assets": [{"kind": "text", "content": "base recipe"}],
+            "ingredients": [
+                {
+                    "id": "ingredient-chicken",
+                    "food_id": "food-chicken-breast",
+                    "name": "Chicken breast",
+                    "grams": 200,
+                    "calories_per_100g": 165,
+                    "macros_per_100g": {"protein": 31, "carbs": 0, "fat": 3.6},
+                }
+            ],
+            "default_yield": 4,
+        },
+    )
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["favorite"] is False
+    recipe_id = created["id"]
+
+    listing = await client.get("/api/recipes", headers=headers)
+    assert listing.status_code == 200
+    assert any(recipe["id"] == recipe_id and recipe["favorite"] is False for recipe in listing.json())
+
+    fetched = await client.get(f"/api/recipes/{recipe_id}", headers=headers)
+    assert fetched.status_code == 200
+    assert fetched.json()["title"] == "Citrus Chicken Bowl"
+    assert fetched.json()["default_yield"] == 4
+
+    scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5", headers=headers)
+    assert scaled.status_code == 200
+    assert scaled.json()["default_yield"] == 6.0
+    assert scaled.json()["ingredients"][0]["grams"] == 300.0
+
+    update_response = await client.put(
+        f"/api/recipes/{recipe_id}",
+        headers=headers,
+        json={
+            "title": "Citrus Chicken Bowl Deluxe",
+            "steps": ["Roast chicken.", "Add grains.", "Finish with citrus."],
+            "assets": [{"kind": "text", "content": "updated recipe"}],
+            "ingredients": [
+                {
+                    "id": "ingredient-chicken",
+                    "food_id": "food-chicken-breast",
+                    "name": "Chicken breast",
+                    "grams": 240,
+                    "calories_per_100g": 165,
+                    "macros_per_100g": {"protein": 31, "carbs": 0, "fat": 3.6},
+                }
+            ],
+            "default_yield": 6,
+        },
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["title"] == "Citrus Chicken Bowl Deluxe"
+    assert updated["default_yield"] == 6.0
+    assert updated["ingredients"][0]["grams"] == 240
+
+    favorite_update = await client.post(f"/api/recipes/{recipe_id}/favorite", headers=headers)
+    assert favorite_update.status_code == 200
+    assert favorite_update.json()["favorite"] is True
+    assert repository.list_saved_favorites(session["user_id"], "recipe")
+
+    favorites = await client.get("/api/recipes/favorites", headers=headers)
+    assert favorites.status_code == 200
+    assert any(recipe["id"] == recipe_id for recipe in favorites.json())
+
+    unfavorite_update = await client.delete(f"/api/recipes/{recipe_id}/favorite", headers=headers)
+    assert unfavorite_update.status_code == 200
+    assert unfavorite_update.json()["favorite"] is False
+    assert repository.list_saved_favorites(session["user_id"], "recipe") == []
+
+
+@pytest.mark.asyncio
 async def test_recipe_favorites_are_session_scoped(client, repository):
     session_response = await client.post(
         "/api/auth/session",

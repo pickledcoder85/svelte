@@ -1,7 +1,7 @@
 from typing import Protocol
 from uuid import uuid4
 
-from backend.app.models.recipes import RecipeDefinition, RecipeImportRequest
+from backend.app.models.recipes import RecipeCreateRequest, RecipeDefinition, RecipeImportRequest, RecipeUpdateRequest
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
@@ -46,6 +46,19 @@ def import_recipe(
     return repository.save_recipe(recipe)
 
 
+def create_recipe(repository: SQLiteRepository, payload: RecipeCreateRequest) -> RecipeDefinition:
+    recipe = RecipeDefinition(
+        id=str(uuid4()),
+        title=payload.title,
+        steps=payload.steps,
+        assets=payload.assets,
+        ingredients=payload.ingredients,
+        default_yield=payload.default_yield,
+        favorite=False,
+    )
+    return repository.save_recipe(recipe)
+
+
 def list_recipes(
     repository: RecipeReadRepository,
     user_id: str | None = None,
@@ -62,6 +75,29 @@ def get_recipe(
     if recipe is None:
         return None
     return _hydrate_recipe_favorite(repository, recipe, user_id)
+
+
+def update_recipe(
+    repository: SQLiteRepository,
+    recipe_id: str,
+    payload: RecipeUpdateRequest,
+    user_id: str | None = None,
+) -> RecipeDefinition | None:
+    current = repository.get_recipe(recipe_id)
+    if current is None:
+        return None
+
+    updated = RecipeDefinition(
+        id=recipe_id,
+        title=payload.title,
+        steps=payload.steps,
+        assets=payload.assets,
+        ingredients=payload.ingredients,
+        default_yield=payload.default_yield,
+        favorite=current.favorite,
+    )
+    saved = repository.save_recipe(updated)
+    return _hydrate_recipe_favorite(repository, saved, user_id)
 
 
 def scale_recipe(recipe: RecipeDefinition, factor: float) -> RecipeDefinition:

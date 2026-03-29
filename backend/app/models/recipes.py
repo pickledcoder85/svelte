@@ -17,8 +17,15 @@ class RecipeImportRequest(BaseModel):
     assets: list[RecipeAsset] = Field(default_factory=list)
 
 
-class RecipeDefinition(RecipeImportRequest):
-    id: str
+class RecipeCreateRequest(RecipeImportRequest):
     ingredients: list[IngredientInput] = Field(default_factory=list)
-    default_yield: float = Field(gt=0)
+    default_yield: float = Field(gt=0, default=2)
+
+
+class RecipeUpdateRequest(RecipeCreateRequest):
+    pass
+
+
+class RecipeDefinition(RecipeCreateRequest):
+    id: str
     favorite: bool = False
