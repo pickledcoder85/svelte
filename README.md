@@ -9,9 +9,8 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Session-aware daily food logging with persisted totals and weekly metrics.
 - USDA-backed nutrition search API route for standardized calorie and macro data.
 - Session-aware auth scaffolding and environment-backed provider config.
-- Meal builder utilities for ingredient weights, serving counts, and per-serving calorie/macro totals.
-- Recipe favorites flow with support for direct text entry, uploaded documents, and step photos.
-- Recipe scaling utilities for `1.25x`, `1.5x`, and `2.0x`.
+- Persisted meal templates with ingredient rows, serving counts, and per-serving calorie/macro totals.
+- Recipe create/read/update flows with persisted steps, assets, ingredients, favorites, and scaling utilities for `1.25x`, `1.5x`, and `2.0x`.
 - Multimodal ingestion endpoint for nutrition label photos.
 - Health-check API route for quick local backend verification.
 
@@ -48,21 +47,27 @@ Frontend:
 
 The frontend and backend both support hot reload in local development. `npm start` opens the Expo dev server for phone and simulator preview, `npm start -- --tunnel` is the safer fallback when the phone cannot reach the local LAN, and `npm run web` opens the Expo web build in the browser.
 
-## Database model to implement next
+## Database model in place
 
-Core tables:
+Core tables now in use:
 
 - `saved_favorites`
 - `recipe_assets`
+- `meal_templates`
+- `meal_template_ingredients`
+- `recipes`
+- `recipe_steps`
+- `recipe_ingredients`
 - richer `ingestion_outputs` metadata
 - richer `weight_entries` history usage
 
-Recommended relational notes:
+Relational notes:
 
 - `food_catalog` stores USDA and label-scan foods with source metadata and confidence.
-- `meal_templates` and `meal_ingredients` support reusable meals and computed serving nutrition.
-- `saved_favorites` should replace scattered favorite booleans over time.
-- `daily_logs` ties consumed foods and meals to authenticated users for weekly rollups.
+- `meal_templates` and `meal_template_ingredients` support reusable meals and computed serving nutrition.
+- `recipes` stays normalized through `recipe_steps`, `recipe_ingredients`, and `recipe_assets`.
+- `saved_favorites` provides the user-scoped favorite state for foods, meals, and recipes.
+- `food_logs` and `food_log_entries` tie consumed foods and meals to authenticated users for weekly rollups.
 
 ## Local setup
 
@@ -95,6 +100,4 @@ Recommended relational notes:
 
 - Expo SDK 54 is pinned because this environment now uses Node 20 and Expo Go support is required during development.
 - The OpenAI vision integration is scaffolded and expects compatible API credentials.
-- A first-class favorites persistence model is not integrated yet.
-- Auth persistence and production sign-in/profile flows still need implementation.
-- Recipe import review UX and native packaging/signing workflows are still incomplete.
+- Recipe import review UX and native packaging/signing workflows remain beyond the Phase 1 milestone.
