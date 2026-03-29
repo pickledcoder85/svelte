@@ -9,6 +9,7 @@ import {
   createMealPrepTask,
   calculateMeal,
   createLocalSession,
+  completeOnboarding,
   createUserGoal,
   fetchIngestionOutput,
   fetchIngestionQueue,
@@ -81,6 +82,54 @@ describe('api helpers', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/auth/session',
       expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  it('submits onboarding data to the profile onboarding endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          user_id: 'user-123',
+          email: 'tester@example.com',
+          display_name: 'Tester',
+          timezone: 'UTC',
+          units: 'imperial',
+          setup_complete: true,
+          sex: 'female',
+          age_years: 34,
+          height_cm: 170,
+          current_weight_lbs: 180,
+          goal_type: 'lose',
+          target_weight_lbs: 170,
+          activity_level: 'moderate'
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await completeOnboarding(
+      {
+        sex: 'female',
+        age_years: 34,
+        height_cm: 170,
+        current_weight_lbs: 180,
+        goal_type: 'lose',
+        target_weight_lbs: 170,
+        activity_level: 'moderate'
+      },
+      'token-123'
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/profile/onboarding',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: 'Bearer token-123', 'Content-Type': 'application/json' }
+      })
     );
   });
 
