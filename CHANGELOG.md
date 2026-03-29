@@ -18,6 +18,7 @@ The format should remain simple:
 ### Added
 
 - Camera-food-bank groundwork routes for authenticated package scans, label-scan ingestion outputs, and saving accepted ingestion outputs into `food_catalog`.
+- Banking-style camera-food capture flow for phone camera preview and browser image selection before review/save.
 - Full editable profile flow in the Expo app so live users can update body metrics, goal inputs, and target-generation inputs after onboarding.
 - Canonical calculation strategy document for onboarding calories, macro targets, exercise estimation, adaptive maintenance, and future agent-driven planning.
 - Local SQLite reset/seed workflow through `python -m backend.app.db.bootstrap --reset --seed-dev` for repeatable development data.
@@ -46,6 +47,7 @@ The format should remain simple:
 ### Changed
 
 - Frontend ingestion helpers now include package-scan, label-ingest, and save-reviewed-food API contracts for the future camera-food UI.
+- Camera-food scanning now captures a live camera frame on phone or chosen image in the browser, and uses the configured OpenAI vision backend for real extraction when `OPENAI_API_KEY` is present.
 - `PUT /profile` now updates onboarding-derived profile fields, recalculates energy and macro targets, and appends a fresh goal-history row instead of only saving display settings.
 - Profile goal ordering is now deterministic for same-day recalculations so the latest generated target block stays first in the API and UI.
 - Browser startup now begins with an explicit entry screen that lets the user either create a live local profile session or enter preview mode with dummy data.

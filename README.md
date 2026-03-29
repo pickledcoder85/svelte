@@ -103,5 +103,5 @@ For disposable local testing data, set `DATABASE_URL=sqlite:///./nutrition_os.de
 ## Current limitations
 
 - Expo SDK 54 is pinned because this environment now uses Node 20 and Expo Go support is required during development.
-- The OpenAI vision integration is scaffolded and expects compatible API credentials.
+- Camera-food scanning uses the configured `OPENAI_API_KEY` for package-front and nutrition-label extraction when available, with demo fallback responses when it is not configured.
 - Recipe import review UX and native packaging/signing workflows remain beyond the Phase 1 milestone.

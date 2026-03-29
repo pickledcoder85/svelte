@@ -58,6 +58,11 @@ Create `.env` from `.env.example` and define:
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
+For the phone and browser camera-food flow:
+
+- set `OPENAI_API_KEY` in the backend `.env` if you want real package and label extraction instead of the demo fallback
+- run the backend with `--host 0.0.0.0` so Expo Go on your phone can reach it on the local network
+
 Run `python -m backend.app.db.bootstrap` any time you need to create the local SQLite database file or apply schema changes.
 
 For repeatable local iteration:

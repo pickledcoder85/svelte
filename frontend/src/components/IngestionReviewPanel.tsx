@@ -1,6 +1,17 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 
 import {
   acceptIngestionOutput,
@@ -28,6 +39,8 @@ interface IngestionReviewPanelProps {
 type SyncTone = 'checking' | 'live';
 
 export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps) {
+  const cameraRef = useRef<CameraView | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [outputs, setOutputs] = useState<IngestionOutput[]>([]);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
   const [selectedOutput, setSelectedOutput] = useState<IngestionOutput | null>(null);
@@ -42,6 +55,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   const [packageFileName, setPackageFileName] = useState<string | null>(null);
   const [labelFileName, setLabelFileName] = useState<string | null>(null);
   const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | null>(null);
+  const [cameraMode, setCameraMode] = useState<'package' | 'label' | null>(null);
   const [lastPackageScan, setLastPackageScan] = useState<VisionPackageScanResult | null>(null);
   const [savedFood, setSavedFood] = useState<FoodItem | null>(null);
   const [savingFoodId, setSavingFoodId] = useState<string | null>(null);
@@ -263,9 +277,64 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
   }
 
+  async function beginCapture(mode: 'package' | 'label') {
+    if (captureLoading) {
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      await selectFromLibrary(mode, setQueueError, setPackageBase64, setPackageFileName, setLabelBase64, setLabelFileName);
+      return;
+    }
+
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
+    if (!permission?.granted) {
+      setQueueError('Camera permission is required to scan packages and labels.');
+      return;
+    }
+
+    setQueueError(null);
+    setCameraMode(mode);
+  }
+
+  async function captureFromCamera() {
+    if (!cameraMode || !cameraRef.current || captureLoading) {
+      return;
+    }
+
+    setCaptureLoading(cameraMode);
+    setQueueError(null);
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.8 });
+      const base64 = photo.base64 ?? '';
+      if (!base64) {
+        throw new Error('Camera capture did not return image data.');
+      }
+
+      if (cameraMode === 'package') {
+        setPackageBase64(base64);
+        setPackageFileName(`live-package-${Date.now()}.jpg`);
+      } else {
+        setLabelBase64(base64);
+        setLabelFileName(`live-label-${Date.now()}.jpg`);
+      }
+      setCameraMode(null);
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : 'Unable to capture image from camera.');
+    } finally {
+      setCaptureLoading(null);
+    }
+  }
+
   const displayOutput = selectedOutput;
   const pendingCount = outputs.length;
   const browserUploadsSupported = Platform.OS === 'web';
+  const cameraReady =
+    Platform.OS !== 'web' &&
+    (cameraPermission?.granted
+      ? 'Camera ready for live scanning.'
+      : 'Open the live scanner and grant camera access to capture the current frame.');
   const canReview =
     displayOutput !== null &&
     displayOutput.review_state === 'pending' &&
@@ -277,8 +346,8 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       <Text style={styles.eyebrow}>Ingestion</Text>
       <Text style={styles.title}>Camera food bank</Text>
       <Text style={styles.detail}>
-        Use browser-safe base64 inputs to simulate package-front and nutrition-label capture, then review and save the
-        extracted food data.
+        Capture a package or label frame directly from the live camera on phone, or choose an image in the browser,
+        then review and save the extracted food data.
       </Text>
 
       <View style={[styles.statusBanner, { borderColor: toneColor(tone) }]}>
@@ -293,9 +362,11 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Browser image upload</Text>
+        <Text style={styles.cardLabel}>Capture</Text>
         <Text style={styles.detailText}>
-          Upload package and label images from the browser, then run the same scan, review, and save flow.
+          {browserUploadsSupported
+            ? 'Choose images in the browser, then run the same scan, review, and save flow.'
+            : 'Use the live camera preview, then tap Scan to capture the current frame without saving a photo.'}
         </Text>
 
         <View style={styles.detailBlock}>
@@ -312,7 +383,16 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               </View>
               <Pressable
                 style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => void selectBrowserImage(setPackageBase64, setPackageFileName, setQueueError)}
+                onPress={() =>
+                  void selectFromLibrary(
+                    'package',
+                    setQueueError,
+                    setPackageBase64,
+                    setPackageFileName,
+                    setLabelBase64,
+                    setLabelFileName
+                  )
+                }
                 disabled={captureLoading !== null}
               >
                 <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
@@ -321,7 +401,21 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               </Pressable>
             </>
           ) : (
-            <Text style={styles.detailNote}>Browser upload is the supported path for this slice.</Text>
+            <>
+              <View style={styles.uploadSummaryCard}>
+                <Text style={styles.uploadSummaryTitle}>{packageFileName ?? 'No live package frame captured'}</Text>
+                <Text style={styles.uploadSummaryDetail}>{cameraReady}</Text>
+              </View>
+              <Pressable
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={() => void beginCapture('package')}
+                disabled={captureLoading !== null}
+              >
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                  {packageFileName ? 'Retake Package Scan' : 'Open Live Package Scanner'}
+                </Text>
+              </Pressable>
+            </>
           )}
           <Pressable
             style={[styles.actionButton, styles.acceptButton]}
@@ -371,7 +465,16 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               </View>
               <Pressable
                 style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => void selectBrowserImage(setLabelBase64, setLabelFileName, setQueueError)}
+                onPress={() =>
+                  void selectFromLibrary(
+                    'label',
+                    setQueueError,
+                    setPackageBase64,
+                    setPackageFileName,
+                    setLabelBase64,
+                    setLabelFileName
+                  )
+                }
                 disabled={captureLoading !== null}
               >
                 <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
@@ -380,7 +483,21 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               </Pressable>
             </>
           ) : (
-            <Text style={styles.detailNote}>Browser upload is the supported path for this slice.</Text>
+            <>
+              <View style={styles.uploadSummaryCard}>
+                <Text style={styles.uploadSummaryTitle}>{labelFileName ?? 'No live label frame captured'}</Text>
+                <Text style={styles.uploadSummaryDetail}>{cameraReady}</Text>
+              </View>
+              <Pressable
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={() => void beginCapture('label')}
+                disabled={captureLoading !== null}
+              >
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                  {labelFileName ? 'Retake Label Scan' : 'Open Live Label Scanner'}
+                </Text>
+              </Pressable>
+            </>
           )}
           <Pressable
             style={[styles.actionButton, styles.acceptButton]}
@@ -561,59 +678,72 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
           </View>
         )}
       </View>
+
+      <Modal visible={cameraMode !== null} animationType="slide" onRequestClose={() => setCameraMode(null)}>
+        <View style={styles.cameraModal}>
+          <View style={styles.cameraHeader}>
+            <View style={styles.cameraHeaderCopy}>
+              <Text style={styles.cameraEyebrow}>{cameraMode === 'package' ? 'Package scan' : 'Label scan'}</Text>
+              <Text style={styles.cameraTitle}>
+                {cameraMode === 'package' ? 'Frame the package front' : 'Frame the nutrition label'}
+              </Text>
+              <Text style={styles.cameraDetail}>
+                Hold the phone steady, then tap Scan. The current frame is captured directly from the live camera view.
+              </Text>
+            </View>
+            <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={() => setCameraMode(null)}>
+              <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Close</Text>
+            </Pressable>
+          </View>
+          <View style={styles.cameraPreviewShell}>
+            <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" mode="picture" />
+            <View style={styles.cameraGuide} pointerEvents="none">
+              <View style={styles.cameraGuideFrame} />
+            </View>
+          </View>
+          <View style={styles.cameraActionRow}>
+            <Pressable style={[styles.actionButton, styles.acceptButton]} onPress={() => void captureFromCamera()}>
+              <Text style={styles.actionButtonLabel}>Scan Current Frame</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-async function selectBrowserImage(
-  setBase64: Dispatch<SetStateAction<string>>,
-  setFileName: Dispatch<SetStateAction<string | null>>,
-  setError: Dispatch<SetStateAction<string | null>>
+async function selectFromLibrary(
+  mode: 'package' | 'label',
+  setError: Dispatch<SetStateAction<string | null>>,
+  setPackageBase64: Dispatch<SetStateAction<string>>,
+  setPackageFileName: Dispatch<SetStateAction<string | null>>,
+  setLabelBase64: Dispatch<SetStateAction<string>>,
+  setLabelFileName: Dispatch<SetStateAction<string | null>>
 ) {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') {
-    setError('Browser file upload is unavailable in this environment.');
-    return;
-  }
-
   try {
-    const selection = await openImageFilePicker();
-    if (!selection) {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.8,
+      base64: true
+    });
+    if (result.canceled || !result.assets?.[0]?.base64) {
       return;
     }
 
-    setBase64(selection.base64);
-    setFileName(selection.name);
+    const asset = result.assets[0];
+    const assetBase64 = asset.base64 ?? '';
+    if (mode === 'package') {
+      setPackageBase64(assetBase64);
+      setPackageFileName(asset.fileName ?? asset.uri.split('/').pop() ?? 'package-image.jpg');
+    } else {
+      setLabelBase64(assetBase64);
+      setLabelFileName(asset.fileName ?? asset.uri.split('/').pop() ?? 'label-image.jpg');
+    }
     setError(null);
   } catch (error) {
     setError(error instanceof Error ? error.message : 'Unable to load selected image.');
   }
-}
-
-function openImageFilePicker(): Promise<{ base64: string; name: string } | null> {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(null);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = typeof reader.result === 'string' ? reader.result : '';
-        const [, base64 = ''] = result.split(',', 2);
-        resolve({ base64, name: file.name });
-      };
-      reader.onerror = () => {
-        reject(new Error(`Unable to read ${file.name}.`));
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
-  });
 }
 
 function buildPendingOutput(outputId: string, ingestionJobId: string, confidence: number, extraction: unknown): IngestionOutput {
@@ -950,6 +1080,62 @@ const styles = StyleSheet.create({
   },
   secondaryButtonLabel: {
     color: '#17324d'
+  },
+  cameraModal: {
+    flex: 1,
+    backgroundColor: '#0f1720',
+    padding: 16,
+    gap: 16
+  },
+  cameraHeader: {
+    gap: 12
+  },
+  cameraHeaderCopy: {
+    gap: 4
+  },
+  cameraEyebrow: {
+    color: '#c4f1df',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1
+  },
+  cameraTitle: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '800'
+  },
+  cameraDetail: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    lineHeight: 20
+  },
+  cameraPreviewShell: {
+    flex: 1,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#000000'
+  },
+  cameraPreview: {
+    flex: 1
+  },
+  cameraGuide: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cameraGuideFrame: {
+    width: '78%',
+    aspectRatio: 0.72,
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'transparent'
+  },
+  cameraActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'center'
   },
   rejectButtonLabel: {
     color: '#8a3328'
