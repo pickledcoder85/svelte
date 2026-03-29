@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   type DimensionValue,
+  Image,
+  type ImageSourcePropType,
   Platform,
   Pressable,
   SafeAreaView,
@@ -116,6 +118,52 @@ const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
 type EntryMode = 'live' | 'preview';
 const chartHeight = 160;
+const mascotDefaultImage = require('../assets/favicon.png');
+const mascotWeightsImage = require('../assets/weights.png');
+const mascotBikeImage = require('../assets/bike.png');
+const mascotRunImage = require('../assets/run.png');
+const mascotSwimImage = require('../assets/swim.png');
+const exercisePresets: Array<{
+  id: 'weights' | 'bike' | 'run' | 'swim';
+  label: string;
+  title: string;
+  minutes: string;
+  calories: string;
+  image: ImageSourcePropType;
+}> = [
+  {
+    id: 'weights',
+    label: 'Weights',
+    title: 'Strength session',
+    minutes: '45',
+    calories: '280',
+    image: mascotWeightsImage
+  },
+  {
+    id: 'bike',
+    label: 'Bike',
+    title: 'Bike ride',
+    minutes: '30',
+    calories: '220',
+    image: mascotBikeImage
+  },
+  {
+    id: 'run',
+    label: 'Run',
+    title: 'Run',
+    minutes: '35',
+    calories: '320',
+    image: mascotRunImage
+  },
+  {
+    id: 'swim',
+    label: 'Swim',
+    title: 'Swim laps',
+    minutes: '40',
+    calories: '340',
+    image: mascotSwimImage
+  }
+];
 
 function toneColor(tone: 'checking' | 'live'): string {
   if (tone === 'live') {
@@ -208,6 +256,20 @@ function createEmptyMealDraft(): MealInput {
     serving_count: 1,
     ingredients: []
   };
+}
+
+function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
+  const normalized = title.trim().toLowerCase();
+  if (normalized.includes('bike') || normalized.includes('cycle')) {
+    return exercisePresets[1];
+  }
+  if (normalized.includes('run') || normalized.includes('jog')) {
+    return exercisePresets[2];
+  }
+  if (normalized.includes('swim')) {
+    return exercisePresets[3];
+  }
+  return exercisePresets[0];
 }
 
 export default function App(): ReactElement {
@@ -321,6 +383,7 @@ export default function App(): ReactElement {
   const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live'>('checking');
   const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
+  const activeExercisePreset = useMemo(() => selectExercisePreset(exerciseTitleDraft), [exerciseTitleDraft]);
   const [exerciseSaving, setExerciseSaving] = useState(false);
   const [mealPrepSavingId, setMealPrepSavingId] = useState<string | null>(null);
 
@@ -1938,6 +2001,12 @@ export default function App(): ReactElement {
                   Use the live path to test session creation, onboarding, and profile-driven business logic. Use preview mode to inspect the post-setup experience with dummy data.
                 </Text>
               </View>
+              <View style={styles.heroAside}>
+                <View style={styles.mascotCard}>
+                  <Image source={mascotDefaultImage} style={styles.mascotImage} resizeMode="contain" />
+                  <Text style={styles.mascotLabel}>Pickle is ready for a normal browser session.</Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -2033,6 +2102,12 @@ export default function App(): ReactElement {
                 <Text style={styles.lede}>
                   This one-time setup uses the live backend onboarding route to calculate your starting target and unlock the main app after completion.
                 </Text>
+              </View>
+              <View style={styles.heroAside}>
+                <View style={styles.mascotCard}>
+                  <Image source={mascotWeightsImage} style={styles.mascotImage} resizeMode="contain" />
+                  <Text style={styles.mascotLabel}>Weights mode anchors the onboarding and goal setup flow.</Text>
+                </View>
               </View>
             </View>
           </View>
@@ -2212,10 +2287,22 @@ export default function App(): ReactElement {
       <StatusBar style="dark" />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.appHeader}>
-          <View style={styles.appHeaderCopy}>
-            <Text style={styles.appEyebrow}>Nutrition OS</Text>
-            <Text style={styles.appTitle}>Personal nutrition dashboard</Text>
-            <Text style={styles.appDetail}>Keep the first screen focused on actual intake, targets, and missing inputs.</Text>
+          <View style={styles.appHeaderTop}>
+            <View style={styles.appHeaderCopy}>
+              <Text style={styles.appEyebrow}>Nutrition OS</Text>
+              <Text style={styles.appTitle}>Personal nutrition dashboard</Text>
+              <Text style={styles.appDetail}>Keep the first screen focused on actual intake, targets, and missing inputs.</Text>
+            </View>
+            <View style={styles.appHeaderMascotCard}>
+              <Image
+                source={section === 'tracker' ? activeExercisePreset.image : mascotDefaultImage}
+                style={styles.appHeaderMascotImage}
+                resizeMode="contain"
+              />
+              <Text style={styles.appHeaderMascotLabel}>
+                {section === 'tracker' ? `${activeExercisePreset.label} loaded` : 'Pickle on duty'}
+              </Text>
+            </View>
           </View>
           <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
             <Text style={styles.appStatusLabel}>{syncLabel}</Text>
@@ -2924,6 +3011,29 @@ export default function App(): ReactElement {
               <Text style={styles.panelDetail}>
                 Capture exercise locally now so the tracker reflects both food and movement in one place.
               </Text>
+
+              <View style={styles.exercisePresetGrid}>
+                {exercisePresets.map((preset) => {
+                  const active = preset.id === activeExercisePreset.id;
+                  return (
+                    <Pressable
+                      key={preset.id}
+                      style={[styles.exercisePresetCard, active && styles.exercisePresetCardActive]}
+                      onPress={() => {
+                        setExerciseTitleDraft(preset.title);
+                        setExerciseMinutesDraft(preset.minutes);
+                        setExerciseCaloriesDraft(preset.calories);
+                      }}
+                    >
+                      <Image source={preset.image} style={styles.exercisePresetImage} resizeMode="contain" />
+                      <Text style={styles.exercisePresetLabel}>{preset.label}</Text>
+                      <Text style={styles.exercisePresetMeta}>
+                        {preset.minutes} min · {preset.calories} kcal
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               <View style={styles.searchRow}>
                 <TextInput
@@ -3902,8 +4012,17 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 14
   },
+  appHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 14,
+    flexWrap: 'wrap'
+  },
   appHeaderCopy: {
-    gap: 6
+    gap: 6,
+    flex: 1,
+    minWidth: 240
   },
   appEyebrow: {
     color: '#0f766e',
@@ -3928,6 +4047,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4
+  },
+  appHeaderMascotCard: {
+    backgroundColor: '#f6f0e7',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 132
+  },
+  appHeaderMascotImage: {
+    width: 92,
+    height: 92
+  },
+  appHeaderMascotLabel: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center'
   },
   appStatusLabel: {
     color: '#132536',
@@ -4073,6 +4211,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8
+  },
+  exercisePresetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10
+  },
+  exercisePresetCard: {
+    flexGrow: 1,
+    flexBasis: 136,
+    backgroundColor: '#f7f4ef',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 12,
+    gap: 6,
+    alignItems: 'center'
+  },
+  exercisePresetCardActive: {
+    borderColor: '#17324d',
+    backgroundColor: '#eef3f8'
+  },
+  exercisePresetImage: {
+    width: '100%',
+    height: 112
+  },
+  exercisePresetLabel: {
+    color: '#132536',
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  exercisePresetMeta: {
+    color: '#66778c',
+    fontSize: 12,
+    textAlign: 'center'
   },
   sectionTab: {
     borderRadius: 999,
