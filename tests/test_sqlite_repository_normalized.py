@@ -7,7 +7,7 @@ from backend.app.db.database import apply_migrations, connect
 from backend.app.models.meals import MealTemplate
 from backend.app.models.nutrition import IngredientInput, MacroTargets
 from backend.app.models.recipes import RecipeDefinition
-from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.repositories.sqlite import DEFAULT_FAVORITE_FOOD_IDS, SQLiteRepository
 
 
 class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
@@ -29,6 +29,13 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                     SELECT sql
                     FROM sqlite_master
                     WHERE type = 'table' AND name = 'saved_favorites'
+                    """
+                ).fetchone()
+                default_food_favorites_row = connection.execute(
+                    """
+                    SELECT sql
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'default_favorite_foods'
                     """
                 ).fetchone()
                 index_rows = connection.execute(
@@ -54,10 +61,14 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 "meal_prep_tasks",
                 "ingestion_jobs",
                 "saved_favorites",
+                "default_favorite_foods",
+                "user_default_favorite_food_seed_runs",
             }.issubset(table_names)
         )
         self.assertIsNotNone(saved_favorites_row)
         self.assertIn("food", saved_favorites_row["sql"])
+        self.assertIsNotNone(default_food_favorites_row)
+        self.assertIn("display_order", default_food_favorites_row["sql"])
         self.assertTrue(
             {
                 "idx_user_goals_user_effective",
@@ -73,8 +84,14 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 "idx_ingestion_outputs_pending_review",
                 "idx_saved_favorites_user_type_created",
                 "idx_saved_favorites_entity",
+                "idx_default_favorite_foods_order",
             }.issubset(index_names)
         )
+
+        default_food_count = connection.execute(
+            "SELECT COUNT(*) AS count FROM default_favorite_foods"
+        ).fetchone()["count"]
+        self.assertEqual(default_food_count, len(DEFAULT_FAVORITE_FOOD_IDS))
 
     def test_sqlite_repository_persists_user_identity_goals_and_food_logs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -125,6 +142,40 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(log["entries"][0]["id"], entry_id)
         self.assertEqual(log_entries[0]["food_item_id"], "food-oats")
         self.assertEqual(len(logs), 1)
+
+    def test_sqlite_repository_seeds_default_favorite_foods_for_new_users(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+
+            repo.save_user_identity(
+                user_id="user-1",
+                email="user@example.com",
+                display_name="Test User",
+                timezone="America/New_York",
+                units="imperial",
+            )
+            seeded_favorites = repo.list_saved_favorites("user-1", "food")
+
+            repo.save_user_identity(
+                user_id="user-1",
+                email="user@example.com",
+                display_name="Updated User",
+                timezone="America/New_York",
+                units="imperial",
+            )
+            repeated_favorites = repo.list_saved_favorites("user-1", "food")
+
+        self.assertEqual(
+            [favorite["entity_id"] for favorite in seeded_favorites],
+            DEFAULT_FAVORITE_FOOD_IDS,
+        )
+        self.assertEqual(
+            [favorite["entity_id"] for favorite in repeated_favorites],
+            DEFAULT_FAVORITE_FOOD_IDS,
+        )
+        self.assertEqual(len(seeded_favorites), len(DEFAULT_FAVORITE_FOOD_IDS))
+        self.assertEqual(len(repeated_favorites), len(DEFAULT_FAVORITE_FOOD_IDS))
 
     def test_sqlite_repository_persists_weight_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -316,14 +367,81 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(food_favorite["entity_id"], "food-oats")
         self.assertEqual(duplicate_food_favorite["id"], food_favorite["id"])
         self.assertEqual(other_user_food_favorite["user_id"], "user-2")
-        self.assertEqual(len(user1_favorites), 3)
-        self.assertEqual(len(food_favorites), 1)
+        self.assertEqual(len(user1_favorites), len(DEFAULT_FAVORITE_FOOD_IDS) + 2)
+        self.assertEqual(len(food_favorites), len(DEFAULT_FAVORITE_FOOD_IDS))
         self.assertEqual(len(meal_favorites), 1)
         self.assertEqual(len(recipe_favorites), 1)
         self.assertTrue(repo.is_saved_favorite("user-1", "meal_template", meal_template.id))
         self.assertTrue(repo.is_saved_favorite("user-1", "recipe", recipe.id))
         self.assertFalse(repo.is_saved_favorite("user-1", "food", "food-oats"))
         self.assertTrue(repo.is_saved_favorite("user-2", "food", "food-oats"))
+
+    def test_sqlite_repository_updates_meal_template_totals_and_ingredients(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+
+            meal_template = MealTemplate(
+                id="meal-protein-bowl",
+                name="Protein Bowl",
+                serving_count=2,
+                ingredients=[
+                    IngredientInput(
+                        id="ingredient-1",
+                        food_id="food-oats",
+                        name="Rolled oats",
+                        grams=80,
+                        calories_per_100g=389,
+                        macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    )
+                ],
+                favorite=False,
+                calories=311.2,
+                macros=MacroTargets(protein=13.5, carbs=53.0, fat=5.5),
+                per_serving_calories=155.6,
+                per_serving_macros=MacroTargets(protein=6.8, carbs=26.5, fat=2.8),
+            )
+            repo.save_meal_template(meal_template)
+
+            updated_template = meal_template.model_copy(
+                update={
+                    "name": "Protein Bowl Deluxe",
+                    "serving_count": 4,
+                    "ingredients": [
+                        IngredientInput(
+                            id="ingredient-1",
+                            food_id="food-oats",
+                            name="Rolled oats",
+                            grams=100,
+                            calories_per_100g=389,
+                            macros_per_100g=MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                        )
+                    ],
+                    "calories": 389.0,
+                    "macros": MacroTargets(protein=16.9, carbs=66.3, fat=6.9),
+                    "per_serving_calories": 97.2,
+                    "per_serving_macros": MacroTargets(protein=4.2, carbs=16.6, fat=1.7),
+                }
+            )
+            repo.save_meal_template(updated_template)
+
+            fetched = repo.get_meal_template(meal_template.id)
+            ingredient_rows = repo._connection.execute(
+                """
+                SELECT grams
+                FROM meal_template_ingredients
+                WHERE meal_template_id = ?
+                ORDER BY id
+                """,
+                (meal_template.id,),
+            ).fetchall()
+
+        self.assertIsNotNone(fetched)
+        self.assertEqual(fetched.name, "Protein Bowl Deluxe")
+        self.assertEqual(fetched.serving_count, 4)
+        self.assertEqual(fetched.calories, 389.0)
+        self.assertEqual(fetched.per_serving_calories, 97.2)
+        self.assertEqual([row["grams"] for row in ingredient_rows], [100])
 
     def test_sqlite_repository_persists_exercise_meal_plan_and_meal_prep(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

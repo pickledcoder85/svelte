@@ -10,6 +10,12 @@ class MealTemplateCreateRequest(BaseModel):
     ingredients: list[IngredientInput] = Field(default_factory=list)
 
 
+class MealTemplateUpdateRequest(BaseModel):
+    name: str = Field(min_length=1)
+    serving_count: float = Field(gt=0)
+    ingredients: list[IngredientInput] = Field(default_factory=list)
+
+
 class MealTemplate(MealTemplateCreateRequest):
     favorite: bool = False
     calories: float
