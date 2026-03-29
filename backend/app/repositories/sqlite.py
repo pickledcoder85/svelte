@@ -280,6 +280,7 @@ class SQLiteRepository:
         self._connection.row_factory = sqlite3.Row
         self._lock = threading.Lock()
         self.initialize()
+        self._repair_legacy_schema()
 
     def initialize(self) -> None:
         with self._lock, self._connection:
@@ -656,6 +657,181 @@ class SQLiteRepository:
                     )
                     for index, seed in enumerate(DEFAULT_FOOD_CATALOG_SEEDS)
                 ],
+            )
+
+    def _repair_legacy_schema(self) -> None:
+        self._ensure_user_profiles_columns()
+        self._ensure_user_goals_columns()
+        self._ensure_weight_entries_columns()
+        self._ensure_saved_favorites_supports_food()
+        self._ensure_default_favorite_food_tables()
+        self._seed_data()
+
+    def _ensure_user_profiles_columns(self) -> None:
+        existing_columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(user_profiles)").fetchall()
+        }
+        expected_columns = {
+            "setup_completed_at": "TEXT",
+            "sex": "TEXT",
+            "age_years": "INTEGER",
+            "height_cm": "REAL",
+            "current_weight_lbs": "REAL",
+            "goal_type": "TEXT",
+            "target_weight_lbs": "REAL",
+            "activity_level": "TEXT",
+            "bmr_calories": "INTEGER",
+            "tdee_calories": "INTEGER",
+            "initial_calorie_target": "INTEGER",
+        }
+
+        missing_columns = [
+            (column_name, column_type)
+            for column_name, column_type in expected_columns.items()
+            if column_name not in existing_columns
+        ]
+        if not missing_columns:
+            return
+
+        with self._lock, self._connection:
+            for column_name, column_type in missing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE user_profiles ADD COLUMN {column_name} {column_type}"
+                )
+
+    def _ensure_default_favorite_food_tables(self) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS default_favorite_foods (
+                    food_id TEXT PRIMARY KEY,
+                    food_name TEXT NOT NULL,
+                    brand TEXT,
+                    calories REAL NOT NULL,
+                    serving_size REAL NOT NULL,
+                    serving_unit TEXT NOT NULL,
+                    protein REAL NOT NULL,
+                    carbs REAL NOT NULL,
+                    fat REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    display_order INTEGER NOT NULL
+                )
+                """
+            )
+
+    def _ensure_user_goals_columns(self) -> None:
+        existing_columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(user_goals)").fetchall()
+        }
+        expected_columns = {
+            "target_weight_lbs": "REAL",
+            "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+        }
+        missing_columns = [
+            (column_name, column_type)
+            for column_name, column_type in expected_columns.items()
+            if column_name not in existing_columns
+        ]
+        if not missing_columns:
+            return
+
+        with self._lock, self._connection:
+            for column_name, column_type in missing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE user_goals ADD COLUMN {column_name} {column_type}"
+                )
+
+    def _ensure_weight_entries_columns(self) -> None:
+        existing_columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(weight_entries)").fetchall()
+        }
+        expected_columns = {
+            "notes": "TEXT",
+            "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+        }
+        missing_columns = [
+            (column_name, column_type)
+            for column_name, column_type in expected_columns.items()
+            if column_name not in existing_columns
+        ]
+        if not missing_columns:
+            return
+
+        with self._lock, self._connection:
+            for column_name, column_type in missing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE weight_entries ADD COLUMN {column_name} {column_type}"
+                )
+
+    def _ensure_saved_favorites_supports_food(self) -> None:
+        row = self._connection.execute(
+            """
+            SELECT sql
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'saved_favorites'
+            """
+        ).fetchone()
+        if row is None:
+            return
+
+        table_sql = row["sql"] or ""
+        if "'food'" in table_sql:
+            return
+
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE saved_favorites_repaired (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    entity_type TEXT NOT NULL CHECK (entity_type IN ('recipe', 'meal_template', 'food')),
+                    entity_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    UNIQUE (user_id, entity_type, entity_id)
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                INSERT INTO saved_favorites_repaired (id, user_id, entity_type, entity_id, created_at)
+                SELECT id, user_id, entity_type, entity_id, created_at
+                FROM saved_favorites
+                """
+            )
+            self._connection.execute("DROP TABLE saved_favorites")
+            self._connection.execute(
+                "ALTER TABLE saved_favorites_repaired RENAME TO saved_favorites"
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_saved_favorites_user_type_created
+                ON saved_favorites (user_id, entity_type, created_at DESC)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_saved_favorites_entity
+                ON saved_favorites (entity_type, entity_id)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_default_favorite_food_seed_runs (
+                    user_id TEXT PRIMARY KEY,
+                    seeded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_default_favorite_foods_order
+                ON default_favorite_foods (display_order ASC, food_name ASC)
+                """
             )
 
     def _row_to_food(self, row: sqlite3.Row) -> FoodItem:
