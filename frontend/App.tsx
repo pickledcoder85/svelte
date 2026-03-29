@@ -55,6 +55,7 @@ import {
   sortMealPlanDaysByDate
 } from './src/lib/meal-plan';
 import { buildTrackerTotals, buildWeightProgressSummary } from './src/lib/progress';
+import { filterRecipesFuzzy, sortRecipesAlphabetically } from './src/lib/recipes';
 import {
   calculateFoodGrams,
   clampFoodQuantity,
@@ -200,6 +201,7 @@ export default function App(): ReactElement {
   const [recipeCatalog, setRecipeCatalog] = useState<RecipeDefinition[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeDefinition | null>(null);
+  const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
   const [recipeTone, setRecipeTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [recipeStatus, setRecipeStatus] = useState('Loading recipe favorites');
   const [recipeError, setRecipeError] = useState<string | null>(null);
@@ -346,7 +348,7 @@ export default function App(): ReactElement {
 
     async function loadProfileSettings() {
       if (!foodSessionToken) {
-        setProfileLoaded(false);
+        setProfileLoaded(true);
         setProfile(null);
         setProfileGoals([]);
         setProfileProgress(null);
@@ -354,8 +356,8 @@ export default function App(): ReactElement {
         setProfileDisplayNameDraft('');
         setProfileTimezoneDraft('UTC');
         setProfileUnitsDraft('imperial');
-        setProfileTone('checking');
-        setProfileStatus('Profile data unavailable until a backend session is ready');
+        setProfileTone('demo');
+        setProfileStatus('Profile session unavailable, showing the app in fallback mode');
         setProfileError('No active profile session.');
         return;
       }
@@ -786,7 +788,10 @@ export default function App(): ReactElement {
           return;
         }
 
-        const fallback = recipeFavorites.find((item) => item.id === selectedRecipeId) ?? null;
+        const fallback =
+          recipeCatalog.find((item) => item.id === selectedRecipeId) ??
+          recipeFavorites.find((item) => item.id === selectedRecipeId) ??
+          null;
         setSelectedRecipe(fallback);
         if (fallback === null) {
           setRecipeTone('demo');
@@ -805,7 +810,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [recipeFavorites, selectedRecipeId]);
+  }, [recipeCatalog, recipeFavorites, selectedRecipeId]);
 
   const selectedSeries = useMemo(
     () => selectRangeSeries(snapshot.rangeSeries, activeRange),
@@ -829,6 +834,10 @@ export default function App(): ReactElement {
   const weightProgress = useMemo(
     () => buildWeightProgressSummary(profileProgress, weightEntries),
     [profileProgress, weightEntries]
+  );
+  const filteredRecipeCatalog = useMemo(
+    () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
+    [recipeCatalog, recipeSearchTerm]
   );
   const mealPreview = useMemo(() => scaleMealIngredients(demoMeal, recipeScale), [recipeScale]);
   const recipeTotals = useMemo(() => mealTotals(mealPreview), [mealPreview]);
@@ -2634,9 +2643,9 @@ export default function App(): ReactElement {
         {section === 'recipes' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Recipes</Text>
-            <Text style={styles.panelTitle}>Saved recipe favorites and import review</Text>
+            <Text style={styles.panelTitle}>Recipe library and import review</Text>
             <Text style={styles.panelDetail}>
-              Your starred recipes load first, and the latest imported recipe is surfaced as a reviewable detail.
+              Browse the full recipe catalog in alphabetical order, narrow it with fuzzy search, and open each recipe inline to review the details.
             </Text>
 
             <View style={[styles.inlineStatus, { borderColor: toneColor(recipeTone) }]}>
@@ -2683,144 +2692,136 @@ export default function App(): ReactElement {
             </View>
 
             <View style={styles.recipeSection}>
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={recipeSearchTerm}
+                  onChangeText={setRecipeSearchTerm}
+                  placeholder="Find oats, chicken, parfait..."
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
               {recipeLoading ? (
                 <View style={styles.detailCard}>
                   <ActivityIndicator size="small" color="#17324d" />
-                  <Text style={styles.detailSubtitle}>Fetching saved recipe favorites...</Text>
+                  <Text style={styles.detailSubtitle}>Fetching recipes...</Text>
                 </View>
-              ) : recipeFavorites.length === 0 ? (
+              ) : filteredRecipeCatalog.length === 0 ? (
                 <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>No saved favorites yet</Text>
+                  <Text style={styles.detailTitle}>No recipe matches yet</Text>
                   <Text style={styles.detailSubtitle}>
-                    Save a recipe from the detail card once it appears, or import a new one below.
+                    Try another title or ingredient term to narrow the recipe list.
                   </Text>
                 </View>
               ) : (
                 <View style={styles.foodList}>
-                  {recipeFavorites.map((recipe) => {
-                    const active = recipe.id === selectedRecipe?.id;
+                  {filteredRecipeCatalog.map((recipe) => {
+                    const active = recipe.id === selectedRecipeId;
                     const saving = recipeSavingId === recipe.id;
+                    const detailRecipe = active && selectedRecipe?.id === recipe.id ? selectedRecipe : recipe;
 
                     return (
-                      <Pressable
-                        key={recipe.id}
-                        style={[styles.foodRow, active && styles.foodRowActive]}
-                        onPress={() => setSelectedRecipeId(recipe.id)}
-                      >
-                        <View style={styles.foodRowCopy}>
-                          <View style={styles.recipeRowTitleWrap}>
-                            <Text style={styles.listTitle}>{recipe.title}</Text>
-                            <Pressable
-                              onPress={(event) => {
-                                event.stopPropagation();
-                                void toggleRecipeFavorite(recipe, false);
-                              }}
-                              style={styles.recipeStarButton}
-                              disabled={saving}
-                            >
-                              <Text style={styles.recipeStarButtonLabel}>{saving ? 'Saving...' : '★'}</Text>
-                            </Pressable>
+                      <View key={recipe.id} style={[styles.recipeAccordionCard, active && styles.recipeAccordionCardActive]}>
+                        <Pressable
+                          style={styles.recipeAccordionHeader}
+                          onPress={() => setSelectedRecipeId((current) => (current === recipe.id ? null : recipe.id))}
+                        >
+                          <View style={styles.foodRowCopy}>
+                            <View style={styles.recipeRowTitleWrap}>
+                              <Text style={styles.listTitle}>{recipe.title}</Text>
+                              <Pressable
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  void toggleRecipeFavorite(recipe, !recipe.favorite);
+                                }}
+                                style={[styles.recipeStarButton, recipe.favorite && styles.recipeStarButtonActive]}
+                                disabled={saving}
+                              >
+                                <Text style={styles.recipeStarButtonLabel}>
+                                  {saving ? 'Saving...' : recipe.favorite ? '★' : '☆'}
+                                </Text>
+                              </Pressable>
+                            </View>
+                            <Text style={styles.listCaption}>
+                              {recipe.steps.length} steps · {recipe.ingredients.length} ingredients · {recipe.assets.length} assets
+                            </Text>
                           </View>
-                          <Text style={styles.listCaption}>
-                            {recipe.steps.length} steps · {recipe.ingredients.length} ingredients · {recipe.assets.length} assets
-                          </Text>
-                        </View>
-                        <Text style={styles.listMetric}>{recipe.default_yield} servings</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
+                          <View style={styles.recipeAccordionMeta}>
+                            <Text style={styles.listMetric}>{recipe.default_yield} servings</Text>
+                            <Text style={styles.recipeAccordionCaret}>{active ? '▲' : '▼'}</Text>
+                          </View>
+                        </Pressable>
 
-            <View style={styles.detailCard}>
-              {recipeDetailLoading && selectedRecipe ? (
-                <View style={styles.recipeDetailLoading}>
-                  <ActivityIndicator size="small" color="#17324d" />
-                  <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
-                </View>
-              ) : selectedRecipe ? (
-                <>
-                  <View style={styles.recipeDetailHeader}>
-                    <View style={styles.recipeDetailHeaderCopy}>
-                      <View style={styles.recipeRowTitleWrap}>
-                        <Text style={styles.detailTitle}>{selectedRecipe.title}</Text>
-                        {importedRecipeSelected ? (
-                          <View style={styles.recipeReviewBadge}>
-                            <Text style={styles.recipeReviewBadgeLabel}>Imported review</Text>
+                        {active ? (
+                          <View style={styles.recipeAccordionBody}>
+                            {recipeDetailLoading && selectedRecipe?.id === recipe.id ? (
+                              <View style={styles.recipeDetailLoading}>
+                                <ActivityIndicator size="small" color="#17324d" />
+                                <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
+                              </View>
+                            ) : (
+                              <>
+                                <View style={styles.recipeDetailHeader}>
+                                  <View style={styles.recipeDetailHeaderCopy}>
+                                    <View style={styles.recipeRowTitleWrap}>
+                                      <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
+                                      {importedRecipeId === recipe.id ? (
+                                        <View style={styles.recipeReviewBadge}>
+                                          <Text style={styles.recipeReviewBadgeLabel}>Imported review</Text>
+                                        </View>
+                                      ) : null}
+                                    </View>
+                                    <Text style={styles.detailSubtitle}>
+                                      {detailRecipe.steps.length} steps · {detailRecipe.ingredients.length} ingredients ·{' '}
+                                      {detailRecipe.assets.length} assets · {detailRecipe.default_yield} servings
+                                    </Text>
+                                  </View>
+                                </View>
+
+                                {detailRecipe.steps.length > 0 ? (
+                                  <View style={styles.recipeMetaBlock}>
+                                    <Text style={styles.recipeMetaLabel}>Steps</Text>
+                                    {detailRecipe.steps.map((step, index) => (
+                                      <Text key={`${detailRecipe.id}-step-${index}`} style={styles.recipeStep}>
+                                        {index + 1}. {step}
+                                      </Text>
+                                    ))}
+                                  </View>
+                                ) : null}
+
+                                {detailRecipe.ingredients.length > 0 ? (
+                                  <View style={styles.recipeMetaBlock}>
+                                    <Text style={styles.recipeMetaLabel}>Ingredients</Text>
+                                    {detailRecipe.ingredients.map((ingredient) => (
+                                      <Text key={ingredient.id} style={styles.recipeMetaItem}>
+                                        {ingredient.name} · {ingredient.grams} g
+                                      </Text>
+                                    ))}
+                                  </View>
+                                ) : null}
+
+                                <View style={styles.recipeMetaBlock}>
+                                  <Text style={styles.recipeMetaLabel}>Assets</Text>
+                                  {detailRecipe.assets.length === 0 ? (
+                                    <Text style={styles.recipeMetaItem}>No imported assets attached yet.</Text>
+                                  ) : (
+                                    detailRecipe.assets.map((asset, index) => (
+                                      <Text key={`${detailRecipe.id}-asset-${index}`} style={styles.recipeMetaItem}>
+                                        {asset.kind.toUpperCase()} asset {asset.url ? 'linked' : 'embedded'}
+                                      </Text>
+                                    ))
+                                  )}
+                                </View>
+                              </>
+                            )}
                           </View>
                         ) : null}
                       </View>
-                      <Text style={styles.detailSubtitle}>
-                        {selectedRecipe.steps.length} steps · {selectedRecipe.ingredients.length} ingredients ·{' '}
-                        {selectedRecipe.assets.length} assets · {selectedRecipe.default_yield} servings
-                        {importedRecipeSelected ? ' · selected import' : ''}
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={() => void toggleRecipeFavorite(selectedRecipe, !selectedRecipe.favorite)}
-                      style={[
-                        styles.recipeStarToggle,
-                        selectedRecipe.favorite ? styles.recipeStarToggleActive : styles.recipeStarToggleInactive
-                      ]}
-                      disabled={recipeSavingId === selectedRecipe.id}
-                    >
-                      <Text
-                        style={[
-                          styles.recipeStarToggleLabel,
-                          selectedRecipe.favorite && styles.recipeStarToggleLabelActive
-                        ]}
-                      >
-                        {recipeSavingId === selectedRecipe.id
-                          ? 'Saving...'
-                          : selectedRecipe.favorite
-                          ? 'Unfavorite'
-                          : 'Favorite'}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  {selectedRecipe.steps.length > 0 ? (
-                    <View style={styles.recipeMetaBlock}>
-                      <Text style={styles.recipeMetaLabel}>Steps</Text>
-                      {selectedRecipe.steps.slice(0, 3).map((step, index) => (
-                        <Text key={`${selectedRecipe.id}-step-${index}`} style={styles.recipeStep}>
-                          {index + 1}. {step}
-                        </Text>
-                      ))}
-                    </View>
-                  ) : null}
-
-                  {selectedRecipe.ingredients.length > 0 ? (
-                    <View style={styles.recipeMetaBlock}>
-                      <Text style={styles.recipeMetaLabel}>Ingredients</Text>
-                      {selectedRecipe.ingredients.slice(0, 3).map((ingredient) => (
-                        <Text key={ingredient.id} style={styles.recipeMetaItem}>
-                          {ingredient.name} · {ingredient.grams} g
-                        </Text>
-                      ))}
-                    </View>
-                  ) : null}
-
-                  <View style={styles.recipeMetaBlock}>
-                    <Text style={styles.recipeMetaLabel}>Assets</Text>
-                    {selectedRecipe.assets.length === 0 ? (
-                      <Text style={styles.recipeMetaItem}>No imported assets attached yet.</Text>
-                    ) : (
-                      selectedRecipe.assets.slice(0, 3).map((asset, index) => (
-                        <Text key={`${selectedRecipe.id}-asset-${index}`} style={styles.recipeMetaItem}>
-                          {asset.kind.toUpperCase()} asset {asset.url ? 'linked' : 'embedded'}
-                        </Text>
-                      ))
-                    )}
-                  </View>
-                </>
-              ) : (
-                <View style={styles.recipeDetailLoading}>
-                  <Text style={styles.detailTitle}>Select a recipe</Text>
-                  <Text style={styles.detailSubtitle}>
-                    The selected recipe detail will appear here, including its steps, ingredients, and favorite toggle.
-                  </Text>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -3644,10 +3645,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6
   },
+  recipeStarButtonActive: {
+    backgroundColor: '#0f766e'
+  },
   recipeStarButtonLabel: {
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '800'
+  },
+  recipeAccordionCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbe3ec',
+    padding: 14,
+    gap: 10
+  },
+  recipeAccordionCardActive: {
+    borderColor: '#17324d',
+    backgroundColor: '#f7f4ef'
+  },
+  recipeAccordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12
+  },
+  recipeAccordionMeta: {
+    alignItems: 'flex-end',
+    gap: 6
+  },
+  recipeAccordionCaret: {
+    color: '#6b7b90',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  recipeAccordionBody: {
+    gap: 10,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#dbe3ec'
   },
   detailCard: {
     backgroundColor: '#f7f4ef',
