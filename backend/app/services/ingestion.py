@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from typing import Any, Literal
+from uuid import uuid4
 
 from backend.app.models.ingestion import IngestionOutput
+from backend.app.models.nutrition import FoodItem, MacroTargets, VisionNutritionExtraction, VisionPackageExtraction
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
@@ -16,6 +18,10 @@ class IngestionAccessError(PermissionError):
 
 
 class IngestionStateError(ValueError):
+    pass
+
+
+class IngestionSaveError(ValueError):
     pass
 
 
@@ -128,3 +134,88 @@ def transition_output(
     if output is None:
         raise IngestionNotFoundError("Ingestion output not found.")
     return _normalize_output(output)
+
+
+def create_scan_output(
+    repository: SQLiteRepository,
+    user_id: str,
+    *,
+    source_kind: str,
+    source_name: str,
+    extracted_text: str | None,
+    structured_json: Any,
+    confidence: float,
+) -> IngestionOutput:
+    job_id = repository.create_ingestion_job(
+        user_id=user_id,
+        source_kind=source_kind,
+        source_name=source_name,
+        status="pending_review",
+    )
+    output = repository.save_ingestion_output(
+        ingestion_job_id=job_id,
+        extracted_text=extracted_text,
+        structured_json=structured_json,
+        confidence=confidence,
+    )
+    repository.update_ingestion_job(job_id, status="pending_review")
+    return _normalize_output(output)
+
+
+def save_food_from_output(repository: SQLiteRepository, user_id: str, output_id: str) -> FoodItem:
+    output = _assert_output_access(repository, user_id, output_id)
+    if output["review_state"] != "accepted":
+        raise IngestionStateError("Only accepted ingestion outputs can be saved as foods.")
+
+    structured_json = _coerce_structured_json(output["structured_json"])
+    if not isinstance(structured_json, dict):
+        raise IngestionSaveError("Accepted ingestion output does not contain food data.")
+
+    product_name = structured_json.get("product_name")
+    calories = structured_json.get("calories")
+    macros = structured_json.get("macros")
+    serving_size = structured_json.get("serving_size")
+    if not isinstance(product_name, str) or not product_name.strip():
+        raise IngestionSaveError("Accepted ingestion output is missing a product name.")
+    if not isinstance(calories, (int, float)):
+        raise IngestionSaveError("Accepted ingestion output is missing calories.")
+    if not isinstance(macros, dict):
+        raise IngestionSaveError("Accepted ingestion output is missing macro data.")
+
+    serving_quantity, serving_unit = _parse_serving_size(serving_size)
+    try:
+        protein = float(macros["protein"])
+        carbs = float(macros["carbs"])
+        fat = float(macros["fat"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise IngestionSaveError("Accepted ingestion output has invalid macro data.") from exc
+
+    food = FoodItem(
+        id=f"food-label-{uuid4().hex[:12]}",
+        name=product_name.strip(),
+        brand=structured_json.get("brand_name"),
+        calories=float(calories),
+        serving_size=serving_quantity,
+        serving_unit=serving_unit,
+        macros=MacroTargets(protein=protein, carbs=carbs, fat=fat),
+        source="LABEL_SCAN",
+        favorite=False,
+    )
+    return repository.save_food_item(food)
+
+
+def _parse_serving_size(value: Any) -> tuple[float, str]:
+    if isinstance(value, (int, float)):
+        return float(value), "serving"
+    if not isinstance(value, str):
+        return 1.0, "serving"
+    normalized = value.strip()
+    if not normalized:
+        return 1.0, "serving"
+    parts = normalized.split(maxsplit=1)
+    try:
+        quantity = float(parts[0])
+        unit = parts[1] if len(parts) > 1 else "serving"
+        return quantity, unit
+    except ValueError:
+        return 1.0, normalized

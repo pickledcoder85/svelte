@@ -66,3 +66,35 @@ class VisionNutritionExtraction(BaseModel):
     calories: float
     macros: MacroTargets
     confidence: float = Field(ge=0, le=1)
+
+
+class VisionFoodMatchCandidate(BaseModel):
+    food_id: str
+    name: str
+    brand: str | None = None
+    source: Literal["USDA", "LABEL_SCAN", "CUSTOM"]
+    confidence: float = Field(ge=0, le=1)
+
+
+class VisionPackageExtraction(BaseModel):
+    package_text: str
+    product_name: str
+    brand_name: str | None = None
+    confidence: float = Field(ge=0, le=1)
+    match_candidates: list[VisionFoodMatchCandidate] = Field(default_factory=list)
+
+
+class VisionIngestionResult(BaseModel):
+    ingestion_job_id: str
+    output_id: str
+    source_kind: str
+    source_name: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class VisionPackageScanResult(VisionIngestionResult):
+    extraction: VisionPackageExtraction
+
+
+class VisionLabelScanResult(VisionIngestionResult):
+    extraction: VisionNutritionExtraction

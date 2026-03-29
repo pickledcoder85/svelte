@@ -1,6 +1,8 @@
 import type {
   ExerciseEntry,
   IngestionOutput,
+  VisionLabelScanResult,
+  VisionPackageScanResult,
   FoodItem,
   FoodLogEntryInput,
   FoodLogSummary,
@@ -431,12 +433,19 @@ export async function fetchIngestionOutput(
 
 export async function acceptIngestionOutput(
   outputId: string,
-  accessToken: string
+  accessToken: string,
+  payload?: { extracted_text?: string; structured_json?: unknown }
 ): Promise<IngestionOutput> {
   return readJson<IngestionOutput>(
     await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/accept`), {
       method: 'POST',
-      headers: authHeaders(accessToken)
+      headers: payload
+        ? {
+            'Content-Type': 'application/json',
+            ...authHeaders(accessToken)
+          }
+        : authHeaders(accessToken),
+      body: payload ? JSON.stringify(payload) : undefined
     })
   );
 }
@@ -447,6 +456,50 @@ export async function rejectIngestionOutput(
 ): Promise<IngestionOutput> {
   return readJson<IngestionOutput>(
     await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/reject`), {
+      method: 'POST',
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function scanFoodPackage(
+  imageBase64: string,
+  accessToken: string
+): Promise<VisionPackageScanResult> {
+  return readJson<VisionPackageScanResult>(
+    await fetch(buildApiUrl('/vision/package'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ image_base64: imageBase64 })
+    })
+  );
+}
+
+export async function ingestNutritionLabel(
+  imageBase64: string,
+  accessToken: string
+): Promise<VisionLabelScanResult> {
+  return readJson<VisionLabelScanResult>(
+    await fetch(buildApiUrl('/vision/label/ingest'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ image_base64: imageBase64 })
+    })
+  );
+}
+
+export async function saveFoodFromIngestionOutput(
+  outputId: string,
+  accessToken: string
+): Promise<FoodItem> {
+  return readJson<FoodItem>(
+    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/save-food`), {
       method: 'POST',
       headers: authHeaders(accessToken)
     })

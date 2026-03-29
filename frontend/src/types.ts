@@ -306,3 +306,47 @@ export interface IngestionOutput {
 export interface IngestionReviewUpdate {
   review_state: Extract<IngestionReviewState, 'accepted' | 'rejected'>;
 }
+
+export interface VisionFoodMatchCandidate {
+  food_id: string;
+  name: string;
+  brand: string | null;
+  source: FoodItem['source'];
+  confidence: number;
+}
+
+export interface VisionPackageExtraction {
+  package_text: string;
+  product_name: string;
+  brand_name: string | null;
+  confidence: number;
+  match_candidates: VisionFoodMatchCandidate[];
+}
+
+export interface VisionNutritionExtraction {
+  label_text: string;
+  product_name: string;
+  brand_name: string | null;
+  serving_size: string;
+  calories: number;
+  macros: MacroTargets;
+  confidence: number;
+}
+
+export interface VisionPackageScanResult {
+  ingestion_job_id: string;
+  output_id: string;
+  source_kind: string;
+  source_name: string;
+  confidence: number;
+  extraction: VisionPackageExtraction;
+}
+
+export interface VisionLabelScanResult {
+  ingestion_job_id: string;
+  output_id: string;
+  source_kind: string;
+  source_name: string;
+  confidence: number;
+  extraction: VisionNutritionExtraction;
+}
