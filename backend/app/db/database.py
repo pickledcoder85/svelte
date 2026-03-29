@@ -80,6 +80,16 @@ def apply_migrations(database_url: str | None = None) -> None:
         connection.commit()
 
 
+def reset_database(database_url: str | None = None) -> str:
+    path = resolve_sqlite_path(database_url)
+    if path == ":memory:":
+        raise ValueError("Reset is not supported for in-memory SQLite databases.")
+    database_file = Path(path)
+    if database_file.exists():
+        database_file.unlink()
+    return path
+
+
 def fetch_all(connection: sqlite3.Connection, sql: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
     rows = connection.execute(sql, tuple(params)).fetchall()
     return [dict(row) for row in rows]

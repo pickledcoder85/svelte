@@ -10,6 +10,7 @@ interface DashboardHeaderMetric {
   value: string;
   ringPercentage?: number;
   accentColor?: string;
+  ringText?: string;
 }
 
 export function DashboardHeaderMetrics({
@@ -38,28 +39,35 @@ export function DashboardHeaderMetrics({
           >
             <View style={styles.cardHeader}>
               <Text style={[styles.label, active && styles.labelActive]}>{metric.label}</Text>
-              {metric.ringPercentage !== undefined ? (
+              <Text style={[styles.value, active && styles.valueActive]}>{metric.value}</Text>
+            </View>
+            {metric.ringPercentage !== undefined ? (
+              <View style={styles.ringSection}>
                 <View style={styles.ringWrap}>
-                  <Svg width={42} height={42}>
-                    <Circle cx="21" cy="21" r={radius} stroke={active ? '#4d6278' : '#dbe3ec'} strokeWidth="6" fill="none" />
+                  <Svg width={62} height={62}>
+                    <Circle cx="31" cy="31" r={radius} stroke={active ? '#4d6278' : '#dbe3ec'} strokeWidth="7" fill="none" />
                     <Circle
-                      cx="21"
-                      cy="21"
+                      cx="31"
+                      cy="31"
                       r={radius}
                       stroke={metric.accentColor ?? '#132536'}
-                      strokeWidth="6"
+                      strokeWidth="7"
                       fill="none"
                       strokeDasharray={`${circumference} ${circumference}`}
                       strokeDashoffset={offset}
                       strokeLinecap="round"
                       rotation="-90"
-                      origin="21,21"
+                      origin="31,31"
                     />
                   </Svg>
+                  <View style={styles.ringCenter}>
+                    <Text style={[styles.ringCenterText, active && styles.ringCenterTextActive]}>
+                      {metric.ringText ?? `${Math.round(percent)}%`}
+                    </Text>
+                  </View>
                 </View>
-              ) : null}
-            </View>
-            <Text style={[styles.value, active && styles.valueActive]}>{metric.value}</Text>
+              </View>
+            ) : null}
           </Pressable>
         );
       })}
@@ -89,10 +97,7 @@ const styles = StyleSheet.create({
     borderColor: '#132536'
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10
+    gap: 8
   },
   label: {
     color: '#6b7b90',
@@ -100,23 +105,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    flex: 1
   },
   labelActive: {
     color: '#d8e1ed'
   },
   value: {
     color: '#132536',
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '800'
   },
   valueActive: {
     color: '#ffffff'
   },
+  ringSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 2
+  },
   ringWrap: {
-    width: 42,
-    height: 42,
+    width: 62,
+    height: 62,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  ringCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  ringCenterText: {
+    color: '#132536',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  ringCenterTextActive: {
+    color: '#ffffff'
   }
 });

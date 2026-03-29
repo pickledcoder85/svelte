@@ -660,6 +660,7 @@ class SQLiteRepository:
             )
 
     def _repair_legacy_schema(self) -> None:
+        self._ensure_auth_sessions_schema()
         self._ensure_user_profiles_columns()
         self._ensure_user_goals_columns()
         self._ensure_weight_entries_columns()
@@ -668,6 +669,53 @@ class SQLiteRepository:
         self._ensure_saved_favorites_supports_food()
         self._ensure_default_favorite_food_tables()
         self._seed_data()
+
+    def _ensure_auth_sessions_schema(self) -> None:
+        existing_columns = self._table_columns("auth_sessions")
+        current_columns = {
+            "access_token",
+            "user_id",
+            "email",
+            "display_name",
+            "expires_at",
+            "provider",
+        }
+        legacy_columns = {"id", "user_id", "session_token", "expires_at", "created_at"}
+
+        if current_columns.issubset(existing_columns):
+            return
+
+        if legacy_columns.issubset(existing_columns):
+            with self._lock, self._connection:
+                self._connection.execute("ALTER TABLE auth_sessions RENAME TO auth_sessions_legacy")
+                self._connection.execute(
+                    """
+                    CREATE TABLE auth_sessions (
+                        access_token TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        display_name TEXT,
+                        expires_at TEXT NOT NULL,
+                        provider TEXT NOT NULL
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """
+                    INSERT INTO auth_sessions (access_token, user_id, email, display_name, expires_at, provider)
+                    SELECT
+                        s.session_token,
+                        s.user_id,
+                        COALESCE(u.email, s.user_id || '@local.invalid'),
+                        p.display_name,
+                        s.expires_at,
+                        'local'
+                    FROM auth_sessions_legacy s
+                    LEFT JOIN users u ON u.id = s.user_id
+                    LEFT JOIN user_profiles p ON p.user_id = s.user_id
+                    """
+                )
+                self._connection.execute("DROP TABLE auth_sessions_legacy")
 
     def _ensure_user_profiles_columns(self) -> None:
         existing_columns = {

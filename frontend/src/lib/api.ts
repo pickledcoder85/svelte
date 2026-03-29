@@ -130,6 +130,22 @@ export async function fetchWeightEntries(accessToken: string): Promise<WeightEnt
   );
 }
 
+export async function createWeightEntry(
+  payload: { recorded_at: string; weight_lbs: number },
+  accessToken: string
+): Promise<WeightEntry> {
+  return readJson<WeightEntry>(
+    await fetch(buildApiUrl('/profile/weights'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
 export async function createUserGoal(payload: UserGoalCreate, accessToken: string): Promise<UserGoal> {
   return readJson<UserGoal>(
     await fetch(buildApiUrl('/profile/goals'), {

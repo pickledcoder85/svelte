@@ -7,6 +7,7 @@ import {
   createExerciseEntry,
   createMealPlanDay,
   createMealPrepTask,
+  createWeightEntry,
   calculateMeal,
   createLocalSession,
   completeOnboarding,
@@ -589,6 +590,17 @@ describe('api helpers', () => {
           ]),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'weight-3',
+            user_id: 'user-123',
+            recorded_at: '2026-03-29',
+            weight_lbs: 178.8
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
       );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -604,6 +616,13 @@ describe('api helpers', () => {
     await fetchUserGoals('token-123');
     await fetchProfileProgress('token-123');
     await fetchWeightEntries('token-123');
+    await createWeightEntry(
+      {
+        recorded_at: '2026-03-29',
+        weight_lbs: 178.8
+      },
+      'token-123'
+    );
     await createUserGoal(
       {
         effective_at: '2026-04-06',
@@ -657,6 +676,17 @@ describe('api helpers', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       6,
+      'http://localhost:8000/api/profile/weights',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
       'http://localhost:8000/api/profile/goals',
       expect.objectContaining({
         method: 'POST',

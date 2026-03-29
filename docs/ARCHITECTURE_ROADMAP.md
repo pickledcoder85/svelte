@@ -12,6 +12,7 @@ It includes:
 - a review of that plan
 - improvements made after review
 - concrete implementation steps
+- calculation-strategy direction for nutrition and exercise planning
 - release and tagging guidance
 
 ## Product direction
@@ -29,6 +30,10 @@ The project targets a personal-use nutrition and weight loss application with:
 - `frontend/`: TypeScript application for dashboard, meal builder, recipe management, auth flows, and mobile-ready interaction patterns
 - `backend/`: Python FastAPI application for auth/session handling, nutrition APIs, USDA integration, recipe import, and multimodal ingestion orchestration
 - database: relational store for users, foods, meals, recipes, logs, and ingestion metadata
+
+Calculation and plan-generation strategy:
+
+- [CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md)
 
 ## Layer plans
 
@@ -57,7 +62,8 @@ The project targets a personal-use nutrition and weight loss application with:
 Current status:
 
 - implemented for dashboard, search, session-aware logging, profile/goals, onboarding, favorite-food persistence, meal-builder persistence, recipe persistence/scaling, weight progress, and backend persistence
-- release prep remains for validation, documentation reconciliation, and milestone tagging
+- `v0.5.0` was already tagged for the validated Phase 1 milestone
+- the next major architecture slice is target-calculation refactoring, explicit goal-type onboarding, and safer input-to-persistence iteration
 
 ### Phase 2: ingestion and automation
 
@@ -70,6 +76,25 @@ Current status:
 
 - started, with ingestion queue and review-state persistence in place
 - still missing the full review UI, richer job lifecycle, and AI-assisted correction pipeline
+
+### Phase 2.5: calculation engine and adaptive planning
+
+- refactor onboarding calories and macros into dedicated calculation modules
+- add explicit goal-type selection for:
+  - weight loss
+  - maintenance
+  - weight gain
+- replace the current fixed macro split with goal-based baseline macro targets
+- separate non-exercise maintenance from logged exercise adjustments
+- add exercise estimation metadata and source confidence
+- prepare versioned plan recommendations for future premium coaching agents
+
+Current status:
+
+- started on the current dev workflow branch
+- onboarding now uses dedicated energy and macro calculation helpers instead of inline fixed-ratio logic
+- explicit goal labels are clearer in the frontend onboarding and profile experience
+- adaptive maintenance, fiber-target persistence, and structured exercise-estimation metadata are still pending
 
 ### Phase 3: mobile packaging and polish
 
@@ -89,8 +114,9 @@ Current status:
 2. Implement backend persistence and user-context boundaries.
 3. Connect frontend dashboard and meal builder to persisted backend flows.
 4. Add recipe persistence and scaling UX.
-5. Add ingestion review flows before fully automated save behavior.
-6. Package and validate with Expo-native build/export flow after core flows are stable.
+5. Refactor the nutrition and exercise calculation engine around explicit goal types and versioned targets.
+6. Add ingestion review flows before fully automated save behavior.
+7. Package and validate with Expo-native build/export flow after core flows are stable.
 
 ## Review of initial plan
 
@@ -118,9 +144,9 @@ After stable major or minor feature increments, create both:
 - an atomic commit or small set of atomic commits
 - a version tag on the stable commit
 
-Current Phase 1 milestone candidate:
+Current stable milestone:
 
-- `v0.5.0`
+- `v0.5.0`: Phase 1 validated milestone already created and pushed
 
 Historical early versioning sketch:
 
@@ -128,8 +154,10 @@ Historical early versioning sketch:
 - `v0.2.0`: weekly metrics, persisted food logging, ingestion review queue, and current Expo runtime baseline
 - `v0.3.0`: reusable meals, first-class favorites persistence, and recipe scaling
 - `v0.4.0`: USDA sync and food search refinement
-- `v0.5.0`: image/document ingestion and AI-assisted extraction
-- `v0.6.0`: native packaging and iPhone validation
+- `v0.5.0`: Phase 1 validated milestone and core single-user app baseline
+- `v0.6.0`: calculation engine refactor, explicit goal-type onboarding, and structured exercise estimation
+- `v0.7.0`: ingestion and AI-assisted extraction expansion
+- `v0.8.0`: native packaging and iPhone validation
 
 Tag only after:
 
@@ -137,3 +165,9 @@ Tag only after:
 - frontend checks and tests pass
 - docs reflect the shipped behavior
 - the feature is usable end to end, not only partially scaffolded
+
+For any calculation-engine or plan-generation release, also require:
+
+- [docs/CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md) to match the shipped logic
+- changelog entries to call out formula or target-generation behavior changes
+- versioned migration notes for any user-goal or profile-schema changes

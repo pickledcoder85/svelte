@@ -35,8 +35,8 @@ async def test_profile_onboarding_completes_first_run_profile(client):
     assert onboarding["sex"] == "male"
     assert onboarding["goal_type"] == "lose"
     assert onboarding["bmr_calories"] == 1887
-    assert onboarding["tdee_calories"] == 2925
-    assert onboarding["initial_calorie_target"] == 2425
+    assert onboarding["tdee_calories"] == 2736
+    assert onboarding["initial_calorie_target"] == 2236
 
     profile_response = await client.get("/api/profile", headers=headers)
     assert profile_response.status_code == 200
@@ -49,7 +49,10 @@ async def test_profile_onboarding_completes_first_run_profile(client):
     assert goals_response.status_code == 200
     goals = goals_response.json()
     assert len(goals) == 1
-    assert goals[0]["calorie_goal"] == 2425
+    assert goals[0]["calorie_goal"] == 2236
+    assert goals[0]["protein_goal"] == 163.3
+    assert goals[0]["carbs_goal"] == 256.0
+    assert goals[0]["fat_goal"] == 62.1
     assert goals[0]["target_weight_lbs"] == 185
 
 
