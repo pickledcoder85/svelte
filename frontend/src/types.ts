@@ -95,6 +95,13 @@ export interface UserProfileUpdate {
   display_name: string | null;
   timezone: string;
   units: 'imperial' | 'metric';
+  sex?: 'male' | 'female' | null;
+  age_years?: number | null;
+  height_cm?: number | null;
+  current_weight_lbs?: number | null;
+  goal_type?: 'lose' | 'maintain' | 'gain' | null;
+  target_weight_lbs?: number | null;
+  activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
 }
 
 export interface UserOnboardingRequest {

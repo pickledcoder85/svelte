@@ -43,6 +43,13 @@ class UserProfileUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, min_length=1)
     timezone: str = Field(min_length=1)
     units: str = Field(pattern="^(imperial|metric)$")
+    sex: Literal["male", "female"] | None = None
+    age_years: int | None = Field(default=None, gt=0, lt=120)
+    height_cm: float | None = Field(default=None, gt=0)
+    current_weight_lbs: float | None = Field(default=None, gt=0)
+    goal_type: Literal["lose", "maintain", "gain"] | None = None
+    target_weight_lbs: float | None = Field(default=None, gt=0)
+    activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
 
 
 class UserGoal(BaseModel):
