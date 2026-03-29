@@ -14,13 +14,12 @@ async def search_standardized_foods(
             payload["entity_id"]
             for payload in repository.list_saved_favorites(user_id, entity_type="food")
         }
-        favorite_foods = [
-            food.model_copy(update={"favorite": True})
-            for food in repository.list_foods()
-            if food.id in favorite_ids and _matches_food_query(food, query)
+        local_foods = [
+            food.model_copy(update={"favorite": food.id in favorite_ids})
+            for food in repository.search_foods(query)
         ]
-        if favorite_foods:
-            return _sort_foods(favorite_foods)
+        if local_foods:
+            return _sort_foods(local_foods)
 
         settings = get_settings()
         if not settings.usda_api_key:

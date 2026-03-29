@@ -89,3 +89,11 @@ async def test_label_ingest_and_save_food_flow(client):
     assert food["serving_size"] == 1
     assert food["serving_unit"] == "bar"
     assert food["macros"] == {"protein": 20.0, "carbs": 24.0, "fat": 7.0}
+
+    search_response = await client.get(
+        "/api/nutrition/foods/search?q=protein",
+        headers=headers,
+    )
+    assert search_response.status_code == 200
+    foods = search_response.json()
+    assert any(item["id"] == food["id"] for item in foods)
