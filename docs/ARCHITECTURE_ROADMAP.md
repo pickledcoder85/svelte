@@ -76,6 +76,7 @@ Current status:
 
 - started, with ingestion queue and review-state persistence in place
 - camera-food-bank groundwork is now in progress with package-scan, label-ingest, and save-reviewed-food route scaffolding
+- the next camera-food implementation slice is documented in [CAMERA_FOOD_BANK_PLAN.md](/home/brianminer/workspace/svelte/docs/CAMERA_FOOD_BANK_PLAN.md)
 - still missing the full review UI, richer job lifecycle, browser upload/camera UX, and AI-assisted correction pipeline
 
 ### Phase 2.5: calculation engine and adaptive planning

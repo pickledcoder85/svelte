@@ -74,6 +74,7 @@ The format should remain simple:
 
 - Dashboard follow-up recommendations are documented in [docs/DASHBOARD_FOLLOWUPS_2026-03-29.md](/home/brianminer/workspace/svelte/docs/DASHBOARD_FOLLOWUPS_2026-03-29.md).
 - Calculation-engine and future premium agent-planning direction are documented in [docs/CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md).
+- Camera-food implementation sequencing is documented in [docs/CAMERA_FOOD_BANK_PLAN.md](/home/brianminer/workspace/svelte/docs/CAMERA_FOOD_BANK_PLAN.md).
 
 ### Planned tagging
 
