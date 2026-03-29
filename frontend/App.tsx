@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   type DimensionValue,
-  Image,
   Platform,
   Pressable,
   SafeAreaView,
@@ -45,6 +44,10 @@ import {
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
+import { DashboardHeaderMetrics } from './src/components/dashboard/DashboardHeaderMetrics';
+import { DashboardTimeRangeTabs } from './src/components/dashboard/DashboardTimeRangeTabs';
+import { DashboardHeroChart } from './src/components/dashboard/DashboardHeroChart';
+import { DashboardSecondaryMetrics } from './src/components/dashboard/DashboardSecondaryMetrics';
 import {
   formatMealPlanCardDate,
   formatMealPlanCardWeekday,
@@ -71,6 +74,7 @@ import type {
   AppSection,
   DashboardRange,
   DashboardSnapshot,
+  DashboardMetricKey,
   DashboardRangeSeries,
   ExerciseEntry,
   FoodItem,
@@ -86,6 +90,13 @@ import type {
   WeeklyMetrics,
   WeightEntry
 } from './src/types';
+import {
+  demoDashboardSnapshot,
+  demoExerciseEntries,
+  demoFoodLog,
+  demoProfileProgress,
+  demoWeightEntries
+} from './src/mock-data';
 
 const sectionTabs: Array<{ id: AppSection; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -102,7 +113,6 @@ const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
 const chartHeight = 160;
-const heroBrandImage = require('./assets/favicon.png');
 
 function toneColor(tone: 'checking' | 'live'): string {
   if (tone === 'live') {
@@ -171,6 +181,7 @@ function createEmptyMealDraft(): MealInput {
 export default function App(): ReactElement {
   const [section, setSection] = useState<AppSection>('dashboard');
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
+  const [activeDashboardMetric, setActiveDashboardMetric] = useState<DashboardMetricKey>('net_calories');
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
   const [syncTone, setSyncTone] = useState<'checking' | 'live'>('checking');
   const [syncLabel, setSyncLabel] = useState('Loading live summary');
@@ -370,6 +381,7 @@ export default function App(): ReactElement {
         setRecipeImportTone('checking');
         setRecipeImportStatus('Live recipe import unavailable');
         setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
+        setSnapshot(demoDashboardSnapshot);
       }
     }
 
@@ -389,14 +401,14 @@ export default function App(): ReactElement {
         setProfileLoaded(true);
         setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(null);
-        setWeightEntries([]);
+        setProfileProgress(demoProfileProgress);
+        setWeightEntries(demoWeightEntries);
         setProfileDisplayNameDraft('');
         setProfileTimezoneDraft('UTC');
         setProfileUnitsDraft('imperial');
         setProfileTone('checking');
-        setProfileStatus('Profile session unavailable');
-        setProfileError('No active profile session.');
+        setProfileStatus('Preview profile loaded');
+        setProfileError('No active profile session. Showing preview progress data.');
         return;
       }
 
@@ -436,14 +448,14 @@ export default function App(): ReactElement {
 
         setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(null);
-        setWeightEntries([]);
+        setProfileProgress(demoProfileProgress);
+        setWeightEntries(demoWeightEntries);
         setProfileDisplayNameDraft('');
         setProfileTimezoneDraft('UTC');
         setProfileUnitsDraft('imperial');
         setProfileTone('checking');
-        setProfileStatus('Profile data unavailable');
-        setProfileError(error instanceof Error ? error.message : 'Profile settings unavailable.');
+        setProfileStatus('Preview profile loaded');
+        setProfileError(error instanceof Error ? `${error.message} Showing preview progress data.` : 'Profile settings unavailable. Showing preview progress data.');
       } finally {
         if (!cancelled) {
           setProfileLoaded(true);
@@ -464,9 +476,9 @@ export default function App(): ReactElement {
     async function loadTrackerSections() {
       if (!foodSessionToken) {
         setTrackerTone('checking');
-        setTrackerStatus('Tracker data unavailable until a backend session is ready');
-        setTrackerError('No active tracker session.');
-        setExerciseEntries([]);
+        setTrackerStatus('Preview tracker loaded');
+        setTrackerError('No active tracker session. Showing preview tracker data.');
+        setExerciseEntries(demoExerciseEntries);
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable until a backend session is ready');
         setMealPlanError('No active tracker session.');
@@ -538,8 +550,9 @@ export default function App(): ReactElement {
         setMealPlanEatenSlots({});
         setMealPrepTasks([]);
         setTrackerTone('checking');
-        setTrackerStatus('Tracker data unavailable');
-        setTrackerError(error instanceof Error ? error.message : 'Tracker data unavailable.');
+        setTrackerStatus('Preview tracker loaded');
+        setTrackerError(error instanceof Error ? `${error.message} Showing preview tracker data.` : 'Tracker data unavailable. Showing preview tracker data.');
+        setExerciseEntries(demoExerciseEntries);
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable');
         setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
@@ -585,9 +598,10 @@ export default function App(): ReactElement {
         }
 
         setFoodLog(createEmptyFoodLog());
+        setFoodLog(demoFoodLog);
         setFoodLogTone('checking');
-        setFoodLogStatus("Today's log unavailable");
-        setFoodLogError(error instanceof Error ? error.message : 'Daily log unavailable.');
+        setFoodLogStatus('Preview daily log loaded');
+        setFoodLogError(error instanceof Error ? `${error.message} Showing preview daily log.` : 'Daily log unavailable. Showing preview daily log.');
       } finally {
         if (!cancelled) {
           setFoodLogLoading(false);
@@ -913,6 +927,153 @@ export default function App(): ReactElement {
     selectedSeries.targetCalories,
     selectedSeries.caloriesConsumed
   );
+  const macroCalories = {
+    protein: selectedSeries.macroConsumed.protein * 4,
+    carbs: selectedSeries.macroConsumed.carbs * 4,
+    fat: selectedSeries.macroConsumed.fat * 9
+  };
+  const macroCalorieTotal = Math.max(macroCalories.protein + macroCalories.carbs + macroCalories.fat, 1);
+  const fiberConsumed = 0;
+  const fiberGoal = 30;
+  const netCaloriePoints = selectedSeries.points.map((point) => ({
+    label: point.label,
+    calories: point.calories
+  }));
+  const proteinPoints = selectedSeries.points.map((point) => ({
+    label: point.label,
+    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * selectedSeries.macroConsumed.protein)
+  }));
+  const carbsPoints = selectedSeries.points.map((point) => ({
+    label: point.label,
+    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * selectedSeries.macroConsumed.carbs)
+  }));
+  const fatPoints = selectedSeries.points.map((point) => ({
+    label: point.label,
+    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * selectedSeries.macroConsumed.fat)
+  }));
+  const fiberPoints = selectedSeries.points.map((point) => ({
+    label: point.label,
+    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * fiberConsumed)
+  }));
+  const dashboardMetricConfig: Record<
+    DashboardMetricKey,
+    {
+      label: string;
+      value: string;
+      detail: string;
+      targetLabel: string;
+      targetValue: number;
+      points: { label: string; calories: number }[];
+      accentColor?: string;
+      ringPercentage?: number;
+      chartTitle: string;
+      legendLabel: string;
+    }
+  > = {
+    net_calories: {
+      label: 'Net Calories',
+      value: `${trackerTotals.netCalories.toLocaleString()} kcal`,
+      detail:
+        activeRange === '1D'
+          ? 'Net calories after exercise across today'
+          : 'Daily net calories compared against the daily goal',
+      targetLabel: 'Daily goal',
+      targetValue: activeRange === '1D' ? selectedSeries.targetCalories : Math.round(selectedSeries.targetCalories / Math.max(selectedSeries.points.length, 1)),
+      points: netCaloriePoints,
+      chartTitle: `Net calories across ${activeRange}`,
+      legendLabel: 'Daily calories'
+    },
+    protein: {
+      label: 'Protein',
+      value: `${Math.round(selectedSeries.macroConsumed.protein)} g`,
+      detail: 'Protein intake over the selected range',
+      targetLabel: 'Protein goal',
+      targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.protein) : Math.round(selectedSeries.macroTargets.protein / Math.max(selectedSeries.points.length, 1)),
+      points: proteinPoints,
+      accentColor: '#0f766e',
+      ringPercentage: (macroCalories.protein / macroCalorieTotal) * 100,
+      chartTitle: `Protein tracked across ${activeRange}`,
+      legendLabel: 'Daily protein'
+    },
+    carbs: {
+      label: 'Carbs',
+      value: `${Math.round(selectedSeries.macroConsumed.carbs)} g`,
+      detail: 'Carbohydrate intake over the selected range',
+      targetLabel: 'Carb goal',
+      targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.carbs) : Math.round(selectedSeries.macroTargets.carbs / Math.max(selectedSeries.points.length, 1)),
+      points: carbsPoints,
+      accentColor: '#ea580c',
+      ringPercentage: (macroCalories.carbs / macroCalorieTotal) * 100,
+      chartTitle: `Carbs tracked across ${activeRange}`,
+      legendLabel: 'Daily carbs'
+    },
+    fat: {
+      label: 'Fat',
+      value: `${Math.round(selectedSeries.macroConsumed.fat)} g`,
+      detail: 'Fat intake over the selected range',
+      targetLabel: 'Fat goal',
+      targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.fat) : Math.round(selectedSeries.macroTargets.fat / Math.max(selectedSeries.points.length, 1)),
+      points: fatPoints,
+      accentColor: '#2563eb',
+      ringPercentage: (macroCalories.fat / macroCalorieTotal) * 100,
+      chartTitle: `Fat tracked across ${activeRange}`,
+      legendLabel: 'Daily fat'
+    },
+    fiber: {
+      label: 'Fiber',
+      value: fiberConsumed > 0 ? `${fiberConsumed} g` : `${fiberGoal} g goal`,
+      detail: 'Fiber tracking remains a placeholder until fiber is wired into the saved totals',
+      targetLabel: 'Fiber goal',
+      targetValue: fiberGoal,
+      points: fiberPoints,
+      accentColor: '#7c3aed',
+      ringPercentage: fiberGoal > 0 ? (fiberConsumed / fiberGoal) * 100 : 0,
+      chartTitle: `Fiber tracked across ${activeRange}`,
+      legendLabel: 'Daily fiber'
+    }
+  };
+  const activeMetricConfig = dashboardMetricConfig[activeDashboardMetric];
+  const dashboardHeaderMetrics = [
+    {
+      key: 'net_calories' as const,
+      label: dashboardMetricConfig.net_calories.label,
+      value: dashboardMetricConfig.net_calories.value
+    },
+    {
+      key: 'protein' as const,
+      label: dashboardMetricConfig.protein.label,
+      value: dashboardMetricConfig.protein.value,
+      accentColor: dashboardMetricConfig.protein.accentColor,
+      ringPercentage: dashboardMetricConfig.protein.ringPercentage
+    },
+    {
+      key: 'carbs' as const,
+      label: dashboardMetricConfig.carbs.label,
+      value: dashboardMetricConfig.carbs.value,
+      accentColor: dashboardMetricConfig.carbs.accentColor,
+      ringPercentage: dashboardMetricConfig.carbs.ringPercentage
+    },
+    {
+      key: 'fat' as const,
+      label: dashboardMetricConfig.fat.label,
+      value: dashboardMetricConfig.fat.value,
+      accentColor: dashboardMetricConfig.fat.accentColor,
+      ringPercentage: dashboardMetricConfig.fat.ringPercentage
+    },
+    {
+      key: 'fiber' as const,
+      label: dashboardMetricConfig.fiber.label,
+      value: dashboardMetricConfig.fiber.value,
+      accentColor: dashboardMetricConfig.fiber.accentColor,
+      ringPercentage: dashboardMetricConfig.fiber.ringPercentage
+    }
+  ];
+  const missingInputs = [
+    ...(foodLog.entries.length === 0 ? ['No foods logged for today yet.'] : []),
+    ...(exerciseEntries.length === 0 ? ['No exercise entries recorded for the current period.'] : []),
+    ...(weightEntries.length === 0 ? ['No weight entries saved yet.'] : []),
+    ...(fiberConsumed === 0 ? ['Fiber tracking is not wired into the dashboard totals yet.'] : [])
+  ];
   const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
 
   function submitFoodSearch() {
@@ -1615,36 +1776,16 @@ export default function App(): ReactElement {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Text style={styles.eyebrow}>Nutrition OS</Text>
-          <View style={styles.heroHeader}>
-            <View style={styles.heroCopy}>
-              <Text style={styles.headline}>Expo-powered nutrition tracking for browser and iPhone.</Text>
-              <Text style={styles.lede}>
-                The frontend now runs as an Expo app with web support, so you can preview in a browser and in Expo Go while the FastAPI backend stays unchanged.
-              </Text>
-            </View>
-
-            <View style={styles.heroAside}>
-              <View style={styles.ringCard}>
-                <Text style={styles.ringValue}>{calorieProgress}%</Text>
-                <Text style={styles.ringLabel}>{selectedSeries.label}</Text>
-                <Text style={styles.ringCaption}>
-                  {selectedSeries.caloriesConsumed.toLocaleString()} / {selectedSeries.targetCalories.toLocaleString()} kcal
-                </Text>
-              </View>
-
-              <View style={styles.mascotCard}>
-                <Image source={heroBrandImage} style={styles.mascotImage} resizeMode="contain" />
-                <Text style={styles.mascotLabel}>Pickle keeps the cut on track.</Text>
-              </View>
-            </View>
+        <View style={styles.appHeader}>
+          <View style={styles.appHeaderCopy}>
+            <Text style={styles.appEyebrow}>Nutrition OS</Text>
+            <Text style={styles.appTitle}>Personal nutrition dashboard</Text>
+            <Text style={styles.appDetail}>Keep the first screen focused on actual intake, targets, and missing inputs.</Text>
           </View>
-        </View>
-
-        <View style={[styles.statusBanner, { borderColor: toneColor(syncTone) }]}>
-          <Text style={styles.statusLabel}>{syncLabel}</Text>
-          <Text style={styles.statusDetail}>{syncDetail}</Text>
+          <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
+            <Text style={styles.appStatusLabel}>{syncLabel}</Text>
+            <Text style={styles.appStatusDetail}>{syncDetail}</Text>
+          </View>
         </View>
 
         <View style={styles.sectionTabs}>
@@ -1666,184 +1807,55 @@ export default function App(): ReactElement {
 
         {section === 'dashboard' && (
           <>
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
+            <View style={styles.dashboardStack}>
+              <View style={styles.dashboardIntro}>
                 <View>
                   <Text style={styles.panelEyebrow}>Dashboard</Text>
-                  <Text style={styles.panelTitle}>Calorie target vs consumed</Text>
+                  <Text style={styles.dashboardTitle}>High-level intake overview</Text>
                 </View>
-                <Text style={styles.panelDetail}>{selectedSeries.detail}</Text>
+                <Text style={styles.panelDetail}>
+                  The dashboard now prioritizes the core metrics, one main chart, and the inputs still missing from live tracking.
+                </Text>
               </View>
 
-              <View style={styles.rangeTabs}>
-                {rangeTabs.map((range) => {
-                  const active = range === activeRange;
-                  return (
-                    <Pressable
-                      key={range}
-                      style={[styles.rangeTab, active && styles.rangeTabActive]}
-                      onPress={() => setActiveRange(range)}
-                    >
-                      <Text style={[styles.rangeTabLabel, active && styles.rangeTabLabelActive]}>
-                        {range}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <DashboardHeaderMetrics
+                activeMetric={activeDashboardMetric}
+                metrics={dashboardHeaderMetrics}
+                onSelect={setActiveDashboardMetric}
+              />
 
-              <View style={styles.metricRow}>
-                <MetricTile label="Target" value={`${selectedSeries.targetCalories.toLocaleString()} kcal`} />
-                <MetricTile label="Consumed" value={`${selectedSeries.caloriesConsumed.toLocaleString()} kcal`} />
-                <MetricTile label="Remaining" value={`${rangeRemaining.toLocaleString()} kcal`} />
-              </View>
+              <DashboardTimeRangeTabs
+                activeRange={activeRange}
+                onChange={setActiveRange}
+                ranges={rangeTabs}
+              />
 
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.panelEyebrow}>Live progress</Text>
-                    <Text style={styles.detailTitle}>Weekly metrics, goals, and tracker totals</Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    Live data already on main, summarized from the live backend data.
-                  </Text>
-                </View>
+              <DashboardHeroChart
+                detail={activeMetricConfig.detail}
+                legendLabel={activeMetricConfig.legendLabel}
+                points={activeMetricConfig.points}
+                range={activeRange}
+                targetLabel={activeMetricConfig.targetLabel}
+                targetValue={activeMetricConfig.targetValue}
+                title={activeMetricConfig.chartTitle}
+              />
 
-                <View style={styles.metricRow}>
-                  <MetricTile
-                    label="Weekly calories"
-                    value={`${snapshot.weeklyMetrics.calories_consumed.toLocaleString()} / ${snapshot.weeklyMetrics.calorie_goal.toLocaleString()} kcal`}
-                  />
-                  <MetricTile label="Adherence" value={`${snapshot.weeklyMetrics.adherence_score}%`} />
-                  <MetricTile
-                    label="Weekly change"
-                    value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
-                  />
-                </View>
+              <DashboardSecondaryMetrics
+                adherence={`${snapshot.weeklyMetrics.adherence_score}%`}
+                currentWeight={
+                  weightProgress.currentWeightLbs !== null
+                    ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
+                    : '—'
+                }
+                missingInputs={missingInputs}
+                weeklyChange={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
+              />
 
-                <View style={styles.metricRow}>
-                  <MetricTile
-                    label="Current weight"
-                    value={
-                      weightProgress.currentWeightLbs !== null
-                        ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
-                        : '—'
-                    }
-                  />
-                  <MetricTile
-                    label="Target weight"
-                    value={
-                      weightProgress.targetWeightLbs !== null
-                        ? `${weightProgress.targetWeightLbs.toLocaleString()} lb`
-                        : '—'
-                    }
-                  />
-                  <MetricTile
-                    label="Exercise burn"
-                    value={`${trackerTotals.exerciseCalories.toLocaleString()} kcal`}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.panelEyebrow}>Tracker totals</Text>
-                    <Text style={styles.detailTitle}>Food, movement, and net calories</Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    Today’s tracker data updates from the live food log and exercise entries.
-                  </Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <MetricTile label="Food" value={`${trackerTotals.foodCalories.toLocaleString()} kcal`} />
-                  <MetricTile label="Exercise" value={`${trackerTotals.exerciseCalories.toLocaleString()} kcal`} />
-                  <MetricTile label="Net" value={`${trackerTotals.netCalories.toLocaleString()} kcal`} />
-                </View>
-                <View style={styles.metricRow}>
-                  <MetricTile label="Log entries" value={`${trackerTotals.foodEntryCount}`} />
-                  <MetricTile label="Exercise entries" value={`${trackerTotals.exerciseEntryCount}`} />
-                  <MetricTile label="Exercise minutes" value={`${trackerTotals.exerciseMinutes} min`} />
-                </View>
-              </View>
-
-              <View style={styles.chartCard}>
-                <Text style={styles.chartTitle}>Trend line</Text>
-                <LineTrendChart
-                  points={selectedSeries.points}
-                  targetCalories={selectedSeries.targetCalories}
-                />
-              </View>
-
-              <View style={styles.macroStack}>
-                <MacroProgress
-                  label="Protein"
-                  consumed={selectedSeries.macroConsumed.protein}
-                  target={selectedSeries.macroTargets.protein}
-                  color="#0f766e"
-                />
-                <MacroProgress
-                  label="Carbs"
-                  consumed={selectedSeries.macroConsumed.carbs}
-                  target={selectedSeries.macroTargets.carbs}
-                  color="#ea580c"
-                />
-                <MacroProgress
-                  label="Fat"
-                  consumed={selectedSeries.macroConsumed.fat}
-                  target={selectedSeries.macroTargets.fat}
-                  color="#2563eb"
-                />
-              </View>
-
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.panelEyebrow}>Weight history</Text>
-                    <Text style={styles.detailTitle}>Latest weigh-ins and trend</Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    {weightProgress.weightEntryCount} recorded weigh-ins · current{' '}
-                    {weightProgress.currentWeightLbs !== null
-                      ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
-                      : '—'}
-                  </Text>
-                </View>
-
-                <View style={styles.metricRow}>
-                  <MetricTile
-                    label="Start"
-                    value={
-                      weightProgress.startWeightLbs !== null
-                        ? `${weightProgress.startWeightLbs.toLocaleString()} lb`
-                        : '—'
-                    }
-                  />
-                  <MetricTile
-                    label="Change"
-                    value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
-                  />
-                  <MetricTile
-                    label="Current"
-                    value={
-                      weightProgress.currentWeightLbs !== null
-                        ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
-                        : '—'
-                    }
-                  />
-                </View>
-
-                <View style={styles.foodList}>
-                  {weightEntries.slice(-3).reverse().map((entry) => (
-                    <View key={entry.id} style={styles.listRow}>
-                      <View>
-                        <Text style={styles.listTitle}>{entry.weight_lbs.toLocaleString()} lb</Text>
-                        <Text style={styles.listCaption}>{entry.recorded_at}</Text>
-                      </View>
-                      <Text style={styles.listMetric}>weigh-in</Text>
-                    </View>
-                  ))}
-                </View>
+              <View style={styles.summaryStrip}>
+                <MetricTile label="Remaining" value={`${rangeRemaining.toLocaleString()} kcal`} compact />
+                <MetricTile label="Net" value={`${trackerTotals.netCalories.toLocaleString()} kcal`} compact />
+                <MetricTile label="Exercise" value={`${trackerTotals.exerciseCalories.toLocaleString()} kcal`} compact />
+                <MetricTile label="Weigh-ins" value={`${weightProgress.weightEntryCount}`} compact />
               </View>
             </View>
 
@@ -3209,6 +3221,51 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center'
   },
+  appHeader: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 18,
+    gap: 14
+  },
+  appHeaderCopy: {
+    gap: 6
+  },
+  appEyebrow: {
+    color: '#0f766e',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.1
+  },
+  appTitle: {
+    color: '#132536',
+    fontSize: 24,
+    fontWeight: '800'
+  },
+  appDetail: {
+    color: '#66778c',
+    fontSize: 13,
+    lineHeight: 18
+  },
+  appStatusCard: {
+    backgroundColor: '#f7fafc',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4
+  },
+  appStatusLabel: {
+    color: '#132536',
+    fontWeight: '700',
+    fontSize: 14
+  },
+  appStatusDetail: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 17
+  },
   hero: {
     backgroundColor: '#17324d',
     borderRadius: 28,
@@ -3349,6 +3406,27 @@ const styles = StyleSheet.create({
     color: '#66778c',
     fontSize: 13,
     lineHeight: 18
+  },
+  dashboardStack: {
+    gap: 14
+  },
+  dashboardIntro: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 16,
+    gap: 8
+  },
+  dashboardTitle: {
+    color: '#132536',
+    fontSize: 22,
+    fontWeight: '800'
+  },
+  summaryStrip: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap'
   },
   rangeTabs: {
     flexDirection: 'row',

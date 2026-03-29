@@ -16,6 +16,8 @@ The format should remain simple:
 
 ### Added
 
+- Cleaner dashboard landing layout with a compact app header, high-level metric strip, a single overview chart, and macro ring cards.
+- Interactive dashboard header cards for `Net Calories`, `Protein`, `Carbs`, `Fat`, and `Fiber` that now drive the main chart state.
 - Expo / React Native frontend with browser preview and Expo Go support on iPhone.
 - Dashboard range controls, line chart, macro progress, and mobile-first layout refinements.
 - Session-aware daily food log UI wired to persisted backend data.
@@ -36,12 +38,19 @@ The format should remain simple:
 
 ### Changed
 
+- The first screen now prioritizes intake, targets, and missing-input visibility instead of the previous mascot-heavy hero layout.
+- Dashboard visualization now uses `react-native-svg` primitives for the overview chart and header rings.
+- The previous duplicate macro section below the chart was removed so the header acts as the single metric control surface.
 - Frontend stack pivoted from Vite web scaffolding to Expo SDK 54 with web support.
 - Local development now assumes Node 20 in the `svelte` conda environment for Expo compatibility.
 - Backend startup docs now use `--host 0.0.0.0` to support phone access on the local network.
 - Project guidance now treats Expo / React Native as the primary mobile path.
 - Dashboard chart and meal scaling controls now match the current mobile UX direction more closely.
 - Phase 1 docs now reflect the current shipped milestone and release-prep boundary.
+
+### Notes
+
+- Dashboard follow-up recommendations are documented in [docs/DASHBOARD_FOLLOWUPS_2026-03-29.md](/home/brianminer/workspace/svelte/docs/DASHBOARD_FOLLOWUPS_2026-03-29.md).
 
 ### Planned tagging
 

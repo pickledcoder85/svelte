@@ -190,6 +190,8 @@ export interface RecipeFavoriteToggleResult {
 
 export type DashboardRange = '1D' | '1W' | '1M' | '3M';
 
+export type DashboardMetricKey = 'net_calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
+
 export interface DashboardTrendPoint {
   label: string;
   calories: number;
