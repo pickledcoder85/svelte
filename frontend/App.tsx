@@ -21,6 +21,7 @@ import {
   createExerciseEntry,
   calculateMeal,
   createLocalSession,
+  completeOnboarding,
   createUserGoal,
   fetchBackendHealth,
   fetchExerciseEntries,
@@ -147,6 +148,7 @@ export default function App(): ReactElement {
   const [profileTone, setProfileTone] = useState<'checking' | 'live' | 'demo'>('checking');
   const [profileStatus, setProfileStatus] = useState('Loading profile settings');
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
   const [profileProgress, setProfileProgress] = useState<ProfileProgress | null>(null);
@@ -160,6 +162,19 @@ export default function App(): ReactElement {
   const [goalCarbsDraft, setGoalCarbsDraft] = useState('190');
   const [goalFatDraft, setGoalFatDraft] = useState('60');
   const [goalWeightDraft, setGoalWeightDraft] = useState('178.5');
+  const [onboardingSexDraft, setOnboardingSexDraft] = useState<'male' | 'female'>('female');
+  const [onboardingAgeDraft, setOnboardingAgeDraft] = useState('34');
+  const [onboardingHeightFeetDraft, setOnboardingHeightFeetDraft] = useState('5');
+  const [onboardingHeightInchesDraft, setOnboardingHeightInchesDraft] = useState('10');
+  const [onboardingCurrentWeightDraft, setOnboardingCurrentWeightDraft] = useState('180');
+  const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
+  const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('170');
+  const [onboardingActivityLevelDraft, setOnboardingActivityLevelDraft] = useState<
+    'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active'
+  >('moderate');
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
   const [logFoodDraft, setLogFoodDraft] = useState('chicken');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
@@ -331,6 +346,7 @@ export default function App(): ReactElement {
 
     async function loadProfileSettings() {
       if (!foodSessionToken) {
+        setProfileLoaded(false);
         setProfile(null);
         setProfileGoals([]);
         setProfileProgress(null);
@@ -388,6 +404,10 @@ export default function App(): ReactElement {
         setProfileTone('checking');
         setProfileStatus('Profile data unavailable');
         setProfileError(error instanceof Error ? error.message : 'Profile settings unavailable.');
+      } finally {
+        if (!cancelled) {
+          setProfileLoaded(true);
+        }
       }
     }
 
@@ -841,6 +861,7 @@ export default function App(): ReactElement {
     selectedSeries.targetCalories,
     selectedSeries.caloriesConsumed
   );
+  const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
 
   function submitFoodSearch() {
     setIsSubmittingSearch(true);
@@ -940,6 +961,80 @@ export default function App(): ReactElement {
       setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
     } finally {
       setIsSavingLogEntry(false);
+    }
+  }
+
+  async function completeOnboardingSetup() {
+    const age_years = Number(onboardingAgeDraft);
+    const feet = Number(onboardingHeightFeetDraft);
+    const inches = Number(onboardingHeightInchesDraft);
+    const current_weight_lbs = Number(onboardingCurrentWeightDraft);
+    const target_weight_lbs = Number(onboardingTargetWeightDraft);
+
+    if (
+      !Number.isFinite(age_years) ||
+      age_years <= 0 ||
+      !Number.isFinite(feet) ||
+      feet <= 0 ||
+      !Number.isFinite(inches) ||
+      inches < 0 ||
+      !Number.isFinite(current_weight_lbs) ||
+      current_weight_lbs <= 0 ||
+      !Number.isFinite(target_weight_lbs) ||
+      target_weight_lbs <= 0
+    ) {
+      setOnboardingError('Enter a valid age, height, weight, and target weight before continuing.');
+      return;
+    }
+
+    const height_cm = round1(((feet * 12 + inches) * 2.54));
+
+    setOnboardingSaving(true);
+    setOnboardingStatus('Saving your first-run setup');
+    setOnboardingError(null);
+
+    try {
+      if (foodSessionToken) {
+        const completed = await completeOnboarding(
+          {
+            sex: onboardingSexDraft,
+            age_years: Math.round(age_years),
+            height_cm,
+            current_weight_lbs: round1(current_weight_lbs),
+            goal_type: onboardingGoalTypeDraft,
+            target_weight_lbs: round1(target_weight_lbs),
+            activity_level: onboardingActivityLevelDraft
+          },
+          foodSessionToken
+        );
+        setProfile(completed);
+
+        const [loadedProfile, goals, progress, weights] = await Promise.all([
+          fetchProfile(foodSessionToken),
+          fetchUserGoals(foodSessionToken),
+          fetchProfileProgress(foodSessionToken),
+          fetchWeightEntries(foodSessionToken)
+        ]);
+
+        setProfile(loadedProfile);
+        setProfileGoals(goals);
+        setProfileProgress(progress);
+        setWeightEntries(weights);
+        setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
+        setProfileTimezoneDraft(loadedProfile.timezone);
+        setProfileUnitsDraft(loadedProfile.units);
+      }
+
+      setProfileLoaded(true);
+      setProfileTone('live');
+      setProfileStatus('Onboarding completed');
+      setOnboardingStatus('Setup complete. Opening the app...');
+      setSection('dashboard');
+    } catch (error) {
+      setOnboardingStatus('Could not save onboarding');
+      setOnboardingError(error instanceof Error ? error.message : 'Unable to complete onboarding.');
+    } finally {
+      setOnboardingSaving(false);
     }
   }
 
@@ -1237,6 +1332,193 @@ export default function App(): ReactElement {
     } finally {
       setRecipeSavingId(null);
     }
+  }
+
+  if (!profileLoaded) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <View style={styles.bootState}>
+          <ActivityIndicator size="large" color="#17324d" />
+          <Text style={styles.bootStateTitle}>Loading your profile</Text>
+          <Text style={styles.bootStateDetail}>{profileStatus}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (onboardingRequired) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+          <View style={styles.hero}>
+            <Text style={styles.eyebrow}>Nutrition OS</Text>
+            <View style={styles.heroHeader}>
+              <View style={styles.heroCopy}>
+                <Text style={styles.headline}>Set up your first profile before the main app opens.</Text>
+                <Text style={styles.lede}>
+                  This one-time setup uses the live backend onboarding route to calculate your starting target and unlock the main app after completion.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.inlineStatus, { borderColor: toneColor(onboardingSaving ? 'checking' : 'live') }]}>
+            <Text style={styles.inlineStatusLabel}>{onboardingStatus}</Text>
+            {onboardingError ? <Text style={styles.inlineStatusDetail}>{onboardingError}</Text> : null}
+          </View>
+
+          <View style={styles.panel}>
+            <Text style={styles.panelEyebrow}>First run</Text>
+            <Text style={styles.panelTitle}>Tell us about you</Text>
+            <Text style={styles.panelDetail}>
+              We’ll use these values to calculate your calorie target and unlock the app for this profile.
+            </Text>
+
+            <View style={styles.profileFieldStack}>
+              <View style={styles.profileField}>
+                <Text style={styles.profileFieldLabel}>Sex</Text>
+                <View style={styles.profileToggleRow}>
+                  {(['female', 'male'] as const).map((option) => {
+                    const active = onboardingSexDraft === option;
+                    return (
+                      <Pressable
+                        key={option}
+                        style={[styles.profileToggle, active && styles.profileToggleActive]}
+                        onPress={() => setOnboardingSexDraft(option)}
+                      >
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                          {option === 'male' ? 'Male' : 'Female'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.profileFieldRow}>
+                <View style={styles.profileFieldHalf}>
+                  <Text style={styles.profileFieldLabel}>Age</Text>
+                  <TextInput
+                    value={onboardingAgeDraft}
+                    onChangeText={setOnboardingAgeDraft}
+                    keyboardType="numeric"
+                    placeholder="34"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.profileFieldInput}
+                  />
+                </View>
+                <View style={styles.profileFieldHalf}>
+                  <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
+                  <TextInput
+                    value={onboardingCurrentWeightDraft}
+                    onChangeText={setOnboardingCurrentWeightDraft}
+                    keyboardType="decimal-pad"
+                    placeholder="180"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.profileFieldInput}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.profileFieldRow}>
+                <View style={styles.profileFieldHalf}>
+                  <Text style={styles.profileFieldLabel}>Height, ft</Text>
+                  <TextInput
+                    value={onboardingHeightFeetDraft}
+                    onChangeText={setOnboardingHeightFeetDraft}
+                    keyboardType="numeric"
+                    placeholder="5"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.profileFieldInput}
+                  />
+                </View>
+                <View style={styles.profileFieldHalf}>
+                  <Text style={styles.profileFieldLabel}>Height, in</Text>
+                  <TextInput
+                    value={onboardingHeightInchesDraft}
+                    onChangeText={setOnboardingHeightInchesDraft}
+                    keyboardType="numeric"
+                    placeholder="10"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.profileFieldInput}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.profileField}>
+                <Text style={styles.profileFieldLabel}>Goal</Text>
+                <View style={styles.profileToggleRow}>
+                  {(['lose', 'maintain', 'gain'] as const).map((option) => {
+                    const active = onboardingGoalTypeDraft === option;
+                    return (
+                      <Pressable
+                        key={option}
+                        style={[styles.profileToggle, active && styles.profileToggleActive]}
+                        onPress={() => setOnboardingGoalTypeDraft(option)}
+                      >
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                          {option === 'lose' ? 'Lose' : option === 'maintain' ? 'Maintain' : 'Gain'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.profileField}>
+                <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
+                <TextInput
+                  value={onboardingTargetWeightDraft}
+                  onChangeText={setOnboardingTargetWeightDraft}
+                  keyboardType="decimal-pad"
+                  placeholder="170"
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.profileFieldInput}
+                />
+              </View>
+
+              <View style={styles.profileField}>
+                <Text style={styles.profileFieldLabel}>Activity level</Text>
+                <View style={styles.profileToggleRow}>
+                  {(['sedentary', 'light', 'moderate', 'very_active', 'extra_active'] as const).map((option) => {
+                    const active = onboardingActivityLevelDraft === option;
+                    return (
+                      <Pressable
+                        key={option}
+                        style={[styles.profileToggle, active && styles.profileToggleActive]}
+                        onPress={() => setOnboardingActivityLevelDraft(option)}
+                      >
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                          {option === 'very_active'
+                            ? 'Very active'
+                            : option === 'extra_active'
+                              ? 'Extra active'
+                              : option === 'sedentary'
+                                ? 'Sedentary'
+                                : option === 'light'
+                                  ? 'Light'
+                                  : 'Moderate'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <Pressable
+                style={styles.primaryButton}
+                onPress={() => void completeOnboardingSetup()}
+                disabled={onboardingSaving}
+              >
+                <Text style={styles.primaryButtonLabel}>{onboardingSaving ? 'Saving...' : 'Continue to the app'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -2726,6 +3008,24 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 16
+  },
+  bootState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    padding: 24
+  },
+  bootStateTitle: {
+    color: '#17324d',
+    fontSize: 20,
+    fontWeight: '800'
+  },
+  bootStateDetail: {
+    color: '#66778c',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center'
   },
   hero: {
     backgroundColor: '#17324d',

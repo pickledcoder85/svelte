@@ -15,6 +15,7 @@ import type {
   UserGoal,
   UserGoalCreate,
   ProfileProgress,
+  UserOnboardingRequest,
   WeightEntry,
   UserProfile,
   UserProfileUpdate,
@@ -165,6 +166,22 @@ export async function createLocalSession(email: string, displayName: string): Pr
     })
   );
   return response.session;
+}
+
+export async function completeOnboarding(
+  payload: UserOnboardingRequest,
+  accessToken: string
+): Promise<UserProfile> {
+  return readJson<UserProfile>(
+    await fetch(buildApiUrl('/profile/onboarding'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
 }
 
 export async function fetchFavoriteFoods(accessToken: string): Promise<FoodItem[]> {

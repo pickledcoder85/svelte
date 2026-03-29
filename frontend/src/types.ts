@@ -77,12 +77,34 @@ export interface UserProfile {
   user_created_at?: string | null;
   profile_created_at?: string | null;
   profile_updated_at?: string | null;
+  setup_completed_at?: string | null;
+  setup_complete: boolean;
+  sex?: 'male' | 'female' | null;
+  age_years?: number | null;
+  height_cm?: number | null;
+  current_weight_lbs?: number | null;
+  goal_type?: 'lose' | 'maintain' | 'gain' | null;
+  target_weight_lbs?: number | null;
+  activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
+  bmr_calories?: number | null;
+  tdee_calories?: number | null;
+  initial_calorie_target?: number | null;
 }
 
 export interface UserProfileUpdate {
   display_name: string | null;
   timezone: string;
   units: 'imperial' | 'metric';
+}
+
+export interface UserOnboardingRequest {
+  sex: 'male' | 'female';
+  age_years: number;
+  height_cm: number;
+  current_weight_lbs: number;
+  goal_type: 'lose' | 'maintain' | 'gain';
+  target_weight_lbs: number;
+  activity_level: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
 }
 
 export interface UserGoal {
