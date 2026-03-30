@@ -71,6 +71,7 @@ def complete_user_onboarding(
         target_weight_lbs=payload.target_weight_lbs,
         activity_level=payload.activity_level,
         dietary_pattern=payload.dietary_pattern,
+        nutrition_style=payload.nutrition_style,
         allergy_notes=payload.allergy_notes,
         bmr_calories=targets.bmr_calories,
         tdee_calories=targets.maintenance_calories,
@@ -142,6 +143,11 @@ def update_user_profile(
             if "dietary_pattern" in provided_fields
             else existing_profile.get("dietary_pattern")
         ),
+        "nutrition_style": (
+            payload.nutrition_style
+            if "nutrition_style" in provided_fields
+            else existing_profile.get("nutrition_style")
+        ),
         "allergy_notes": (
             payload.allergy_notes
             if "allergy_notes" in provided_fields
@@ -173,6 +179,7 @@ def update_user_profile(
             "goal_type",
             "activity_level",
             "dietary_pattern",
+            "nutrition_style",
         )
         missing_keys = [key for key in required_keys if resolved[key] is None]
         if missing_keys:
@@ -203,6 +210,7 @@ def update_user_profile(
             ),
             activity_level=str(resolved["activity_level"]),
             dietary_pattern=str(resolved["dietary_pattern"]),
+            nutrition_style=str(resolved["nutrition_style"] or "balanced"),
             allergy_notes=(
                 str(resolved["allergy_notes"])
                 if resolved["allergy_notes"] is not None

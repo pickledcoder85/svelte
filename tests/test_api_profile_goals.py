@@ -84,10 +84,13 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
             "target_weight_lbs": 185,
             "activity_level": "moderate",
             "dietary_pattern": "omnivore",
+            "nutrition_style": "balanced",
             "allergy_notes": "peanuts",
         },
     )
     assert onboarding_response.status_code == 200
+    onboarding_profile = onboarding_response.json()
+    assert onboarding_profile["nutrition_style"] == "balanced"
 
     update_response = await client.put(
         "/api/profile",
@@ -105,6 +108,7 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
             "target_weight_lbs": 205,
             "activity_level": "light",
             "dietary_pattern": "pescatarian",
+            "nutrition_style": "mediterranean",
             "allergy_notes": "shellfish",
         },
     )
@@ -117,6 +121,7 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
     assert updated["target_weight_lbs"] == 205
     assert updated["activity_level"] == "light"
     assert updated["dietary_pattern"] == "pescatarian"
+    assert updated["nutrition_style"] == "mediterranean"
     assert updated["allergy_notes"] == "shellfish"
     assert updated["bmr_calories"] == 1865
     assert updated["tdee_calories"] == 2424

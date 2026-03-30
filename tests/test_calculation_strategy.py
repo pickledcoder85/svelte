@@ -15,6 +15,7 @@ def test_energy_targets_use_conservative_non_exercise_activity_factor():
         target_weight_lbs=185,
         activity_level="moderate",
         dietary_pattern="omnivore",
+        nutrition_style="balanced",
     )
 
     bmr, maintenance, calorie_target = calculate_onboarding_energy_targets(payload)

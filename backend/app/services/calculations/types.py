@@ -6,6 +6,7 @@ from pydantic import BaseModel
 GoalType = Literal["lose", "maintain", "gain"]
 GoalPace = Literal["light", "recommended", "extreme", "lean", "aggressive"] | None
 DietaryPattern = Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
+NutritionStyle = Literal["balanced", "keto", "mediterranean"]
 TargetSource = Literal["system_default", "user_custom", "agent_adjusted", "admin_override"]
 
 CALCULATION_VERSION = "v1"

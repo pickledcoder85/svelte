@@ -122,6 +122,7 @@ describe('api helpers', () => {
           target_weight_lbs: 170,
           activity_level: 'moderate',
           dietary_pattern: 'omnivore',
+          nutrition_style: 'balanced',
           allergy_notes: 'peanuts'
         }),
         {
@@ -143,6 +144,7 @@ describe('api helpers', () => {
         target_weight_lbs: 170,
         activity_level: 'moderate',
         dietary_pattern: 'omnivore',
+        nutrition_style: 'balanced',
         allergy_notes: 'peanuts'
       },
       'token-123'

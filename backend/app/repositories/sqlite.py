@@ -733,6 +733,7 @@ class SQLiteRepository:
             "target_weight_lbs": "REAL",
             "activity_level": "TEXT",
             "dietary_pattern": "TEXT",
+            "nutrition_style": "TEXT",
             "allergy_notes": "TEXT",
             "bmr_calories": "INTEGER",
             "tdee_calories": "INTEGER",
@@ -1478,6 +1479,7 @@ class SQLiteRepository:
                 p.target_weight_lbs,
                 p.activity_level,
                 p.dietary_pattern,
+                p.nutrition_style,
                 p.allergy_notes,
                 p.bmr_calories,
                 p.tdee_calories,
@@ -1523,6 +1525,7 @@ class SQLiteRepository:
         target_weight_lbs: float | None,
         activity_level: str,
         dietary_pattern: str,
+        nutrition_style: str,
         allergy_notes: str | None,
         bmr_calories: int,
         tdee_calories: int,
@@ -1541,12 +1544,12 @@ class SQLiteRepository:
                 INSERT INTO user_profiles (
                     user_id, sex, age_years, height_cm, current_weight_lbs,
                     goal_type, goal_pace, target_weight_lbs, activity_level,
-                    dietary_pattern, allergy_notes,
+                    dietary_pattern, nutrition_style, allergy_notes,
                     bmr_calories, tdee_calories, initial_calorie_target,
                     protein_target_g, carbs_target_g, fat_target_g, fiber_target_g,
                     calculation_version, target_source,
                     setup_completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     sex = excluded.sex,
                     age_years = excluded.age_years,
@@ -1557,6 +1560,7 @@ class SQLiteRepository:
                     target_weight_lbs = excluded.target_weight_lbs,
                     activity_level = excluded.activity_level,
                     dietary_pattern = excluded.dietary_pattern,
+                    nutrition_style = excluded.nutrition_style,
                     allergy_notes = excluded.allergy_notes,
                     bmr_calories = excluded.bmr_calories,
                     tdee_calories = excluded.tdee_calories,
@@ -1581,6 +1585,7 @@ class SQLiteRepository:
                     target_weight_lbs,
                     activity_level,
                     dietary_pattern,
+                    nutrition_style,
                     allergy_notes,
                     bmr_calories,
                     tdee_calories,

@@ -88,6 +88,7 @@ export interface UserProfile {
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
+  nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
   allergy_notes?: string | null;
   bmr_calories?: number | null;
   tdee_calories?: number | null;
@@ -113,6 +114,7 @@ export interface UserProfileUpdate {
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
+  nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
   allergy_notes?: string | null;
 }
 
@@ -126,6 +128,7 @@ export interface UserOnboardingRequest {
   target_weight_lbs?: number | null;
   activity_level: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
   dietary_pattern: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
+  nutrition_style: 'balanced' | 'keto' | 'mediterranean';
   allergy_notes?: string | null;
 }
 
