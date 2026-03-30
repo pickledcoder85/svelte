@@ -48,6 +48,12 @@ import {
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
+import {
+  appShellMenuGroups,
+  getAppSectionMeta,
+  getProfileInitials,
+  primaryAppSections
+} from './src/lib/app-shell';
 import { DashboardHeaderMetrics } from './src/components/dashboard/DashboardHeaderMetrics';
 import { DashboardTimeRangeTabs } from './src/components/dashboard/DashboardTimeRangeTabs';
 import { DashboardHeroChart } from './src/components/dashboard/DashboardHeroChart';
@@ -101,18 +107,6 @@ import {
   demoProfileProgress,
   demoWeightEntries
 } from './src/mock-data';
-
-const sectionTabs: Array<{ id: AppSection; label: string }> = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'profile', label: 'Profile' },
-  { id: 'tracker', label: 'Tracker' },
-  { id: 'foods', label: 'Food Search' },
-  { id: 'meals', label: 'Meals' },
-  { id: 'meal-plan', label: 'Meal Plan' },
-  { id: 'meal-prep', label: 'Meal Prep' },
-  { id: 'recipes', label: 'Recipes' },
-  { id: 'ingestion', label: 'Ingestion' }
-];
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
@@ -282,6 +276,7 @@ export default function App(): ReactElement {
   const [entryBackendStatus, setEntryBackendStatus] = useState('Checking backend reachability');
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
+  const [isShellMenuOpen, setIsShellMenuOpen] = useState(false);
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
   const [activeDashboardMetric, setActiveDashboardMetric] = useState<DashboardMetricKey>('net_calories');
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
@@ -338,6 +333,17 @@ export default function App(): ReactElement {
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
+  const currentSectionMeta = getAppSectionMeta(section);
+  const profileInitials = getProfileInitials(profile?.display_name ?? null, profile?.email ?? entryEmailDraft);
+
+  function handleSectionChange(nextSection: AppSection) {
+    setSection(nextSection);
+    setIsShellMenuOpen(false);
+  }
+
+  useEffect(() => {
+    setIsShellMenuOpen(false);
+  }, [section, entryMode]);
   const [logFoodDraft, setLogFoodDraft] = useState('chicken');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
@@ -2287,70 +2293,138 @@ export default function App(): ReactElement {
       <StatusBar style="dark" />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.appHeader}>
-          <View style={styles.appHeaderTop}>
+          <View style={styles.appShellTopRow}>
             <View style={styles.appHeaderCopy}>
               <Text style={styles.appEyebrow}>Nutrition OS</Text>
-              <Text style={styles.appTitle}>Personal nutrition dashboard</Text>
-              <Text style={styles.appDetail}>Keep the first screen focused on actual intake, targets, and missing inputs.</Text>
+              <Text style={styles.appTitle}>{currentSectionMeta.label}</Text>
+              <Text style={styles.appDetail}>{currentSectionMeta.detail}</Text>
             </View>
-            <View style={styles.appHeaderMascotCard}>
-              <Image
-                source={section === 'tracker' ? activeExercisePreset.image : mascotDefaultImage}
-                style={styles.appHeaderMascotImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.appHeaderMascotLabel}>
-                {section === 'tracker' ? `${activeExercisePreset.label} loaded` : 'Pickle on duty'}
-              </Text>
+            <View style={styles.appShellActions}>
+              <Pressable
+                style={styles.avatarButton}
+                onPress={() => handleSectionChange('profile')}
+                accessibilityLabel="Open profile"
+              >
+                <View style={styles.avatarBadge}>
+                  <Text style={styles.avatarBadgeLabel}>{profileInitials}</Text>
+                </View>
+                <View style={styles.avatarCopy}>
+                  <Text style={styles.avatarLabel}>{entryMode === 'live' ? 'Profile' : 'Preview'}</Text>
+                  <Text style={styles.avatarDetail} numberOfLines={1}>
+                    {entryMode === 'live' ? profile?.display_name ?? entryDisplayNameDraft : 'Demo state only'}
+                  </Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={[styles.menuButton, isShellMenuOpen && styles.menuButtonActive]}
+                onPress={() => setIsShellMenuOpen((current) => !current)}
+                accessibilityLabel="Toggle navigation menu"
+              >
+                <View style={styles.menuIcon}>
+                  <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
+                  <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
+                  <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
+                </View>
+                <Text style={[styles.menuButtonLabel, isShellMenuOpen && styles.menuButtonLabelActive]}>Menu</Text>
+              </Pressable>
             </View>
           </View>
+
+          <View style={styles.primarySectionTabs}>
+            {primaryAppSections.map((item) => {
+              const active = item.id === section;
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[styles.sectionTab, active && styles.sectionTabActive]}
+                  onPress={() => handleSectionChange(item.id)}
+                >
+                  <Text style={[styles.sectionTabLabel, active && styles.sectionTabLabelActive]}>{item.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {isShellMenuOpen ? (
+            <View style={styles.shellMenuCard}>
+              {appShellMenuGroups.map((group) => (
+                <View key={group.title} style={styles.shellMenuGroup}>
+                  <Text style={styles.shellMenuGroupTitle}>{group.title}</Text>
+                  <View style={styles.shellMenuList}>
+                    {group.sections.map((item) => {
+                      const active = item.id === section;
+                      return (
+                        <Pressable
+                          key={item.id}
+                          style={[styles.shellMenuItem, active && styles.shellMenuItemActive]}
+                          onPress={() => handleSectionChange(item.id)}
+                        >
+                          <View style={styles.shellMenuItemCopy}>
+                            <Text style={[styles.shellMenuItemTitle, active && styles.shellMenuItemTitleActive]}>
+                              {item.label}
+                            </Text>
+                            <Text style={styles.shellMenuItemDetail}>{item.detail}</Text>
+                          </View>
+                          {active ? <Text style={styles.shellMenuItemState}>Open</Text> : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+
+              <View style={styles.shellMenuFooter}>
+                <View style={styles.shellMenuModeRow}>
+                  <View>
+                    <Text style={styles.modeControlLabel}>Mode</Text>
+                    <Text style={styles.shellMenuModeValue}>
+                      {entryMode === 'live' ? 'Live local profile' : 'Preview demo'}
+                    </Text>
+                  </View>
+                  <Text style={styles.shellMenuModeDetail}>
+                    {entryMode === 'live' ? 'Backend session active' : 'Preview state only'}
+                  </Text>
+                </View>
+                <View style={styles.modeControlActions}>
+                  {entryMode === 'live' ? (
+                    <Pressable
+                      style={styles.inlinePillButton}
+                      onPress={() => {
+                        setIsShellMenuOpen(false);
+                        enterPreviewMode();
+                      }}
+                    >
+                      <Text style={styles.inlinePillButtonLabel}>Switch to preview</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      style={styles.inlinePillButton}
+                      onPress={() => {
+                        setIsShellMenuOpen(false);
+                        returnToEntryScreen();
+                      }}
+                    >
+                      <Text style={styles.inlinePillButtonLabel}>Create live profile</Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    style={styles.inlinePillButton}
+                    onPress={() => {
+                      setIsShellMenuOpen(false);
+                      returnToEntryScreen();
+                    }}
+                  >
+                    <Text style={styles.inlinePillButtonLabel}>Change entry mode</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : null}
+
           <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
             <Text style={styles.appStatusLabel}>{syncLabel}</Text>
             <Text style={styles.appStatusDetail}>{syncDetail}</Text>
           </View>
-        </View>
-
-        <View style={styles.modeControlCard}>
-          <View style={styles.modeControlHeader}>
-            <View>
-              <Text style={styles.modeControlLabel}>Mode</Text>
-              <Text style={styles.modeControlValue}>{entryMode === 'live' ? 'Live local profile' : 'Preview demo'}</Text>
-            </View>
-            <Text style={styles.modeControlDetail}>
-              {entryMode === 'live' ? profile?.display_name ?? entryDisplayNameDraft : 'Demo state only'}
-            </Text>
-          </View>
-          <View style={styles.modeControlActions}>
-            {entryMode === 'live' ? (
-              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode}>
-                <Text style={styles.inlinePillButtonLabel}>Switch to preview</Text>
-              </Pressable>
-            ) : (
-              <Pressable style={styles.inlinePillButton} onPress={returnToEntryScreen}>
-                <Text style={styles.inlinePillButtonLabel}>Create live profile</Text>
-              </Pressable>
-            )}
-            <Pressable style={styles.inlinePillButton} onPress={returnToEntryScreen}>
-              <Text style={styles.inlinePillButtonLabel}>Change entry mode</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.sectionTabs}>
-          {sectionTabs.map((item) => {
-            const active = item.id === section;
-            return (
-              <Pressable
-                key={item.id}
-                style={[styles.sectionTab, active && styles.sectionTabActive]}
-                onPress={() => setSection(item.id)}
-              >
-                <Text style={[styles.sectionTabLabel, active && styles.sectionTabLabelActive]}>
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
         </View>
 
         {section === 'dashboard' && (
@@ -4012,10 +4086,10 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 14
   },
-  appHeaderTop: {
+  appShellTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 14,
     flexWrap: 'wrap'
   },
@@ -4023,6 +4097,13 @@ const styles = StyleSheet.create({
     gap: 6,
     flex: 1,
     minWidth: 240
+  },
+  appShellActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end'
   },
   appEyebrow: {
     color: '#0f766e',
@@ -4040,6 +4121,81 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
+  avatarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#f7f4ef',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 172
+  },
+  avatarBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#17324d',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  avatarBadgeLabel: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  avatarCopy: {
+    flex: 1,
+    gap: 2
+  },
+  avatarLabel: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  avatarDetail: {
+    color: '#66778c',
+    fontSize: 12
+  },
+  menuButton: {
+    minHeight: 62,
+    minWidth: 88,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6
+  },
+  menuButtonActive: {
+    backgroundColor: '#17324d',
+    borderColor: '#17324d'
+  },
+  menuIcon: {
+    gap: 4
+  },
+  menuIconBar: {
+    width: 18,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: '#17324d'
+  },
+  menuIconBarActive: {
+    backgroundColor: '#ffffff'
+  },
+  menuButtonLabel: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  menuButtonLabelActive: {
+    color: '#ffffff'
+  },
   appStatusCard: {
     backgroundColor: '#f7fafc',
     borderRadius: 18,
@@ -4047,25 +4203,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4
-  },
-  appHeaderMascotCard: {
-    backgroundColor: '#f6f0e7',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 132
-  },
-  appHeaderMascotImage: {
-    width: 92,
-    height: 92
-  },
-  appHeaderMascotLabel: {
-    color: '#17324d',
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center'
   },
   appStatusLabel: {
     color: '#132536',
@@ -4207,10 +4344,94 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
-  sectionTabs: {
+  primarySectionTabs: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8
+  },
+  shellMenuCard: {
+    backgroundColor: '#f9fbfd',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 14,
+    gap: 14
+  },
+  shellMenuGroup: {
+    gap: 10
+  },
+  shellMenuGroupTitle: {
+    color: '#6b7b90',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8
+  },
+  shellMenuList: {
+    gap: 8
+  },
+  shellMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  shellMenuItemActive: {
+    borderColor: '#17324d',
+    backgroundColor: '#eef3f8'
+  },
+  shellMenuItemCopy: {
+    flex: 1,
+    gap: 3
+  },
+  shellMenuItemTitle: {
+    color: '#132536',
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  shellMenuItemTitleActive: {
+    color: '#17324d'
+  },
+  shellMenuItemDetail: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 17
+  },
+  shellMenuItemState: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  shellMenuFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#d7dee7',
+    paddingTop: 14,
+    gap: 10
+  },
+  shellMenuModeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  shellMenuModeValue: {
+    color: '#17324d',
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 4
+  },
+  shellMenuModeDetail: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 17,
+    flexShrink: 1,
+    textAlign: 'right'
   },
   exercisePresetGrid: {
     flexDirection: 'row',
