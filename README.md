@@ -12,7 +12,8 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Session-aware auth scaffolding and environment-backed provider config.
 - Persisted meal templates with ingredient rows, serving counts, and per-serving calorie/macro totals.
 - Recipe create/read/update flows with persisted steps, assets, ingredients, favorites, and scaling utilities for `1.25x`, `1.5x`, and `2.0x`.
-- Multimodal ingestion endpoint for nutrition label photos.
+- Multimodal ingestion endpoints for package-front and nutrition-label analysis.
+- Camera-food review/save flow that can persist single-label scans, USDA-backed package-only scans, and multi-variant label scans into the food databank from a live phone capture session.
 - Health-check API route for quick local backend verification.
 
 ## Stack
@@ -23,7 +24,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Mobile runtime: Expo Go during development, with native build/export options later.
 - Auth: Supabase or another hosted auth provider.
 - Nutrition source: USDA FoodData Central API.
-- AI backend: multimodal model for nutrition-label extraction and OCR-based recipe ingestion.
+- AI backend: multimodal model for package-front and nutrition-label extraction, plus OCR-style recipe ingestion.
 
 ## Development commands
 
@@ -32,7 +33,7 @@ Backend:
 - `conda activate svelte`
 - `pip install -e ".[dev]"`
 - `python -m backend.app.db.bootstrap --reset --seed-dev`
-- `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
+- `scripts/dev-backend.sh`
 - `pytest`
 
 Frontend:
@@ -46,7 +47,7 @@ Frontend:
 - `npm run check`
 - `npm test`
 
-The frontend and backend both support hot reload in local development. `npm start` opens the Expo dev server for phone and simulator preview, `npm start -- --tunnel` is the safer fallback when the phone cannot reach the local LAN, and `npm run web` opens the Expo web build in the browser.
+The frontend and backend both support hot reload in local development. `scripts/dev-backend.sh` starts the backend, binds it for LAN phone access, and mirrors stdout/stderr into `tmp/backend.log`. `npm start` opens the Expo dev server for phone and simulator preview, `npm start -- --tunnel` is the safer fallback when the phone cannot reach the local LAN, and `npm run web` opens the Expo web build in the browser.
 
 ## Database model in place
 
@@ -81,10 +82,11 @@ Relational notes:
 7. Copy `.env.example` to `.env` and set API credentials.
 8. Get your computer's LAN IP with `hostname -I` or `ip addr`.
 9. In `frontend/`, copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL=http://<your-lan-ip>:8000/api`.
-10. Run the backend with `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`.
+10. Run the backend with `scripts/dev-backend.sh`.
 11. For browser preview, run the frontend from `frontend/` with `npm run web`.
 12. For iPhone preview on the same Wi-Fi, run `npm start` in `frontend/` and scan the QR code with Expo Go.
 13. If the phone is not on the same Wi-Fi or Expo Go stalls on the bundle download, run `npm start -- --tunnel` instead.
+14. For live phone debugging, review `tmp/backend.log` first. The backend runner creates it automatically if missing.
 14. Verify the backend at `http://localhost:8000/api/health`.
 
 For disposable local testing data, set `DATABASE_URL=sqlite:///./nutrition_os.dev.db` and use `python -m backend.app.db.bootstrap --reset --seed-dev` whenever you want a clean baseline.
@@ -103,5 +105,5 @@ For disposable local testing data, set `DATABASE_URL=sqlite:///./nutrition_os.de
 ## Current limitations
 
 - Expo SDK 54 is pinned because this environment now uses Node 20 and Expo Go support is required during development.
-- The OpenAI vision integration is scaffolded and expects compatible API credentials.
+- Camera-food scanning uses the configured `OPENAI_API_KEY` for package-front and nutrition-label extraction when available, with deterministic fallback responses when it is not configured.
 - Recipe import review UX and native packaging/signing workflows remain beyond the Phase 1 milestone.

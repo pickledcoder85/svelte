@@ -4,8 +4,17 @@ import json
 from typing import Any, Literal
 from uuid import uuid4
 
+from backend.app.config import get_settings
+from backend.app.integrations.usda import UsdaSearchError, search_usda_foods
 from backend.app.models.ingestion import IngestionOutput
-from backend.app.models.nutrition import FoodItem, MacroTargets, VisionNutritionExtraction, VisionPackageExtraction
+from backend.app.models.nutrition import (
+    FoodItem,
+    MacroTargets,
+    SavedFoodsResult,
+    VisionNutritionExtraction,
+    VisionNutritionVariant,
+    VisionPackageExtraction,
+)
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
@@ -162,7 +171,11 @@ def create_scan_output(
     return _normalize_output(output)
 
 
-def save_food_from_output(repository: SQLiteRepository, user_id: str, output_id: str) -> FoodItem:
+async def save_food_from_output(
+    repository: SQLiteRepository,
+    user_id: str,
+    output_id: str,
+) -> SavedFoodsResult:
     output = _assert_output_access(repository, user_id, output_id)
     if output["review_state"] != "accepted":
         raise IngestionStateError("Only accepted ingestion outputs can be saved as foods.")
@@ -172,15 +185,26 @@ def save_food_from_output(repository: SQLiteRepository, user_id: str, output_id:
         raise IngestionSaveError("Accepted ingestion output does not contain food data.")
 
     product_name = structured_json.get("product_name")
+    brand_name = structured_json.get("brand_name")
     calories = structured_json.get("calories")
     macros = structured_json.get("macros")
     serving_size = structured_json.get("serving_size")
     if not isinstance(product_name, str) or not product_name.strip():
         raise IngestionSaveError("Accepted ingestion output is missing a product name.")
-    if not isinstance(calories, (int, float)):
-        raise IngestionSaveError("Accepted ingestion output is missing calories.")
-    if not isinstance(macros, dict):
-        raise IngestionSaveError("Accepted ingestion output is missing macro data.")
+
+    variants = _coerce_variants(structured_json.get("variants"))
+    if variants:
+        saved_variants = [repository.save_food_item(_food_from_variant(product_name.strip(), brand_name, variant)) for variant in variants]
+        return SavedFoodsResult(saved_foods=saved_variants)
+
+    nutrition_missing = not isinstance(calories, (int, float)) or not isinstance(macros, dict)
+    if nutrition_missing:
+        usda_food = await _lookup_usda_food(product_name.strip(), brand_name)
+        if usda_food is None:
+            raise IngestionSaveError(
+                "Accepted ingestion output is missing nutrition, and USDA lookup did not find a matching food."
+            )
+        return SavedFoodsResult(saved_foods=[repository.save_food_item(usda_food)])
 
     serving_quantity, serving_unit = _parse_serving_size(serving_size)
     try:
@@ -201,7 +225,82 @@ def save_food_from_output(repository: SQLiteRepository, user_id: str, output_id:
         source="LABEL_SCAN",
         favorite=False,
     )
-    return repository.save_food_item(food)
+    return SavedFoodsResult(saved_foods=[repository.save_food_item(food)])
+
+
+async def _lookup_usda_food(product_name: str, brand_name: Any) -> FoodItem | None:
+    settings = get_settings()
+    if not settings.usda_api_key:
+        return None
+
+    queries = [product_name]
+    if isinstance(brand_name, str) and brand_name.strip():
+        queries.insert(0, f"{brand_name.strip()} {product_name}")
+
+    for query in queries:
+        try:
+            matches = await search_usda_foods(query, settings.usda_api_key)
+        except UsdaSearchError:
+            return None
+        if matches:
+            return matches[0]
+
+    return None
+
+
+def _coerce_variants(value: Any) -> list[VisionNutritionVariant]:
+    if not isinstance(value, list):
+        return []
+
+    variants: list[VisionNutritionVariant] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        variant_name = item.get("variant_name")
+        if not isinstance(variant_name, str) or not variant_name.strip():
+            continue
+        macros = item.get("macros")
+        if not isinstance(macros, dict):
+            macros = item
+        try:
+            variants.append(
+                VisionNutritionVariant(
+                    variant_name=variant_name.strip(),
+                    serving_size=_as_string_value(item.get("serving_size"), "1 serving"),
+                    calories=float(item.get("calories", 0)),
+                    macros=MacroTargets(
+                        protein=float(macros.get("protein", 0)),
+                        carbs=float(macros.get("carbs", 0)),
+                        fat=float(macros.get("fat", 0)),
+                    ),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    return variants
+
+
+def _food_from_variant(product_name: str, brand_name: Any, variant: VisionNutritionVariant) -> FoodItem:
+    serving_quantity, serving_unit = _parse_serving_size(variant.serving_size)
+    brand = brand_name.strip() if isinstance(brand_name, str) and brand_name.strip() else None
+    variant_label = variant.variant_name.strip()
+    return FoodItem(
+        id=f"food-label-{uuid4().hex[:12]}",
+        name=f"{product_name} - {variant_label}",
+        brand=brand,
+        calories=variant.calories,
+        serving_size=serving_quantity,
+        serving_unit=serving_unit,
+        macros=variant.macros,
+        source="LABEL_SCAN",
+        favorite=False,
+    )
+
+
+def _as_string_value(value: Any, fallback: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return fallback
 
 
 def _parse_serving_size(value: Any) -> tuple[float, str]:

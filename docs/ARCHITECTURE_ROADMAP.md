@@ -63,7 +63,7 @@ Current status:
 
 - implemented for dashboard, search, session-aware logging, profile/goals, onboarding, favorite-food persistence, meal-builder persistence, recipe persistence/scaling, weight progress, and backend persistence
 - `v0.5.0` was already tagged for the validated Phase 1 milestone
-- the next major architecture slice is target-calculation refactoring, explicit goal-type onboarding, and safer input-to-persistence iteration
+- the next major architecture slice is target-calculation consolidation, adaptive-planning groundwork, and safer input-to-persistence iteration
 
 ### Phase 2: ingestion and automation
 
@@ -74,10 +74,11 @@ Current status:
 
 Current status:
 
-- started, with ingestion queue and review-state persistence in place
-- camera-food-bank groundwork is now in progress with package-scan, label-ingest, and save-reviewed-food route scaffolding
-- the next camera-food implementation slice is documented in [CAMERA_FOOD_BANK_PLAN.md](/home/brianminer/workspace/svelte/docs/CAMERA_FOOD_BANK_PLAN.md)
-- still missing the full review UI, richer job lifecycle, browser upload/camera UX, and AI-assisted correction pipeline
+- implemented as a usable end-to-end flow for live phone capture and review-backed save into the local food databank
+- package-front scans, nutrition-label scans, and accepted save flows are persisted through the ingestion pipeline
+- the phone UX now uses a single camera session for package-first capture, optional label capture, review, and save
+- multi-variant nutrition labels now save one food per detected variant, and package-only scans can fall back to USDA lookup when nutrition is missing
+- the next ingestion work should focus on extraction-quality tuning, duplicate-detection refinement, and richer post-save actions rather than more scaffolding
 
 ### Phase 2.5: calculation engine and adaptive planning
 
@@ -93,11 +94,11 @@ Current status:
 
 Current status:
 
-- started on the current dev workflow branch
+- partially implemented in the current app baseline
 - onboarding now uses dedicated energy and macro calculation helpers instead of inline fixed-ratio logic
 - explicit goal labels are clearer in the frontend onboarding and profile experience
-- full editable profile management is now underway, with live profile edits recalculating targets and appending new goal-history rows
-- adaptive maintenance, fiber-target persistence, and structured exercise-estimation metadata are still pending
+- full editable profile management is live, with profile edits recalculating targets and appending new goal-history rows
+- adaptive maintenance, structured exercise-estimation metadata, versioned target persistence, and broader calculation-module separation are still pending
 
 ### Phase 3: mobile packaging and polish
 
@@ -117,11 +118,10 @@ Current status:
 2. Implement backend persistence and user-context boundaries.
 3. Connect frontend dashboard and meal builder to persisted backend flows.
 4. Add recipe persistence and scaling UX.
-5. Refactor the nutrition and exercise calculation engine around explicit goal types and versioned targets.
-6. Finish full editable profile management so calculation targets and food-ingestion flows have a stable user foundation.
-7. Add ingestion review flows before fully automated save behavior.
-8. Add camera-assisted food-bank creation with explicit review before save.
-9. Package and validate with Expo-native build/export flow after core flows are stable.
+5. Consolidate the nutrition and exercise calculation engine around versioned targets, adaptive maintenance, and structured exercise metadata.
+6. Extend goal and profile persistence so generated targets, fiber guidance, and source provenance are durable and auditable.
+7. Tighten ingestion quality with better duplicate detection, extraction normalization, and post-save actions.
+8. Package and validate with Expo-native build/export flow after the calculation and ingestion foundations are stable.
 
 ## Review of initial plan
 
@@ -160,8 +160,8 @@ Historical early versioning sketch:
 - `v0.3.0`: reusable meals, first-class favorites persistence, and recipe scaling
 - `v0.4.0`: USDA sync and food search refinement
 - `v0.5.0`: Phase 1 validated milestone and core single-user app baseline
-- `v0.6.0`: calculation engine refactor, explicit goal-type onboarding, and structured exercise estimation
-- `v0.7.0`: ingestion and AI-assisted extraction expansion
+- `v0.6.0`: calculation engine consolidation, adaptive maintenance groundwork, and structured exercise estimation
+- `v0.7.0`: ingestion quality refinement, duplicate handling, and richer post-save actions
 - `v0.8.0`: native packaging and iPhone validation
 
 Tag only after:

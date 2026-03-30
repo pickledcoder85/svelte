@@ -1,6 +1,6 @@
 # Camera Food Bank Plan
 
-This document defines the recommended `camera-food-bank-v1` slice that should follow the current camera-ingestion groundwork.
+This document now captures the current `camera-food-bank-v1` implementation state and the recommended follow-up work.
 
 The purpose of this slice is to let a user create reusable foods from package photos and nutrition-label scans, review the extracted data, save the result to the app database, and immediately use the saved food in logging and planning flows.
 
@@ -34,24 +34,33 @@ It supports:
 - stronger meal prep and meal planning inputs
 - a tighter loop between saved foods, nutrition totals, and target calculations
 
-## Current reusable scaffolding
+## Current implementation status
 
-The repo already contains pieces that should be extended rather than replaced:
+The repo now includes the main `v1` camera-food flow end to end:
 
-- `POST /api/vision/package` now exists for authenticated package-front scan scaffolding in [backend/app/routes/vision.py](/home/brianminer/workspace/svelte/backend/app/routes/vision.py).
-- `POST /api/vision/label/ingest` now persists label-scan outputs for review in [backend/app/routes/vision.py](/home/brianminer/workspace/svelte/backend/app/routes/vision.py).
-- The current vision service returns structured placeholder extraction shapes in [backend/app/services/vision.py](/home/brianminer/workspace/svelte/backend/app/services/vision.py).
+- `POST /api/vision/package` performs authenticated package-front analysis in [backend/app/routes/vision.py](/home/brianminer/workspace/svelte/backend/app/routes/vision.py).
+- `POST /api/vision/label/ingest` persists label-scan outputs for review in [backend/app/routes/vision.py](/home/brianminer/workspace/svelte/backend/app/routes/vision.py).
+- The vision service uses the configured OpenAI multimodal endpoint when `OPENAI_API_KEY` is present, with deterministic fallback responses for local development in [backend/app/services/vision.py](/home/brianminer/workspace/svelte/backend/app/services/vision.py).
 - Ingestion review queue routes already exist in [backend/app/routes/ingestion.py](/home/brianminer/workspace/svelte/backend/app/routes/ingestion.py).
 - Ingestion output models already support extracted text, structured JSON, confidence, and review state in [backend/app/models/ingestion.py](/home/brianminer/workspace/svelte/backend/app/models/ingestion.py).
 - SQLite already persists `ingestion_jobs` and `ingestion_outputs` in [backend/app/repositories/sqlite.py](/home/brianminer/workspace/svelte/backend/app/repositories/sqlite.py).
 - SQLite already persists foods in `food_catalog` via `save_food_item` in [backend/app/repositories/sqlite.py](/home/brianminer/workspace/svelte/backend/app/repositories/sqlite.py).
 - The frontend already has ingestion review UI and ingestion API helpers in [frontend/src/components/IngestionReviewPanel.tsx](/home/brianminer/workspace/svelte/frontend/src/components/IngestionReviewPanel.tsx) and [frontend/src/lib/api.ts](/home/brianminer/workspace/svelte/frontend/src/lib/api.ts).
 
-Important limitations:
+The `v1` UX now includes:
 
-- the current `vision` service is still a demo placeholder and does not yet call a real multimodal extraction client
-- the current package scan candidate confidence values are synthetic
-- there is no dedicated camera-first ingestion UX in the frontend yet
+- a single camera session on device for package-first capture, optional label capture, review, and save
+- grouped recent scans for revisiting prior outputs without a large pending queue
+- summary-card review by default, with edit only when correction is needed
+- multi-variant label detection with one saved food per variant
+- USDA fallback when a package-only scan is saved without nutrition data
+
+Current limitations:
+
+- package scan candidate confidence values are still synthetic heuristics, not calibrated model scores
+- duplicate detection and package-match ranking still need refinement
+- the browser path is review-first, not a full fallback capture flow
+- saved-food follow-up actions such as `Add to today's log` or `Favorite` are still minimal
 
 ## Recommended v1 workflow
 
@@ -119,11 +128,11 @@ Every low-confidence or newly created item should open a review screen where the
 - fat
 - fiber if supported
 
-The review screen should also show:
+The review screen should emphasize:
 
-- extraction confidence
-- original extracted text
-- source images later when asset storage exists
+- one clear detected-result summary card by default
+- variant cards when the label represents multiple flavors or rows
+- edit-only-on-demand correction before save
 
 ### Stage 4: persistence and next actions
 
@@ -169,12 +178,12 @@ Recommended additions:
 
 ## API direction
 
-Recommended backend additions for `v1`:
+Implemented backend direction for `v1`:
 
-- upgrade `POST /api/vision/package` from placeholder extraction to real analysis
-- upgrade `POST /api/vision/label/ingest` from placeholder extraction to real analysis
-- consider explicit job registration only if the flow needs a richer lifecycle
-- keep a stable route for saving a reviewed ingestion output into the food catalog
+- `POST /api/vision/package` now performs real analysis when the multimodal backend is configured
+- `POST /api/vision/label/ingest` now performs real analysis when the multimodal backend is configured
+- `POST /api/ingestion/outputs/{id}/save-food` persists either one saved food or a set of variant foods
+- package-only reviewed saves can enrich nutrition from USDA before persistence
 
 The architectural requirement is stable:
 
@@ -185,18 +194,17 @@ The architectural requirement is stable:
 
 ## Frontend direction
 
-Recommended `v1` screens:
+Current `v1` screens and states:
 
-1. camera entry screen
+1. camera entry action inside the ingestion flow
 2. package-front capture screen
-3. possible match results screen
-4. nutrition-label capture screen
-5. extracted nutrition review screen
-6. save success screen with next actions
+3. nutrition-label capture screen with `Skip Label`
+4. detected-result review screen
+5. save success state with recent scans and searchability
 
-The browser version should support image upload as a fallback for development and testing.
+The browser version now acts primarily as a review and search surface for the same live session.
 
-The device version should use explicit camera capture flows once the Expo camera stack is wired.
+The device version is the primary capture experience.
 
 ## Guardrails
 
@@ -220,13 +228,11 @@ Do not try to solve these immediately:
 
 ## Recommended implementation order
 
-1. Finalize the current package-scan, label-ingest, and save-reviewed-food groundwork.
-2. Add browser image-upload support for package and label ingestion.
-3. Add package-front analysis and match-candidate UI flow.
-4. Upgrade label extraction beyond the current demo placeholder.
-5. Add reviewed-food save flow into the frontend.
-6. Connect saved foods directly into food logging and favorites.
-7. Validate the flow on device camera capture after the browser path works.
+1. Improve duplicate detection and package-match ranking so existing foods are reused more confidently.
+2. Add richer post-save actions such as `Add to today's log` and `Favorite`.
+3. Improve extraction normalization for messy multi-row or partially obscured labels.
+4. Add optional source-asset storage only if debugging and auditability need it later.
+5. Validate more real-world scans and tune prompts conservatively from observed misses.
 
 ## Roadmap relationship
 

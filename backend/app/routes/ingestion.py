@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.app.dependencies import get_required_session, get_repository
 from backend.app.models.ingestion import IngestionOutput, IngestionOutputEditRequest
-from backend.app.models.nutrition import FoodItem
+from backend.app.models.nutrition import SavedFoodsResult
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.ingestion import (
     IngestionAccessError,
@@ -122,14 +122,14 @@ async def reject_output(
         raise _map_ingestion_error(exc) from exc
 
 
-@router.post("/outputs/{output_id}/save-food", response_model=FoodItem)
+@router.post("/outputs/{output_id}/save-food", response_model=SavedFoodsResult)
 async def save_output_as_food(
     output_id: str,
     session = Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
-) -> FoodItem:
+) -> SavedFoodsResult:
     try:
-        return save_food_from_output(repository, session.user_id, output_id)
+        return await save_food_from_output(repository, session.user_id, output_id)
     except HTTPException:
         raise
     except Exception as exc:

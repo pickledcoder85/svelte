@@ -58,6 +58,13 @@ class FoodFavoriteState(BaseModel):
     favorite: bool
 
 
+class VisionNutritionVariant(BaseModel):
+    variant_name: str
+    serving_size: str
+    calories: float
+    macros: MacroTargets
+
+
 class VisionNutritionExtraction(BaseModel):
     label_text: str
     product_name: str
@@ -65,7 +72,13 @@ class VisionNutritionExtraction(BaseModel):
     serving_size: str
     calories: float
     macros: MacroTargets
+    multiple_variants_detected: bool = False
+    variants: list[VisionNutritionVariant] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
+
+
+class SavedFoodsResult(BaseModel):
+    saved_foods: list[FoodItem]
 
 
 class VisionFoodMatchCandidate(BaseModel):

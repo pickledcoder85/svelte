@@ -330,7 +330,16 @@ export interface VisionNutritionExtraction {
   serving_size: string;
   calories: number;
   macros: MacroTargets;
+  multiple_variants_detected: boolean;
+  variants: VisionNutritionVariant[];
   confidence: number;
+}
+
+export interface VisionNutritionVariant {
+  variant_name: string;
+  serving_size: string;
+  calories: number;
+  macros: MacroTargets;
 }
 
 export interface VisionPackageScanResult {
@@ -349,4 +358,8 @@ export interface VisionLabelScanResult {
   source_name: string;
   confidence: number;
   extraction: VisionNutritionExtraction;
+}
+
+export interface SaveFoodsResult {
+  saved_foods: FoodItem[];
 }

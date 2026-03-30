@@ -52,6 +52,33 @@ describe('food helpers', () => {
     expect(filterFoodsFuzzy(demoFoodResults, 'blu')[0]?.name).toBe('Blueberries');
     expect(filterFoodsFuzzy(demoFoodResults, 'gyrt')[0]?.name).toBe('Greek yogurt, plain nonfat');
     expect(filterFoodsFuzzy(demoFoodResults, 'oat')[0]?.name).toBe('Rolled oats');
+    expect(
+      filterFoodsFuzzy(
+        [{ ...demoFoodResults.find((food) => food.name === 'Rolled oats')!, brand: 'Quaker' }],
+        'quaker'
+      )[0]?.name
+    ).toBe('Rolled oats');
+    expect(
+      filterFoodsFuzzy(
+        [
+          {
+            ...demoFoodResults[0],
+            id: 'food-power-cakes',
+            name: 'Power Cakes',
+            brand: 'Kodiak',
+            favorite: false
+          },
+          {
+            ...demoFoodResults[1],
+            id: 'food-chicken-breast',
+            name: 'Chicken breast, skinless',
+            brand: null,
+            favorite: true
+          }
+        ],
+        'cake'
+      )[0]?.name
+    ).toBe('Power Cakes');
   });
 
   it('keeps favorite foods first in picker ordering', () => {

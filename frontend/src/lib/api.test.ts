@@ -89,6 +89,20 @@ describe('api helpers', () => {
     );
   });
 
+  it('includes backend error detail in thrown api errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Vision response did not include structured text output.' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(scanFoodPackage('ZmFrZS1wYWNrYWdl', 'token-123')).rejects.toThrow(
+      'Request failed with status 502: Vision response did not include structured text output.'
+    );
+  });
+
   it('submits onboarding data to the profile onboarding endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -278,6 +292,8 @@ describe('api helpers', () => {
               serving_size: '1 serving',
               calories: 120,
               macros: { protein: 8, carbs: 12, fat: 4 },
+              multiple_variants_detected: false,
+              variants: [],
               confidence: 0.62
             }
           }),
@@ -287,15 +303,19 @@ describe('api helpers', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            id: 'food-label-test',
-            name: 'Test protein bar',
-            brand: 'Codex Foods',
-            calories: 220,
-            serving_size: 1,
-            serving_unit: 'bar',
-            macros: { protein: 20, carbs: 24, fat: 7 },
-            source: 'LABEL_SCAN',
-            favorite: false
+            saved_foods: [
+              {
+                id: 'food-label-test',
+                name: 'Test protein bar',
+                brand: 'Codex Foods',
+                calories: 220,
+                serving_size: 1,
+                serving_unit: 'bar',
+                macros: { protein: 20, carbs: 24, fat: 7 },
+                source: 'LABEL_SCAN',
+                favorite: false
+              }
+            ]
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )

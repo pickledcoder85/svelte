@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -17,6 +19,7 @@ class VisionRequest(BaseModel):
 
 
 router = APIRouter(prefix="/vision", tags=["vision"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/label", response_model=VisionNutritionExtraction)
@@ -24,6 +27,7 @@ async def analyze_label(payload: VisionRequest) -> VisionNutritionExtraction:
     try:
         return await analyze_label_image(payload.image_base64)
     except Exception as exc:
+        logger.exception("Vision label analysis failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -53,6 +57,7 @@ async def analyze_package(
             extraction=extraction,
         )
     except Exception as exc:
+        logger.exception("Vision package scan failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -82,4 +87,5 @@ async def ingest_label(
             extraction=extraction,
         )
     except Exception as exc:
+        logger.exception("Vision label ingest failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc

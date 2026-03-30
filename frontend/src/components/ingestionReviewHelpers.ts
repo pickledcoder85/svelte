@@ -1,4 +1,4 @@
-import type { IngestionOutput } from '../types';
+import type { IngestionOutput, VisionNutritionVariant } from '../types';
 
 export interface EditableNutritionDraft {
   product_name: string;
@@ -99,7 +99,7 @@ export function buildNutritionDraft(value: unknown): EditableNutritionDraft {
   };
 }
 
-export function buildAcceptedNutritionPayload(draft: EditableNutritionDraft): {
+export function buildAcceptedNutritionPayload(draft: EditableNutritionDraft, currentStructuredJson?: unknown): {
   extracted_text: string;
   structured_json: {
     product_name: string;
@@ -111,11 +111,22 @@ export function buildAcceptedNutritionPayload(draft: EditableNutritionDraft): {
       carbs: number;
       fat: number;
     };
+    multiple_variants_detected?: boolean;
+    variants?: VisionNutritionVariant[];
   };
 } {
   const productName = draft.product_name.trim();
   const servingSize = draft.serving_size.trim();
   const brandName = draft.brand_name.trim();
+
+  const existing =
+    typeof currentStructuredJson === 'object' && currentStructuredJson !== null
+      ? (currentStructuredJson as {
+          multiple_variants_detected?: unknown;
+          variants?: unknown;
+        })
+      : null;
+  const variants = Array.isArray(existing?.variants) ? (existing.variants as VisionNutritionVariant[]) : undefined;
 
   return {
     extracted_text: [productName, brandName, servingSize].filter(Boolean).join('\n'),
@@ -128,9 +139,34 @@ export function buildAcceptedNutritionPayload(draft: EditableNutritionDraft): {
         protein: Number(draft.protein),
         carbs: Number(draft.carbs),
         fat: Number(draft.fat)
-      }
+      },
+      ...(existing?.multiple_variants_detected === true ? { multiple_variants_detected: true } : {}),
+      ...(variants && variants.length > 0 ? { variants } : {})
     }
   };
+}
+
+export function getNutritionVariants(value: unknown): VisionNutritionVariant[] {
+  if (typeof value !== 'object' || value === null) {
+    return [];
+  }
+  const payload = value as { variants?: unknown };
+  if (!Array.isArray(payload.variants)) {
+    return [];
+  }
+  return payload.variants.filter((variant): variant is VisionNutritionVariant => {
+    if (typeof variant !== 'object' || variant === null) {
+      return false;
+    }
+    const item = variant as Partial<VisionNutritionVariant>;
+    return (
+      typeof item.variant_name === 'string' &&
+      typeof item.serving_size === 'string' &&
+      typeof item.calories === 'number' &&
+      typeof item.macros === 'object' &&
+      item.macros !== null
+    );
+  });
 }
 
 function formatDraftNumber(value: unknown): string {

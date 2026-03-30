@@ -769,6 +769,21 @@ class SQLiteRepository:
                 )
                 """
             )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_default_favorite_food_seed_runs (
+                    user_id TEXT PRIMARY KEY,
+                    seeded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_default_favorite_foods_order
+                ON default_favorite_foods (display_order ASC, food_name ASC)
+                """
+            )
 
     def _ensure_user_goals_columns(self) -> None:
         existing_columns = {
