@@ -51,7 +51,6 @@ import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from '.
 import {
   appShellMenuGroups,
   getAppSectionMeta,
-  getProfileInitials,
   primaryAppSections
 } from './src/lib/app-shell';
 import { DashboardHeaderMetrics } from './src/components/dashboard/DashboardHeaderMetrics';
@@ -113,6 +112,7 @@ type ScaleStop = (typeof scaleStops)[number];
 type EntryMode = 'live' | 'preview';
 const chartHeight = 160;
 const mascotDefaultImage = require('./assets/mascot.png');
+const mascotAvatarImage = require('./assets/mascot-avatar.png');
 const mascotWeightsImage = require('./assets/weights.png');
 const mascotBikeImage = require('./assets/bike.png');
 const mascotRunImage = require('./assets/run.png');
@@ -334,7 +334,6 @@ export default function App(): ReactElement {
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
   const currentSectionMeta = getAppSectionMeta(section);
-  const profileInitials = getProfileInitials(profile?.display_name ?? null, profile?.email ?? entryEmailDraft);
 
   function handleSectionChange(nextSection: AppSection) {
     setSection(nextSection);
@@ -2294,10 +2293,9 @@ export default function App(): ReactElement {
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.appHeader}>
           <View style={styles.appShellTopRow}>
-            <View style={styles.appHeaderCopy}>
+            <View style={styles.appHeaderTitleWrap}>
               <Text style={styles.appEyebrow}>Nutrition OS</Text>
               <Text style={styles.appTitle}>{currentSectionMeta.label}</Text>
-              <Text style={styles.appDetail}>{currentSectionMeta.detail}</Text>
             </View>
             <View style={styles.appShellActions}>
               <Pressable
@@ -2306,13 +2304,7 @@ export default function App(): ReactElement {
                 accessibilityLabel="Open profile"
               >
                 <View style={styles.avatarBadge}>
-                  <Text style={styles.avatarBadgeLabel}>{profileInitials}</Text>
-                </View>
-                <View style={styles.avatarCopy}>
-                  <Text style={styles.avatarLabel}>{entryMode === 'live' ? 'Profile' : 'Preview'}</Text>
-                  <Text style={styles.avatarDetail} numberOfLines={1}>
-                    {entryMode === 'live' ? profile?.display_name ?? entryDisplayNameDraft : 'Demo state only'}
-                  </Text>
+                  <Image source={mascotAvatarImage} style={styles.avatarImage} resizeMode="cover" />
                 </View>
               </Pressable>
               <Pressable
@@ -2325,10 +2317,11 @@ export default function App(): ReactElement {
                   <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
                   <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
                 </View>
-                <Text style={[styles.menuButtonLabel, isShellMenuOpen && styles.menuButtonLabelActive]}>Menu</Text>
               </Pressable>
             </View>
           </View>
+
+          <Text style={styles.appDetail}>{currentSectionMeta.detail}</Text>
 
           <View style={styles.primarySectionTabs}>
             {primaryAppSections.map((item) => {
@@ -4089,21 +4082,20 @@ const styles = StyleSheet.create({
   appShellTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 14,
-    flexWrap: 'wrap'
+    alignItems: 'center',
+    gap: 12
   },
-  appHeaderCopy: {
-    gap: 6,
+  appHeaderTitleWrap: {
+    gap: 4,
     flex: 1,
-    minWidth: 240
+    minWidth: 0,
+    paddingRight: 4
   },
   appShellActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end'
+    gap: 8,
+    flexShrink: 0
   },
   appEyebrow: {
     color: '#0f766e',
@@ -4113,64 +4105,46 @@ const styles = StyleSheet.create({
   },
   appTitle: {
     color: '#132536',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800'
   },
   appDetail: {
     color: '#66778c',
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 18
   },
   avatarButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#f7f4ef',
-    borderRadius: 18,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: '#d7dee7',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 172
-  },
-  avatarBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#17324d',
+    backgroundColor: '#f7f4ef',
     alignItems: 'center',
     justifyContent: 'center'
   },
-  avatarBadgeLabel: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '800'
+  avatarBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  avatarCopy: {
-    flex: 1,
-    gap: 2
-  },
-  avatarLabel: {
-    color: '#17324d',
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  avatarDetail: {
-    color: '#66778c',
-    fontSize: 12
+  avatarImage: {
+    width: '100%',
+    height: '100%'
   },
   menuButton: {
-    minHeight: 62,
-    minWidth: 88,
-    borderRadius: 18,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#d7dee7',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6
+    padding: 0
   },
   menuButtonActive: {
     backgroundColor: '#17324d',
@@ -4187,14 +4161,6 @@ const styles = StyleSheet.create({
   },
   menuIconBarActive: {
     backgroundColor: '#ffffff'
-  },
-  menuButtonLabel: {
-    color: '#17324d',
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  menuButtonLabelActive: {
-    color: '#ffffff'
   },
   appStatusCard: {
     backgroundColor: '#f7fafc',
