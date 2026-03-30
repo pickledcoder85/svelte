@@ -12,13 +12,13 @@ The format should remain simple:
 
 ### Planned
 
-- Post-Phase-1 planning is now focused on calculation-engine refactoring, safer live input workflows, and premium agent-ready plan infrastructure.
-- Explicit goal-type onboarding, calculation-engine refactor, and structured exercise-estimation work are planned and documented.
+- Post-Phase-1 planning is now focused on calculation-engine consolidation, adaptive-maintenance groundwork, and premium agent-ready plan infrastructure.
+- Structured exercise-estimation, versioned target generation, and richer target-source persistence remain planned and documented.
 
 ### Added
 
 - Camera-food-bank groundwork routes for authenticated package scans, label-scan ingestion outputs, and saving accepted ingestion outputs into `food_catalog`.
-- Banking-style camera-food capture flow for phone camera preview and browser image selection before review/save.
+- Banking-style camera-food capture flow for live phone preview, package-first capture, optional label capture, and review/save in one session.
 - Multi-variant nutrition-label handling so one accepted scan can save multiple flavor variants from a single box into the food databank.
 - Full editable profile flow in the Expo app so live users can update body metrics, goal inputs, and target-generation inputs after onboarding.
 - Canonical calculation strategy document for onboarding calories, macro targets, exercise estimation, adaptive maintenance, and future agent-driven planning.
@@ -47,8 +47,8 @@ The format should remain simple:
 
 ### Changed
 
-- Frontend ingestion helpers now include package-scan, label-ingest, and save-reviewed-food API contracts for the future camera-food UI.
-- Camera-food scanning now captures a live camera frame on phone or chosen image in the browser, and uses the configured OpenAI vision backend for real extraction when `OPENAI_API_KEY` is present.
+- Frontend ingestion helpers now include the live package-scan, label-ingest, and multi-save API contracts used by the current camera-food UI.
+- Camera-food scanning now uses a single on-device camera flow for package capture, optional label capture, and review-backed save, while the browser acts as review/search support for the same session.
 - Package-only accepted scans without nutrition now try USDA lookup during save, and multi-variant label scans preserve a `variants` array through review and save.
 - `scripts/dev-backend.sh` now creates `tmp/backend.log` automatically and mirrors backend stdout/stderr there for live phone-debugging and scan failure review.
 - `PUT /profile` now updates onboarding-derived profile fields, recalculates energy and macro targets, and appends a fresh goal-history row instead of only saving display settings.
@@ -85,4 +85,4 @@ The format should remain simple:
 
 - Current stable milestone tag already created: `v0.5.0`
 - Next candidate stable tag: `v0.6.0`
-- `v0.6.0` should cover explicit goal-type onboarding, calculation-module refactoring, and structured exercise-estimation groundwork.
+- `v0.6.0` should cover calculation-engine consolidation, adaptive-maintenance groundwork, and structured exercise-estimation groundwork.

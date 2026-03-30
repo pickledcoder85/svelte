@@ -10,13 +10,14 @@ This document defines the recommended business-logic direction for:
 
 It is intended to be the canonical design reference before the next calculation refactor lands in code.
 
-Current implementation status on `fix/dev-db-workflow`:
+Current implementation status:
 
-- started
+- partially implemented in the current app baseline
 - onboarding calories now route through dedicated energy-calculation helpers
 - onboarding macro defaults now route through dedicated macro-calculation helpers
 - the app UI now labels the goal choices as `Weight Loss`, `Maintenance`, and `Weight Gain`
-- the full adaptive-maintenance and structured exercise-estimation layers are still pending
+- live profile edits now recalculate generated targets and append new goal-history rows
+- the full adaptive-maintenance, versioned target-source, fiber-target persistence, and structured exercise-estimation layers are still pending
 
 ## Product goals
 

@@ -12,8 +12,8 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Session-aware auth scaffolding and environment-backed provider config.
 - Persisted meal templates with ingredient rows, serving counts, and per-serving calorie/macro totals.
 - Recipe create/read/update flows with persisted steps, assets, ingredients, favorites, and scaling utilities for `1.25x`, `1.5x`, and `2.0x`.
-- Multimodal ingestion endpoint for nutrition label photos.
-- Camera-food review/save flow that can persist single-label scans, USDA-backed package-only scans, and multi-variant label scans into the food databank.
+- Multimodal ingestion endpoints for package-front and nutrition-label analysis.
+- Camera-food review/save flow that can persist single-label scans, USDA-backed package-only scans, and multi-variant label scans into the food databank from a live phone capture session.
 - Health-check API route for quick local backend verification.
 
 ## Stack
@@ -24,7 +24,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Mobile runtime: Expo Go during development, with native build/export options later.
 - Auth: Supabase or another hosted auth provider.
 - Nutrition source: USDA FoodData Central API.
-- AI backend: multimodal model for nutrition-label extraction and OCR-based recipe ingestion.
+- AI backend: multimodal model for package-front and nutrition-label extraction, plus OCR-style recipe ingestion.
 
 ## Development commands
 
@@ -105,5 +105,5 @@ For disposable local testing data, set `DATABASE_URL=sqlite:///./nutrition_os.de
 ## Current limitations
 
 - Expo SDK 54 is pinned because this environment now uses Node 20 and Expo Go support is required during development.
-- Camera-food scanning uses the configured `OPENAI_API_KEY` for package-front and nutrition-label extraction when available, with demo fallback responses when it is not configured.
+- Camera-food scanning uses the configured `OPENAI_API_KEY` for package-front and nutrition-label extraction when available, with deterministic fallback responses when it is not configured.
 - Recipe import review UX and native packaging/signing workflows remain beyond the Phase 1 milestone.
