@@ -6,6 +6,7 @@ import {
   buildNutritionDraft,
   describeOutput,
   formatStructuredJson,
+  getNutritionVariants,
   pendingOutputs
 } from './ingestionReviewHelpers';
 
@@ -55,5 +56,49 @@ describe('ingestion review helpers', () => {
       calories: 220,
       macros: { protein: 20, carbs: 24, fat: 7 }
     });
+  });
+
+  it('preserves variants in accepted nutrition payloads', () => {
+    const payload = buildAcceptedNutritionPayload(
+      {
+        product_name: 'Quaker Instant Oatmeal Variety Pack',
+        brand_name: 'Quaker',
+        serving_size: '1 packet',
+        calories: '160',
+        protein: '4',
+        carbs: '33',
+        fat: '2.5'
+      },
+      {
+        multiple_variants_detected: true,
+        variants: [
+          {
+            variant_name: 'Apples & Cinnamon',
+            serving_size: '1 packet',
+            calories: 160,
+            macros: { protein: 4, carbs: 33, fat: 2.5 }
+          }
+        ]
+      }
+    );
+
+    expect(payload.structured_json.multiple_variants_detected).toBe(true);
+    expect(payload.structured_json.variants).toHaveLength(1);
+  });
+
+  it('reads nutrition variants from structured json', () => {
+    const variants = getNutritionVariants({
+      variants: [
+        {
+          variant_name: 'Maple & Brown Sugar',
+          serving_size: '1 packet',
+          calories: 160,
+          macros: { protein: 4, carbs: 33, fat: 2.5 }
+        }
+      ]
+    });
+
+    expect(variants).toHaveLength(1);
+    expect(variants[0].variant_name).toBe('Maple & Brown Sugar');
   });
 });

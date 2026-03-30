@@ -13,6 +13,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Persisted meal templates with ingredient rows, serving counts, and per-serving calorie/macro totals.
 - Recipe create/read/update flows with persisted steps, assets, ingredients, favorites, and scaling utilities for `1.25x`, `1.5x`, and `2.0x`.
 - Multimodal ingestion endpoint for nutrition label photos.
+- Camera-food review/save flow that can persist single-label scans, USDA-backed package-only scans, and multi-variant label scans into the food databank.
 - Health-check API route for quick local backend verification.
 
 ## Stack

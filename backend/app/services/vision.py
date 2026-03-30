@@ -8,6 +8,7 @@ from backend.app.models.nutrition import (
     MacroTargets,
     VisionFoodMatchCandidate,
     VisionNutritionExtraction,
+    VisionNutritionVariant,
     VisionPackageExtraction,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
@@ -46,12 +47,26 @@ Return JSON only with this exact shape:
   "protein": 0,
   "carbs": 0,
   "fat": 0,
+  "multiple_variants_detected": false,
+  "variants": [
+    {
+      "variant_name": "flavor or variety name",
+      "serving_size": "serving size text",
+      "calories": 0,
+      "protein": 0,
+      "carbs": 0,
+      "fat": 0
+    }
+  ],
   "confidence": 0
 }
 Rules:
 - confidence must be between 0 and 1
 - calories, protein, carbs, and fat must be numbers
 - use null for unknown brand_name
+- carbs must be total carbohydrates from the label, not net carbs
+- when the label includes multiple flavors or variants in one panel, set multiple_variants_detected=true and return one entry per variant in variants
+- for multi-variant labels, keep top-level product_name and brand_name for the box itself
 - if a field is unclear, make a conservative best guess rather than omitting it
 """.strip(),
     )
@@ -67,6 +82,8 @@ Rules:
             carbs=_as_number(payload.get("carbs"), 12),
             fat=_as_number(payload.get("fat"), 4),
         ),
+        multiple_variants_detected=_as_bool(payload.get("multiple_variants_detected"), False),
+        variants=_parse_variants(payload.get("variants")),
         confidence=_as_confidence(payload.get("confidence"), 0.62),
     )
 
@@ -236,3 +253,35 @@ def _as_confidence(value: Any, fallback: float) -> float:
     except (TypeError, ValueError):
         return fallback
     return max(0.0, min(1.0, confidence))
+
+
+def _as_bool(value: Any, fallback: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    return fallback
+
+
+def _parse_variants(value: Any) -> list[VisionNutritionVariant]:
+    if not isinstance(value, list):
+        return []
+
+    variants: list[VisionNutritionVariant] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        variant_name = _as_string(item.get("variant_name"), "")
+        if not variant_name:
+            continue
+        variants.append(
+            VisionNutritionVariant(
+                variant_name=variant_name,
+                serving_size=_as_string(item.get("serving_size"), "1 serving"),
+                calories=_as_number(item.get("calories"), 0),
+                macros=MacroTargets(
+                    protein=_as_number(item.get("protein"), 0),
+                    carbs=_as_number(item.get("carbs"), 0),
+                    fat=_as_number(item.get("fat"), 0),
+                ),
+            )
+        )
+    return variants

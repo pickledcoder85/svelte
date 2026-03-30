@@ -2,6 +2,8 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Modal,
   Platform,
   Pressable,
@@ -11,7 +13,6 @@ import {
   View
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as ImagePicker from 'expo-image-picker';
 
 import {
   acceptIngestionOutput,
@@ -28,6 +29,7 @@ import {
   describeOutput,
   formatCreatedAt,
   formatStructuredJson,
+  getNutritionVariants,
   pendingOutputs,
   type EditableNutritionDraft
 } from './ingestionReviewHelpers';
@@ -40,6 +42,7 @@ type SyncTone = 'checking' | 'live';
 
 export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps) {
   const cameraRef = useRef<CameraView | null>(null);
+  const guidePulse = useRef(new Animated.Value(0)).current;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [outputs, setOutputs] = useState<IngestionOutput[]>([]);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
@@ -55,15 +58,29 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   const [packageFileName, setPackageFileName] = useState<string | null>(null);
   const [labelFileName, setLabelFileName] = useState<string | null>(null);
   const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | null>(null);
-  const [cameraMode, setCameraMode] = useState<'package' | 'label' | null>(null);
+  const [cameraStep, setCameraStep] = useState<'package' | 'label' | null>(null);
   const [lastPackageScan, setLastPackageScan] = useState<VisionPackageScanResult | null>(null);
-  const [savedFood, setSavedFood] = useState<FoodItem | null>(null);
+  const [savedFoods, setSavedFoods] = useState<FoodItem[]>([]);
   const [savingFoodId, setSavingFoodId] = useState<string | null>(null);
   const [nutritionDraft, setNutritionDraft] = useState<EditableNutritionDraft>(() => buildNutritionDraft(null));
+  const [editingFields, setEditingFields] = useState(false);
+  const [expandedScanDates, setExpandedScanDates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setNutritionDraft(buildNutritionDraft(selectedOutput?.structured_json));
+    setEditingFields(false);
   }, [selectedOutput]);
+
+  useEffect(() => {
+    const groups = groupOutputsByDate(outputs);
+    setExpandedScanDates((current) => {
+      const next: Record<string, boolean> = {};
+      groups.forEach((group, index) => {
+        next[group.dateKey] = current[group.dateKey] ?? index === 0;
+      });
+      return next;
+    });
+  }, [outputs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,7 +175,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
     setCaptureLoading('package');
     setQueueError(null);
-    setSavedFood(null);
+    setSavedFoods([]);
     setTone('checking');
     setStatusLabel('Scanning package front');
     setStatusDetail('Creating a package-ingestion output from the provided image payload.');
@@ -200,7 +217,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
     setCaptureLoading('label');
     setQueueError(null);
-    setSavedFood(null);
+    setSavedFoods([]);
     setTone('checking');
     setStatusLabel('Scanning nutrition label');
     setStatusDetail('Creating a label-ingestion output from the provided image payload.');
@@ -231,7 +248,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
     setActioningId(outputId);
     setQueueError(null);
-    setSavedFood(null);
+    setSavedFoods([]);
     setTone('checking');
     setStatusLabel(action === 'accept' ? 'Accepting output' : 'Rejecting output');
     setStatusDetail('Saving the review decision.');
@@ -239,12 +256,17 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     try {
       const reviewed =
         action === 'accept'
-          ? await acceptIngestionOutput(outputId, accessToken, buildAcceptedNutritionPayload(nutritionDraft))
+          ? await acceptIngestionOutput(
+              outputId,
+              accessToken,
+              buildAcceptedNutritionPayload(nutritionDraft, selectedOutput?.structured_json)
+            )
           : await rejectIngestionOutput(outputId, accessToken);
 
       setOutputs((current) => current.filter((item) => item.id !== reviewed.id));
       setSelectedOutputId(reviewed.id);
       setSelectedOutput(reviewed);
+      setEditingFields(false);
       setTone('live');
       setStatusLabel(action === 'accept' ? 'Output accepted' : 'Output rejected');
       setStatusDetail(describeOutput(reviewed));
@@ -270,11 +292,15 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     setStatusDetail('Persisting the accepted ingestion output into the food catalog.');
 
     try {
-      const food = await saveFoodFromIngestionOutput(selectedOutput.id, accessToken);
-      setSavedFood(food);
+      const result = await saveFoodFromIngestionOutput(selectedOutput.id, accessToken);
+      setSavedFoods(result.saved_foods);
       setTone('live');
-      setStatusLabel('Food saved');
-      setStatusDetail(`${food.name} is now available in the food catalog.`);
+      setStatusLabel(result.saved_foods.length === 1 ? 'Food saved' : 'Foods saved');
+      setStatusDetail(
+        result.saved_foods.length === 1
+          ? `${result.saved_foods[0].name} is now available in the food catalog.`
+          : `${result.saved_foods.length} foods are now available in the food catalog.`
+      );
     } catch (error) {
       setTone('checking');
       setStatusLabel('Food save failed');
@@ -285,13 +311,13 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
   }
 
-  async function beginCapture(mode: 'package' | 'label') {
+  async function beginCapture() {
     if (captureLoading) {
       return;
     }
 
     if (Platform.OS === 'web') {
-      await selectFromLibrary(mode, setQueueError, setPackageBase64, setPackageFileName, setLabelBase64, setLabelFileName);
+      setQueueError('Camera scanning is available on phone. Use the browser to review recent scans and saved foods.');
       return;
     }
 
@@ -302,16 +328,15 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
 
     setQueueError(null);
-    setCameraMode(mode);
+    setCameraStep('package');
   }
 
   async function captureFromCamera() {
-    if (!cameraMode || !cameraRef.current || captureLoading) {
+    if (!cameraStep || !cameraRef.current || captureLoading) {
       return;
     }
 
-    const activeMode = cameraMode;
-    setCaptureLoading(cameraMode);
+    const activeStep = cameraStep;
     setQueueError(null);
 
     try {
@@ -321,28 +346,47 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         throw new Error('Camera capture did not return image data.');
       }
 
-      if (activeMode === 'package') {
+      if (activeStep === 'package') {
         setPackageBase64(base64);
         setPackageFileName(`live-package-${Date.now()}.jpg`);
-        setCameraMode(null);
         await createPackageScanFromBase64(base64);
+        await runGuidePulse(guidePulse);
+        setCameraStep('label');
+        setStatusLabel('Package scan created');
+        setStatusDetail('Scan the nutrition label next, or skip if the product does not show one.');
       } else {
         setLabelBase64(base64);
         setLabelFileName(`live-label-${Date.now()}.jpg`);
-        setCameraMode(null);
         await createLabelScanFromBase64(base64);
+        await runGuidePulse(guidePulse);
+        setCameraStep(null);
       }
     } catch (error) {
       setQueueError(error instanceof Error ? error.message : 'Unable to capture image from camera.');
     } finally {
-      setCaptureLoading(null);
-      setCameraMode(null);
+      if (activeStep !== 'package') {
+        setCameraStep(null);
+      }
     }
+  }
+
+  function skipLabelCapture() {
+    setCameraStep(null);
+    setTone('live');
+    setStatusLabel('Package scan ready');
+    setStatusDetail('Nutrition label skipped. Review the package result and save when ready.');
   }
 
   const displayOutput = selectedOutput;
   const pendingCount = outputs.length;
-  const browserUploadsSupported = Platform.OS === 'web';
+  const recentScanGroups = groupOutputsByDate(outputs);
+  const browserViewingMode = Platform.OS === 'web';
+  const nutritionVariants = getNutritionVariants(displayOutput?.structured_json);
+  const hasAdditionalVariants =
+    typeof displayOutput?.structured_json === 'object'
+    && displayOutput.structured_json !== null
+    && (displayOutput.structured_json as { multiple_variants_detected?: unknown }).multiple_variants_detected === true
+    && nutritionVariants.length > 0;
   const cameraReady =
     Platform.OS !== 'web' &&
     (cameraPermission?.granted
@@ -353,6 +397,10 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     displayOutput.review_state === 'pending' &&
     hasValidNutritionDraft(nutritionDraft) &&
     actioningId !== displayOutput.id;
+  const guideBorderColor = guidePulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0.88)', 'rgba(74,222,128,0.98)']
+  });
 
   return (
     <View style={styles.panel}>
@@ -377,70 +425,42 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Capture</Text>
         <Text style={styles.detailText}>
-          {browserUploadsSupported
-            ? 'Choose images in the browser, then run the same scan, review, and save flow.'
-            : 'Open the live camera and tap Scan Current Frame. The app captures and submits that frame immediately without saving a photo.'}
+          {browserViewingMode
+            ? 'Use the phone app to capture scans. The browser view is for reviewing recent scans and saved results.'
+            : 'Open the camera once, scan the package front, then scan the nutrition label or skip it if the product does not show one.'}
         </Text>
 
         <View style={styles.detailBlock}>
-          <Text style={styles.detailBlockLabel}>Package-front image</Text>
-          {browserUploadsSupported ? (
-            <>
-              <View style={styles.uploadSummaryCard}>
-                <Text style={styles.uploadSummaryTitle}>{packageFileName ?? 'No package image selected'}</Text>
-                <Text style={styles.uploadSummaryDetail}>
-                  {packageBase64.length > 0
-                    ? 'Image data is ready for package-front analysis.'
-                    : 'Choose a package image to create a scan output.'}
-                </Text>
-              </View>
-              <Pressable
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() =>
-                  void selectFromLibrary(
-                    'package',
-                    setQueueError,
-                    setPackageBase64,
-                    setPackageFileName,
-                    setLabelBase64,
-                    setLabelFileName
-                  )
-                }
-                disabled={captureLoading !== null}
-              >
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {packageFileName ? 'Replace Package Image' : 'Choose Package Image'}
-                </Text>
-              </Pressable>
-            </>
+          {browserViewingMode ? (
+            <View style={styles.uploadSummaryCard}>
+              <Text style={styles.uploadSummaryTitle}>Phone camera only</Text>
+              <Text style={styles.uploadSummaryDetail}>
+                Capture happens from the phone app. The browser is for reviewing recent scans and saved results.
+              </Text>
+            </View>
           ) : (
             <>
               <View style={styles.uploadSummaryCard}>
-                <Text style={styles.uploadSummaryTitle}>{packageFileName ?? 'No live package frame captured'}</Text>
+                <Text style={styles.uploadSummaryTitle}>Camera scanner</Text>
+                <Text style={styles.uploadSummaryDetail}>
+                  Package front: {packageFileName ?? 'not scanned yet'}
+                </Text>
+                <Text style={styles.uploadSummaryDetail}>
+                  Nutrition label: {labelFileName ?? 'not scanned yet'}
+                </Text>
                 <Text style={styles.uploadSummaryDetail}>{cameraReady}</Text>
               </View>
               <Pressable
                 style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => void beginCapture('package')}
+                onPress={() => void beginCapture()}
                 disabled={captureLoading !== null}
               >
                 <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {packageFileName ? 'Scan Package Front Again' : 'Open Live Package Scanner'}
+                  {packageFileName || labelFileName ? 'Open Camera Again' : 'Open Camera Scanner'}
                 </Text>
               </Pressable>
             </>
           )}
-          {browserUploadsSupported ? (
-            <Pressable
-              style={[styles.actionButton, styles.acceptButton]}
-              onPress={() => void createPackageScan()}
-              disabled={!accessToken || captureLoading !== null || packageBase64.trim().length === 0}
-            >
-              <Text style={styles.actionButtonLabel}>
-                {captureLoading === 'package' ? 'Scanning...' : 'Scan Package Front'}
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
 
         {lastPackageScan ? (
@@ -465,105 +485,72 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
             )}
           </View>
         ) : null}
-
-        <View style={styles.detailBlock}>
-          <Text style={styles.detailBlockLabel}>Nutrition-label image</Text>
-          {browserUploadsSupported ? (
-            <>
-              <View style={styles.uploadSummaryCard}>
-                <Text style={styles.uploadSummaryTitle}>{labelFileName ?? 'No label image selected'}</Text>
-                <Text style={styles.uploadSummaryDetail}>
-                  {labelBase64.length > 0
-                    ? 'Image data is ready for nutrition-label analysis.'
-                    : 'Choose a label image to create a reviewable label scan.'}
-                </Text>
-              </View>
-              <Pressable
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() =>
-                  void selectFromLibrary(
-                    'label',
-                    setQueueError,
-                    setPackageBase64,
-                    setPackageFileName,
-                    setLabelBase64,
-                    setLabelFileName
-                  )
-                }
-                disabled={captureLoading !== null}
-              >
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {labelFileName ? 'Replace Label Image' : 'Choose Label Image'}
-                </Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <View style={styles.uploadSummaryCard}>
-                <Text style={styles.uploadSummaryTitle}>{labelFileName ?? 'No live label frame captured'}</Text>
-                <Text style={styles.uploadSummaryDetail}>{cameraReady}</Text>
-              </View>
-              <Pressable
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => void beginCapture('label')}
-                disabled={captureLoading !== null}
-              >
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {labelFileName ? 'Scan Nutrition Label Again' : 'Open Live Label Scanner'}
-                </Text>
-              </Pressable>
-            </>
-          )}
-          {browserUploadsSupported ? (
-            <Pressable
-              style={[styles.actionButton, styles.acceptButton]}
-              onPress={() => void createLabelScan()}
-              disabled={!accessToken || captureLoading !== null || labelBase64.trim().length === 0}
-            >
-              <Text style={styles.actionButtonLabel}>
-                {captureLoading === 'label' ? 'Scanning...' : 'Scan Nutrition Label'}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Pending outputs</Text>
+        <Text style={styles.cardLabel}>Recent scans</Text>
         {queueLoading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size="small" color="#17324d" />
-            <Text style={styles.detailText}>Loading the review queue...</Text>
+            <Text style={styles.detailText}>Loading recent scans...</Text>
           </View>
         ) : pendingCount === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Nothing pending</Text>
+            <Text style={styles.emptyTitle}>No recent scans</Text>
             <Text style={styles.detailText}>
-              New package or label outputs will appear here as they wait for review.
+              New package or label scans will appear here for quick review.
             </Text>
           </View>
         ) : (
           <View style={styles.list}>
-            {outputs.map((output) => {
-              const active = output.id === selectedOutputId;
+            {recentScanGroups.map((group) => {
+              const expanded = expandedScanDates[group.dateKey] ?? false;
               return (
-                <Pressable
-                  key={output.id}
-                  style={[styles.listRow, active && styles.listRowActive]}
-                  onPress={() => {
-                    setSelectedOutputId(output.id);
-                    setSelectedOutput(output);
-                    setSavedFood(null);
-                  }}
-                >
-                  <View style={styles.listCopy}>
-                    <Text style={styles.listTitle}>{describeOutput(output)}</Text>
-                    <Text style={styles.listCaption}>
-                      {formatCreatedAt(output.created_at)} · {Math.round(output.confidence * 100)}% confidence
-                    </Text>
-                  </View>
-                  <Text style={styles.listMetric}>pending</Text>
-                </Pressable>
+                <View key={group.dateKey} style={styles.groupCard}>
+                  <Pressable
+                    style={styles.groupHeader}
+                    onPress={() =>
+                      setExpandedScanDates((current) => ({
+                        ...current,
+                        [group.dateKey]: !expanded
+                      }))
+                    }
+                  >
+                    <View style={styles.listCopy}>
+                      <Text style={styles.listTitle}>{group.label}</Text>
+                      <Text style={styles.listCaption}>
+                        {group.items.length} scan{group.items.length === 1 ? '' : 's'}
+                      </Text>
+                    </View>
+                    <Text style={styles.listMetric}>{expanded ? 'Hide' : 'Show'}</Text>
+                  </Pressable>
+                  {expanded ? (
+                    <View style={styles.list}>
+                      {group.items.map((output) => {
+                        const active = output.id === selectedOutputId;
+                        return (
+                          <Pressable
+                            key={output.id}
+                            style={[styles.listRow, active && styles.listRowActive]}
+                            onPress={() => {
+                              setSelectedOutputId(output.id);
+                              setSelectedOutput(output);
+                              setSavedFoods([]);
+                              setEditingFields(false);
+                            }}
+                          >
+                            <View style={styles.listCopy}>
+                              <Text style={styles.listTitle}>{describeOutput(output)}</Text>
+                              <Text style={styles.listCaption}>
+                                {formatCreatedAt(output.created_at)} · {Math.round(output.confidence * 100)}% confidence
+                              </Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
               );
             })}
           </View>
@@ -571,68 +558,111 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Selected output</Text>
+        <Text style={styles.cardLabel}>Detected result</Text>
         {displayOutput ? (
           <View style={styles.detailStack}>
-            <View style={styles.detailHeadingRow}>
-              <View style={styles.detailHeadingCopy}>
-                <Text style={styles.detailTitle}>{describeOutput(displayOutput)}</Text>
-                <Text style={styles.detailSubtitle}>
-                  {displayOutput.ingestion_job_id} · {formatCreatedAt(displayOutput.created_at)} ·{' '}
-                  {Math.round(displayOutput.confidence * 100)}% confidence
-                </Text>
-              </View>
-              <View style={styles.stateChip}>
-                <Text style={styles.stateChipLabel}>{displayOutput.review_state}</Text>
-              </View>
-            </View>
-
             <View style={styles.detailBlock}>
-              <Text style={styles.detailBlockLabel}>Review fields</Text>
-              <View style={styles.formGrid}>
-                <LabeledInput
-                  label="Product name"
-                  value={nutritionDraft.product_name}
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'product_name', value)}
-                />
-                <LabeledInput
-                  label="Brand"
-                  value={nutritionDraft.brand_name}
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'brand_name', value)}
-                />
-                <LabeledInput
-                  label="Serving size"
-                  value={nutritionDraft.serving_size}
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'serving_size', value)}
-                />
-                <LabeledInput
-                  label="Calories"
-                  value={nutritionDraft.calories}
-                  keyboardType="numeric"
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'calories', value)}
-                />
-                <LabeledInput
-                  label="Protein"
-                  value={nutritionDraft.protein}
-                  keyboardType="numeric"
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'protein', value)}
-                />
-                <LabeledInput
-                  label="Carbs"
-                  value={nutritionDraft.carbs}
-                  keyboardType="numeric"
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'carbs', value)}
-                />
-                <LabeledInput
-                  label="Fat"
-                  value={nutritionDraft.fat}
-                  keyboardType="numeric"
-                  onChangeText={(value) => updateDraft(setNutritionDraft, 'fat', value)}
-                />
+              <View style={styles.detailHeadingRow}>
+                <View />
+                {displayOutput.review_state === 'pending' ? (
+                  <Pressable
+                    style={[styles.actionButton, styles.secondaryButton, styles.inlineEditButton]}
+                    onPress={() => setEditingFields((current) => !current)}
+                  >
+                    <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                      {editingFields ? 'Done Editing' : 'Edit'}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
+              <View style={styles.list}>
+                <View style={styles.listRow}>
+                  <View style={styles.listCopy}>
+                    <Text style={styles.listTitle}>{nutritionDraft.product_name || 'Unnamed product'}</Text>
+                    <Text style={styles.listCaption}>
+                      {nutritionDraft.brand_name || 'No brand'}
+                    </Text>
+                    <Text style={styles.listCaption}>
+                      {nutritionDraft.serving_size || '1 serving'} · {nutritionDraft.calories || '0'} cal
+                    </Text>
+                    <Text style={styles.listCaption}>
+                      Protein {nutritionDraft.protein || '0'}g · Carbs {nutritionDraft.carbs || '0'}g · Fat {nutritionDraft.fat || '0'}g · Fiber —
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              {editingFields ? (
+                <View style={styles.formGrid}>
+                  <LabeledInput
+                    label="Product name"
+                    value={nutritionDraft.product_name}
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'product_name', value)}
+                  />
+                  <LabeledInput
+                    label="Brand"
+                    value={nutritionDraft.brand_name}
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'brand_name', value)}
+                  />
+                  <LabeledInput
+                    label="Serving size"
+                    value={nutritionDraft.serving_size}
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'serving_size', value)}
+                  />
+                  <LabeledInput
+                    label="Calories"
+                    value={nutritionDraft.calories}
+                    keyboardType="numeric"
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'calories', value)}
+                  />
+                  <LabeledInput
+                    label="Protein"
+                    value={nutritionDraft.protein}
+                    keyboardType="numeric"
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'protein', value)}
+                  />
+                  <LabeledInput
+                    label="Carbs"
+                    value={nutritionDraft.carbs}
+                    keyboardType="numeric"
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'carbs', value)}
+                  />
+                  <LabeledInput
+                    label="Fat"
+                    value={nutritionDraft.fat}
+                    keyboardType="numeric"
+                    onChangeText={(value) => updateDraft(setNutritionDraft, 'fat', value)}
+                  />
+                </View>
+              ) : null}
+              {hasAdditionalVariants ? (
+                <View style={styles.detailBlock}>
+                  <View style={styles.list}>
+                    {nutritionVariants.map((variant) => (
+                      <View key={variant.variant_name} style={styles.listRow}>
+                        <View style={styles.listCopy}>
+                          <Text style={styles.listTitle}>{variant.variant_name}</Text>
+                          <Text style={styles.listCaption}>
+                            {nutritionDraft.brand_name || 'No brand'}
+                          </Text>
+                          <Text style={styles.listCaption}>
+                            {variant.serving_size} · {variant.calories} cal
+                          </Text>
+                          <Text style={styles.listCaption}>
+                            Protein {variant.macros.protein}g · Carbs {variant.macros.carbs}g · Fat {variant.macros.fat}g · Fiber —
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
               {displayOutput.review_state === 'pending' ? (
                 <Text style={styles.detailNote}>
-                  Edit the extracted nutrition values before accepting. Save-to-food becomes available after acceptance.
+                  {hasAdditionalVariants
+                    ? 'Accepting this scan will preserve the full variants list and save one food per variant.'
+                    : editingFields
+                      ? 'Edit the extracted nutrition values before accepting. Save-to-food becomes available after acceptance.'
+                      : 'Review the detected result, then accept it. Edit only if the scan needs correction before save.'}
                 </Text>
               ) : null}
             </View>
@@ -642,12 +672,14 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               <Text style={styles.codeBlock}>{formatStructuredJson(displayOutput.structured_json)}</Text>
             </View>
 
-            {savedFood ? (
+            {savedFoods.length > 0 ? (
               <View style={styles.savedFoodBanner}>
-                <Text style={styles.savedFoodTitle}>Saved food</Text>
-                <Text style={styles.detailText}>
-                  {savedFood.name} · {savedFood.brand ?? 'No brand'} · {savedFood.source}
-                </Text>
+                <Text style={styles.savedFoodTitle}>{savedFoods.length === 1 ? 'Saved food' : 'Saved foods'}</Text>
+                {savedFoods.map((food) => (
+                  <Text key={food.id} style={styles.detailText}>
+                    {food.name} · {food.brand ?? 'No brand'} · {food.source}
+                  </Text>
+                ))}
               </View>
             ) : null}
 
@@ -696,26 +728,35 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         )}
       </View>
 
-      <Modal visible={cameraMode !== null} animationType="slide" onRequestClose={() => setCameraMode(null)}>
+      <Modal visible={cameraStep !== null} animationType="slide" onRequestClose={() => setCameraStep(null)}>
         <View style={styles.cameraModal}>
           <View style={styles.cameraHeader}>
             <View style={styles.cameraHeaderCopy}>
-              <Text style={styles.cameraEyebrow}>{cameraMode === 'package' ? 'Package scan' : 'Label scan'}</Text>
+              <Text style={styles.cameraEyebrow}>{cameraStep === 'package' ? 'Package scan' : 'Label scan'}</Text>
               <Text style={styles.cameraTitle}>
-                {cameraMode === 'package' ? 'Frame the package front' : 'Frame the nutrition label'}
+                {cameraStep === 'package' ? 'Frame the package front' : 'Frame the nutrition label'}
               </Text>
               <Text style={styles.cameraDetail}>
-                Hold the phone steady, then tap Scan. The current frame is captured directly from the live camera view.
+                {cameraStep === 'package'
+                  ? 'Start with the front of the package. After this scan, the camera will advance to the nutrition label step.'
+                  : 'Now scan the nutrition label, or skip this step if the product does not show one.'}
               </Text>
             </View>
-            <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={() => setCameraMode(null)}>
+            <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={() => setCameraStep(null)}>
               <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Close</Text>
             </Pressable>
           </View>
           <View style={styles.cameraPreviewShell}>
             <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" mode="picture" />
             <View style={styles.cameraGuide} pointerEvents="none">
-              <View style={styles.cameraGuideFrame} />
+              <Animated.View
+                style={[
+                  styles.cameraGuideFrame,
+                  {
+                    borderColor: guideBorderColor
+                  }
+                ]}
+              />
             </View>
           </View>
           <View style={styles.cameraActionRow}>
@@ -725,48 +766,23 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               disabled={captureLoading !== null}
             >
               <Text style={styles.actionButtonLabel}>
-                {captureLoading === cameraMode ? 'Scanning...' : 'Scan Current Frame'}
+                {captureLoading === cameraStep
+                  ? 'Scanning...'
+                  : cameraStep === 'package'
+                    ? 'Scan Package Front'
+                    : 'Scan Nutrition Label'}
               </Text>
             </Pressable>
+            {cameraStep === 'label' ? (
+              <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={skipLabelCapture}>
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Skip Label</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </Modal>
     </View>
   );
-}
-
-async function selectFromLibrary(
-  mode: 'package' | 'label',
-  setError: Dispatch<SetStateAction<string | null>>,
-  setPackageBase64: Dispatch<SetStateAction<string>>,
-  setPackageFileName: Dispatch<SetStateAction<string | null>>,
-  setLabelBase64: Dispatch<SetStateAction<string>>,
-  setLabelFileName: Dispatch<SetStateAction<string | null>>
-) {
-  try {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 0.8,
-      base64: true
-    });
-    if (result.canceled || !result.assets?.[0]?.base64) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    const assetBase64 = asset.base64 ?? '';
-    if (mode === 'package') {
-      setPackageBase64(assetBase64);
-      setPackageFileName(asset.fileName ?? asset.uri.split('/').pop() ?? 'package-image.jpg');
-    } else {
-      setLabelBase64(assetBase64);
-      setLabelFileName(asset.fileName ?? asset.uri.split('/').pop() ?? 'label-image.jpg');
-    }
-    setError(null);
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'Unable to load selected image.');
-  }
 }
 
 function buildPendingOutput(outputId: string, ingestionJobId: string, confidence: number, extraction: unknown): IngestionOutput {
@@ -808,6 +824,75 @@ function toneColor(tone: SyncTone): string {
     return '#0f766e';
   }
   return '#1d4ed8';
+}
+
+function groupOutputsByDate(outputs: IngestionOutput[]): Array<{
+  dateKey: string;
+  label: string;
+  items: IngestionOutput[];
+}> {
+  const groups = new Map<string, IngestionOutput[]>();
+  for (const output of outputs) {
+    const date = new Date(output.created_at);
+    const dateKey = Number.isNaN(date.getTime()) ? output.created_at.slice(0, 10) : date.toISOString().slice(0, 10);
+    const items = groups.get(dateKey) ?? [];
+    items.push(output);
+    groups.set(dateKey, items);
+  }
+
+  return Array.from(groups.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([dateKey, items]) => ({
+      dateKey,
+      label: formatScanGroupLabel(dateKey),
+      items: items.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    }));
+}
+
+function formatScanGroupLabel(dateKey: string): string {
+  const date = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return dateKey;
+  }
+
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+  if (dateKey === todayKey) {
+    return 'Today';
+  }
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (dateKey === yesterday.toISOString().slice(0, 10)) {
+    return 'Yesterday';
+  }
+
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function runGuidePulse(value: Animated.Value): Promise<void> {
+  value.stopAnimation();
+  value.setValue(0);
+  return new Promise((resolve) => {
+    Animated.sequence([
+      Animated.timing(value, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false
+      }),
+      Animated.timing(value, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: false
+      })
+    ]).start(() => resolve());
+  });
 }
 
 function MetricTile({ label, value }: { label: string; value: string }) {
@@ -930,6 +1015,20 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 8
+  },
+  groupCard: {
+    gap: 8,
+    backgroundColor: '#fffaf0',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e4dccf',
+    padding: 10
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12
   },
   listRow: {
     borderRadius: 16,
@@ -1077,6 +1176,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1
   },
+  inlineEditButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8
+  },
   actionButtonDisabled: {
     opacity: 0.45
   },
@@ -1107,7 +1210,9 @@ const styles = StyleSheet.create({
   cameraModal: {
     flex: 1,
     backgroundColor: '#0f1720',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 56 : 20,
     gap: 16
   },
   cameraHeader: {
@@ -1149,6 +1254,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   cameraGuideFrame: {
+    position: 'absolute',
     width: '78%',
     aspectRatio: 0.72,
     borderRadius: 24,

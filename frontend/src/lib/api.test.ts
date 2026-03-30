@@ -292,6 +292,8 @@ describe('api helpers', () => {
               serving_size: '1 serving',
               calories: 120,
               macros: { protein: 8, carbs: 12, fat: 4 },
+              multiple_variants_detected: false,
+              variants: [],
               confidence: 0.62
             }
           }),
@@ -301,15 +303,19 @@ describe('api helpers', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            id: 'food-label-test',
-            name: 'Test protein bar',
-            brand: 'Codex Foods',
-            calories: 220,
-            serving_size: 1,
-            serving_unit: 'bar',
-            macros: { protein: 20, carbs: 24, fat: 7 },
-            source: 'LABEL_SCAN',
-            favorite: false
+            saved_foods: [
+              {
+                id: 'food-label-test',
+                name: 'Test protein bar',
+                brand: 'Codex Foods',
+                calories: 220,
+                serving_size: 1,
+                serving_unit: 'bar',
+                macros: { protein: 20, carbs: 24, fat: 7 },
+                source: 'LABEL_SCAN',
+                favorite: false
+              }
+            ]
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )

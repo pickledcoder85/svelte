@@ -18,6 +18,7 @@ import type {
   UserGoalCreate,
   ProfileProgress,
   UserOnboardingRequest,
+  SaveFoodsResult,
   WeightEntry,
   UserProfile,
   UserProfileUpdate,
@@ -507,8 +508,8 @@ export async function ingestNutritionLabel(
 export async function saveFoodFromIngestionOutput(
   outputId: string,
   accessToken: string
-): Promise<FoodItem> {
-  return readJson<FoodItem>(
+): Promise<SaveFoodsResult> {
+  return readJson<SaveFoodsResult>(
     await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/save-food`), {
       method: 'POST',
       headers: authHeaders(accessToken)

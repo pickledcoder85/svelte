@@ -206,7 +206,9 @@ export const demoIngestionOutputs: IngestionOutput[] = [
       calories: 300,
       protein: 10,
       carbs: 54,
-      fat: 5
+      fat: 5,
+      multiple_variants_detected: false,
+      variants: []
     },
     confidence: 0.94,
     reviewed_at: null,
@@ -226,7 +228,9 @@ export const demoIngestionOutputs: IngestionOutput[] = [
       calories: 100,
       protein: 17,
       carbs: 6,
-      fat: 0
+      fat: 0,
+      multiple_variants_detected: false,
+      variants: []
     },
     confidence: 0.9,
     reviewed_at: null,
