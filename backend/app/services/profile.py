@@ -58,6 +58,7 @@ def complete_user_onboarding(
         current_weight_lbs=payload.current_weight_lbs,
         activity_level=payload.activity_level,
         goal_type=payload.goal_type,
+        goal_pace=payload.goal_pace,
     )
     profile = repository.save_user_onboarding(
         user_id=session.user_id,
@@ -66,8 +67,11 @@ def complete_user_onboarding(
         height_cm=payload.height_cm,
         current_weight_lbs=payload.current_weight_lbs,
         goal_type=payload.goal_type,
+        goal_pace=payload.goal_pace,
         target_weight_lbs=payload.target_weight_lbs,
         activity_level=payload.activity_level,
+        dietary_pattern=payload.dietary_pattern,
+        allergy_notes=payload.allergy_notes,
         bmr_calories=targets.bmr_calories,
         tdee_calories=targets.maintenance_calories,
         initial_calorie_target=targets.calorie_target,
@@ -87,6 +91,7 @@ def complete_user_onboarding(
         fat_goal=targets.fat_target_g,
         fiber_goal=targets.fiber_target_g,
         goal_type=targets.goal_type,
+        goal_pace=targets.goal_pace,
         calculation_version=targets.calculation_version,
         target_source=targets.target_source,
         target_weight_lbs=payload.target_weight_lbs,
@@ -121,6 +126,7 @@ def update_user_profile(
             else existing_profile.get("current_weight_lbs")
         ),
         "goal_type": payload.goal_type if "goal_type" in provided_fields else existing_profile.get("goal_type"),
+        "goal_pace": payload.goal_pace if "goal_pace" in provided_fields else existing_profile.get("goal_pace"),
         "target_weight_lbs": (
             payload.target_weight_lbs
             if "target_weight_lbs" in provided_fields
@@ -131,6 +137,16 @@ def update_user_profile(
             if "activity_level" in provided_fields
             else existing_profile.get("activity_level")
         ),
+        "dietary_pattern": (
+            payload.dietary_pattern
+            if "dietary_pattern" in provided_fields
+            else existing_profile.get("dietary_pattern")
+        ),
+        "allergy_notes": (
+            payload.allergy_notes
+            if "allergy_notes" in provided_fields
+            else existing_profile.get("allergy_notes")
+        ),
     }
     derived_fields_changed = any(
         resolved[key] != existing_profile.get(key)
@@ -140,13 +156,24 @@ def update_user_profile(
             "height_cm",
             "current_weight_lbs",
             "goal_type",
+            "goal_pace",
             "target_weight_lbs",
             "activity_level",
+            "dietary_pattern",
+            "allergy_notes",
         )
     )
 
     if derived_fields_changed:
-        required_keys = ("sex", "age_years", "height_cm", "current_weight_lbs", "goal_type", "activity_level")
+        required_keys = (
+            "sex",
+            "age_years",
+            "height_cm",
+            "current_weight_lbs",
+            "goal_type",
+            "activity_level",
+            "dietary_pattern",
+        )
         missing_keys = [key for key in required_keys if resolved[key] is None]
         if missing_keys:
             missing_summary = ", ".join(missing_keys)
@@ -159,6 +186,7 @@ def update_user_profile(
             current_weight_lbs=float(resolved["current_weight_lbs"]),
             activity_level=str(resolved["activity_level"]),
             goal_type=str(resolved["goal_type"]),
+            goal_pace=resolved["goal_pace"],
         )
         profile = repository.save_user_onboarding(
             user_id=session.user_id,
@@ -167,12 +195,19 @@ def update_user_profile(
             height_cm=float(resolved["height_cm"]),
             current_weight_lbs=float(resolved["current_weight_lbs"]),
             goal_type=str(resolved["goal_type"]),
+            goal_pace=resolved["goal_pace"],
             target_weight_lbs=(
                 float(resolved["target_weight_lbs"])
                 if resolved["target_weight_lbs"] is not None
                 else None
             ),
             activity_level=str(resolved["activity_level"]),
+            dietary_pattern=str(resolved["dietary_pattern"]),
+            allergy_notes=(
+                str(resolved["allergy_notes"])
+                if resolved["allergy_notes"] is not None
+                else None
+            ),
             bmr_calories=targets.bmr_calories,
             tdee_calories=targets.maintenance_calories,
             initial_calorie_target=targets.calorie_target,
@@ -192,6 +227,7 @@ def update_user_profile(
             fat_goal=targets.fat_target_g,
             fiber_goal=targets.fiber_target_g,
             goal_type=targets.goal_type,
+            goal_pace=targets.goal_pace,
             calculation_version=targets.calculation_version,
             target_source=targets.target_source,
             target_weight_lbs=(
@@ -234,6 +270,7 @@ def create_user_goal(
         fat_goal=payload.fat_goal,
         fiber_goal=fiber_goal,
         goal_type=existing_profile.get("goal_type"),
+        goal_pace=existing_profile.get("goal_pace"),
         calculation_version=CALCULATION_VERSION,
         target_source="user_custom",
         target_weight_lbs=payload.target_weight_lbs,

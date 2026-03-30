@@ -11,8 +11,10 @@ def test_energy_targets_use_conservative_non_exercise_activity_factor():
         height_cm=180,
         current_weight_lbs=200,
         goal_type="lose",
+        goal_pace="recommended",
         target_weight_lbs=185,
         activity_level="moderate",
+        dietary_pattern="omnivore",
     )
 
     bmr, maintenance, calorie_target = calculate_onboarding_energy_targets(payload)
@@ -52,6 +54,7 @@ def test_generated_nutrition_targets_include_fiber_and_provenance():
         current_weight_lbs=200,
         activity_level="moderate",
         goal_type="lose",
+        goal_pace="recommended",
     )
 
     assert targets.bmr_calories == 1887
@@ -61,6 +64,7 @@ def test_generated_nutrition_targets_include_fiber_and_provenance():
     assert targets.carbs_target_g == 256.0
     assert targets.fat_target_g == 62.1
     assert targets.fiber_target_g == 31.3
+    assert targets.goal_pace == "recommended"
     assert targets.calculation_version == "v1"
     assert targets.target_source == "system_default"
 
@@ -68,3 +72,37 @@ def test_generated_nutrition_targets_include_fiber_and_provenance():
 def test_fiber_target_scales_with_calories():
     assert generate_fiber_target(2236) == 31.3
     assert generate_fiber_target(2624) == 36.7
+
+
+def test_energy_targets_use_goal_pace_adjustments():
+    recommended_cut = generate_nutrition_targets(
+        sex="male",
+        age_years=30,
+        height_cm=180,
+        current_weight_lbs=200,
+        activity_level="moderate",
+        goal_type="lose",
+        goal_pace="recommended",
+    )
+    extreme_cut = generate_nutrition_targets(
+        sex="male",
+        age_years=30,
+        height_cm=180,
+        current_weight_lbs=200,
+        activity_level="moderate",
+        goal_type="lose",
+        goal_pace="extreme",
+    )
+    aggressive_gain = generate_nutrition_targets(
+        sex="male",
+        age_years=30,
+        height_cm=180,
+        current_weight_lbs=200,
+        activity_level="moderate",
+        goal_type="gain",
+        goal_pace="aggressive",
+    )
+
+    assert recommended_cut.calorie_target == 2236
+    assert extreme_cut.calorie_target == 1736
+    assert aggressive_gain.calorie_target == 3236

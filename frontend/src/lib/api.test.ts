@@ -118,8 +118,11 @@ describe('api helpers', () => {
           height_cm: 170,
           current_weight_lbs: 180,
           goal_type: 'lose',
+          goal_pace: 'recommended',
           target_weight_lbs: 170,
-          activity_level: 'moderate'
+          activity_level: 'moderate',
+          dietary_pattern: 'omnivore',
+          allergy_notes: 'peanuts'
         }),
         {
           status: 200,
@@ -136,8 +139,11 @@ describe('api helpers', () => {
         height_cm: 170,
         current_weight_lbs: 180,
         goal_type: 'lose',
+        goal_pace: 'recommended',
         target_weight_lbs: 170,
-        activity_level: 'moderate'
+        activity_level: 'moderate',
+        dietary_pattern: 'omnivore',
+        allergy_notes: 'peanuts'
       },
       'token-123'
     );

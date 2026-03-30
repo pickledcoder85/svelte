@@ -4,6 +4,7 @@ from backend.app.services.calculations.macros import (
     generate_macro_targets,
 )
 from backend.app.services.calculations.types import (
+    GoalPace,
     GeneratedNutritionTargets,
     GoalType,
     TargetSource,
@@ -18,6 +19,7 @@ def generate_nutrition_targets(
     current_weight_lbs: float,
     activity_level: str,
     goal_type: GoalType,
+    goal_pace: GoalPace = None,
     target_source: TargetSource = "system_default",
 ) -> GeneratedNutritionTargets:
     bmr_calories, maintenance_calories, calorie_target = calculate_energy_targets(
@@ -27,6 +29,7 @@ def generate_nutrition_targets(
         current_weight_lbs=current_weight_lbs,
         activity_level=activity_level,
         goal_type=goal_type,
+        goal_pace=goal_pace,
     )
     protein_goal, carbs_goal, fat_goal = generate_macro_targets(
         calorie_target=calorie_target,
@@ -43,5 +46,6 @@ def generate_nutrition_targets(
         fat_target_g=fat_goal,
         fiber_target_g=fiber_goal,
         goal_type=goal_type,
+        goal_pace=goal_pace,
         target_source=target_source,
     )

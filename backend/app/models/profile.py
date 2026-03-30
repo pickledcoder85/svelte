@@ -22,8 +22,11 @@ class UserProfile(BaseModel):
     height_cm: float | None = None
     current_weight_lbs: float | None = None
     goal_type: Literal["lose", "maintain", "gain"] | None = None
+    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
     target_weight_lbs: float | None = None
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
+    dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
+    allergy_notes: str | None = None
     bmr_calories: int | None = None
     tdee_calories: int | None = None
     initial_calorie_target: int | None = None
@@ -41,8 +44,11 @@ class UserOnboardingRequest(BaseModel):
     height_cm: float = Field(gt=0)
     current_weight_lbs: float = Field(gt=0)
     goal_type: Literal["lose", "maintain", "gain"]
-    target_weight_lbs: float = Field(gt=0)
+    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
+    target_weight_lbs: float | None = Field(default=None, gt=0)
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"]
+    dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
+    allergy_notes: str | None = None
 
 
 class UserProfileUpdateRequest(BaseModel):
@@ -54,8 +60,11 @@ class UserProfileUpdateRequest(BaseModel):
     height_cm: float | None = Field(default=None, gt=0)
     current_weight_lbs: float | None = Field(default=None, gt=0)
     goal_type: Literal["lose", "maintain", "gain"] | None = None
+    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
     target_weight_lbs: float | None = Field(default=None, gt=0)
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
+    dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
+    allergy_notes: str | None = None
 
 
 class UserGoal(BaseModel):
@@ -68,6 +77,7 @@ class UserGoal(BaseModel):
     fat_goal: float
     fiber_goal: float | None = None
     goal_type: Literal["lose", "maintain", "gain"] | None = None
+    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
     calculation_version: str | None = None
     target_source: Literal["system_default", "user_custom", "agent_adjusted", "admin_override"] | None = None
     target_weight_lbs: float | None = None

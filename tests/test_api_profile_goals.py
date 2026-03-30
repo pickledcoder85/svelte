@@ -80,8 +80,11 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
             "height_cm": 180,
             "current_weight_lbs": 200,
             "goal_type": "lose",
+            "goal_pace": "recommended",
             "target_weight_lbs": 185,
             "activity_level": "moderate",
+            "dietary_pattern": "omnivore",
+            "allergy_notes": "peanuts",
         },
     )
     assert onboarding_response.status_code == 200
@@ -98,17 +101,23 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
             "height_cm": 180,
             "current_weight_lbs": 195,
             "goal_type": "gain",
+            "goal_pace": "lean",
             "target_weight_lbs": 205,
             "activity_level": "light",
+            "dietary_pattern": "pescatarian",
+            "allergy_notes": "shellfish",
         },
     )
     assert update_response.status_code == 200
     updated = update_response.json()
     assert updated["display_name"] == "Lean Bulk"
     assert updated["goal_type"] == "gain"
+    assert updated["goal_pace"] == "lean"
     assert updated["current_weight_lbs"] == 195
     assert updated["target_weight_lbs"] == 205
     assert updated["activity_level"] == "light"
+    assert updated["dietary_pattern"] == "pescatarian"
+    assert updated["allergy_notes"] == "shellfish"
     assert updated["bmr_calories"] == 1865
     assert updated["tdee_calories"] == 2424
     assert updated["initial_calorie_target"] == 2624
@@ -129,6 +138,7 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
     assert goals[0]["fat_goal"] == 72.9
     assert goals[0]["fiber_goal"] == 36.7
     assert goals[0]["goal_type"] == "gain"
+    assert goals[0]["goal_pace"] == "lean"
     assert goals[0]["calculation_version"] == "v1"
     assert goals[0]["target_source"] == "system_default"
     assert goals[0]["target_weight_lbs"] == 205

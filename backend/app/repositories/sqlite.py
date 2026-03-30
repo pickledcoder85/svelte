@@ -729,8 +729,11 @@ class SQLiteRepository:
             "height_cm": "REAL",
             "current_weight_lbs": "REAL",
             "goal_type": "TEXT",
+            "goal_pace": "TEXT",
             "target_weight_lbs": "REAL",
             "activity_level": "TEXT",
+            "dietary_pattern": "TEXT",
+            "allergy_notes": "TEXT",
             "bmr_calories": "INTEGER",
             "tdee_calories": "INTEGER",
             "initial_calorie_target": "INTEGER",
@@ -801,6 +804,7 @@ class SQLiteRepository:
             "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
             "fiber_goal": "REAL",
             "goal_type": "TEXT",
+            "goal_pace": "TEXT",
             "calculation_version": "TEXT",
             "target_source": "TEXT",
         }
@@ -1470,8 +1474,11 @@ class SQLiteRepository:
                 p.height_cm,
                 p.current_weight_lbs,
                 p.goal_type,
+                p.goal_pace,
                 p.target_weight_lbs,
                 p.activity_level,
+                p.dietary_pattern,
+                p.allergy_notes,
                 p.bmr_calories,
                 p.tdee_calories,
                 p.initial_calorie_target,
@@ -1512,8 +1519,11 @@ class SQLiteRepository:
         height_cm: float,
         current_weight_lbs: float,
         goal_type: str,
+        goal_pace: str | None,
         target_weight_lbs: float | None,
         activity_level: str,
+        dietary_pattern: str,
+        allergy_notes: str | None,
         bmr_calories: int,
         tdee_calories: int,
         initial_calorie_target: int,
@@ -1530,20 +1540,24 @@ class SQLiteRepository:
                 """
                 INSERT INTO user_profiles (
                     user_id, sex, age_years, height_cm, current_weight_lbs,
-                    goal_type, target_weight_lbs, activity_level,
+                    goal_type, goal_pace, target_weight_lbs, activity_level,
+                    dietary_pattern, allergy_notes,
                     bmr_calories, tdee_calories, initial_calorie_target,
                     protein_target_g, carbs_target_g, fat_target_g, fiber_target_g,
                     calculation_version, target_source,
                     setup_completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     sex = excluded.sex,
                     age_years = excluded.age_years,
                     height_cm = excluded.height_cm,
                     current_weight_lbs = excluded.current_weight_lbs,
                     goal_type = excluded.goal_type,
+                    goal_pace = excluded.goal_pace,
                     target_weight_lbs = excluded.target_weight_lbs,
                     activity_level = excluded.activity_level,
+                    dietary_pattern = excluded.dietary_pattern,
+                    allergy_notes = excluded.allergy_notes,
                     bmr_calories = excluded.bmr_calories,
                     tdee_calories = excluded.tdee_calories,
                     initial_calorie_target = excluded.initial_calorie_target,
@@ -1563,8 +1577,11 @@ class SQLiteRepository:
                     height_cm,
                     current_weight_lbs,
                     goal_type,
+                    goal_pace,
                     target_weight_lbs,
                     activity_level,
+                    dietary_pattern,
+                    allergy_notes,
                     bmr_calories,
                     tdee_calories,
                     initial_calorie_target,
@@ -1675,6 +1692,7 @@ class SQLiteRepository:
         fat_goal: float,
         fiber_goal: float | None = None,
         goal_type: str | None = None,
+        goal_pace: str | None = None,
         calculation_version: str | None = None,
         target_source: str | None = None,
         target_weight_lbs: float | None = None,
@@ -1687,9 +1705,9 @@ class SQLiteRepository:
                 """
                 INSERT INTO user_goals (
                     id, user_id, effective_at, calorie_goal, protein_goal,
-                    carbs_goal, fat_goal, fiber_goal, goal_type,
+                    carbs_goal, fat_goal, fiber_goal, goal_type, goal_pace,
                     calculation_version, target_source, target_weight_lbs
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     user_id = excluded.user_id,
                     effective_at = excluded.effective_at,
@@ -1699,6 +1717,7 @@ class SQLiteRepository:
                     fat_goal = excluded.fat_goal,
                     fiber_goal = excluded.fiber_goal,
                     goal_type = excluded.goal_type,
+                    goal_pace = excluded.goal_pace,
                     calculation_version = excluded.calculation_version,
                     target_source = excluded.target_source,
                     target_weight_lbs = excluded.target_weight_lbs
@@ -1713,6 +1732,7 @@ class SQLiteRepository:
                     fat_goal,
                     fiber_goal,
                     goal_type,
+                    goal_pace,
                     calculation_version,
                     target_source,
                     target_weight_lbs,

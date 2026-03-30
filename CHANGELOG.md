@@ -17,6 +17,7 @@ The format should remain simple:
 
 ### Added
 
+- Guided first-time profile setup flow with step cards for body basics, goal selection, goal style, activity, dietary pattern, allergies, and review.
 - Calculation-target provenance and fiber persistence for generated profile goals, including `calculation_version`, `target_source`, and `fiber_goal`.
 - App-shell menu logout action for quickly clearing the local live session and returning to profile entry.
 - App-shell navigation cleanup with a profile avatar entry point, compact primary navigation, and a hamburger menu for secondary screens.
@@ -50,6 +51,7 @@ The format should remain simple:
 
 ### Changed
 
+- Profile setup now supports goal pace, dietary pattern, and allergy notes, and calorie targets now respect loss/gain pace choices instead of one fixed adjustment.
 - Generated onboarding and profile-recalculation targets now flow through a single structured calculation result instead of separate loose tuples in the profile service.
 - The main app shell now keeps the dashboard more focused by moving secondary destinations and session-mode controls into the navigation menu instead of a large flat section bar.
 - Frontend ingestion helpers now include the live package-scan, label-ingest, and multi-save API contracts used by the current camera-food UI.
