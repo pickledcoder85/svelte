@@ -89,6 +89,12 @@ export interface UserProfile {
   bmr_calories?: number | null;
   tdee_calories?: number | null;
   initial_calorie_target?: number | null;
+  protein_target_g?: number | null;
+  carbs_target_g?: number | null;
+  fat_target_g?: number | null;
+  fiber_target_g?: number | null;
+  calculation_version?: string | null;
+  target_source?: 'system_default' | 'user_custom' | 'agent_adjusted' | 'admin_override' | null;
 }
 
 export interface UserProfileUpdate {
@@ -122,6 +128,10 @@ export interface UserGoal {
   protein_goal: number;
   carbs_goal: number;
   fat_goal: number;
+  fiber_goal?: number | null;
+  goal_type?: 'lose' | 'maintain' | 'gain' | null;
+  calculation_version?: string | null;
+  target_source?: 'system_default' | 'user_custom' | 'agent_adjusted' | 'admin_override' | null;
   target_weight_lbs: number | null;
   created_at?: string | null;
 }
@@ -132,6 +142,7 @@ export interface UserGoalCreate {
   protein_goal: number;
   carbs_goal: number;
   fat_goal: number;
+  fiber_goal?: number | null;
   target_weight_lbs: number | null;
 }
 

@@ -113,6 +113,10 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 protein_goal=900,
                 carbs_goal=1200,
                 fat_goal=400,
+                fiber_goal=196,
+                goal_type="lose",
+                calculation_version="v1",
+                target_source="system_default",
                 target_weight_lbs=178.5,
             )
             food_log_id = repo.create_food_log(
@@ -138,6 +142,10 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(identity["email"], "user@example.com")
         self.assertEqual(identity["display_name"], "Test User")
         self.assertEqual(goal["calorie_goal"], 14000)
+        self.assertEqual(goal["fiber_goal"], 196)
+        self.assertEqual(goal["goal_type"], "lose")
+        self.assertEqual(goal["calculation_version"], "v1")
+        self.assertEqual(goal["target_source"], "system_default")
         self.assertEqual(goal["target_weight_lbs"], 178.5)
         self.assertEqual(log["notes"], "Breakfast")
         self.assertEqual(log["entries"][0]["id"], entry_id)
@@ -204,6 +212,87 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 ).fetchone()
 
             self.assertEqual(seeded_row[0], "user-legacy")
+
+    def test_sqlite_repository_repairs_profile_and_goal_target_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            SQLiteRepository(str(db_path))
+
+            with sqlite3.connect(db_path) as connection:
+                connection.execute("ALTER TABLE user_profiles RENAME TO user_profiles_legacy")
+                connection.execute(
+                    """
+                    CREATE TABLE user_profiles (
+                        user_id TEXT PRIMARY KEY,
+                        display_name TEXT,
+                        timezone TEXT NOT NULL DEFAULT 'UTC',
+                        units TEXT NOT NULL DEFAULT 'imperial',
+                        setup_completed_at TEXT,
+                        sex TEXT,
+                        age_years INTEGER,
+                        height_cm REAL,
+                        current_weight_lbs REAL,
+                        goal_type TEXT,
+                        target_weight_lbs REAL,
+                        activity_level TEXT,
+                        bmr_calories INTEGER,
+                        tdee_calories INTEGER,
+                        initial_calorie_target INTEGER,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                connection.execute("DROP TABLE user_profiles_legacy")
+
+                connection.execute("ALTER TABLE user_goals RENAME TO user_goals_legacy")
+                connection.execute(
+                    """
+                    CREATE TABLE user_goals (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        effective_at TEXT NOT NULL,
+                        calorie_goal INTEGER NOT NULL,
+                        protein_goal REAL NOT NULL,
+                        carbs_goal REAL NOT NULL,
+                        fat_goal REAL NOT NULL
+                    )
+                    """
+                )
+                connection.execute("DROP TABLE user_goals_legacy")
+
+            repaired_repo = SQLiteRepository(str(db_path))
+
+            profile_columns = repaired_repo._connection.execute(
+                "PRAGMA table_info(user_profiles)"
+            ).fetchall()
+            goal_columns = repaired_repo._connection.execute(
+                "PRAGMA table_info(user_goals)"
+            ).fetchall()
+
+            profile_column_names = {row["name"] for row in profile_columns}
+            goal_column_names = {row["name"] for row in goal_columns}
+
+            self.assertTrue(
+                {
+                    "protein_target_g",
+                    "carbs_target_g",
+                    "fat_target_g",
+                    "fiber_target_g",
+                    "calculation_version",
+                    "target_source",
+                }.issubset(profile_column_names)
+            )
+            self.assertTrue(
+                {
+                    "target_weight_lbs",
+                    "fiber_goal",
+                    "goal_type",
+                    "calculation_version",
+                    "target_source",
+                    "created_at",
+                }.issubset(goal_column_names)
+            )
 
     def test_sqlite_repository_persists_weight_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
