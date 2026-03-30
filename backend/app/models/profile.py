@@ -27,6 +27,12 @@ class UserProfile(BaseModel):
     bmr_calories: int | None = None
     tdee_calories: int | None = None
     initial_calorie_target: int | None = None
+    protein_target_g: float | None = None
+    carbs_target_g: float | None = None
+    fat_target_g: float | None = None
+    fiber_target_g: float | None = None
+    calculation_version: str | None = None
+    target_source: Literal["system_default", "user_custom", "agent_adjusted", "admin_override"] | None = None
 
 
 class UserOnboardingRequest(BaseModel):
@@ -60,6 +66,10 @@ class UserGoal(BaseModel):
     protein_goal: float
     carbs_goal: float
     fat_goal: float
+    fiber_goal: float | None = None
+    goal_type: Literal["lose", "maintain", "gain"] | None = None
+    calculation_version: str | None = None
+    target_source: Literal["system_default", "user_custom", "agent_adjusted", "admin_override"] | None = None
     target_weight_lbs: float | None = None
     created_at: datetime | None = None
 
@@ -70,6 +80,7 @@ class UserGoalCreateRequest(BaseModel):
     protein_goal: float = Field(ge=0)
     carbs_goal: float = Field(ge=0)
     fat_goal: float = Field(ge=0)
+    fiber_goal: float | None = Field(default=None, ge=0)
     target_weight_lbs: float | None = None
 
 

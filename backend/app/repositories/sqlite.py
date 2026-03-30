@@ -734,6 +734,12 @@ class SQLiteRepository:
             "bmr_calories": "INTEGER",
             "tdee_calories": "INTEGER",
             "initial_calorie_target": "INTEGER",
+            "protein_target_g": "REAL",
+            "carbs_target_g": "REAL",
+            "fat_target_g": "REAL",
+            "fiber_target_g": "REAL",
+            "calculation_version": "TEXT",
+            "target_source": "TEXT",
         }
 
         missing_columns = [
@@ -793,6 +799,10 @@ class SQLiteRepository:
         expected_columns = {
             "target_weight_lbs": "REAL",
             "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+            "fiber_goal": "REAL",
+            "goal_type": "TEXT",
+            "calculation_version": "TEXT",
+            "target_source": "TEXT",
         }
         missing_columns = [
             (column_name, column_type)
@@ -1464,7 +1474,13 @@ class SQLiteRepository:
                 p.activity_level,
                 p.bmr_calories,
                 p.tdee_calories,
-                p.initial_calorie_target
+                p.initial_calorie_target,
+                p.protein_target_g,
+                p.carbs_target_g,
+                p.fat_target_g,
+                p.fiber_target_g,
+                p.calculation_version,
+                p.target_source
             FROM users u
             LEFT JOIN user_profiles p ON p.user_id = u.id
             WHERE u.id = ?
@@ -1501,6 +1517,12 @@ class SQLiteRepository:
         bmr_calories: int,
         tdee_calories: int,
         initial_calorie_target: int,
+        protein_target_g: float,
+        carbs_target_g: float,
+        fat_target_g: float,
+        fiber_target_g: float,
+        calculation_version: str,
+        target_source: str,
     ) -> dict[str, Any]:
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
@@ -1510,8 +1532,10 @@ class SQLiteRepository:
                     user_id, sex, age_years, height_cm, current_weight_lbs,
                     goal_type, target_weight_lbs, activity_level,
                     bmr_calories, tdee_calories, initial_calorie_target,
+                    protein_target_g, carbs_target_g, fat_target_g, fiber_target_g,
+                    calculation_version, target_source,
                     setup_completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     sex = excluded.sex,
                     age_years = excluded.age_years,
@@ -1523,6 +1547,12 @@ class SQLiteRepository:
                     bmr_calories = excluded.bmr_calories,
                     tdee_calories = excluded.tdee_calories,
                     initial_calorie_target = excluded.initial_calorie_target,
+                    protein_target_g = excluded.protein_target_g,
+                    carbs_target_g = excluded.carbs_target_g,
+                    fat_target_g = excluded.fat_target_g,
+                    fiber_target_g = excluded.fiber_target_g,
+                    calculation_version = excluded.calculation_version,
+                    target_source = excluded.target_source,
                     setup_completed_at = COALESCE(user_profiles.setup_completed_at, excluded.setup_completed_at),
                     updated_at = CURRENT_TIMESTAMP
                 """,
@@ -1538,6 +1568,12 @@ class SQLiteRepository:
                     bmr_calories,
                     tdee_calories,
                     initial_calorie_target,
+                    protein_target_g,
+                    carbs_target_g,
+                    fat_target_g,
+                    fiber_target_g,
+                    calculation_version,
+                    target_source,
                 ),
             )
         profile = self.get_user_identity(user_id)
@@ -1637,6 +1673,10 @@ class SQLiteRepository:
         protein_goal: float,
         carbs_goal: float,
         fat_goal: float,
+        fiber_goal: float | None = None,
+        goal_type: str | None = None,
+        calculation_version: str | None = None,
+        target_source: str | None = None,
         target_weight_lbs: float | None = None,
         goal_id: str | None = None,
     ) -> dict[str, Any]:
@@ -1647,8 +1687,9 @@ class SQLiteRepository:
                 """
                 INSERT INTO user_goals (
                     id, user_id, effective_at, calorie_goal, protein_goal,
-                    carbs_goal, fat_goal, target_weight_lbs
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    carbs_goal, fat_goal, fiber_goal, goal_type,
+                    calculation_version, target_source, target_weight_lbs
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     user_id = excluded.user_id,
                     effective_at = excluded.effective_at,
@@ -1656,6 +1697,10 @@ class SQLiteRepository:
                     protein_goal = excluded.protein_goal,
                     carbs_goal = excluded.carbs_goal,
                     fat_goal = excluded.fat_goal,
+                    fiber_goal = excluded.fiber_goal,
+                    goal_type = excluded.goal_type,
+                    calculation_version = excluded.calculation_version,
+                    target_source = excluded.target_source,
                     target_weight_lbs = excluded.target_weight_lbs
                 """,
                 (
@@ -1666,6 +1711,10 @@ class SQLiteRepository:
                     protein_goal,
                     carbs_goal,
                     fat_goal,
+                    fiber_goal,
+                    goal_type,
+                    calculation_version,
+                    target_source,
                     target_weight_lbs,
                 ),
             )

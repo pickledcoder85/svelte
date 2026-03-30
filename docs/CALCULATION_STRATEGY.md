@@ -15,9 +15,10 @@ Current implementation status:
 - partially implemented in the current app baseline
 - onboarding calories now route through dedicated energy-calculation helpers
 - onboarding macro defaults now route through dedicated macro-calculation helpers
+- generated onboarding and profile-update targets now persist calculation provenance and fiber targets
 - the app UI now labels the goal choices as `Weight Loss`, `Maintenance`, and `Weight Gain`
 - live profile edits now recalculate generated targets and append new goal-history rows
-- the full adaptive-maintenance, versioned target-source, fiber-target persistence, and structured exercise-estimation layers are still pending
+- the full adaptive-maintenance and structured exercise-estimation layers are still pending
 
 ## Product goals
 

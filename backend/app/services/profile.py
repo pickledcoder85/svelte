@@ -16,9 +16,9 @@ from backend.app.models.profile import (
 )
 from backend.app.models.nutrition import WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
-from backend.app.services.calculations.energy import calculate_onboarding_energy_targets
-from backend.app.services.calculations.macros import generate_macro_targets
-from backend.app.services.calculations.energy import calculate_energy_targets
+from backend.app.services.calculations.macros import generate_fiber_target
+from backend.app.services.calculations.targets import generate_nutrition_targets
+from backend.app.services.calculations.types import CALCULATION_VERSION
 
 
 class OnboardingAlreadyCompletedError(RuntimeError):
@@ -51,10 +51,12 @@ def complete_user_onboarding(
         email=session.email,
         display_name=session.display_name,
     )
-    bmr_calories, tdee_calories, initial_calorie_target = calculate_onboarding_energy_targets(payload)
-    protein_goal, carbs_goal, fat_goal = generate_macro_targets(
-        calorie_target=initial_calorie_target,
+    targets = generate_nutrition_targets(
+        sex=payload.sex,
+        age_years=payload.age_years,
+        height_cm=payload.height_cm,
         current_weight_lbs=payload.current_weight_lbs,
+        activity_level=payload.activity_level,
         goal_type=payload.goal_type,
     )
     profile = repository.save_user_onboarding(
@@ -66,17 +68,27 @@ def complete_user_onboarding(
         goal_type=payload.goal_type,
         target_weight_lbs=payload.target_weight_lbs,
         activity_level=payload.activity_level,
-        bmr_calories=bmr_calories,
-        tdee_calories=tdee_calories,
-        initial_calorie_target=initial_calorie_target,
+        bmr_calories=targets.bmr_calories,
+        tdee_calories=targets.maintenance_calories,
+        initial_calorie_target=targets.calorie_target,
+        protein_target_g=targets.protein_target_g,
+        carbs_target_g=targets.carbs_target_g,
+        fat_target_g=targets.fat_target_g,
+        fiber_target_g=targets.fiber_target_g,
+        calculation_version=targets.calculation_version,
+        target_source=targets.target_source,
     )
     repository.save_user_goal(
         user_id=session.user_id,
         effective_at=date.today(),
-        calorie_goal=initial_calorie_target,
-        protein_goal=protein_goal,
-        carbs_goal=carbs_goal,
-        fat_goal=fat_goal,
+        calorie_goal=targets.calorie_target,
+        protein_goal=targets.protein_target_g,
+        carbs_goal=targets.carbs_target_g,
+        fat_goal=targets.fat_target_g,
+        fiber_goal=targets.fiber_target_g,
+        goal_type=targets.goal_type,
+        calculation_version=targets.calculation_version,
+        target_source=targets.target_source,
         target_weight_lbs=payload.target_weight_lbs,
     )
     if profile is None:
@@ -140,17 +152,12 @@ def update_user_profile(
             missing_summary = ", ".join(missing_keys)
             raise ValueError(f"Profile recalculation requires: {missing_summary}.")
 
-        bmr_calories, tdee_calories, initial_calorie_target = calculate_energy_targets(
+        targets = generate_nutrition_targets(
             sex=str(resolved["sex"]),
             age_years=int(resolved["age_years"]),
             height_cm=float(resolved["height_cm"]),
             current_weight_lbs=float(resolved["current_weight_lbs"]),
             activity_level=str(resolved["activity_level"]),
-            goal_type=str(resolved["goal_type"]),
-        )
-        protein_goal, carbs_goal, fat_goal = generate_macro_targets(
-            calorie_target=initial_calorie_target,
-            current_weight_lbs=float(resolved["current_weight_lbs"]),
             goal_type=str(resolved["goal_type"]),
         )
         profile = repository.save_user_onboarding(
@@ -166,17 +173,27 @@ def update_user_profile(
                 else None
             ),
             activity_level=str(resolved["activity_level"]),
-            bmr_calories=bmr_calories,
-            tdee_calories=tdee_calories,
-            initial_calorie_target=initial_calorie_target,
+            bmr_calories=targets.bmr_calories,
+            tdee_calories=targets.maintenance_calories,
+            initial_calorie_target=targets.calorie_target,
+            protein_target_g=targets.protein_target_g,
+            carbs_target_g=targets.carbs_target_g,
+            fat_target_g=targets.fat_target_g,
+            fiber_target_g=targets.fiber_target_g,
+            calculation_version=targets.calculation_version,
+            target_source=targets.target_source,
         )
         repository.save_user_goal(
             user_id=session.user_id,
             effective_at=date.today(),
-            calorie_goal=initial_calorie_target,
-            protein_goal=protein_goal,
-            carbs_goal=carbs_goal,
-            fat_goal=fat_goal,
+            calorie_goal=targets.calorie_target,
+            protein_goal=targets.protein_target_g,
+            carbs_goal=targets.carbs_target_g,
+            fat_goal=targets.fat_target_g,
+            fiber_goal=targets.fiber_target_g,
+            goal_type=targets.goal_type,
+            calculation_version=targets.calculation_version,
+            target_source=targets.target_source,
             target_weight_lbs=(
                 float(resolved["target_weight_lbs"])
                 if resolved["target_weight_lbs"] is not None
@@ -197,6 +214,12 @@ def create_user_goal(
     session: AuthSession,
     payload: UserGoalCreateRequest,
 ) -> UserGoal:
+    existing_profile = repository.get_user_identity(session.user_id) or {}
+    fiber_goal = (
+        payload.fiber_goal
+        if payload.fiber_goal is not None
+        else generate_fiber_target(payload.calorie_goal)
+    )
     repository.save_user_identity(
         user_id=session.user_id,
         email=session.email,
@@ -209,6 +232,10 @@ def create_user_goal(
         protein_goal=payload.protein_goal,
         carbs_goal=payload.carbs_goal,
         fat_goal=payload.fat_goal,
+        fiber_goal=fiber_goal,
+        goal_type=existing_profile.get("goal_type"),
+        calculation_version=CALCULATION_VERSION,
+        target_source="user_custom",
         target_weight_lbs=payload.target_weight_lbs,
     )
     return UserGoal.model_validate(goal)

@@ -1,7 +1,4 @@
-from typing import Literal
-
-
-GoalType = Literal["lose", "maintain", "gain"]
+from backend.app.services.calculations.types import GoalType
 
 PROTEIN_PER_KG = {
     "lose": 1.8,
@@ -36,3 +33,7 @@ def generate_macro_targets(
     carb_calories = max(calorie_target - protein_goal * 4 - fat_goal * 9, 0)
     carbs_goal = round(carb_calories / 4, 1)
     return protein_goal, carbs_goal, fat_goal
+
+
+def generate_fiber_target(calorie_target: int) -> float:
+    return round((calorie_target / 1000) * 14, 1)

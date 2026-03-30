@@ -17,6 +17,7 @@ The format should remain simple:
 
 ### Added
 
+- Calculation-target provenance and fiber persistence for generated profile goals, including `calculation_version`, `target_source`, and `fiber_goal`.
 - App-shell navigation cleanup with a profile avatar entry point, compact primary navigation, and a hamburger menu for secondary screens.
 - Camera-food-bank groundwork routes for authenticated package scans, label-scan ingestion outputs, and saving accepted ingestion outputs into `food_catalog`.
 - Banking-style camera-food capture flow for live phone preview, package-first capture, optional label capture, and review/save in one session.
@@ -48,6 +49,7 @@ The format should remain simple:
 
 ### Changed
 
+- Generated onboarding and profile-recalculation targets now flow through a single structured calculation result instead of separate loose tuples in the profile service.
 - The main app shell now keeps the dashboard more focused by moving secondary destinations and session-mode controls into the navigation menu instead of a large flat section bar.
 - Frontend ingestion helpers now include the live package-scan, label-ingest, and multi-save API contracts used by the current camera-food UI.
 - Camera-food scanning now uses a single on-device camera flow for package capture, optional label capture, and review-backed save, while the browser acts as review/search support for the same session.
