@@ -1087,6 +1087,17 @@ export default function App(): ReactElement {
     setEntryMode(null);
   }
 
+  function logoutToEntryScreen() {
+    setFoodSessionToken(null);
+    setEntryError(null);
+    setProfileLoaded(false);
+    setSection('dashboard');
+    setIsShellMenuOpen(false);
+    setEntryMode(null);
+    setEntryBackendStatus('Ready to create a new local profile session');
+    setEntryBackendDetail(`Using ${getApiBaseUrl()}`);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -2379,6 +2390,14 @@ export default function App(): ReactElement {
                   </Text>
                 </View>
                 <View style={styles.modeControlActions}>
+                  {entryMode === 'live' ? (
+                    <Pressable
+                      style={styles.inlinePillButton}
+                      onPress={logoutToEntryScreen}
+                    >
+                      <Text style={styles.inlinePillButtonLabel}>Log out</Text>
+                    </Pressable>
+                  ) : null}
                   {entryMode === 'live' ? (
                     <Pressable
                       style={styles.inlinePillButton}
