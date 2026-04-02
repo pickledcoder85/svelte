@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -118,6 +119,18 @@ const mascotWeightsImage = require('./assets/weights.png');
 const mascotBikeImage = require('./assets/bike.png');
 const mascotRunImage = require('./assets/run.png');
 const mascotSwimImage = require('./assets/swim.png');
+const RELISH_COLORS = {
+  canvas: '#f6f1e7',
+  surface: '#fffdf8',
+  text: '#163127',
+  muted: '#63776a',
+  primary: '#4b8d66',
+  primaryDeep: '#2d6046',
+  primarySoft: '#e8f3ec',
+  accent: '#ea9d2d',
+  accentSoft: '#fff3de',
+  stroke: '#d7e0d7'
+} as const;
 const exercisePresets: Array<{
   id: 'weights' | 'bike' | 'run' | 'swim';
   label: string;
@@ -239,11 +252,11 @@ const activityLevelCards: Array<{
   title: string;
   subtitle: string;
 }> = [
-  { id: 'sedentary', title: 'Sedentary', subtitle: 'Mostly desk work and low daily movement' },
-  { id: 'light', title: 'Light', subtitle: 'Some walking and light weekly activity' },
-  { id: 'moderate', title: 'Moderate', subtitle: 'Consistent movement and regular training' },
-  { id: 'very_active', title: 'Very active', subtitle: 'Hard training or high daily movement' },
-  { id: 'extra_active', title: 'Extra active', subtitle: 'Very high output most days' }
+  { id: 'sedentary', title: 'Sedentary', subtitle: 'Mostly sitting, driving, or desk time' },
+  { id: 'light', title: 'Light', subtitle: 'Some walking and light day-to-day movement' },
+  { id: 'moderate', title: 'Moderate', subtitle: 'Regular movement and time on your feet' },
+  { id: 'very_active', title: 'Very active', subtitle: 'High daily movement, walking, or physical work' },
+  { id: 'extra_active', title: 'Extra active', subtitle: 'Very high daily movement most days' }
 ];
 
 function toneColor(tone: 'checking' | 'live'): string {
@@ -422,10 +435,15 @@ function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
 }
 
 export default function App(): ReactElement {
+  const [ribeyeLoaded] = useRibeyeFonts({
+    Ribeye_400Regular
+  });
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
+  const [entryIntent, setEntryIntent] = useState<'signup' | 'signin' | null>(null);
   const [entryEmailDraft, setEntryEmailDraft] = useState('dev@example.com');
   const [entryDisplayNameDraft, setEntryDisplayNameDraft] = useState('Local Dev User');
   const [entryLoading, setEntryLoading] = useState(false);
+  const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
   const [entryError, setEntryError] = useState<string | null>(null);
   const [entryBackendTone, setEntryBackendTone] = useState<'checking' | 'live'>('checking');
   const [entryBackendStatus, setEntryBackendStatus] = useState('Checking backend reachability');
@@ -1267,22 +1285,39 @@ export default function App(): ReactElement {
 
   async function enterLiveMode() {
     const email = entryEmailDraft.trim().toLowerCase();
-    const displayName = entryDisplayNameDraft.trim();
+    const fallbackDisplayName =
+      email.split('@')[0]?.trim().replace(/[._-]+/g, ' ') || 'Local User';
+    const displayName = entryIntent === 'signin' ? (entryDisplayNameDraft.trim() || fallbackDisplayName) : entryDisplayNameDraft.trim();
 
-    if (!email || !displayName) {
-      setEntryError('Enter an email and display name before creating a local profile session.');
+    if (!email || (entryIntent !== 'signin' && !displayName)) {
+      setEntryEmailError(
+        entryIntent === 'signin'
+          ? 'Enter your email before continuing.'
+          : 'Enter an email and display name before creating a local profile session.'
+      );
+      setEntryError(null);
       return;
     }
 
     setEntryLoading(true);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
 
     try {
-      const session = await createLocalSession(email, displayName);
+      const session = await createLocalSession(email, displayName, entryIntent ?? 'signup');
       setFoodSessionToken(session.access_token);
       setEntryMode('live');
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (
+        message.includes('That email already has a profile. Sign in instead.') ||
+        message.includes('No profile found for that email. Sign up instead.')
+      ) {
+        setEntryEmailError(message);
+        setEntryError(null);
+        return;
+      }
       const fallbackMessage = `Unable to create a local profile session via ${getApiBaseUrl()}. Start the backend or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`;
       setEntryError(error instanceof Error ? `${error.message} ${fallbackMessage}` : fallbackMessage);
     } finally {
@@ -1292,26 +1327,32 @@ export default function App(): ReactElement {
 
   function enterPreviewMode() {
     setFoodSessionToken(null);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
+    setEntryIntent(null);
     setEntryMode('preview');
   }
 
   function returnToEntryScreen() {
     setFoodSessionToken(null);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
+    setEntryIntent(null);
     setEntryMode(null);
   }
 
   function logoutToEntryScreen() {
     setFoodSessionToken(null);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
     setIsShellMenuOpen(false);
+    setEntryIntent(null);
     setEntryMode(null);
     setEntryBackendStatus('Ready to create a new local profile session');
     setEntryBackendDetail(`Using ${getApiBaseUrl()}`);
@@ -2310,84 +2351,124 @@ export default function App(): ReactElement {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.hero}>
-            <Text style={styles.eyebrow}>Nutrition OS</Text>
-            <View style={styles.heroHeader}>
-              <View style={styles.heroCopy}>
-                <Text style={styles.headline}>Start with a real local profile or open the demo app.</Text>
-                <Text style={styles.lede}>
-                  Use the live path to test session creation, onboarding, and profile-driven business logic. Use preview mode to inspect the post-setup experience with dummy data.
-                </Text>
+            <View style={styles.welcomeShell}>
+              <Text style={[styles.welcomeAppName, ribeyeLoaded && styles.welcomeAppNameDisplay]}>Relish</Text>
+              <Text style={styles.welcomeSubtitle}>Fitness & Nutrition</Text>
+              <View style={styles.welcomeMascotWrap}>
+                <Image source={mascotDefaultImage} style={styles.welcomeMascotImage} resizeMode="contain" />
               </View>
-              <View style={styles.heroAside}>
-                <View style={styles.mascotCard}>
-                  <Image source={mascotDefaultImage} style={styles.mascotImage} resizeMode="contain" />
-                  <Text style={styles.mascotLabel}>Pickle is ready for a normal browser session.</Text>
+
+              {entryIntent === null ? (
+                <View style={styles.welcomeActions}>
+                  <Pressable
+                    style={styles.welcomePrimaryButton}
+                    onPress={() => {
+                      setEntryEmailError(null);
+                      setEntryError(null);
+                      setEntryIntent('signup');
+                    }}
+                    disabled={entryLoading}
+                  >
+                    <Text style={styles.welcomePrimaryButtonLabel}>Sign up</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.welcomeSecondaryButton}
+                    onPress={() => {
+                      setEntryEmailError(null);
+                      setEntryError(null);
+                      setEntryIntent('signin');
+                    }}
+                    disabled={entryLoading}
+                  >
+                    <Text style={styles.welcomeSecondaryButtonLabel}>Sign in</Text>
+                  </Pressable>
+                  <Pressable style={styles.welcomeLinkButton} onPress={enterPreviewMode} disabled={entryLoading}>
+                    <Text style={styles.welcomeLinkLabel}>Preview the app</Text>
+                  </Pressable>
                 </View>
+              ) : (
+                <View style={styles.entryCard}>
+                  <View style={styles.entryCardHeader}>
+                    <Text style={styles.entryCardEyebrow}>
+                      {entryIntent === 'signup' ? 'Sign up' : 'Sign in'}
+                    </Text>
+                    <Text style={styles.panelTitle}>
+                      {entryIntent === 'signup' ? 'Create your profile' : 'Continue to your profile'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.profileFieldStack}>
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Email</Text>
+                      <TextInput
+                        value={entryEmailDraft}
+                        onChangeText={(value) => {
+                          setEntryEmailDraft(value);
+                          setEntryEmailError(null);
+                        }}
+                        placeholder="dev@example.com"
+                        placeholderTextColor="#7c8aa5"
+                        style={[styles.profileFieldInput, entryEmailError && styles.profileFieldInputError]}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {entryEmailError ? <Text style={styles.profileFieldError}>{entryEmailError}</Text> : null}
+                    </View>
+
+                    {entryIntent === 'signup' ? (
+                      <View style={styles.profileField}>
+                        <Text style={styles.profileFieldLabel}>Display name</Text>
+                        <TextInput
+                          value={entryDisplayNameDraft}
+                          onChangeText={setEntryDisplayNameDraft}
+                          placeholder="Local Dev User"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {entryError ? (
+                    <View style={[styles.inlineStatus, { borderColor: toneColor('checking') }]}>
+                      <Text style={styles.inlineStatusLabel}>Could not create local profile session</Text>
+                      <Text style={styles.inlineStatusDetail}>{entryError}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.entryAuthActions}>
+                    <Pressable
+                      style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
+                      onPress={() => {
+                        setEntryEmailError(null);
+                        setEntryError(null);
+                        setEntryIntent(null);
+                      }}
+                      disabled={entryLoading}
+                    >
+                      <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
+                      onPress={() => void enterLiveMode()}
+                      disabled={entryLoading}
+                    >
+                      <Text style={styles.setupActionButtonLabelPrimary}>
+                        {entryLoading
+                          ? 'Creating session...'
+                          : entryIntent === 'signup'
+                            ? 'Get started'
+                            : 'Continue'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              <View style={[styles.welcomeStatusStrip, { borderColor: toneColor(entryBackendTone) }]}>
+                <Text style={styles.welcomeStatusLabel}>{entryBackendStatus}</Text>
+                <Text style={styles.welcomeStatusDetail}>{entryBackendDetail}</Text>
               </View>
-            </View>
-          </View>
-
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Entry</Text>
-            <Text style={styles.panelTitle}>Choose how to open the app</Text>
-            <Text style={styles.panelDetail}>
-              The live path creates a local backend session and routes you through profile creation. Preview mode skips session creation and loads demo data only.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(entryBackendTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{entryBackendStatus}</Text>
-              <Text style={styles.inlineStatusDetail}>{entryBackendDetail}</Text>
-            </View>
-
-            <View style={styles.profileFieldStack}>
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Email</Text>
-                <TextInput
-                  value={entryEmailDraft}
-                  onChangeText={setEntryEmailDraft}
-                  placeholder="dev@example.com"
-                  placeholderTextColor="#7c8aa5"
-                  style={styles.profileFieldInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Display name</Text>
-                <TextInput
-                  value={entryDisplayNameDraft}
-                  onChangeText={setEntryDisplayNameDraft}
-                  placeholder="Local Dev User"
-                  placeholderTextColor="#7c8aa5"
-                  style={styles.profileFieldInput}
-                />
-              </View>
-            </View>
-
-            {entryError ? (
-              <View style={[styles.inlineStatus, { borderColor: toneColor('checking') }]}>
-                <Text style={styles.inlineStatusLabel}>Could not create local profile session</Text>
-                <Text style={styles.inlineStatusDetail}>{entryError}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.profileFieldStack}>
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => void enterLiveMode()}
-                disabled={entryLoading}
-              >
-                <Text style={styles.primaryButtonLabel}>
-                  {entryLoading ? 'Creating session...' : 'Create local profile'}
-                </Text>
-              </Pressable>
-
-              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode} disabled={entryLoading}>
-                <Text style={styles.inlinePillButtonLabel}>Open preview mode</Text>
-              </Pressable>
-            </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -2900,7 +2981,7 @@ export default function App(): ReactElement {
         <View style={styles.appHeader}>
           <View style={styles.appShellTopRow}>
             <View style={styles.appHeaderTitleWrap}>
-              <Text style={styles.appEyebrow}>Nutrition OS</Text>
+              <Text style={styles.appEyebrow}>Relish</Text>
               <Text style={styles.appTitle}>{currentSectionMeta.label}</Text>
             </View>
             <View style={styles.appShellActions}>
@@ -4657,11 +4738,11 @@ function LineTrendChart({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f4efe4'
+    backgroundColor: RELISH_COLORS.canvas
   },
   screen: {
     flex: 1,
-    backgroundColor: '#f4efe4'
+    backgroundColor: RELISH_COLORS.canvas
   },
   content: {
     padding: 16,
@@ -5169,19 +5250,175 @@ const styles = StyleSheet.create({
     backgroundColor: '#f6f0e7',
     borderRadius: 24,
     padding: 14,
-    alignItems: 'center',
-    gap: 10
+    alignItems: 'center'
   },
   mascotImage: {
     width: '100%',
-    maxWidth: 220,
-    height: 220
+    maxWidth: 180,
+    height: 180
   },
-  mascotLabel: {
-    color: '#17324d',
+  entryGrid: {
+    gap: 16
+  },
+  entryCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: RELISH_COLORS.surface,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: RELISH_COLORS.stroke,
+    padding: 18,
+    gap: 14,
+    shadowColor: '#163127',
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3
+  },
+  entryCardHeader: {
+    gap: 4
+  },
+  entryCardEyebrow: {
+    color: RELISH_COLORS.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase'
+  },
+  entryPreviewCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 14,
+    gap: 6
+  },
+  entryPreviewTitle: {
+    color: '#132536',
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  entryPreviewDetail: {
+    color: '#66778c',
     fontSize: 13,
-    fontWeight: '700',
+    lineHeight: 18
+  },
+  secondaryButton: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: RELISH_COLORS.primary,
+    backgroundColor: RELISH_COLORS.primarySoft,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  secondaryButtonLabel: {
+    color: RELISH_COLORS.primaryDeep,
+    fontWeight: '800'
+  },
+  welcomeShell: {
+    minHeight: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 18
+  },
+  welcomeAppName: {
+    color: RELISH_COLORS.text,
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '900',
     textAlign: 'center'
+  },
+  welcomeAppNameDisplay: {
+    fontFamily: 'Ribeye_400Regular',
+    fontSize: 48,
+    lineHeight: 54,
+    fontWeight: '400',
+    letterSpacing: 0.8
+  },
+  welcomeSubtitle: {
+    color: RELISH_COLORS.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3
+  },
+  welcomeMascotWrap: {
+    width: 244,
+    height: 244,
+    paddingVertical: 0,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  welcomeMascotImage: {
+    width: 206,
+    height: 206
+  },
+  welcomeActions: {
+    width: '100%',
+    maxWidth: 360,
+    gap: 6,
+    alignItems: 'center'
+  },
+  welcomePrimaryButton: {
+    minWidth: 180,
+    borderRadius: 18,
+    backgroundColor: RELISH_COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  welcomePrimaryButtonLabel: {
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  welcomeSecondaryButton: {
+    minWidth: 180,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: RELISH_COLORS.primary,
+    backgroundColor: RELISH_COLORS.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  welcomeSecondaryButtonLabel: {
+    color: RELISH_COLORS.primaryDeep,
+    fontWeight: '800'
+  },
+  welcomeLinkButton: {
+    alignItems: 'center',
+    paddingVertical: 6
+  },
+  welcomeLinkLabel: {
+    color: RELISH_COLORS.muted,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  welcomeStatusStrip: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#fffaf0',
+    gap: 2
+  },
+  welcomeStatusLabel: {
+    color: RELISH_COLORS.text,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  welcomeStatusDetail: {
+    color: '#8a5a1d',
+    fontSize: 11,
+    lineHeight: 16
+  },
+  entryAuthActions: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%'
   },
   statusBanner: {
     backgroundColor: '#fffaf0',
@@ -5879,7 +6116,9 @@ const styles = StyleSheet.create({
   },
   inlineStatusDetail: {
     color: '#8a5a1d',
-    fontSize: 12
+    fontSize: 12,
+    lineHeight: 18,
+    flexShrink: 1
   },
   foodList: {
     gap: 8
@@ -6114,6 +6353,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
     color: '#132536'
+  },
+  profileFieldInputError: {
+    borderColor: '#2563eb'
+  },
+  profileFieldError: {
+    color: '#1d4ed8',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600'
   },
   profileToggleRow: {
     flexDirection: 'row',

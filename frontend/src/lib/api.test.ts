@@ -85,7 +85,10 @@ describe('api helpers', () => {
     expect(session.access_token).toBe('token-123');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/auth/session',
-      expect.objectContaining({ method: 'POST' })
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: 'tester@example.com', display_name: 'Tester', intent: 'signup' })
+      })
     );
   });
 

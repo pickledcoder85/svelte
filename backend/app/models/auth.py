@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class LoginRequest(BaseModel):
     email: str = Field(min_length=3)
+    intent: Literal["signup", "signin"] = "signup"
     display_name: str | None = Field(default=None, min_length=1)
 
 

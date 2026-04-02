@@ -251,12 +251,16 @@ function authHeaders(accessToken: string): HeadersInit {
   };
 }
 
-export async function createLocalSession(email: string, displayName: string): Promise<AuthSession> {
+export async function createLocalSession(
+  email: string,
+  displayName: string,
+  intent: 'signup' | 'signin' = 'signup'
+): Promise<AuthSession> {
   const response = await readJson<SessionResponse>(
     await fetch(buildApiUrl('/auth/session'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, display_name: displayName })
+      body: JSON.stringify({ email, display_name: displayName, intent })
     })
   );
   return response.session;

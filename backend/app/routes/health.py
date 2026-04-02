@@ -15,7 +15,7 @@ async def health(repository: SQLiteRepository = Depends(get_repository)) -> dict
     settings = get_settings()
     return {
         "ok": True,
-        "service": "nutrition-os-api",
+        "service": "relish-api",
         "environment": settings.app_env,
         "mode": "sqlite-demo" if not settings.usda_api_key else "configured",
         "database": repository.database_path,

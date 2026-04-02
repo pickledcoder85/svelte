@@ -1,4 +1,6 @@
-# Nutrition OS Starter
+# Relish
+
+Fitness & Nutrition, with Gherkin as the house mascot and assistant identity.
 
 This repository is a greenfield nutrition app starter with an Expo / React Native frontend in `frontend/`, a Python FastAPI backend, and hot-reloading local development for browser and iPhone preview.
 

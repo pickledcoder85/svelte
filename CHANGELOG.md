@@ -17,6 +17,8 @@ The format should remain simple:
 
 ### Added
 
+- Documented the intended production entry funnel as `welcome -> auth -> verification -> setup -> daily home` so future landing/auth work stays aligned.
+- Product branding direction is now `Relish`, with `Gherkin` reserved for the mascot and future assistant/agent identity.
 - Guided first-time profile setup flow with step cards for body basics, goal selection, goal style, activity, dietary pattern, nutrition style, allergies, and review.
 - Calculation-target provenance and fiber persistence for generated profile goals, including `calculation_version`, `target_source`, and `fiber_goal`.
 - App-shell menu logout action for quickly clearing the local live session and returning to profile entry.
@@ -51,6 +53,7 @@ The format should remain simple:
 
 ### Changed
 
+- The browser/phone entry experience is moving toward a lightweight welcome-first screen with a clearer primary `get started` path and a secondary demo path instead of dev-heavy wording.
 - Profile setup now supports goal pace, dietary pattern, nutrition style, and allergy notes, and calorie targets now respect loss/gain pace choices instead of one fixed adjustment.
 - Generated onboarding and profile-recalculation targets now flow through a single structured calculation result instead of separate loose tuples in the profile service.
 - The main app shell now keeps the dashboard more focused by moving secondary destinations and session-mode controls into the navigation menu instead of a large flat section bar.

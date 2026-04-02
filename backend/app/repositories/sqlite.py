@@ -1498,6 +1498,20 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    def get_user_identity_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = email.strip().lower()
+        row = self._connection.execute(
+            """
+            SELECT u.id AS user_id
+            FROM users u
+            WHERE lower(u.email) = ?
+            """,
+            (normalized_email,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self.get_user_identity(str(row["user_id"]))
+
     def mark_user_setup_completed(self, user_id: str) -> dict[str, Any] | None:
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:

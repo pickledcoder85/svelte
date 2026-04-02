@@ -5,7 +5,7 @@ import pytest
 async def test_create_and_fetch_session(client):
     response = await client.post(
         "/api/auth/session",
-        json={"email": "tester@example.com", "display_name": "Tester"},
+        json={"email": "tester@example.com", "display_name": "Tester", "intent": "signup"},
     )
 
     assert response.status_code == 200
@@ -20,6 +20,32 @@ async def test_create_and_fetch_session(client):
     )
     assert lookup.status_code == 200
     assert lookup.json()["session"]["access_token"] == session["access_token"]
+
+
+@pytest.mark.asyncio
+async def test_signup_rejects_existing_email(client):
+    first = await client.post(
+        "/api/auth/session",
+        json={"email": "tester@example.com", "display_name": "Tester", "intent": "signup"},
+    )
+    assert first.status_code == 200
+
+    second = await client.post(
+        "/api/auth/session",
+        json={"email": "tester@example.com", "display_name": "Tester Again", "intent": "signup"},
+    )
+    assert second.status_code == 409
+    assert second.json()["detail"] == "That email already has a profile. Sign in instead."
+
+
+@pytest.mark.asyncio
+async def test_signin_rejects_unknown_email(client):
+    response = await client.post(
+        "/api/auth/session",
+        json={"email": "missing@example.com", "display_name": "Missing", "intent": "signin"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "No profile found for that email. Sign up instead."
 
 
 @pytest.mark.asyncio
