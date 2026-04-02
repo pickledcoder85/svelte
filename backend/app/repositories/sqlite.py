@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta
@@ -420,6 +421,7 @@ class SQLiteRepository:
                     meal_label TEXT NOT NULL,
                     title TEXT NOT NULL,
                     calories INTEGER NOT NULL,
+                    items_json TEXT,
                     eaten_at TEXT,
                     prep_status TEXT NOT NULL,
                     FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days (id) ON DELETE CASCADE
@@ -851,6 +853,7 @@ class SQLiteRepository:
     def _ensure_meal_plan_slot_columns(self) -> None:
         existing_columns = self._table_columns("meal_plan_slots")
         expected_columns = {
+            "items_json": "TEXT",
             "eaten_at": "TEXT",
         }
         missing_columns = [
@@ -1997,8 +2000,8 @@ class SQLiteRepository:
                 self._connection.execute(
                     """
                     INSERT INTO meal_plan_slots (
-                        id, meal_plan_day_id, position, meal_label, title, calories, eaten_at, prep_status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        id, meal_plan_day_id, position, meal_label, title, calories, items_json, eaten_at, prep_status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(uuid4()),
@@ -2007,6 +2010,7 @@ class SQLiteRepository:
                         slot["meal_label"],
                         slot["title"],
                         slot["calories"],
+                        json.dumps(slot.get("items", [])),
                         slot.get("eaten_at"),
                         slot["prep_status"],
                     ),
@@ -2022,7 +2026,16 @@ class SQLiteRepository:
             """,
             (meal_plan_day_id,),
         ).fetchall()
-        return [dict(row) for row in rows]
+        slots: list[dict[str, Any]] = []
+        for row in rows:
+            payload = dict(row)
+            items_json = payload.get("items_json")
+            if items_json:
+                payload["items"] = json.loads(items_json)
+            else:
+                payload["items"] = []
+            slots.append(payload)
+        return slots
 
     def get_meal_plan_day(self, meal_plan_day_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(

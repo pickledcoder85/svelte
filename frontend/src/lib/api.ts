@@ -556,7 +556,7 @@ interface MealPlanDayCreatePayload {
   plan_date: string;
   label: string;
   focus: string;
-  slots: Array<Pick<MealPlanSlot, 'meal_label' | 'title' | 'calories' | 'prep_status' | 'eaten_at'>>;
+  slots: Array<Pick<MealPlanSlot, 'meal_label' | 'title' | 'calories' | 'prep_status' | 'eaten_at' | 'items'>>;
 }
 
 interface MealPrepTaskCreatePayload {

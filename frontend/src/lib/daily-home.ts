@@ -25,6 +25,7 @@ export interface DailyMealPlanSummary {
   plannedMeals: number;
   completedMeals: number;
   plannedCalories: number;
+  plannedMacros: MacroTargets;
   nextMealTitle: string | null;
 }
 
@@ -94,6 +95,7 @@ export function buildDailyMealPlanSummary(
       plannedMeals: 0,
       completedMeals: 0,
       plannedCalories: 0,
+      plannedMacros: { protein: 0, carbs: 0, fat: 0 },
       nextMealTitle: null
     };
   }
@@ -108,6 +110,24 @@ export function buildDailyMealPlanSummary(
     plannedMeals: mealPlanDay.slots.length,
     completedMeals,
     plannedCalories: mealPlanDay.slots.reduce((sum, slot) => sum + slot.calories, 0),
+    plannedMacros: mealPlanDay.slots.reduce(
+      (totals, slot) => {
+        const slotTotals = (slot.items ?? []).reduce(
+          (itemTotals, item) => ({
+            protein: itemTotals.protein + item.macros.protein,
+            carbs: itemTotals.carbs + item.macros.carbs,
+            fat: itemTotals.fat + item.macros.fat
+          }),
+          { protein: 0, carbs: 0, fat: 0 }
+        );
+        return {
+          protein: Math.round((totals.protein + slotTotals.protein) * 10) / 10,
+          carbs: Math.round((totals.carbs + slotTotals.carbs) * 10) / 10,
+          fat: Math.round((totals.fat + slotTotals.fat) * 10) / 10
+        };
+      },
+      { protein: 0, carbs: 0, fat: 0 }
+    ),
     nextMealTitle: nextMeal?.title ?? null
   };
 }

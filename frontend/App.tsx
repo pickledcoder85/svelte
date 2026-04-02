@@ -3367,13 +3367,17 @@ export default function App(): ReactElement {
               <View style={styles.detailCard}>
                   <View style={styles.recipeRowTitleWrap}>
                     <View>
-                      <Text style={styles.panelEyebrow}>Meal plan</Text>
                       <Text style={styles.detailTitle}>Meal Plan</Text>
+                      {dailyMealPlanSummary.hasPlan ? (
+                        <Text style={styles.detailSubtitle}>
+                          P {Math.round(dailyMealPlanSummary.plannedMacros.protein)}g · C {Math.round(dailyMealPlanSummary.plannedMacros.carbs)}g · F {Math.round(dailyMealPlanSummary.plannedMacros.fat)}g
+                        </Text>
+                      ) : null}
                     </View>
                     <View style={styles.dailyHomeMealPlanHeaderActions}>
                       <Text style={styles.detailSubtitle}>
                         {dailyMealPlanSummary.hasPlan
-                          ? `${dailyMealPlanSummary.dayLabel} · ${dailyMealPlanSummary.focus}`
+                          ? `${dailyMealPlanSummary.plannedCalories.toLocaleString()} kcal`
                           : 'No meal plan saved yet'}
                       </Text>
                       <Pressable style={styles.dailyHomeEditButton} accessibilityRole="button" accessibilityLabel="Edit meal plan">
@@ -3382,32 +3386,51 @@ export default function App(): ReactElement {
                     </View>
                   </View>
 
-                  <View style={styles.summaryStrip}>
-                    <MetricTile label="Planned" value={`${dailyMealPlanSummary.plannedCalories.toLocaleString()} kcal`} compact />
-                  </View>
-
                   {dailyMealPlanSummary.hasPlan ? (
                     <>
                       {todayMealPlanDay?.slots.map((slot) => {
                         const logged = todayMealPlanEatenSlots[slot.id] ?? false;
+                        const slotItems = slot.items ?? [];
                         return (
                           <Pressable
                             key={slot.id}
-                            style={[styles.listRow, logged && styles.mealPlanLoggedRow]}
+                            style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
                             onPress={() => void toggleMealPlanMeal(todayMealPlanDay, slot.id, slot.meal_label)}
                           >
-                            <View style={styles.dailyHomeMealPlanSlotCopy}>
-                              <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                              <Text style={styles.listCaption}>{slot.title}</Text>
-                            </View>
-                            <View style={styles.dailyHomeMealPlanSlotMeta}>
-                              <Text style={styles.listMetric}>{slot.calories} kcal</Text>
+                            <View style={styles.mealPlanSlotHeader}>
+                              <View style={styles.dailyHomeMealPlanSlotCopy}>
+                                <View style={styles.mealPlanSlotTitleRow}>
+                                  <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                                  <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
+                                </View>
+                                <Text style={styles.listCaption}>{slot.title}</Text>
+                              </View>
                               <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
                                 <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
                                   {logged ? '✓' : ''}
                                 </Text>
                               </View>
                             </View>
+                            {slotItems.length > 0 ? (
+                              <View style={styles.mealPlanItemList}>
+                                  {slotItems.map((item, index) => (
+                                    <View key={`${slot.id}-item-${index}`} style={styles.mealPlanItemRow}>
+                                      <View style={styles.mealPlanItemCopy}>
+                                        <Text style={styles.mealPlanItemName}>
+                                          {item.name}
+                                          <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
+                                        </Text>
+                                      </View>
+                                      <View style={styles.mealPlanItemInlineMeta}>
+                                      <Text style={styles.mealPlanItemMacroLine}>
+                                        P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
+                                      </Text>
+                                      <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
+                                    </View>
+                                  </View>
+                                ))}
+                              </View>
+                            ) : null}
                           </Pressable>
                         );
                       })}
@@ -4403,26 +4426,48 @@ export default function App(): ReactElement {
                 <View style={styles.foodList}>
                   {selectedMealPlanDay.slots.map((slot) => {
                     const logged = mealPlanEatenSlots[selectedMealPlanDay.id]?.[slot.id] ?? false;
+                    const slotItems = slot.items ?? [];
 
                     return (
                       <Pressable
                         key={slot.id}
-                        style={[styles.listRow, logged && styles.mealPlanLoggedRow]}
+                        style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
                         onPress={() => toggleMealPlanMeal(selectedMealPlanDay, slot.id, slot.meal_label)}
                       >
-                        <View style={styles.foodRowCopy}>
-                          <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                          <Text style={styles.listCaption}>{slot.title}</Text>
-                        </View>
-                        <View style={styles.foodRowActions}>
+                        <View style={styles.mealPlanSlotHeader}>
+                          <View style={styles.foodRowCopy}>
+                            <View style={styles.mealPlanSlotTitleRow}>
+                              <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                              <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
+                            </View>
+                            <Text style={styles.listCaption}>{slot.title}</Text>
+                          </View>
                           <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
                             <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
                               {logged ? '☑' : '☐'}
                             </Text>
                           </View>
-                          <Text style={styles.listMetric}>{slot.calories} kcal</Text>
-                          <Text style={styles.listCaption}>{slot.prep_status}</Text>
                         </View>
+                        {slotItems.length > 0 ? (
+                          <View style={styles.mealPlanItemList}>
+                              {slotItems.map((item, index) => (
+                                <View key={`${slot.id}-plan-item-${index}`} style={styles.mealPlanItemRow}>
+                                  <View style={styles.mealPlanItemCopy}>
+                                    <Text style={styles.mealPlanItemName}>
+                                      {item.name}
+                                      <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
+                                    </Text>
+                                  </View>
+                                  <View style={styles.mealPlanItemInlineMeta}>
+                                  <Text style={styles.mealPlanItemMacroLine}>
+                                    P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
+                                  </Text>
+                                  <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
                       </Pressable>
                     );
                   })}
@@ -5972,11 +6017,77 @@ const styles = StyleSheet.create({
   },
   dailyHomeMealPlanSlotCopy: {
     flex: 1,
-    gap: 2
+    gap: 8
   },
   dailyHomeMealPlanSlotMeta: {
     alignItems: 'flex-end',
     gap: 8
+  },
+  mealPlanSlotCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dfe7ef',
+    padding: 14,
+    gap: 10
+  },
+  mealPlanSlotHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  mealPlanSlotTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12
+  },
+  mealPlanSlotTotal: {
+    color: '#17324d',
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  mealPlanItemList: {
+    gap: 8,
+    marginTop: 4
+  },
+  mealPlanItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12
+  },
+  mealPlanItemCopy: {
+    flex: 1,
+    paddingRight: 12
+  },
+  mealPlanItemName: {
+    color: '#17324d',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  mealPlanItemQuantityInline: {
+    color: '#66778c',
+    fontSize: 13,
+    fontWeight: '500'
+  },
+  mealPlanItemInlineMeta: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap'
+  },
+  mealPlanItemMacroLine: {
+    color: '#66778c',
+    fontSize: 12,
+    textAlign: 'right'
+  },
+  mealPlanItemCalories: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '700'
   },
   macroSplitRingCard: {
     minWidth: 98,

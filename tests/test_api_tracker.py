@@ -46,12 +46,28 @@ async def test_tracker_persists_exercise_meal_plan_and_meal_prep(client):
                     "title": "Greek yogurt + berries",
                     "calories": 320,
                     "prep_status": "Prepped",
+                    "items": [
+                        {
+                            "name": "Greek yogurt",
+                            "quantity_label": "300 g",
+                            "calories": 177,
+                            "macros": {"protein": 31, "carbs": 11, "fat": 1},
+                        }
+                    ],
                 },
                 {
                     "meal_label": "Lunch",
                     "title": "Chicken rice bowl",
                     "calories": 610,
                     "prep_status": "Needs prep",
+                    "items": [
+                        {
+                            "name": "Chicken breast",
+                            "quantity_label": "170 g",
+                            "calories": 281,
+                            "macros": {"protein": 53, "carbs": 0, "fat": 6},
+                        }
+                    ],
                 },
             ],
         },
@@ -59,6 +75,7 @@ async def test_tracker_persists_exercise_meal_plan_and_meal_prep(client):
     assert meal_plan_response.status_code == 200
     meal_plan_day = meal_plan_response.json()
     assert len(meal_plan_day["slots"]) == 2
+    assert meal_plan_day["slots"][0]["items"][0]["name"] == "Greek yogurt"
 
     meal_plan_list_response = await client.get("/api/tracker/meal-plan", headers=headers)
     assert meal_plan_list_response.status_code == 200

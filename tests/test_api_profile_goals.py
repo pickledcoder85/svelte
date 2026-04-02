@@ -105,6 +105,8 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
         "Dinner",
     ]
     assert sum(slot["calories"] for slot in meal_plan_days[0]["slots"]) == onboarding_profile["initial_calorie_target"]
+    assert meal_plan_days[0]["slots"][0]["items"][0]["name"] == "Greek yogurt"
+    assert "quantity_label" in meal_plan_days[0]["slots"][0]["items"][0]
 
     update_response = await client.put(
         "/api/profile",

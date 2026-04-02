@@ -264,6 +264,15 @@ def seed_dev_data(database_url: str | None = None) -> dict[str, str]:
         logged_at="07:15",
         intensity="Moderate",
     )
+    repository.create_exercise_entry(
+        user_id=session.user_id,
+        title="Swim 2000m · 400m warmup · 4 x 50m drills · 10 x 100m steady · 400m cool-down",
+        duration_minutes=55,
+        calories_burned=520,
+        logged_on=date.today(),
+        logged_at="06:30",
+        intensity="High",
+    )
     repository.save_meal_plan_day(
         user_id=session.user_id,
         plan_date=date(2026, 3, 31),

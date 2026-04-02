@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.app.models.nutrition import MacroTargets
+
 
 class ExerciseEntryCreateRequest(BaseModel):
     title: str = Field(min_length=1)
@@ -19,11 +21,19 @@ class ExerciseEntry(ExerciseEntryCreateRequest):
     created_at: datetime | None = None
 
 
+class MealPlanSlotItem(BaseModel):
+    name: str = Field(min_length=1)
+    quantity_label: str = Field(min_length=1)
+    calories: int = Field(ge=0)
+    macros: MacroTargets
+
+
 class MealPlanSlotCreateRequest(BaseModel):
     meal_label: str = Field(min_length=1)
     title: str = Field(min_length=1)
     calories: int = Field(ge=0)
     prep_status: Literal["Prepped", "Needs prep", "Flexible"]
+    items: list[MealPlanSlotItem] = Field(default_factory=list)
 
 
 class MealPlanDayCreateRequest(BaseModel):

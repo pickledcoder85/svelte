@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS meal_plan_slots (
     meal_label TEXT NOT NULL,
     title TEXT NOT NULL,
     calories INTEGER NOT NULL,
+    items_json TEXT,
     eaten_at TEXT,
     prep_status TEXT NOT NULL,
     FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days (id) ON DELETE CASCADE

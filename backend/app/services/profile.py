@@ -37,23 +37,137 @@ def _seed_default_meal_plan_for_today(
         return
 
     slot_specs = [
-        ("Breakfast", "Greek yogurt + berries", "Prepped", 0.22),
-        ("Snack", "Apple + string cheese", "Flexible", 0.10),
-        ("Lunch", "Chicken rice bowl", "Needs prep", 0.30),
-        ("Snack", "Protein shake", "Flexible", 0.10),
-        ("Dinner", "Salmon + potato + broccoli", "Needs prep", 0.28),
+        {
+            "meal_label": "Breakfast",
+            "title": "Greek yogurt + berries",
+            "prep_status": "Prepped",
+            "ratio": 0.22,
+            "items": [
+                {
+                    "name": "Greek yogurt",
+                    "quantity_label": "300 g",
+                    "calories": 177,
+                    "macros": {"protein": 30.9, "carbs": 10.8, "fat": 1.2},
+                },
+                {
+                    "name": "Blueberries",
+                    "quantity_label": "140 g",
+                    "calories": 80,
+                    "macros": {"protein": 1.0, "carbs": 20.3, "fat": 0.4},
+                },
+                {
+                    "name": "Chia seeds",
+                    "quantity_label": "20 g",
+                    "calories": 97,
+                    "macros": {"protein": 3.3, "carbs": 8.4, "fat": 6.1},
+                },
+            ],
+        },
+        {
+            "meal_label": "Snack",
+            "title": "Apple + string cheese",
+            "prep_status": "Flexible",
+            "ratio": 0.10,
+            "items": [
+                {
+                    "name": "Apple",
+                    "quantity_label": "1 medium",
+                    "calories": 95,
+                    "macros": {"protein": 0.5, "carbs": 25.0, "fat": 0.3},
+                },
+                {
+                    "name": "String cheese",
+                    "quantity_label": "1 stick",
+                    "calories": 80,
+                    "macros": {"protein": 7.0, "carbs": 1.0, "fat": 6.0},
+                },
+            ],
+        },
+        {
+            "meal_label": "Lunch",
+            "title": "Chicken rice bowl",
+            "prep_status": "Needs prep",
+            "ratio": 0.30,
+            "items": [
+                {
+                    "name": "Chicken breast",
+                    "quantity_label": "170 g",
+                    "calories": 281,
+                    "macros": {"protein": 52.7, "carbs": 0.0, "fat": 6.1},
+                },
+                {
+                    "name": "Cooked rice",
+                    "quantity_label": "250 g",
+                    "calories": 325,
+                    "macros": {"protein": 6.8, "carbs": 70.5, "fat": 0.8},
+                },
+                {
+                    "name": "Broccoli",
+                    "quantity_label": "120 g",
+                    "calories": 41,
+                    "macros": {"protein": 3.4, "carbs": 7.9, "fat": 0.5},
+                },
+            ],
+        },
+        {
+            "meal_label": "Snack",
+            "title": "Protein shake",
+            "prep_status": "Flexible",
+            "ratio": 0.10,
+            "items": [
+                {
+                    "name": "Whey protein",
+                    "quantity_label": "1 scoop",
+                    "calories": 120,
+                    "macros": {"protein": 24.0, "carbs": 3.0, "fat": 1.5},
+                },
+                {
+                    "name": "Banana",
+                    "quantity_label": "1 small",
+                    "calories": 90,
+                    "macros": {"protein": 1.1, "carbs": 23.0, "fat": 0.3},
+                },
+            ],
+        },
+        {
+            "meal_label": "Dinner",
+            "title": "Salmon + potato + broccoli",
+            "prep_status": "Needs prep",
+            "ratio": 0.28,
+            "items": [
+                {
+                    "name": "Salmon",
+                    "quantity_label": "170 g",
+                    "calories": 354,
+                    "macros": {"protein": 37.4, "carbs": 0.0, "fat": 22.1},
+                },
+                {
+                    "name": "Roasted potato",
+                    "quantity_label": "250 g",
+                    "calories": 232,
+                    "macros": {"protein": 5.0, "carbs": 52.0, "fat": 0.3},
+                },
+                {
+                    "name": "Broccoli",
+                    "quantity_label": "150 g",
+                    "calories": 51,
+                    "macros": {"protein": 4.2, "carbs": 9.9, "fat": 0.6},
+                },
+            ],
+        },
     ]
-    rounded = [round(calorie_target * ratio) for _, _, _, ratio in slot_specs]
+    rounded = [round(calorie_target * spec["ratio"]) for spec in slot_specs]
     adjustment = calorie_target - sum(rounded)
     rounded[-1] += adjustment
     slots = [
         {
-            "meal_label": meal_label,
-            "title": title,
+            "meal_label": spec["meal_label"],
+            "title": spec["title"],
             "calories": max(int(calories), 0),
-            "prep_status": prep_status,
+            "prep_status": spec["prep_status"],
+            "items": spec["items"],
         }
-        for (meal_label, title, prep_status, _), calories in zip(slot_specs, rounded, strict=False)
+        for spec, calories in zip(slot_specs, rounded, strict=False)
     ]
     repository.save_meal_plan_day(
         user_id=user_id,
