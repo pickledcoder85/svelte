@@ -175,6 +175,14 @@ Recommended additions:
 - stronger linkage from accepted ingestion outputs to created food items
 - optional source-asset references for original package and label images
 - explicit provenance fields for foods created from camera ingestion
+- split persistence between a user-scoped foodbank and a curated global food catalog instead of treating `food_catalog` as one shared bucket
+
+Recommended persistence rules:
+
+- camera-ingested foods should save into the current user's foodbank first
+- manual or custom food entry should remain user-scoped only and should not write directly into the global nutrition catalog
+- USDA foods can remain global
+- camera-ingested foods should only promote into the global catalog after later duplicate-detection, normalization, and confidence checks
 
 ## API direction
 

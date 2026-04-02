@@ -5,7 +5,10 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-nativ
 
 import type { DashboardRange, DashboardTrendPoint } from '../../types';
 
+const intradayAxisTicks = ['12a', '6a', '12p', '6p', '12a'];
+
 export function DashboardHeroChart({
+  controls,
   detail,
   legendLabel,
   points,
@@ -14,6 +17,7 @@ export function DashboardHeroChart({
   targetValue,
   title
 }: {
+  controls?: ReactElement | null;
   detail: string;
   legendLabel: string;
   points: DashboardTrendPoint[];
@@ -47,13 +51,15 @@ export function DashboardHeroChart({
       .join(' ');
     const areaPath = `${linePath} L ${nodes.at(-1)?.x ?? padding.left} ${chartHeight - padding.bottom} L ${nodes[0]?.x ?? padding.left} ${chartHeight - padding.bottom} Z`;
     const targetY = padding.top + (1 - targetValue / peak) * plotHeight;
+    const targetLinePath = `M ${padding.left} ${targetY} L ${width - padding.right} ${targetY}`;
     const gridValues = [0, 0.33, 0.66, 1].map((value) => {
       const y = padding.top + (1 - value) * plotHeight;
       const label = Math.round(peak * value);
       return { y, label };
     });
+    const majorXValues = nodes.map((point) => point.x);
 
-    return { areaPath, gridValues, linePath, nodes, targetY };
+    return { areaPath, gridValues, linePath, majorXValues, nodes, targetLinePath, targetY };
   }, [chartHeight, padding.bottom, padding.left, padding.right, padding.top, points, targetValue, width]);
 
   function handleLayout(event: LayoutChangeEvent) {
@@ -63,9 +69,9 @@ export function DashboardHeroChart({
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>Overview</Text>
+        <View style={styles.headerRow}>
           <Text style={styles.title}>{title}</Text>
+          {controls}
         </View>
         <View style={styles.headerMeta}>
           <Text style={styles.detail}>{detail}</Text>
@@ -105,17 +111,29 @@ export function DashboardHeroChart({
               />
             ))}
 
-            <Line
-              x1={padding.left}
-              x2={width - padding.right}
-              y1={geometry.targetY}
-              y2={geometry.targetY}
+            <Path
+              d={geometry.targetLinePath}
+              fill="none"
               stroke="#8ea0b6"
               strokeDasharray="6 6"
               strokeWidth="1.5"
             />
 
             <Path d={geometry.areaPath} fill="url(#heroArea)" />
+
+            {geometry.majorXValues.map((x, index) => (
+              <Line
+                key={`major-x-${index}-${x}`}
+                x1={x}
+                x2={x}
+                y1={padding.top}
+                y2={chartHeight - padding.bottom}
+                stroke="#dce5ef"
+                strokeDasharray="4 6"
+                strokeWidth="1"
+              />
+            ))}
+
             <Path d={geometry.linePath} fill="none" stroke="#132536" strokeWidth="3" />
 
             {geometry.nodes.map((point) => (
@@ -134,18 +152,29 @@ export function DashboardHeroChart({
       </View>
 
       <View style={styles.footer}>
-        <View style={styles.labelRow}>
-          {points.map((point) => (
-            <View key={point.label} style={styles.labelItem}>
-              <Text style={styles.labelValue}>{point.calories}</Text>
-              <Text style={styles.labelCaption}>{point.label}</Text>
-            </View>
-          ))}
-        </View>
-        <Text style={styles.caption}>{targetLabel}: {targetValue.toLocaleString()}</Text>
         {range === '1D' ? (
-          <Text style={styles.caption}>Intraday event plotting will replace this placeholder once meal and exercise timestamps are modeled end to end.</Text>
-        ) : null}
+          <View
+            style={[
+              styles.labelRow,
+              { paddingLeft: padding.left, paddingRight: padding.right }
+            ]}>
+            {intradayAxisTicks.map((tick) => (
+              <View key={tick} style={styles.labelItem}>
+                <Text style={styles.labelCaption}>{tick}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.labelRow}>
+            {points.map((point) => (
+              <View key={point.label} style={styles.labelItem}>
+                <Text style={styles.labelValue}>{point.calories}</Text>
+                <Text style={styles.labelCaption}>{point.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <Text style={styles.caption}>{targetLabel}: {targetValue.toLocaleString()}</Text>
       </View>
     </View>
   );
@@ -163,17 +192,15 @@ const styles = StyleSheet.create({
   header: {
     gap: 8
   },
-  headerCopy: {
-    gap: 4
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap'
   },
   headerMeta: {
     gap: 10
-  },
-  eyebrow: {
-    color: '#0f766e',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1
   },
   title: {
     color: '#132536',

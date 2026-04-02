@@ -66,6 +66,15 @@ async def test_tracker_persists_exercise_meal_plan_and_meal_prep(client):
     assert len(meal_plan_days) == 1
     assert meal_plan_days[0]["id"] == meal_plan_day["id"]
 
+    slot_update_response = await client.patch(
+        f"/api/tracker/meal-plan/slots/{meal_plan_day['slots'][0]['id']}",
+        headers=headers,
+        json={"eaten_at": "2026-03-31T07:30:00"},
+    )
+    assert slot_update_response.status_code == 200
+    updated_day = slot_update_response.json()
+    assert updated_day["slots"][0]["eaten_at"] == "2026-03-31T07:30:00"
+
     meal_prep_response = await client.post(
         "/api/tracker/meal-prep",
         headers=headers,

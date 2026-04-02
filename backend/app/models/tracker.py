@@ -37,6 +37,11 @@ class MealPlanSlot(MealPlanSlotCreateRequest):
     id: str
     meal_plan_day_id: str
     position: int
+    eaten_at: datetime | None = None
+
+
+class MealPlanSlotEatenAtUpdateRequest(BaseModel):
+    eaten_at: datetime | None = None
 
 
 class MealPlanDay(MealPlanDayCreateRequest):

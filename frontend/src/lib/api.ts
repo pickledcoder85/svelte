@@ -556,7 +556,7 @@ interface MealPlanDayCreatePayload {
   plan_date: string;
   label: string;
   focus: string;
-  slots: Array<Pick<MealPlanSlot, 'meal_label' | 'title' | 'calories' | 'prep_status'>>;
+  slots: Array<Pick<MealPlanSlot, 'meal_label' | 'title' | 'calories' | 'prep_status' | 'eaten_at'>>;
 }
 
 interface MealPrepTaskCreatePayload {
@@ -611,6 +611,23 @@ export async function createMealPlanDay(
         ...authHeaders(accessToken)
       },
       body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function updateMealPlanSlotEatenAt(
+  slotId: string,
+  eatenAt: string | null,
+  accessToken: string
+): Promise<MealPlanDay> {
+  return readJson<MealPlanDay>(
+    await fetch(buildApiUrl(`/tracker/meal-plan/slots/${slotId}`), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ eaten_at: eatenAt })
     })
   );
 }

@@ -14,9 +14,14 @@ The format should remain simple:
 
 - Post-Phase-1 planning is now focused on calculation-engine consolidation, adaptive-maintenance groundwork, and premium agent-ready plan infrastructure.
 - Structured exercise-estimation, versioned target generation, and richer target-source persistence remain planned and documented.
+- Camera-food persistence should move toward a user-scoped foodbank plus a curated global catalog, with manual entry staying user-only and camera ingestion promoting globally only after later quality checks.
+- The `Home` calorie chart should later support draggable consumed meal points so a checked meal can be re-timestamped in 30-minute increments when the user logs it after the fact.
 
 ### Added
 
+- First-run onboarding now seeds a default meal plan for today with `Breakfast`, `Snack`, `Lunch`, `Snack`, and `Dinner` slots sized to the generated daily calorie target.
+- Local development seed data now includes reusable demo recipes with ingredients, steps, and favorite state so the Recipes surface has realistic content during manual testing.
+- Daily-home helper logic and tests for today-target, exercise, and meal-plan summaries so the new landing state stays deterministic.
 - Documented the intended production entry funnel as `welcome -> auth -> verification -> setup -> daily home` so future landing/auth work stays aligned.
 - Product branding direction is now `Relish`, with `Gherkin` reserved for the mascot and future assistant/agent identity.
 - Guided first-time profile setup flow with step cards for body basics, goal selection, goal style, activity, dietary pattern, nutrition style, allergies, and review.
@@ -53,6 +58,8 @@ The format should remain simple:
 
 ### Changed
 
+- The `Home` surface now centers on a visual daily-plan flow with combined calories/macros summary, a target-versus-consumed calorie chart, full-width planned-exercise and meal-plan sections, and meal-plan check actions that update consumed calories in place.
+- The primary `Dashboard` section is now a simpler `Home` screen centered on today’s calorie target, macro split, primary actions, exercise, and meal-plan progress instead of the previous chart-heavy overview.
 - The browser/phone entry experience is moving toward a lightweight welcome-first screen with a clearer primary `get started` path and a secondary demo path instead of dev-heavy wording.
 - Profile setup now supports goal pace, dietary pattern, nutrition style, and allergy notes, and calorie targets now respect loss/gain pace choices instead of one fixed adjustment.
 - Generated onboarding and profile-recalculation targets now flow through a single structured calculation result instead of separate loose tuples in the profile service.

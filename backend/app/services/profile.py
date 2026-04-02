@@ -25,6 +25,45 @@ class OnboardingAlreadyCompletedError(RuntimeError):
     pass
 
 
+def _seed_default_meal_plan_for_today(
+    repository: SQLiteRepository,
+    *,
+    user_id: str,
+    calorie_target: int,
+) -> None:
+    today = date.today()
+    existing_days = repository.list_meal_plan_days(user_id)
+    if any(day.get("plan_date") == today.isoformat() for day in existing_days):
+        return
+
+    slot_specs = [
+        ("Breakfast", "Greek yogurt + berries", "Prepped", 0.22),
+        ("Snack", "Apple + string cheese", "Flexible", 0.10),
+        ("Lunch", "Chicken rice bowl", "Needs prep", 0.30),
+        ("Snack", "Protein shake", "Flexible", 0.10),
+        ("Dinner", "Salmon + potato + broccoli", "Needs prep", 0.28),
+    ]
+    rounded = [round(calorie_target * ratio) for _, _, _, ratio in slot_specs]
+    adjustment = calorie_target - sum(rounded)
+    rounded[-1] += adjustment
+    slots = [
+        {
+            "meal_label": meal_label,
+            "title": title,
+            "calories": max(int(calories), 0),
+            "prep_status": prep_status,
+        }
+        for (meal_label, title, prep_status, _), calories in zip(slot_specs, rounded, strict=False)
+    ]
+    repository.save_meal_plan_day(
+        user_id=user_id,
+        plan_date=today,
+        label=today.strftime("%a"),
+        focus="Daily plan",
+        slots=slots,
+    )
+
+
 def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> UserProfile:
     repository.save_user_identity(
         user_id=session.user_id,
@@ -96,6 +135,11 @@ def complete_user_onboarding(
         calculation_version=targets.calculation_version,
         target_source=targets.target_source,
         target_weight_lbs=payload.target_weight_lbs,
+    )
+    _seed_default_meal_plan_for_today(
+        repository,
+        user_id=session.user_id,
+        calorie_target=targets.calorie_target,
     )
     if profile is None:
         raise RuntimeError("Failed to persist onboarding profile.")

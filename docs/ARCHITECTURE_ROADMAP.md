@@ -93,7 +93,7 @@ Current status:
 - package-front scans, nutrition-label scans, and accepted save flows are persisted through the ingestion pipeline
 - the phone UX now uses a single camera session for package-first capture, optional label capture, review, and save
 - multi-variant nutrition labels now save one food per detected variant, and package-only scans can fall back to USDA lookup when nutrition is missing
-- the next ingestion work should focus on extraction-quality tuning, duplicate-detection refinement, and richer post-save actions rather than more scaffolding
+- the next ingestion work should focus on extraction-quality tuning, duplicate-detection refinement, richer post-save actions, and splitting the current shared food persistence into a user foodbank plus a curated global catalog
 
 ### Phase 2.5: calculation engine and adaptive planning
 
@@ -126,6 +126,7 @@ Current status:
 
 - Expo browser and iPhone preview are working locally
 - native packaging, signing, and release workflow are not started yet
+- the current `Home` chart now uses persisted meal-plan `eaten_at` timestamps for checked meals, and the next interaction step should allow those consumed meal points to be dragged in 30-minute increments when the user needs to correct when a meal was eaten
 
 ## Recommended implementation order
 

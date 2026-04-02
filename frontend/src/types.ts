@@ -256,6 +256,7 @@ export interface MealPlanSlot {
   meal_label: string;
   title: string;
   calories: number;
+  eaten_at?: string | null;
   prep_status: 'Prepped' | 'Needs prep' | 'Flexible';
 }
 
