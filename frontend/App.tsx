@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -6,6 +7,7 @@ import {
   type DimensionValue,
   Image,
   type ImageSourcePropType,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   SafeAreaView,
@@ -117,6 +119,18 @@ const mascotWeightsImage = require('./assets/weights.png');
 const mascotBikeImage = require('./assets/bike.png');
 const mascotRunImage = require('./assets/run.png');
 const mascotSwimImage = require('./assets/swim.png');
+const RELISH_COLORS = {
+  canvas: '#f6f1e7',
+  surface: '#fffdf8',
+  text: '#163127',
+  muted: '#63776a',
+  primary: '#4b8d66',
+  primaryDeep: '#2d6046',
+  primarySoft: '#e8f3ec',
+  accent: '#ea9d2d',
+  accentSoft: '#fff3de',
+  stroke: '#d7e0d7'
+} as const;
 const exercisePresets: Array<{
   id: 'weights' | 'bike' | 'run' | 'swim';
   label: string;
@@ -158,6 +172,92 @@ const exercisePresets: Array<{
     image: mascotSwimImage
   }
 ];
+type GoalPace = 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive';
+type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
+type NutritionStyle = 'balanced' | 'keto' | 'mediterranean';
+type AllergyChoice = 'none' | 'milk' | 'egg' | 'peanut' | 'tree_nuts' | 'wheat' | 'shellfish' | 'other';
+type OnboardingStep = 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
+
+const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
+  { id: 'basics', label: 'Basics' },
+  { id: 'goal', label: 'Goal' },
+  { id: 'pace', label: 'Style' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'diet', label: 'Diet' },
+  { id: 'style', label: 'Nutrition style' },
+  { id: 'allergies', label: 'Allergies' },
+  { id: 'review', label: 'Review' }
+];
+
+const dietaryPatternOptions: Array<{
+  id: DietaryPattern;
+  title: string;
+  accent: string;
+  subtitle: string;
+  mark: string;
+}> = [
+  { id: 'vegan', title: 'Vegan', accent: '#0f766e', subtitle: 'Plants only', mark: 'Leaf' },
+  { id: 'vegetarian', title: 'Vegetarian', accent: '#65a30d', subtitle: 'No meat or fish', mark: 'Garden' },
+  { id: 'pescatarian', title: 'Pescatarian', accent: '#0284c7', subtitle: 'Fish, dairy, and plants', mark: 'Fish' },
+  { id: 'omnivore', title: 'Omnivore', accent: '#17324d', subtitle: 'Balanced mixed diet', mark: 'Plate' },
+  { id: 'carnivore', title: 'Carnivore', accent: '#b45309', subtitle: 'Animal-based focus', mark: 'Steak' }
+];
+
+const nutritionStyleOptions: Array<{
+  id: NutritionStyle;
+  title: string;
+  accent: string;
+  subtitle: string;
+  mark: string;
+}> = [
+  { id: 'balanced', title: 'Balanced', accent: '#17324d', subtitle: 'Flexible mixed approach', mark: 'Plate' },
+  { id: 'keto', title: 'Keto', accent: '#2563eb', subtitle: 'Very low carb, higher fat', mark: 'Keto' },
+  {
+    id: 'mediterranean',
+    title: 'Mediterranean',
+    accent: '#0f766e',
+    subtitle: 'Whole foods, olive oil, fish, plants',
+    mark: 'Med'
+  }
+];
+
+const allergyOptions: Array<{
+  id: AllergyChoice;
+  title: string;
+  accent: string;
+  subtitle: string;
+  mark: string;
+}> = [
+  { id: 'none', title: 'None', accent: '#64748b', subtitle: 'No major food allergies', mark: 'None' },
+  { id: 'milk', title: 'Milk', accent: '#2563eb', subtitle: 'Avoid dairy milk proteins', mark: 'Milk' },
+  { id: 'egg', title: 'Egg', accent: '#f59e0b', subtitle: 'Avoid eggs and egg ingredients', mark: 'Egg' },
+  { id: 'peanut', title: 'Peanut', accent: '#b45309', subtitle: 'Avoid peanuts', mark: 'Nut' },
+  { id: 'tree_nuts', title: 'Tree nuts', accent: '#7c3aed', subtitle: 'Avoid almonds, cashews, walnuts', mark: 'Tree' },
+  { id: 'wheat', title: 'Wheat', accent: '#ca8a04', subtitle: 'Avoid wheat-based foods', mark: 'Wheat' },
+  { id: 'shellfish', title: 'Shellfish', accent: '#0f766e', subtitle: 'Avoid shrimp, crab, lobster', mark: 'Shell' },
+  { id: 'other', title: 'Other', accent: '#17324d', subtitle: 'Add a custom restriction', mark: 'Other' }
+];
+
+const allergyLabels: Record<Exclude<AllergyChoice, 'none' | 'other'>, string> = {
+  milk: 'Milk',
+  egg: 'Egg',
+  peanut: 'Peanut',
+  tree_nuts: 'Tree nuts',
+  wheat: 'Wheat',
+  shellfish: 'Shellfish'
+};
+
+const activityLevelCards: Array<{
+  id: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
+  title: string;
+  subtitle: string;
+}> = [
+  { id: 'sedentary', title: 'Sedentary', subtitle: 'Mostly sitting, driving, or desk time' },
+  { id: 'light', title: 'Light', subtitle: 'Some walking and light day-to-day movement' },
+  { id: 'moderate', title: 'Moderate', subtitle: 'Regular movement and time on your feet' },
+  { id: 'very_active', title: 'Very active', subtitle: 'High daily movement, walking, or physical work' },
+  { id: 'extra_active', title: 'Extra active', subtitle: 'Very high daily movement most days' }
+];
 
 function toneColor(tone: 'checking' | 'live'): string {
   if (tone === 'live') {
@@ -177,6 +277,74 @@ function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | und
     return 'Maintenance';
   }
   return '—';
+}
+
+function parseAllergySelection(notes: string | null | undefined): {
+  selected: AllergyChoice[];
+  otherText: string;
+} {
+  const value = notes?.trim();
+  if (!value) {
+    return { selected: ['none'], otherText: '' };
+  }
+
+  const normalized = value.toLowerCase();
+  const selected: AllergyChoice[] = [];
+
+  (Object.entries(allergyLabels) as Array<[Exclude<AllergyChoice, 'none' | 'other'>, string]>).forEach(
+    ([id, label]) => {
+      if (normalized.includes(label.toLowerCase())) {
+        selected.push(id);
+      }
+    }
+  );
+
+  const otherMatch = value.match(/Other:\s*(.+)$/i);
+  const otherText = otherMatch?.[1]?.trim() ?? '';
+  if (otherText) {
+    selected.push('other');
+  }
+
+  if (selected.length === 0) {
+    return { selected: ['other'], otherText: value };
+  }
+
+  return { selected, otherText };
+}
+
+function formatAllergySelection(selected: AllergyChoice[], otherText: string): string | null {
+  if (selected.length === 0 || selected.includes('none')) {
+    return null;
+  }
+
+  const labels = selected
+    .filter((value): value is Exclude<AllergyChoice, 'none' | 'other'> => value !== 'none' && value !== 'other')
+    .map((value) => allergyLabels[value]);
+
+  if (selected.includes('other') && otherText.trim()) {
+    labels.push(`Other: ${otherText.trim()}`);
+  }
+
+  return labels.length > 0 ? labels.join('; ') : null;
+}
+
+function formatGoalPaceLabel(goalType: 'lose' | 'maintain' | 'gain', goalPace: GoalPace | null): string {
+  if (goalType === 'maintain') {
+    return 'Steady maintenance';
+  }
+  if (goalType === 'lose') {
+    if (goalPace === 'light') {
+      return 'Light cut · -350 kcal';
+    }
+    if (goalPace === 'extreme') {
+      return 'Extreme cut · -1000 kcal';
+    }
+    return 'Recommended cut · -500 kcal';
+  }
+  if (goalPace === 'aggressive') {
+    return 'Aggressive gain · +500 kcal';
+  }
+  return 'Lean gain · +200 kcal';
 }
 
 function splitHeightCm(heightCm: number | null | undefined): { feet: string; inches: string } {
@@ -267,10 +435,15 @@ function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
 }
 
 export default function App(): ReactElement {
+  const [ribeyeLoaded] = useRibeyeFonts({
+    Ribeye_400Regular
+  });
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
+  const [entryIntent, setEntryIntent] = useState<'signup' | 'signin' | null>(null);
   const [entryEmailDraft, setEntryEmailDraft] = useState('dev@example.com');
   const [entryDisplayNameDraft, setEntryDisplayNameDraft] = useState('Local Dev User');
   const [entryLoading, setEntryLoading] = useState(false);
+  const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
   const [entryError, setEntryError] = useState<string | null>(null);
   const [entryBackendTone, setEntryBackendTone] = useState<'checking' | 'live'>('checking');
   const [entryBackendStatus, setEntryBackendStatus] = useState('Checking backend reachability');
@@ -326,10 +499,16 @@ export default function App(): ReactElement {
   const [onboardingHeightInchesDraft, setOnboardingHeightInchesDraft] = useState('10');
   const [onboardingCurrentWeightDraft, setOnboardingCurrentWeightDraft] = useState('180');
   const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
+  const [onboardingGoalPaceDraft, setOnboardingGoalPaceDraft] = useState<GoalPace>('recommended');
   const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('170');
   const [onboardingActivityLevelDraft, setOnboardingActivityLevelDraft] = useState<
     'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active'
   >('moderate');
+  const [onboardingDietaryPatternDraft, setOnboardingDietaryPatternDraft] = useState<DietaryPattern>('omnivore');
+  const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle>('balanced');
+  const [onboardingAllergySelectionsDraft, setOnboardingAllergySelectionsDraft] = useState<AllergyChoice[]>(['none']);
+  const [onboardingAllergyOtherDraft, setOnboardingAllergyOtherDraft] = useState('');
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('basics');
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
@@ -343,6 +522,49 @@ export default function App(): ReactElement {
   useEffect(() => {
     setIsShellMenuOpen(false);
   }, [section, entryMode]);
+
+  useEffect(() => {
+    if (onboardingGoalTypeDraft === 'maintain') {
+      return;
+    }
+    if (onboardingGoalTypeDraft === 'lose' && !['light', 'recommended', 'extreme'].includes(onboardingGoalPaceDraft)) {
+      setOnboardingGoalPaceDraft('recommended');
+    }
+    if (onboardingGoalTypeDraft === 'gain' && !['lean', 'aggressive'].includes(onboardingGoalPaceDraft)) {
+      setOnboardingGoalPaceDraft('lean');
+    }
+  }, [onboardingGoalTypeDraft, onboardingGoalPaceDraft]);
+
+  function toggleOnboardingAllergy(choice: AllergyChoice) {
+    setOnboardingAllergySelectionsDraft((current) => {
+      if (choice === 'none') {
+        setOnboardingAllergyOtherDraft('');
+        return ['none'];
+      }
+
+      const withoutNone = current.filter((value) => value !== 'none');
+      if (withoutNone.includes(choice)) {
+        const next = withoutNone.filter((value) => value !== choice);
+        if (choice === 'other') {
+          setOnboardingAllergyOtherDraft('');
+        }
+        return next.length > 0 ? next : ['none'];
+      }
+
+      return [...withoutNone, choice];
+    });
+  }
+
+  function skipAllergyStep() {
+    setOnboardingAllergySelectionsDraft(['none']);
+    setOnboardingAllergyOtherDraft('');
+    setOnboardingError(null);
+    const currentIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
+    const nextStep = onboardingSteps[currentIndex + 1];
+    if (nextStep) {
+      setOnboardingStep(nextStep.id);
+    }
+  }
   const [logFoodDraft, setLogFoodDraft] = useState('chicken');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
@@ -402,8 +624,14 @@ export default function App(): ReactElement {
     setOnboardingHeightInchesDraft('10');
     setOnboardingCurrentWeightDraft('180');
     setOnboardingGoalTypeDraft('lose');
+    setOnboardingGoalPaceDraft('recommended');
     setOnboardingTargetWeightDraft('170');
     setOnboardingActivityLevelDraft('moderate');
+    setOnboardingDietaryPatternDraft('omnivore');
+    setOnboardingNutritionStyleDraft('balanced');
+    setOnboardingAllergySelectionsDraft(['none']);
+    setOnboardingAllergyOtherDraft('');
+    setOnboardingStep('basics');
   }
 
   function applyProfileDrafts(loadedProfile: UserProfile, goals: UserGoal[] = []) {
@@ -425,12 +653,21 @@ export default function App(): ReactElement {
         : '180'
     );
     setOnboardingGoalTypeDraft(loadedProfile.goal_type ?? 'lose');
+    setOnboardingGoalPaceDraft(
+      loadedProfile.goal_pace ?? (loadedProfile.goal_type === 'gain' ? 'lean' : 'recommended')
+    );
     setOnboardingTargetWeightDraft(
       loadedProfile.target_weight_lbs !== null && loadedProfile.target_weight_lbs !== undefined
         ? String(loadedProfile.target_weight_lbs)
         : ''
     );
     setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'moderate');
+    setOnboardingDietaryPatternDraft(loadedProfile.dietary_pattern ?? 'omnivore');
+    setOnboardingNutritionStyleDraft(loadedProfile.nutrition_style ?? 'balanced');
+    const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
+    setOnboardingAllergySelectionsDraft(parsedAllergies.selected);
+    setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
+    setOnboardingStep('basics');
 
     const latestGoal = goals[0];
     if (latestGoal) {
@@ -1048,22 +1285,39 @@ export default function App(): ReactElement {
 
   async function enterLiveMode() {
     const email = entryEmailDraft.trim().toLowerCase();
-    const displayName = entryDisplayNameDraft.trim();
+    const fallbackDisplayName =
+      email.split('@')[0]?.trim().replace(/[._-]+/g, ' ') || 'Local User';
+    const displayName = entryIntent === 'signin' ? (entryDisplayNameDraft.trim() || fallbackDisplayName) : entryDisplayNameDraft.trim();
 
-    if (!email || !displayName) {
-      setEntryError('Enter an email and display name before creating a local profile session.');
+    if (!email || (entryIntent !== 'signin' && !displayName)) {
+      setEntryEmailError(
+        entryIntent === 'signin'
+          ? 'Enter your email before continuing.'
+          : 'Enter an email and display name before creating a local profile session.'
+      );
+      setEntryError(null);
       return;
     }
 
     setEntryLoading(true);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
 
     try {
-      const session = await createLocalSession(email, displayName);
+      const session = await createLocalSession(email, displayName, entryIntent ?? 'signup');
       setFoodSessionToken(session.access_token);
       setEntryMode('live');
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (
+        message.includes('That email already has a profile. Sign in instead.') ||
+        message.includes('No profile found for that email. Sign up instead.')
+      ) {
+        setEntryEmailError(message);
+        setEntryError(null);
+        return;
+      }
       const fallbackMessage = `Unable to create a local profile session via ${getApiBaseUrl()}. Start the backend or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`;
       setEntryError(error instanceof Error ? `${error.message} ${fallbackMessage}` : fallbackMessage);
     } finally {
@@ -1073,26 +1327,32 @@ export default function App(): ReactElement {
 
   function enterPreviewMode() {
     setFoodSessionToken(null);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
+    setEntryIntent(null);
     setEntryMode('preview');
   }
 
   function returnToEntryScreen() {
     setFoodSessionToken(null);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
+    setEntryIntent(null);
     setEntryMode(null);
   }
 
   function logoutToEntryScreen() {
     setFoodSessionToken(null);
+    setEntryEmailError(null);
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
     setIsShellMenuOpen(false);
+    setEntryIntent(null);
     setEntryMode(null);
     setEntryBackendStatus('Ready to create a new local profile session');
     setEntryBackendDetail(`Using ${getApiBaseUrl()}`);
@@ -1491,7 +1751,6 @@ export default function App(): ReactElement {
     const feet = Number(onboardingHeightFeetDraft);
     const inches = Number(onboardingHeightInchesDraft);
     const current_weight_lbs = Number(onboardingCurrentWeightDraft);
-    const target_weight_lbs = Number(onboardingTargetWeightDraft);
 
     if (
       !Number.isFinite(age_years) ||
@@ -1501,12 +1760,10 @@ export default function App(): ReactElement {
       !Number.isFinite(inches) ||
       inches < 0 ||
       !Number.isFinite(current_weight_lbs) ||
-      current_weight_lbs <= 0 ||
-      !Number.isFinite(target_weight_lbs) ||
-      target_weight_lbs <= 0
+      current_weight_lbs <= 0
     ) {
       setOnboardingStatus('Could not save onboarding');
-      setOnboardingError('Enter a valid age, height, weight, and target weight before continuing.');
+      setOnboardingError('Enter a valid age, height, and weight before continuing.');
       return;
     }
 
@@ -1517,6 +1774,7 @@ export default function App(): ReactElement {
     }
 
     const height_cm = round1(((feet * 12 + inches) * 2.54));
+    const allergy_notes = formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft);
 
     setOnboardingSaving(true);
     setOnboardingStatus('Saving your first-run setup');
@@ -1530,8 +1788,12 @@ export default function App(): ReactElement {
           height_cm,
           current_weight_lbs: round1(current_weight_lbs),
           goal_type: onboardingGoalTypeDraft,
-          target_weight_lbs: round1(target_weight_lbs),
-          activity_level: onboardingActivityLevelDraft
+          goal_pace: onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft,
+          target_weight_lbs: null,
+          activity_level: onboardingActivityLevelDraft,
+          dietary_pattern: onboardingDietaryPatternDraft,
+          nutrition_style: onboardingNutritionStyleDraft,
+          allergy_notes
         },
         foodSessionToken
       );
@@ -1554,6 +1816,7 @@ export default function App(): ReactElement {
       setProfileTone('live');
       setProfileStatus('Onboarding completed');
       setOnboardingStatus('Setup complete. Opening the app...');
+      setOnboardingStep('review');
       setSection('dashboard');
     } catch (error) {
       setOnboardingStatus('Could not save onboarding');
@@ -1694,8 +1957,12 @@ export default function App(): ReactElement {
       height_cm,
       current_weight_lbs: round1(current_weight_lbs),
       goal_type: onboardingGoalTypeDraft,
+      goal_pace: onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft,
       target_weight_lbs: target_weight_lbs === null ? null : round1(target_weight_lbs),
-      activity_level: onboardingActivityLevelDraft
+      activity_level: onboardingActivityLevelDraft,
+      dietary_pattern: onboardingDietaryPatternDraft,
+      nutrition_style: onboardingNutritionStyleDraft,
+      allergy_notes: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)
     } satisfies Parameters<typeof updateProfile>[0];
 
     setProfileSaving(true);
@@ -1725,6 +1992,73 @@ export default function App(): ReactElement {
       setProfileError(error instanceof Error ? error.message : 'Unable to save profile settings.');
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  function validateOnboardingStep(step: OnboardingStep): string | null {
+    if (step === 'basics') {
+      const age_years = Number(onboardingAgeDraft);
+      const feet = Number(onboardingHeightFeetDraft);
+      const inches = Number(onboardingHeightInchesDraft);
+      const current_weight_lbs = Number(onboardingCurrentWeightDraft);
+
+      if (
+        !Number.isFinite(age_years) ||
+        age_years <= 0 ||
+        !Number.isFinite(feet) ||
+        feet <= 0 ||
+        !Number.isFinite(inches) ||
+        inches < 0 ||
+        !Number.isFinite(current_weight_lbs) ||
+        current_weight_lbs <= 0
+      ) {
+        return 'Enter valid body details before continuing.';
+      }
+    }
+
+    if (step === 'goal') {
+      return null;
+    }
+
+    if (step === 'diet' && !onboardingDietaryPatternDraft) {
+      return 'Choose a dietary pattern before continuing.';
+    }
+
+    if (step === 'style' && !onboardingNutritionStyleDraft) {
+      return 'Choose a nutrition style before continuing.';
+    }
+
+    if (step === 'allergies' && onboardingAllergySelectionsDraft.includes('other') && !onboardingAllergyOtherDraft.trim()) {
+      return 'Add the custom allergy or exclusion before continuing.';
+    }
+
+    return null;
+  }
+
+  function goToNextOnboardingStep() {
+    const error = validateOnboardingStep(onboardingStep);
+    if (error) {
+      setOnboardingError(error);
+      setOnboardingStatus('Finish this step before continuing');
+      return;
+    }
+
+    const currentIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
+    const nextStep = onboardingSteps[currentIndex + 1];
+    if (nextStep) {
+      setOnboardingError(null);
+      setOnboardingStatus(`${nextStep.label} step ready`);
+      setOnboardingStep(nextStep.id);
+    }
+  }
+
+  function goToPreviousOnboardingStep() {
+    const currentIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
+    const previousStep = onboardingSteps[currentIndex - 1];
+    if (previousStep) {
+      setOnboardingError(null);
+      setOnboardingStatus(`${previousStep.label} step ready`);
+      setOnboardingStep(previousStep.id);
     }
   }
 
@@ -2007,87 +2341,137 @@ export default function App(): ReactElement {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="dark" />
-        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-          <View style={styles.hero}>
-            <Text style={styles.eyebrow}>Nutrition OS</Text>
-            <View style={styles.heroHeader}>
-              <View style={styles.heroCopy}>
-                <Text style={styles.headline}>Start with a real local profile or open the demo app.</Text>
-                <Text style={styles.lede}>
-                  Use the live path to test session creation, onboarding, and profile-driven business logic. Use preview mode to inspect the post-setup experience with dummy data.
-                </Text>
+        <KeyboardAvoidingView
+          style={styles.screen}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+          <ScrollView
+            style={styles.screen}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.welcomeShell}>
+              <Text style={[styles.welcomeAppName, ribeyeLoaded && styles.welcomeAppNameDisplay]}>Relish</Text>
+              <Text style={styles.welcomeSubtitle}>Fitness & Nutrition</Text>
+              <View style={styles.welcomeMascotWrap}>
+                <Image source={mascotDefaultImage} style={styles.welcomeMascotImage} resizeMode="contain" />
               </View>
-              <View style={styles.heroAside}>
-                <View style={styles.mascotCard}>
-                  <Image source={mascotDefaultImage} style={styles.mascotImage} resizeMode="contain" />
-                  <Text style={styles.mascotLabel}>Pickle is ready for a normal browser session.</Text>
+
+              {entryIntent === null ? (
+                <View style={styles.welcomeActions}>
+                  <Pressable
+                    style={styles.welcomePrimaryButton}
+                    onPress={() => {
+                      setEntryEmailError(null);
+                      setEntryError(null);
+                      setEntryIntent('signup');
+                    }}
+                    disabled={entryLoading}
+                  >
+                    <Text style={styles.welcomePrimaryButtonLabel}>Sign up</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.welcomeSecondaryButton}
+                    onPress={() => {
+                      setEntryEmailError(null);
+                      setEntryError(null);
+                      setEntryIntent('signin');
+                    }}
+                    disabled={entryLoading}
+                  >
+                    <Text style={styles.welcomeSecondaryButtonLabel}>Sign in</Text>
+                  </Pressable>
+                  <Pressable style={styles.welcomeLinkButton} onPress={enterPreviewMode} disabled={entryLoading}>
+                    <Text style={styles.welcomeLinkLabel}>Preview the app</Text>
+                  </Pressable>
                 </View>
+              ) : (
+                <View style={styles.entryCard}>
+                  <View style={styles.entryCardHeader}>
+                    <Text style={styles.entryCardEyebrow}>
+                      {entryIntent === 'signup' ? 'Sign up' : 'Sign in'}
+                    </Text>
+                    <Text style={styles.panelTitle}>
+                      {entryIntent === 'signup' ? 'Create your profile' : 'Continue to your profile'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.profileFieldStack}>
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Email</Text>
+                      <TextInput
+                        value={entryEmailDraft}
+                        onChangeText={(value) => {
+                          setEntryEmailDraft(value);
+                          setEntryEmailError(null);
+                        }}
+                        placeholder="dev@example.com"
+                        placeholderTextColor="#7c8aa5"
+                        style={[styles.profileFieldInput, entryEmailError && styles.profileFieldInputError]}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {entryEmailError ? <Text style={styles.profileFieldError}>{entryEmailError}</Text> : null}
+                    </View>
+
+                    {entryIntent === 'signup' ? (
+                      <View style={styles.profileField}>
+                        <Text style={styles.profileFieldLabel}>Display name</Text>
+                        <TextInput
+                          value={entryDisplayNameDraft}
+                          onChangeText={setEntryDisplayNameDraft}
+                          placeholder="Local Dev User"
+                          placeholderTextColor="#7c8aa5"
+                          style={styles.profileFieldInput}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {entryError ? (
+                    <View style={[styles.inlineStatus, { borderColor: toneColor('checking') }]}>
+                      <Text style={styles.inlineStatusLabel}>Could not create local profile session</Text>
+                      <Text style={styles.inlineStatusDetail}>{entryError}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.entryAuthActions}>
+                    <Pressable
+                      style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
+                      onPress={() => {
+                        setEntryEmailError(null);
+                        setEntryError(null);
+                        setEntryIntent(null);
+                      }}
+                      disabled={entryLoading}
+                    >
+                      <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
+                      onPress={() => void enterLiveMode()}
+                      disabled={entryLoading}
+                    >
+                      <Text style={styles.setupActionButtonLabelPrimary}>
+                        {entryLoading
+                          ? 'Creating session...'
+                          : entryIntent === 'signup'
+                            ? 'Get started'
+                            : 'Continue'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              <View style={[styles.welcomeStatusStrip, { borderColor: toneColor(entryBackendTone) }]}>
+                <Text style={styles.welcomeStatusLabel}>{entryBackendStatus}</Text>
+                <Text style={styles.welcomeStatusDetail}>{entryBackendDetail}</Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Entry</Text>
-            <Text style={styles.panelTitle}>Choose how to open the app</Text>
-            <Text style={styles.panelDetail}>
-              The live path creates a local backend session and routes you through profile creation. Preview mode skips session creation and loads demo data only.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(entryBackendTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{entryBackendStatus}</Text>
-              <Text style={styles.inlineStatusDetail}>{entryBackendDetail}</Text>
-            </View>
-
-            <View style={styles.profileFieldStack}>
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Email</Text>
-                <TextInput
-                  value={entryEmailDraft}
-                  onChangeText={setEntryEmailDraft}
-                  placeholder="dev@example.com"
-                  placeholderTextColor="#7c8aa5"
-                  style={styles.profileFieldInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Display name</Text>
-                <TextInput
-                  value={entryDisplayNameDraft}
-                  onChangeText={setEntryDisplayNameDraft}
-                  placeholder="Local Dev User"
-                  placeholderTextColor="#7c8aa5"
-                  style={styles.profileFieldInput}
-                />
-              </View>
-            </View>
-
-            {entryError ? (
-              <View style={[styles.inlineStatus, { borderColor: toneColor('checking') }]}>
-                <Text style={styles.inlineStatusLabel}>Could not create local profile session</Text>
-                <Text style={styles.inlineStatusDetail}>{entryError}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.profileFieldStack}>
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => void enterLiveMode()}
-                disabled={entryLoading}
-              >
-                <Text style={styles.primaryButtonLabel}>
-                  {entryLoading ? 'Creating session...' : 'Create local profile'}
-                </Text>
-              </Pressable>
-
-              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode} disabled={entryLoading}>
-                <Text style={styles.inlinePillButtonLabel}>Open preview mode</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -2106,194 +2490,486 @@ export default function App(): ReactElement {
   }
 
   if (onboardingRequired) {
+    const activeStepIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
+    const currentStepLabel = onboardingSteps[activeStepIndex]?.label ?? 'Basics';
+    const showOnboardingStatus = onboardingSaving || Boolean(onboardingError);
+    const selectedGoalPaceCards =
+      onboardingGoalTypeDraft === 'lose'
+        ? [
+            {
+              id: 'light' as GoalPace,
+              title: 'Light cut',
+              detail: 'About 350 calories below maintenance',
+              image: mascotDefaultImage,
+              note: 'Casual pace'
+            },
+            {
+              id: 'recommended' as GoalPace,
+              title: 'Recommended cut',
+              detail: 'About 500 calories below maintenance',
+              image: mascotRunImage,
+              note: 'Best default'
+            },
+            {
+              id: 'extreme' as GoalPace,
+              title: 'Extreme cut',
+              detail: 'About 1000 calories below maintenance',
+              image: mascotSwimImage,
+              note: 'Warning: hardest option'
+            }
+          ]
+        : onboardingGoalTypeDraft === 'gain'
+          ? [
+              {
+                id: 'lean' as GoalPace,
+                title: 'Lean gain',
+                detail: 'About 200 calories above maintenance',
+                image: mascotWeightsImage,
+                note: 'Slow steady surplus'
+              },
+              {
+                id: 'aggressive' as GoalPace,
+                title: 'Aggressive gain',
+                detail: 'About 500 calories above maintenance',
+                image: mascotBikeImage,
+                note: 'Faster scale movement'
+              }
+            ]
+          : [];
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="dark" />
-        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-          <View style={styles.hero}>
-            <Text style={styles.eyebrow}>Nutrition OS</Text>
-            <View style={styles.heroHeader}>
-              <View style={styles.heroCopy}>
-                <Text style={styles.headline}>Set up your first profile before the main app opens.</Text>
-                <Text style={styles.lede}>
-                  This one-time setup uses the live backend onboarding route to calculate your starting target and unlock the main app after completion.
-                </Text>
-              </View>
-              <View style={styles.heroAside}>
-                <View style={styles.mascotCard}>
-                  <Image source={mascotWeightsImage} style={styles.mascotImage} resizeMode="contain" />
-                  <Text style={styles.mascotLabel}>Weights mode anchors the onboarding and goal setup flow.</Text>
+        <KeyboardAvoidingView
+          style={styles.screen}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
+          <ScrollView
+            style={styles.screen}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.setupBackdrop}>
+              <View style={styles.setupCard}>
+                <View style={styles.setupStepMeta}>
+                  <Text style={styles.setupStepCounter}>
+                    Step {activeStepIndex + 1} of {onboardingSteps.length}
+                  </Text>
+                  <Text style={styles.setupStepCaption}>{currentStepLabel}</Text>
+                </View>
+
+                {showOnboardingStatus ? (
+                  <View
+                    style={[
+                      styles.inlineStatus,
+                      { borderColor: onboardingSaving ? toneColor('checking') : '#d97706' }
+                    ]}
+                  >
+                    <Text style={styles.inlineStatusLabel}>
+                      {onboardingSaving ? 'Saving profile...' : 'There is a setup issue to fix'}
+                    </Text>
+                    {onboardingError ? <Text style={styles.inlineStatusDetail}>{onboardingError}</Text> : null}
+                  </View>
+                ) : null}
+
+              {onboardingStep === 'basics' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Start with body basics</Text>
+
+                  <View style={styles.setupChoiceRow}>
+                    {(['female', 'male'] as const).map((option) => {
+                      const active = onboardingSexDraft === option;
+                      return (
+                        <Pressable
+                          key={option}
+                          style={[styles.setupChoiceCard, active && styles.setupChoiceCardActive]}
+                          onPress={() => setOnboardingSexDraft(option)}
+                        >
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                            {option === 'male' ? 'Male' : 'Female'}
+                          </Text>
+                          <Text style={styles.setupChoiceDetail}>Used for the initial energy estimate</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <View style={styles.profileFieldRow}>
+                    <View style={styles.profileFieldHalf}>
+                      <Text style={styles.profileFieldLabel}>Age</Text>
+                      <TextInput
+                        value={onboardingAgeDraft}
+                        onChangeText={setOnboardingAgeDraft}
+                        keyboardType="numeric"
+                        placeholder="34"
+                        placeholderTextColor="#7c8aa5"
+                        style={styles.profileFieldInput}
+                      />
+                    </View>
+                    <View style={styles.profileFieldHalf}>
+                      <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
+                      <TextInput
+                        value={onboardingCurrentWeightDraft}
+                        onChangeText={setOnboardingCurrentWeightDraft}
+                        keyboardType="decimal-pad"
+                        placeholder="180"
+                        placeholderTextColor="#7c8aa5"
+                        style={styles.profileFieldInput}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.profileFieldRow}>
+                    <View style={styles.profileFieldHalf}>
+                      <Text style={styles.profileFieldLabel}>Height, ft</Text>
+                      <TextInput
+                        value={onboardingHeightFeetDraft}
+                        onChangeText={setOnboardingHeightFeetDraft}
+                        keyboardType="numeric"
+                        placeholder="5"
+                        placeholderTextColor="#7c8aa5"
+                        style={styles.profileFieldInput}
+                      />
+                    </View>
+                    <View style={styles.profileFieldHalf}>
+                      <Text style={styles.profileFieldLabel}>Height, in</Text>
+                      <TextInput
+                        value={onboardingHeightInchesDraft}
+                        onChangeText={setOnboardingHeightInchesDraft}
+                        keyboardType="numeric"
+                        placeholder="10"
+                        placeholderTextColor="#7c8aa5"
+                        style={styles.profileFieldInput}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
+              {onboardingStep === 'goal' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Choose your goal</Text>
+
+                  <View style={styles.setupGoalGrid}>
+                    {([
+                      { id: 'lose' as const, title: 'Weight Loss', detail: 'Cut body weight with a defined deficit', image: mascotRunImage },
+                      { id: 'maintain' as const, title: 'Maintenance', detail: 'Hold steady around maintenance calories', image: mascotDefaultImage },
+                      { id: 'gain' as const, title: 'Weight Gain', detail: 'Add weight with a controlled surplus', image: mascotWeightsImage }
+                    ]).map((option) => {
+                      const active = onboardingGoalTypeDraft === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.setupGoalCard, active && styles.setupGoalCardActive]}
+                          onPress={() => setOnboardingGoalTypeDraft(option.id)}
+                        >
+                          <Image source={option.image} style={styles.setupGoalImage} resizeMode="contain" />
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                            {option.title}
+                          </Text>
+                          <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {onboardingStep === 'pace' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Choose the style of your goal</Text>
+
+                  {onboardingGoalTypeDraft === 'maintain' ? (
+                    <View style={styles.detailCard}>
+                      <Text style={styles.detailTitle}>Maintenance stays steady</Text>
+                      <Text style={styles.detailSubtitle}>
+                        No extra pace choice is needed. We will use your estimated maintenance calories directly.
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.setupGoalGrid}>
+                      {selectedGoalPaceCards.map((option) => {
+                        const active = onboardingGoalPaceDraft === option.id;
+                        return (
+                          <Pressable
+                            key={option.id}
+                            style={[styles.setupGoalCard, active && styles.setupGoalCardActive]}
+                            onPress={() => setOnboardingGoalPaceDraft(option.id)}
+                          >
+                            <Image source={option.image} style={styles.setupGoalImage} resizeMode="contain" />
+                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                              {option.title}
+                            </Text>
+                            <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
+                            <Text style={styles.setupGoalNote}>{option.note}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              ) : null}
+
+              {onboardingStep === 'activity' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>How active are you most days?</Text>
+                  <Text style={styles.panelDetail}>
+                    This should reflect non-exercise lifestyle movement. Planned workouts are a separate layer later.
+                  </Text>
+
+                  <View style={styles.setupOptionStack}>
+                    {activityLevelCards.map((option) => {
+                      const active = onboardingActivityLevelDraft === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
+                          onPress={() => setOnboardingActivityLevelDraft(option.id)}
+                        >
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                            {option.title}
+                          </Text>
+                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {onboardingStep === 'diet' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Pick your dietary pattern</Text>
+
+                  <View style={styles.setupDietGrid}>
+                    {dietaryPatternOptions.map((option) => {
+                      const active = onboardingDietaryPatternDraft === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[
+                            styles.setupDietCard,
+                            { borderColor: active ? option.accent : '#d7dee7' },
+                            active && styles.setupDietCardActive
+                          ]}
+                          onPress={() => setOnboardingDietaryPatternDraft(option.id)}
+                        >
+                          <View style={[styles.setupDietBadge, { backgroundColor: option.accent }]}>
+                            <Text style={styles.setupDietBadgeLabel}>{option.mark}</Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.setupChoiceTitle,
+                              styles.setupDietTitle,
+                              active && styles.setupChoiceTitleActive
+                            ]}
+                          >
+                            {option.title}
+                          </Text>
+                          <Text style={[styles.setupChoiceDetail, styles.setupDietDetail]}>{option.subtitle}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {onboardingStep === 'style' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Pick your nutrition style</Text>
+
+                  <View style={styles.setupDietGrid}>
+                    {nutritionStyleOptions.map((option) => {
+                      const active = onboardingNutritionStyleDraft === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[
+                            styles.setupDietCard,
+                            { borderColor: active ? option.accent : '#d7dee7' },
+                            active && styles.setupDietCardActive
+                          ]}
+                          onPress={() => setOnboardingNutritionStyleDraft(option.id)}
+                        >
+                          <View style={[styles.setupDietBadge, { backgroundColor: option.accent }]}>
+                            <Text style={styles.setupDietBadgeLabel}>{option.mark}</Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.setupChoiceTitle,
+                              styles.setupDietTitle,
+                              active && styles.setupChoiceTitleActive
+                            ]}
+                          >
+                            {option.title}
+                          </Text>
+                          <Text style={[styles.setupChoiceDetail, styles.setupDietDetail]}>{option.subtitle}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {onboardingStep === 'allergies' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Allergies or exclusions</Text>
+
+                  <View style={styles.setupDietGrid}>
+                    {allergyOptions.map((option) => {
+                      const active = onboardingAllergySelectionsDraft.includes(option.id);
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[
+                            styles.setupDietCard,
+                            { borderColor: active ? option.accent : '#d7dee7' },
+                            active && styles.setupDietCardActive
+                          ]}
+                          onPress={() => toggleOnboardingAllergy(option.id)}
+                        >
+                          <View style={[styles.setupDietBadge, { backgroundColor: option.accent }]}>
+                            <Text style={styles.setupDietBadgeLabel}>{option.mark}</Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.setupChoiceTitle,
+                              styles.setupDietTitle,
+                              active && styles.setupChoiceTitleActive
+                            ]}
+                          >
+                            {option.title}
+                          </Text>
+                          <Text style={[styles.setupChoiceDetail, styles.setupDietDetail]}>{option.subtitle}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {onboardingAllergySelectionsDraft.includes('other') ? (
+                    <TextInput
+                      value={onboardingAllergyOtherDraft}
+                      onChangeText={setOnboardingAllergyOtherDraft}
+                      placeholder="Add another allergy or exclusion"
+                      placeholderTextColor="#7c8aa5"
+                      style={styles.setupTextArea}
+                      multiline
+                      textAlignVertical="top"
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+
+              {onboardingStep === 'review' ? (
+                <View style={styles.setupPanel}>
+                  <View style={styles.setupPanelHeading}>
+                    <Text style={styles.panelTitle}>Review your setup</Text>
+                    <Text style={styles.panelDetail}>
+                      Save this profile and then the app will drop you into your daily home with targets ready.
+                    </Text>
+                  </View>
+
+                  <View style={styles.setupReviewCard}>
+                    <View style={styles.setupReviewHeader}>
+                      <Text style={styles.setupReviewTitle}>{entryDisplayNameDraft || 'Local profile'}</Text>
+                      <Text style={styles.setupReviewSubtitle}>
+                        This is what the app will use to generate your first daily targets.
+                      </Text>
+                    </View>
+                    <View style={styles.setupReviewGrid}>
+                      <View style={styles.setupReviewTile}>
+                        <Text style={styles.setupReviewLabel}>Body stats</Text>
+                        <Text style={styles.setupReviewValue}>
+                          {Math.round(Number(onboardingCurrentWeightDraft) || 0)} lb · {onboardingHeightFeetDraft}'
+                          {onboardingHeightInchesDraft}" · age {onboardingAgeDraft}
+                        </Text>
+                      </View>
+                      <View style={styles.setupReviewTile}>
+                        <Text style={styles.setupReviewLabel}>Goal</Text>
+                        <Text style={styles.setupReviewValue}>
+                          {formatGoalTypeLabel(onboardingGoalTypeDraft)} ·{' '}
+                          {formatGoalPaceLabel(
+                            onboardingGoalTypeDraft,
+                            onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft
+                          )}
+                        </Text>
+                      </View>
+                      <View style={styles.setupReviewTile}>
+                        <Text style={styles.setupReviewLabel}>Lifestyle</Text>
+                        <Text style={styles.setupReviewValue}>
+                          {activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Moderate'} activity
+                        </Text>
+                      </View>
+                      <View style={styles.setupReviewTile}>
+                        <Text style={styles.setupReviewLabel}>Diet</Text>
+                        <Text style={styles.setupReviewValue}>
+                          {dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Omnivore'}
+                        </Text>
+                      </View>
+                      <View style={styles.setupReviewTile}>
+                        <Text style={styles.setupReviewLabel}>Nutrition style</Text>
+                        <Text style={styles.setupReviewValue}>
+                          {nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Balanced'}
+                        </Text>
+                      </View>
+                      {formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft) ? (
+                        <View style={styles.setupReviewTile}>
+                          <Text style={styles.setupReviewLabel}>Avoid</Text>
+                          <Text style={styles.setupReviewValue}>
+                            {formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
+                <View style={styles.setupFooter}>
+                  <View style={styles.setupNavRow}>
+                    <Pressable
+                      style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
+                      onPress={goToPreviousOnboardingStep}
+                      disabled={activeStepIndex === 0 || onboardingSaving}
+                    >
+                      <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
+                    </Pressable>
+
+                    {onboardingStep === 'allergies' ? (
+                      <Pressable
+                        style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
+                        onPress={skipAllergyStep}
+                        disabled={onboardingSaving}
+                      >
+                        <Text style={styles.setupActionButtonLabelSecondary}>Skip</Text>
+                      </Pressable>
+                    ) : null}
+
+                    {onboardingStep === 'review' ? (
+                      <Pressable
+                        style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
+                        onPress={() => void completeOnboardingSetup()}
+                        disabled={onboardingSaving}
+                      >
+                        <Text style={styles.setupActionButtonLabelPrimary}>
+                          {onboardingSaving ? 'Saving...' : 'Create profile'}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
+                        onPress={goToNextOnboardingStep}
+                        disabled={onboardingSaving}
+                      >
+                        <Text style={styles.setupActionButtonLabelPrimary}>Next</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
-
-          <View style={[styles.inlineStatus, { borderColor: toneColor(onboardingSaving ? 'checking' : 'live') }]}>
-            <Text style={styles.inlineStatusLabel}>{onboardingStatus}</Text>
-            {onboardingError ? <Text style={styles.inlineStatusDetail}>{onboardingError}</Text> : null}
-          </View>
-
-          <View style={styles.modeControlCard}>
-            <Text style={styles.modeControlLabel}>Mode</Text>
-            <Text style={styles.modeControlValue}>Live profile setup</Text>
-            <View style={styles.modeControlActions}>
-              <Pressable style={styles.inlinePillButton} onPress={enterPreviewMode} disabled={onboardingSaving}>
-                <Text style={styles.inlinePillButtonLabel}>Switch to preview</Text>
-              </Pressable>
-              <Pressable style={styles.inlinePillButton} onPress={returnToEntryScreen} disabled={onboardingSaving}>
-                <Text style={styles.inlinePillButtonLabel}>Back to entry</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>First run</Text>
-            <Text style={styles.panelTitle}>Tell us about you</Text>
-            <Text style={styles.panelDetail}>
-              We’ll use these values to calculate a starting calorie and macro target for your selected goal, then unlock the app for this profile.
-            </Text>
-
-            <View style={styles.profileFieldStack}>
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Sex</Text>
-                <View style={styles.profileToggleRow}>
-                  {(['female', 'male'] as const).map((option) => {
-                    const active = onboardingSexDraft === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[styles.profileToggle, active && styles.profileToggleActive]}
-                        onPress={() => setOnboardingSexDraft(option)}
-                      >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {option === 'male' ? 'Male' : 'Female'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={styles.profileFieldRow}>
-                <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Age</Text>
-                  <TextInput
-                    value={onboardingAgeDraft}
-                    onChangeText={setOnboardingAgeDraft}
-                    keyboardType="numeric"
-                    placeholder="34"
-                    placeholderTextColor="#7c8aa5"
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-                <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
-                  <TextInput
-                    value={onboardingCurrentWeightDraft}
-                    onChangeText={setOnboardingCurrentWeightDraft}
-                    keyboardType="decimal-pad"
-                    placeholder="180"
-                    placeholderTextColor="#7c8aa5"
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.profileFieldRow}>
-                <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Height, ft</Text>
-                  <TextInput
-                    value={onboardingHeightFeetDraft}
-                    onChangeText={setOnboardingHeightFeetDraft}
-                    keyboardType="numeric"
-                    placeholder="5"
-                    placeholderTextColor="#7c8aa5"
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-                <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Height, in</Text>
-                  <TextInput
-                    value={onboardingHeightInchesDraft}
-                    onChangeText={setOnboardingHeightInchesDraft}
-                    keyboardType="numeric"
-                    placeholder="10"
-                    placeholderTextColor="#7c8aa5"
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Goal</Text>
-                <View style={styles.profileToggleRow}>
-                  {(['lose', 'maintain', 'gain'] as const).map((option) => {
-                    const active = onboardingGoalTypeDraft === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[styles.profileToggle, active && styles.profileToggleActive]}
-                        onPress={() => setOnboardingGoalTypeDraft(option)}
-                      >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {option === 'lose' ? 'Weight Loss' : option === 'maintain' ? 'Maintenance' : 'Weight Gain'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
-                <TextInput
-                  value={onboardingTargetWeightDraft}
-                  onChangeText={setOnboardingTargetWeightDraft}
-                  keyboardType="decimal-pad"
-                  placeholder="170"
-                  placeholderTextColor="#7c8aa5"
-                  style={styles.profileFieldInput}
-                />
-              </View>
-
-              <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Activity level</Text>
-                <View style={styles.profileToggleRow}>
-                  {(['sedentary', 'light', 'moderate', 'very_active', 'extra_active'] as const).map((option) => {
-                    const active = onboardingActivityLevelDraft === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[styles.profileToggle, active && styles.profileToggleActive]}
-                        onPress={() => setOnboardingActivityLevelDraft(option)}
-                      >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {option === 'very_active'
-                            ? 'Very active'
-                            : option === 'extra_active'
-                              ? 'Extra active'
-                              : option === 'sedentary'
-                                ? 'Sedentary'
-                                : option === 'light'
-                                  ? 'Light'
-                                  : 'Moderate'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => void completeOnboardingSetup()}
-                disabled={onboardingSaving}
-              >
-                <Text style={styles.primaryButtonLabel}>{onboardingSaving ? 'Saving...' : 'Continue to the app'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -2305,7 +2981,7 @@ export default function App(): ReactElement {
         <View style={styles.appHeader}>
           <View style={styles.appShellTopRow}>
             <View style={styles.appHeaderTitleWrap}>
-              <Text style={styles.appEyebrow}>Nutrition OS</Text>
+              <Text style={styles.appEyebrow}>Relish</Text>
               <Text style={styles.appTitle}>{currentSectionMeta.label}</Text>
             </View>
             <View style={styles.appShellActions}>
@@ -4062,11 +4738,11 @@ function LineTrendChart({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f4efe4'
+    backgroundColor: RELISH_COLORS.canvas
   },
   screen: {
     flex: 1,
-    backgroundColor: '#f4efe4'
+    backgroundColor: RELISH_COLORS.canvas
   },
   content: {
     padding: 16,
@@ -4089,6 +4765,282 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center'
+  },
+  setupBackdrop: {
+    minHeight: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8
+  },
+  setupCard: {
+    width: '100%',
+    maxWidth: 640,
+    backgroundColor: '#ffffff',
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: '#dde6ee',
+    padding: 18,
+    gap: 14,
+    shadowColor: '#132536',
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4
+  },
+  setupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 14
+  },
+  setupHeaderCopy: {
+    flex: 1,
+    gap: 4
+  },
+  setupTitle: {
+    color: '#132536',
+    fontSize: 22,
+    fontWeight: '800'
+  },
+  setupMascotWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    overflow: 'hidden',
+    backgroundColor: '#f6f0e7',
+    borderWidth: 1,
+    borderColor: '#e5ddd1'
+  },
+  setupMascotImage: {
+    width: '100%',
+    height: '100%'
+  },
+  setupStepMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12
+  },
+  setupStepCounter: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6
+  },
+  setupStepCaption: {
+    color: '#66778c',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  setupPanel: {
+    gap: 14
+  },
+  setupPanelHeading: {
+    gap: 6
+  },
+  setupChoiceRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap'
+  },
+  setupChoiceCard: {
+    flexGrow: 1,
+    flexBasis: 180,
+    backgroundColor: '#f7f4ef',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 14,
+    gap: 6
+  },
+  setupChoiceCardActive: {
+    backgroundColor: '#eef3f8',
+    borderColor: '#17324d'
+  },
+  setupChoiceTitle: {
+    color: '#132536',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  setupChoiceTitleActive: {
+    color: '#17324d'
+  },
+  setupChoiceDetail: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 17
+  },
+  setupGoalGrid: {
+    flexDirection: 'column',
+    gap: 10
+  },
+  setupGoalCard: {
+    width: '100%',
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+    alignItems: 'center'
+  },
+  setupGoalCardActive: {
+    borderColor: '#17324d',
+    backgroundColor: '#eef3f8'
+  },
+  setupGoalImage: {
+    width: '100%',
+    height: 72
+  },
+  setupGoalNote: {
+    color: '#0f766e',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  setupOptionStack: {
+    gap: 10
+  },
+  setupOptionRow: {
+    backgroundColor: '#f7f4ef',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 14,
+    gap: 4
+  },
+  setupOptionRowActive: {
+    backgroundColor: '#eef3f8',
+    borderColor: '#17324d'
+  },
+  setupDietCard: {
+    width: 148,
+    minHeight: 136,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+    alignItems: 'center'
+  },
+  setupDietCardActive: {
+    backgroundColor: '#f8fafc'
+  },
+  setupDietGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12
+  },
+  setupDietTitle: {
+    textAlign: 'center'
+  },
+  setupDietDetail: {
+    textAlign: 'center'
+  },
+  setupDietBadge: {
+    alignSelf: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  setupDietBadgeLabel: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  setupTextArea: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#132536',
+    backgroundColor: '#f8fafc'
+  },
+  setupReviewCard: {
+    backgroundColor: '#fbfcfe',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 18,
+    gap: 14
+  },
+  setupReviewHeader: {
+    gap: 4
+  },
+  setupReviewTitle: {
+    color: '#132536',
+    fontSize: 22,
+    fontWeight: '800'
+  },
+  setupReviewSubtitle: {
+    color: '#5c6d80',
+    fontSize: 13,
+    lineHeight: 18
+  },
+  setupReviewGrid: {
+    gap: 10
+  },
+  setupReviewTile: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4
+  },
+  setupReviewLabel: {
+    color: '#66778c',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  setupReviewValue: {
+    color: '#132536',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700'
+  },
+  setupFooter: {
+    gap: 10,
+    paddingTop: 4
+  },
+  setupNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  setupActionButton: {
+    minHeight: 50,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1
+  },
+  setupActionButtonPrimary: {
+    backgroundColor: '#17324d'
+  },
+  setupActionButtonSecondary: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#17324d'
+  },
+  setupActionButtonLabelPrimary: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 15
+  },
+  setupActionButtonLabelSecondary: {
+    color: '#17324d',
+    fontWeight: '800',
+    fontSize: 15
   },
   appHeader: {
     backgroundColor: '#ffffff',
@@ -4298,19 +5250,175 @@ const styles = StyleSheet.create({
     backgroundColor: '#f6f0e7',
     borderRadius: 24,
     padding: 14,
-    alignItems: 'center',
-    gap: 10
+    alignItems: 'center'
   },
   mascotImage: {
     width: '100%',
-    maxWidth: 220,
-    height: 220
+    maxWidth: 180,
+    height: 180
   },
-  mascotLabel: {
-    color: '#17324d',
+  entryGrid: {
+    gap: 16
+  },
+  entryCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: RELISH_COLORS.surface,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: RELISH_COLORS.stroke,
+    padding: 18,
+    gap: 14,
+    shadowColor: '#163127',
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3
+  },
+  entryCardHeader: {
+    gap: 4
+  },
+  entryCardEyebrow: {
+    color: RELISH_COLORS.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase'
+  },
+  entryPreviewCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    padding: 14,
+    gap: 6
+  },
+  entryPreviewTitle: {
+    color: '#132536',
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  entryPreviewDetail: {
+    color: '#66778c',
     fontSize: 13,
-    fontWeight: '700',
+    lineHeight: 18
+  },
+  secondaryButton: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: RELISH_COLORS.primary,
+    backgroundColor: RELISH_COLORS.primarySoft,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  secondaryButtonLabel: {
+    color: RELISH_COLORS.primaryDeep,
+    fontWeight: '800'
+  },
+  welcomeShell: {
+    minHeight: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 18
+  },
+  welcomeAppName: {
+    color: RELISH_COLORS.text,
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '900',
     textAlign: 'center'
+  },
+  welcomeAppNameDisplay: {
+    fontFamily: 'Ribeye_400Regular',
+    fontSize: 48,
+    lineHeight: 54,
+    fontWeight: '400',
+    letterSpacing: 0.8
+  },
+  welcomeSubtitle: {
+    color: RELISH_COLORS.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3
+  },
+  welcomeMascotWrap: {
+    width: 244,
+    height: 244,
+    paddingVertical: 0,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  welcomeMascotImage: {
+    width: 206,
+    height: 206
+  },
+  welcomeActions: {
+    width: '100%',
+    maxWidth: 360,
+    gap: 6,
+    alignItems: 'center'
+  },
+  welcomePrimaryButton: {
+    minWidth: 180,
+    borderRadius: 18,
+    backgroundColor: RELISH_COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  welcomePrimaryButtonLabel: {
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  welcomeSecondaryButton: {
+    minWidth: 180,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: RELISH_COLORS.primary,
+    backgroundColor: RELISH_COLORS.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  welcomeSecondaryButtonLabel: {
+    color: RELISH_COLORS.primaryDeep,
+    fontWeight: '800'
+  },
+  welcomeLinkButton: {
+    alignItems: 'center',
+    paddingVertical: 6
+  },
+  welcomeLinkLabel: {
+    color: RELISH_COLORS.muted,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  welcomeStatusStrip: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#fffaf0',
+    gap: 2
+  },
+  welcomeStatusLabel: {
+    color: RELISH_COLORS.text,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  welcomeStatusDetail: {
+    color: '#8a5a1d',
+    fontSize: 11,
+    lineHeight: 16
+  },
+  entryAuthActions: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%'
   },
   statusBanner: {
     backgroundColor: '#fffaf0',
@@ -5008,7 +6116,9 @@ const styles = StyleSheet.create({
   },
   inlineStatusDetail: {
     color: '#8a5a1d',
-    fontSize: 12
+    fontSize: 12,
+    lineHeight: 18,
+    flexShrink: 1
   },
   foodList: {
     gap: 8
@@ -5243,6 +6353,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
     color: '#132536'
+  },
+  profileFieldInputError: {
+    borderColor: '#2563eb'
+  },
+  profileFieldError: {
+    color: '#1d4ed8',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600'
   },
   profileToggleRow: {
     flexDirection: 'row',

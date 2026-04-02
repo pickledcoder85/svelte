@@ -84,8 +84,12 @@ export interface UserProfile {
   height_cm?: number | null;
   current_weight_lbs?: number | null;
   goal_type?: 'lose' | 'maintain' | 'gain' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
+  dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
+  nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
+  allergy_notes?: string | null;
   bmr_calories?: number | null;
   tdee_calories?: number | null;
   initial_calorie_target?: number | null;
@@ -106,8 +110,12 @@ export interface UserProfileUpdate {
   height_cm?: number | null;
   current_weight_lbs?: number | null;
   goal_type?: 'lose' | 'maintain' | 'gain' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
+  dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
+  nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
+  allergy_notes?: string | null;
 }
 
 export interface UserOnboardingRequest {
@@ -116,8 +124,12 @@ export interface UserOnboardingRequest {
   height_cm: number;
   current_weight_lbs: number;
   goal_type: 'lose' | 'maintain' | 'gain';
-  target_weight_lbs: number;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
+  target_weight_lbs?: number | null;
   activity_level: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
+  dietary_pattern: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
+  nutrition_style: 'balanced' | 'keto' | 'mediterranean';
+  allergy_notes?: string | null;
 }
 
 export interface UserGoal {
@@ -130,6 +142,7 @@ export interface UserGoal {
   fat_goal: number;
   fiber_goal?: number | null;
   goal_type?: 'lose' | 'maintain' | 'gain' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
   calculation_version?: string | null;
   target_source?: 'system_default' | 'user_custom' | 'agent_adjusted' | 'admin_override' | null;
   target_weight_lbs: number | null;

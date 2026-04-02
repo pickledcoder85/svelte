@@ -304,6 +304,7 @@ The long-term product split should be:
 ### Core
 
 - onboarding
+- onboarding should distinguish food-eligibility `dietary_pattern` from preference-oriented `nutrition_style`
 - generated baseline targets
 - manual target customization
 - dashboard and logging

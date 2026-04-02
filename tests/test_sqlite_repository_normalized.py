@@ -279,6 +279,9 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                     "carbs_target_g",
                     "fat_target_g",
                     "fiber_target_g",
+                    "goal_pace",
+                    "dietary_pattern",
+                    "nutrition_style",
                     "calculation_version",
                     "target_source",
                 }.issubset(profile_column_names)

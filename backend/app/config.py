@@ -8,7 +8,7 @@ from backend.app.db.database import DEFAULT_DATABASE_URL, resolve_sqlite_path
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Nutrition OS API"
+    app_name: str = "Relish API"
     app_env: str = "development"
     database_url: str = DEFAULT_DATABASE_URL
     cors_origins: str = ",".join(

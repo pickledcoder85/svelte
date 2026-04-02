@@ -25,6 +25,21 @@ The project targets a personal-use nutrition and weight loss application with:
 - a Python backend to keep the system simple
 - a database model that can begin small and grow without major rewrites
 
+Brand direction:
+
+- product name: `Relish`
+- mascot and future assistant identity: `Gherkin`
+
+Intended consumer entry funnel:
+
+1. welcome screen
+2. sign up or sign in
+3. email or provider verification when required
+4. guided profile setup
+5. daily home
+
+The current local-development entry screen should keep moving toward that funnel, even while it still uses lightweight local-session mechanics instead of production auth.
+
 ## Architecture summary
 
 - `frontend/`: TypeScript application for dashboard, meal builder, recipe management, auth flows, and mobile-ready interaction patterns

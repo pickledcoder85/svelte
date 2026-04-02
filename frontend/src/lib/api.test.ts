@@ -85,7 +85,10 @@ describe('api helpers', () => {
     expect(session.access_token).toBe('token-123');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/auth/session',
-      expect.objectContaining({ method: 'POST' })
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: 'tester@example.com', display_name: 'Tester', intent: 'signup' })
+      })
     );
   });
 
@@ -118,8 +121,12 @@ describe('api helpers', () => {
           height_cm: 170,
           current_weight_lbs: 180,
           goal_type: 'lose',
+          goal_pace: 'recommended',
           target_weight_lbs: 170,
-          activity_level: 'moderate'
+          activity_level: 'moderate',
+          dietary_pattern: 'omnivore',
+          nutrition_style: 'balanced',
+          allergy_notes: 'peanuts'
         }),
         {
           status: 200,
@@ -136,8 +143,12 @@ describe('api helpers', () => {
         height_cm: 170,
         current_weight_lbs: 180,
         goal_type: 'lose',
+        goal_pace: 'recommended',
         target_weight_lbs: 170,
-        activity_level: 'moderate'
+        activity_level: 'moderate',
+        dietary_pattern: 'omnivore',
+        nutrition_style: 'balanced',
+        allergy_notes: 'peanuts'
       },
       'token-123'
     );
