@@ -6,6 +6,7 @@ from backend.app.models.tracker import (
     ExerciseEntryCreateRequest,
     MealPlanDay,
     MealPlanDayCreateRequest,
+    MealPlanSlotEatenAtUpdateRequest,
     MealPrepTask,
     MealPrepTaskCreateRequest,
     MealPrepTaskStatusUpdateRequest,
@@ -18,6 +19,7 @@ from backend.app.services.tracker import (
     list_meal_plan_days,
     list_meal_prep_tasks,
     save_meal_plan_day,
+    update_meal_plan_slot_eaten_at,
     update_meal_prep_task_status,
 )
 
@@ -55,6 +57,24 @@ async def create_meal_plan_day(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> MealPlanDay:
     return save_meal_plan_day(repository, session, payload)
+
+
+@router.patch("/meal-plan/slots/{slot_id}", response_model=MealPlanDay)
+async def update_meal_plan_slot(
+    slot_id: str,
+    payload: MealPlanSlotEatenAtUpdateRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> MealPlanDay:
+    day = update_meal_plan_slot_eaten_at(
+        repository,
+        session.user_id,
+        slot_id,
+        payload.eaten_at,
+    )
+    if day is None:
+        raise HTTPException(status_code=404, detail="Meal plan slot not found.")
+    return day
 
 
 @router.get("/meal-prep", response_model=list[MealPrepTask])

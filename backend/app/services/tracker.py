@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from backend.app.models.auth import AuthSession
 from backend.app.models.tracker import (
     ExerciseEntry,
@@ -64,6 +66,18 @@ def save_meal_plan_day(
 
 def list_meal_plan_days(repository: SQLiteRepository, user_id: str) -> list[MealPlanDay]:
     return [MealPlanDay.model_validate(day) for day in repository.list_meal_plan_days(user_id)]
+
+
+def update_meal_plan_slot_eaten_at(
+    repository: SQLiteRepository,
+    user_id: str,
+    slot_id: str,
+    eaten_at: datetime | None,
+) -> MealPlanDay | None:
+    day = repository.update_meal_plan_slot_eaten_at(slot_id, eaten_at)
+    if day is None or day["user_id"] != user_id:
+        return None
+    return MealPlanDay.model_validate(day)
 
 
 def create_meal_prep_task(

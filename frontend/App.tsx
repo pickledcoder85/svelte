@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import Svg, { Circle } from 'react-native-svg';
 import {
   ActivityIndicator,
   type DimensionValue,
@@ -45,20 +46,25 @@ import {
   searchFoodsWithSession,
   unfavoriteFood,
   updateProfile,
+  updateMealPlanSlotEatenAt,
   updateMealPrepTaskStatus,
   unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
 import {
+  buildDailyExerciseSummary,
+  buildDailyMealPlanSummary,
+  buildDailyTargetSummary,
+  calculateMacroPercentages
+} from './src/lib/daily-home';
+import {
   appShellMenuGroups,
   getAppSectionMeta,
   primaryAppSections
 } from './src/lib/app-shell';
-import { DashboardHeaderMetrics } from './src/components/dashboard/DashboardHeaderMetrics';
 import { DashboardTimeRangeTabs } from './src/components/dashboard/DashboardTimeRangeTabs';
 import { DashboardHeroChart } from './src/components/dashboard/DashboardHeroChart';
-import { DashboardSecondaryMetrics } from './src/components/dashboard/DashboardSecondaryMetrics';
 import {
   formatMealPlanCardDate,
   formatMealPlanCardWeekday,
@@ -451,7 +457,6 @@ export default function App(): ReactElement {
   const [section, setSection] = useState<AppSection>('dashboard');
   const [isShellMenuOpen, setIsShellMenuOpen] = useState(false);
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
-  const [activeDashboardMetric, setActiveDashboardMetric] = useState<DashboardMetricKey>('net_calories');
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
   const [syncTone, setSyncTone] = useState<'checking' | 'live'>('checking');
   const [syncLabel, setSyncLabel] = useState('Loading live summary');
@@ -602,7 +607,7 @@ export default function App(): ReactElement {
   const [recipeImportError, setRecipeImportError] = useState<string | null>(null);
   const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>([]);
   const [selectedMealPlanDate, setSelectedMealPlanDate] = useState<string | null>(null);
-  const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, boolean>>>({});
+  const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, string>>>({});
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
@@ -975,6 +980,18 @@ export default function App(): ReactElement {
         );
 
         setMealPlanDays(mealPlan);
+        setMealPlanEatenSlots(
+          Object.fromEntries(
+            mealPlan.map((day) => [
+              day.id,
+              Object.fromEntries(
+                day.slots
+                  .filter((slot) => Boolean(slot.eaten_at))
+                  .map((slot) => [slot.id, slot.eaten_at as string])
+              ),
+            ])
+          )
+        );
         setSelectedMealPlanDate((current) =>
           resolveSelectedMealPlanDate(mealPlan, current)
         );
@@ -1424,6 +1441,55 @@ export default function App(): ReactElement {
     [profileProgress, weightEntries]
   );
   const latestProfileGoal = useMemo(() => profileGoals[0] ?? null, [profileGoals]);
+  const todayMealPlanDate = useMemo(
+    () => resolveSelectedMealPlanDate(sortedMealPlanDays, new Date().toISOString().slice(0, 10)),
+    [sortedMealPlanDays]
+  );
+  const todayMealPlanDay = useMemo(
+    () => selectMealPlanDay(sortedMealPlanDays, todayMealPlanDate),
+    [sortedMealPlanDays, todayMealPlanDate]
+  );
+  const todayMealPlanEatenSlots = useMemo(
+    () => (todayMealPlanDay ? mealPlanEatenSlots[todayMealPlanDay.id] ?? {} : {}),
+    [mealPlanEatenSlots, todayMealPlanDay]
+  );
+  const todayEatenMealSlots = useMemo(
+    () =>
+      todayMealPlanDay
+        ? todayMealPlanDay.slots.filter((slot) => Boolean(todayMealPlanEatenSlots[slot.id]))
+        : [],
+    [todayMealPlanDay, todayMealPlanEatenSlots]
+  );
+  const checkedMealCalories = useMemo(
+    () =>
+      todayEatenMealSlots.reduce((sum, slot) => sum + slot.calories, 0),
+    [todayEatenMealSlots]
+  );
+  const dailyHomeTargets = useMemo(
+    () =>
+      buildDailyTargetSummary({
+        goal: latestProfileGoal,
+        profile,
+        foodLog,
+        exerciseEntries
+      }),
+    [exerciseEntries, foodLog, latestProfileGoal, profile]
+  );
+  const dailyMealPlanSummary = useMemo(
+    () => buildDailyMealPlanSummary(todayMealPlanDay, todayMealPlanEatenSlots),
+    [todayMealPlanDay, todayMealPlanEatenSlots]
+  );
+  const dailyExerciseSummary = useMemo(
+    () => buildDailyExerciseSummary(exerciseEntries),
+    [exerciseEntries]
+  );
+  const homeConsumedCalories = dailyHomeTargets.intakeCalories + checkedMealCalories;
+  const homeNetCalories = homeConsumedCalories - dailyHomeTargets.exerciseCalories;
+  const homeRemainingCalories = dailyHomeTargets.calorieTarget - homeNetCalories;
+  const consumedMacroSplit = useMemo(
+    () => calculateMacroPercentages(foodLog.totals.macros),
+    [foodLog.totals.macros]
+  );
   const filteredRecipeCatalog = useMemo(
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
@@ -1587,52 +1653,56 @@ export default function App(): ReactElement {
       legendLabel: 'Daily fiber'
     }
   };
-  const activeMetricConfig = dashboardMetricConfig[activeDashboardMetric];
-  const dashboardHeaderMetrics = [
-    {
-      key: 'net_calories' as const,
-      label: dashboardMetricConfig.net_calories.label,
-      value: dashboardMetricConfig.net_calories.value
-    },
-    {
-      key: 'protein' as const,
-      label: dashboardMetricConfig.protein.label,
-      value: dashboardMetricConfig.protein.value,
-      accentColor: dashboardMetricConfig.protein.accentColor,
-      ringPercentage: dashboardMetricConfig.protein.ringPercentage,
-      ringText: dashboardMetricConfig.protein.ringText
-    },
-    {
-      key: 'carbs' as const,
-      label: dashboardMetricConfig.carbs.label,
-      value: dashboardMetricConfig.carbs.value,
-      accentColor: dashboardMetricConfig.carbs.accentColor,
-      ringPercentage: dashboardMetricConfig.carbs.ringPercentage,
-      ringText: dashboardMetricConfig.carbs.ringText
-    },
-    {
-      key: 'fat' as const,
-      label: dashboardMetricConfig.fat.label,
-      value: dashboardMetricConfig.fat.value,
-      accentColor: dashboardMetricConfig.fat.accentColor,
-      ringPercentage: dashboardMetricConfig.fat.ringPercentage,
-      ringText: dashboardMetricConfig.fat.ringText
-    },
-    {
-      key: 'fiber' as const,
-      label: dashboardMetricConfig.fiber.label,
-      value: dashboardMetricConfig.fiber.value,
-      accentColor: dashboardMetricConfig.fiber.accentColor,
-      ringPercentage: dashboardMetricConfig.fiber.ringPercentage,
-      ringText: dashboardMetricConfig.fiber.ringText
+  const activeMetricConfig = dashboardMetricConfig.net_calories;
+  const homeChartPoints = useMemo(() => {
+    if (activeRange === '1D') {
+      const checkpoints = [
+        { label: '12a', hour: 0 },
+        { label: '6a', hour: 6 },
+        { label: '12p', hour: 12 },
+        { label: '6p', hour: 18 },
+        { label: '12a', hour: 24 },
+      ];
+      const sortedEaten = [...todayEatenMealSlots]
+        .map((slot) => {
+          const eatenAt = todayMealPlanEatenSlots[slot.id];
+          const parsed = eatenAt ? new Date(eatenAt) : null;
+          return { slot, parsed };
+        })
+        .filter((item) => item.parsed && !Number.isNaN(item.parsed.getTime()))
+        .sort((left, right) => left.parsed!.getTime() - right.parsed!.getTime());
+
+      return [
+        ...checkpoints.map((checkpoint) => {
+          const cumulative = sortedEaten.reduce((sum, item) => {
+            const parsed = item.parsed!;
+            const hour = parsed.getHours() + parsed.getMinutes() / 60;
+            const normalizedHour = checkpoint.hour === 24 ? 24 : hour;
+            if (normalizedHour <= checkpoint.hour) {
+              return sum + item.slot.calories;
+            }
+            return sum;
+          }, 0);
+          return { label: checkpoint.label, calories: cumulative };
+        })
+      ];
     }
-  ];
-  const missingInputs = [
-    ...(foodLog.entries.length === 0 ? ['No foods logged for today yet.'] : []),
-    ...(exerciseEntries.length === 0 ? ['No exercise entries recorded for the current period.'] : []),
-    ...(weightEntries.length === 0 ? ['No weight entries saved yet.'] : []),
-    ...(fiberConsumed === 0 ? ['Fiber tracking is not wired into the dashboard totals yet.'] : [])
-  ];
+
+    if (activeMetricConfig.points.length === 0) {
+      return activeMetricConfig.points;
+    }
+
+    const adjustedLastCalories = Math.max(
+      0,
+      activeMetricConfig.points[activeMetricConfig.points.length - 1].calories + checkedMealCalories
+    );
+
+    return activeMetricConfig.points.map((point, index) =>
+      index === activeMetricConfig.points.length - 1 ? { ...point, calories: adjustedLastCalories } : point
+    );
+  }, [activeMetricConfig.points, activeRange, checkedMealCalories, homeConsumedCalories, todayEatenMealSlots, todayMealPlanEatenSlots]);
+  const homeChartTargetValue =
+    activeRange === '1D' ? dailyHomeTargets.calorieTarget : activeMetricConfig.targetValue;
   const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
 
   function submitFoodSearch() {
@@ -2214,13 +2284,14 @@ export default function App(): ReactElement {
     }
   }
 
-  function toggleMealPlanMeal(day: MealPlanDay, slotId: string, slotLabel: string) {
-    const currentlyLogged = mealPlanEatenSlots[day.id]?.[slotId] ?? false;
+  async function toggleMealPlanMeal(day: MealPlanDay, slotId: string, slotLabel: string) {
+    const currentlyLogged = mealPlanEatenSlots[day.id]?.[slotId] ?? null;
+    const nextEatenAt = currentlyLogged ? null : new Date().toISOString();
+
     setMealPlanEatenSlots((current) => {
       const nextDayState = { ...(current[day.id] ?? {}) };
-      const nextLogged = !nextDayState[slotId];
-      if (nextLogged) {
-        nextDayState[slotId] = true;
+      if (nextEatenAt) {
+        nextDayState[slotId] = nextEatenAt;
       } else {
         delete nextDayState[slotId];
       }
@@ -2234,9 +2305,68 @@ export default function App(): ReactElement {
 
       return nextState;
     });
-
-    setMealPlanTone('live');
+    setMealPlanDays((current) =>
+      current.map((mealDay) =>
+        mealDay.id === day.id
+          ? {
+              ...mealDay,
+              slots: mealDay.slots.map((slot) =>
+                slot.id === slotId ? { ...slot, eaten_at: nextEatenAt } : slot
+              ),
+            }
+          : mealDay
+      )
+    );
+    setMealPlanTone('checking');
     setMealPlanStatus(`${slotLabel} ${currentlyLogged ? 'unchecked' : 'logged as eaten'} for ${day.label}`);
+
+    try {
+      if (foodSessionToken) {
+        const updatedDay = await updateMealPlanSlotEatenAt(slotId, nextEatenAt, foodSessionToken);
+        setMealPlanDays((current) => current.map((mealDay) => (mealDay.id === updatedDay.id ? updatedDay : mealDay)));
+        setMealPlanEatenSlots((current) => ({
+          ...current,
+          [updatedDay.id]: Object.fromEntries(
+            updatedDay.slots
+              .filter((slot) => Boolean(slot.eaten_at))
+              .map((slot) => [slot.id, slot.eaten_at as string])
+          ),
+        }));
+      }
+      setMealPlanTone('live');
+      setMealPlanStatus(`${slotLabel} ${currentlyLogged ? 'unchecked' : 'logged as eaten'} for ${day.label}`);
+    } catch (error) {
+      setMealPlanDays((current) =>
+        current.map((mealDay) =>
+          mealDay.id === day.id
+            ? {
+                ...mealDay,
+                slots: mealDay.slots.map((slot) =>
+                  slot.id === slotId ? { ...slot, eaten_at: currentlyLogged } : slot
+                ),
+              }
+            : mealDay
+        )
+      );
+      setMealPlanEatenSlots((current) => {
+        const nextDayState = { ...(current[day.id] ?? {}) };
+        if (currentlyLogged) {
+          nextDayState[slotId] = currentlyLogged;
+        } else {
+          delete nextDayState[slotId];
+        }
+        const nextState = { ...current };
+        if (Object.keys(nextDayState).length === 0) {
+          delete nextState[day.id];
+        } else {
+          nextState[day.id] = nextDayState;
+        }
+        return nextState;
+      });
+      setMealPlanTone('checking');
+      setMealPlanStatus(`Could not update ${slotLabel}`);
+      setMealPlanError(error instanceof Error ? error.message : 'Unable to update meal plan slot.');
+    }
   }
 
   function updateMealIngredientGrams(ingredientId: string, gramsValue: string) {
@@ -3109,64 +3239,210 @@ export default function App(): ReactElement {
             </View>
           ) : null}
 
-          <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
-            <Text style={styles.appStatusLabel}>{syncLabel}</Text>
-            <Text style={styles.appStatusDetail}>{syncDetail}</Text>
-          </View>
+          {section !== 'dashboard' ? (
+            <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
+              <Text style={styles.appStatusLabel}>{syncLabel}</Text>
+              <Text style={styles.appStatusDetail}>{syncDetail}</Text>
+            </View>
+          ) : null}
         </View>
 
         {section === 'dashboard' && (
           <>
             <View style={styles.dashboardStack}>
-              <View style={styles.dashboardIntro}>
-                <View>
-                  <Text style={styles.panelEyebrow}>Dashboard</Text>
-                  <Text style={styles.dashboardTitle}>High-level intake overview</Text>
+              <View style={styles.detailCard}>
+                <View style={styles.dailyHomeSummaryHeader}>
+                  <View>
+                    <Text style={styles.detailTitle}>Daily Plan</Text>
+                  </View>
                 </View>
-                <Text style={styles.panelDetail}>
-                  The dashboard now prioritizes the core metrics, one main chart, and the inputs still missing from live tracking.
+
+                <View style={styles.dailyHomeSummaryMetricRow}>
+                  <Text style={styles.dailyHomeSummaryLabel}>Daily calories</Text>
+                  <Text style={styles.dailyHomeSummaryValue}>
+                    {homeConsumedCalories.toLocaleString()}/{dailyHomeTargets.calorieTarget.toLocaleString()} kcal
+                  </Text>
+                </View>
+
+                <View style={styles.dailyHomeSummaryMetricRow}>
+                  <Text style={styles.dailyHomeSummaryLabel}>Macro split</Text>
+                  <Text style={styles.dailyHomeSummaryValue}>
+                    {dailyHomeTargets.macroPercentages.protein} / {dailyHomeTargets.macroPercentages.carbs} / {dailyHomeTargets.macroPercentages.fat}
+                  </Text>
+                </View>
+
+                <Text style={styles.dailyHomeMacroLine}>
+                  Remaining {homeRemainingCalories.toLocaleString()} kcal
                 </Text>
               </View>
 
-              <DashboardHeaderMetrics
-                activeMetric={activeDashboardMetric}
-                metrics={dashboardHeaderMetrics}
-                onSelect={setActiveDashboardMetric}
-              />
-
-              <DashboardTimeRangeTabs
-                activeRange={activeRange}
-                onChange={setActiveRange}
-                ranges={rangeTabs}
-              />
+              <View style={styles.detailCard}>
+                <View style={styles.recipeRowTitleWrap}>
+                  <View>
+                    <Text style={styles.detailTitle}>Consumed calories</Text>
+                  </View>
+                </View>
+                <View style={styles.dailyHomeMacroRingRow}>
+                  <MacroSplitRing
+                    label="Protein"
+                    grams={Math.round(foodLog.totals.macros.protein)}
+                    percentage={consumedMacroSplit.protein}
+                    color="#0f766e"
+                  />
+                  <MacroSplitRing
+                    label="Carbs"
+                    grams={Math.round(foodLog.totals.macros.carbs)}
+                    percentage={consumedMacroSplit.carbs}
+                    color="#ea580c"
+                  />
+                  <MacroSplitRing
+                    label="Fat"
+                    grams={Math.round(foodLog.totals.macros.fat)}
+                    percentage={consumedMacroSplit.fat}
+                    color="#2563eb"
+                  />
+                </View>
+                <Text style={styles.dailyHomeMacroLegend}>
+                  P ({Math.round(foodLog.totals.macros.protein)}g) · C ({Math.round(foodLog.totals.macros.carbs)}g) · F ({Math.round(foodLog.totals.macros.fat)}g)
+                </Text>
+                {homeConsumedCalories === 0 ? (
+                  <Text style={styles.dailyHomeEmptyState}>No calories logged yet.</Text>
+                ) : null}
+              </View>
 
               <DashboardHeroChart
-                detail={activeMetricConfig.detail}
-                legendLabel={activeMetricConfig.legendLabel}
-                points={activeMetricConfig.points}
-                range={activeRange}
-                targetLabel={activeMetricConfig.targetLabel}
-                targetValue={activeMetricConfig.targetValue}
-                title={activeMetricConfig.chartTitle}
-              />
-
-              <DashboardSecondaryMetrics
-                adherence={`${snapshot.weeklyMetrics.adherence_score}%`}
-                currentWeight={
-                  weightProgress.currentWeightLbs !== null
-                    ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
-                    : '—'
+                controls={
+                  <DashboardTimeRangeTabs
+                    activeRange={activeRange}
+                    onChange={setActiveRange}
+                    ranges={rangeTabs}
+                  />
                 }
-                missingInputs={missingInputs}
-                weeklyChange={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
+                detail={`${dailyHomeTargets.calorieTarget.toLocaleString()} kcal target · ${homeConsumedCalories.toLocaleString()} kcal consumed`}
+                legendLabel="Consumed calories"
+                points={homeChartPoints}
+                range={activeRange}
+                targetLabel="Target calories"
+                targetValue={homeChartTargetValue}
+                title="Calories"
               />
 
-              <View style={styles.summaryStrip}>
-                <MetricTile label="Remaining" value={`${rangeRemaining.toLocaleString()} kcal`} compact />
-                <MetricTile label="Net" value={`${trackerTotals.netCalories.toLocaleString()} kcal`} compact />
-                <MetricTile label="Exercise" value={`${trackerTotals.exerciseCalories.toLocaleString()} kcal`} compact />
-                <MetricTile label="Weigh-ins" value={`${weightProgress.weightEntryCount}`} compact />
+              <View style={styles.detailCard}>
+                  <View style={styles.recipeRowTitleWrap}>
+                    <View>
+                      <Text style={styles.panelEyebrow}>Planned exercise</Text>
+                      <Text style={styles.detailTitle}>Today&apos;s session</Text>
+                    </View>
+                    <Text style={styles.detailSubtitle}>
+                      {dailyExerciseSummary.sessionCount > 0
+                        ? `${dailyExerciseSummary.sessionCount} session${dailyExerciseSummary.sessionCount === 1 ? '' : 's'} logged`
+                        : 'No exercise saved yet'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.summaryStrip}>
+                    <MetricTile label="Minutes" value={`${dailyExerciseSummary.totalMinutes}`} compact />
+                    <MetricTile label="Calories" value={`${dailyExerciseSummary.totalCalories.toLocaleString()} kcal`} compact />
+                  </View>
+
+                  <View>
+                    {exerciseEntries.length > 0 ? (
+                      exerciseEntries.slice(0, 2).map((entry) => (
+                        <View key={entry.id} style={styles.listRow}>
+                          <View>
+                            <Text style={styles.listTitle}>{entry.title}</Text>
+                            <Text style={styles.listCaption}>
+                              {entry.logged_at} · {entry.duration_minutes} min · {entry.intensity}
+                            </Text>
+                          </View>
+                          <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.dailyHomeEmptyState}>No planned exercise saved yet.</Text>
+                    )}
+                  </View>
               </View>
+
+              <View style={styles.detailCard}>
+                  <View style={styles.recipeRowTitleWrap}>
+                    <View>
+                      <Text style={styles.detailTitle}>Meal Plan</Text>
+                      {dailyMealPlanSummary.hasPlan ? (
+                        <Text style={styles.detailSubtitle}>
+                          P {Math.round(dailyMealPlanSummary.plannedMacros.protein)}g · C {Math.round(dailyMealPlanSummary.plannedMacros.carbs)}g · F {Math.round(dailyMealPlanSummary.plannedMacros.fat)}g
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.dailyHomeMealPlanHeaderActions}>
+                      <Text style={styles.detailSubtitle}>
+                        {dailyMealPlanSummary.hasPlan
+                          ? `${dailyMealPlanSummary.plannedCalories.toLocaleString()} kcal`
+                          : 'No meal plan saved yet'}
+                      </Text>
+                      <Pressable style={styles.dailyHomeEditButton} accessibilityRole="button" accessibilityLabel="Edit meal plan">
+                        <Text style={styles.dailyHomeEditButtonLabel}>✎</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {dailyMealPlanSummary.hasPlan ? (
+                    <>
+                      {todayMealPlanDay?.slots.map((slot) => {
+                        const logged = todayMealPlanEatenSlots[slot.id] ?? false;
+                        const slotItems = slot.items ?? [];
+                        return (
+                          <Pressable
+                            key={slot.id}
+                            style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
+                            onPress={() => void toggleMealPlanMeal(todayMealPlanDay, slot.id, slot.meal_label)}
+                          >
+                            <View style={styles.mealPlanSlotHeader}>
+                              <View style={styles.dailyHomeMealPlanSlotCopy}>
+                                <View style={styles.mealPlanSlotTitleRow}>
+                                  <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                                  <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
+                                </View>
+                                <Text style={styles.listCaption}>{slot.title}</Text>
+                              </View>
+                              <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
+                                <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
+                                  {logged ? '✓' : ''}
+                                </Text>
+                              </View>
+                            </View>
+                            {slotItems.length > 0 ? (
+                              <View style={styles.mealPlanItemList}>
+                                  {slotItems.map((item, index) => (
+                                    <View key={`${slot.id}-item-${index}`} style={styles.mealPlanItemRow}>
+                                      <View style={styles.mealPlanItemCopy}>
+                                        <Text style={styles.mealPlanItemName}>
+                                          {item.name}
+                                          <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
+                                        </Text>
+                                      </View>
+                                      <View style={styles.mealPlanItemInlineMeta}>
+                                      <Text style={styles.mealPlanItemMacroLine}>
+                                        P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
+                                      </Text>
+                                      <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
+                                    </View>
+                                  </View>
+                                ))}
+                              </View>
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <Text style={styles.dailyHomeEmptyState}>No meal plan saved yet.</Text>
+                  )}
+              </View>
+
+              <Text style={styles.dashboardFooterStatus}>
+                {syncLabel} · {syncDetail}
+              </Text>
             </View>
 
           </>
@@ -4150,26 +4426,48 @@ export default function App(): ReactElement {
                 <View style={styles.foodList}>
                   {selectedMealPlanDay.slots.map((slot) => {
                     const logged = mealPlanEatenSlots[selectedMealPlanDay.id]?.[slot.id] ?? false;
+                    const slotItems = slot.items ?? [];
 
                     return (
                       <Pressable
                         key={slot.id}
-                        style={[styles.listRow, logged && styles.mealPlanLoggedRow]}
+                        style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
                         onPress={() => toggleMealPlanMeal(selectedMealPlanDay, slot.id, slot.meal_label)}
                       >
-                        <View style={styles.foodRowCopy}>
-                          <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                          <Text style={styles.listCaption}>{slot.title}</Text>
-                        </View>
-                        <View style={styles.foodRowActions}>
+                        <View style={styles.mealPlanSlotHeader}>
+                          <View style={styles.foodRowCopy}>
+                            <View style={styles.mealPlanSlotTitleRow}>
+                              <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                              <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
+                            </View>
+                            <Text style={styles.listCaption}>{slot.title}</Text>
+                          </View>
                           <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
                             <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
                               {logged ? '☑' : '☐'}
                             </Text>
                           </View>
-                          <Text style={styles.listMetric}>{slot.calories} kcal</Text>
-                          <Text style={styles.listCaption}>{slot.prep_status}</Text>
                         </View>
+                        {slotItems.length > 0 ? (
+                          <View style={styles.mealPlanItemList}>
+                              {slotItems.map((item, index) => (
+                                <View key={`${slot.id}-plan-item-${index}`} style={styles.mealPlanItemRow}>
+                                  <View style={styles.mealPlanItemCopy}>
+                                    <Text style={styles.mealPlanItemName}>
+                                      {item.name}
+                                      <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
+                                    </Text>
+                                  </View>
+                                  <View style={styles.mealPlanItemInlineMeta}>
+                                  <Text style={styles.mealPlanItemMacroLine}>
+                                    P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
+                                  </Text>
+                                  <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
                       </Pressable>
                     );
                   })}
@@ -4470,20 +4768,9 @@ export default function App(): ReactElement {
 
                                 {scaledRecipe.ingredients.length > 0 ? (
                                   <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Scaled ingredients</Text>
+                                    <Text style={styles.recipeMetaLabel}>Ingredients</Text>
                                     {scaledRecipe.ingredients.map((ingredient) => (
                                       <Text key={`${detailRecipe.id}-${ingredient.id}`} style={styles.recipeMetaItem}>
-                                        {ingredient.name} · {ingredient.grams} g
-                                      </Text>
-                                    ))}
-                                  </View>
-                                ) : null}
-
-                                {detailRecipe.ingredients.length > 0 ? (
-                                  <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Original ingredients</Text>
-                                    {detailRecipe.ingredients.map((ingredient) => (
-                                      <Text key={ingredient.id} style={styles.recipeMetaItem}>
                                         {ingredient.name} · {ingredient.grams} g
                                       </Text>
                                     ))}
@@ -4557,6 +4844,51 @@ function MetricTile({
     <View style={[styles.metricTile, compact && styles.metricTileCompact]}>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricValue}>{value}</Text>
+    </View>
+  );
+}
+
+function MacroSplitRing({
+  label,
+  grams,
+  percentage,
+  color
+}: {
+  label: string;
+  grams: number;
+  percentage: number;
+  color: string;
+}): ReactElement {
+  const radius = 20;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(percentage, 100));
+  const offset = circumference - (clamped / 100) * circumference;
+
+  return (
+    <View style={styles.macroSplitRingCard}>
+      <View style={styles.macroSplitRingWrap}>
+        <Svg width={54} height={54}>
+          <Circle cx="27" cy="27" r={radius} stroke="#dbe3ec" strokeWidth="7" fill="none" />
+          <Circle
+            cx="27"
+            cy="27"
+            r={radius}
+            stroke={color}
+            strokeWidth="7"
+            fill="none"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            rotation="-90"
+            origin="27,27"
+          />
+        </Svg>
+        <View style={styles.macroSplitRingCenter}>
+          <Text style={styles.macroSplitRingPercent}>{clamped}%</Text>
+        </View>
+      </View>
+      <Text style={styles.macroSplitRingLabel}>{label}</Text>
+      <Text style={styles.macroSplitRingValue}>{grams}g</Text>
     </View>
   );
 }
@@ -5608,6 +5940,199 @@ const styles = StyleSheet.create({
   dashboardStack: {
     gap: 14
   },
+  dailyHomeSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  dailyHomeGoalBadge: {
+    backgroundColor: '#edf8f1',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#c7e5d2',
+    maxWidth: 180
+  },
+  dailyHomeGoalBadgeLabel: {
+    color: '#1d5f3a',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center'
+  },
+  dailyHomeSummaryMetricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12
+  },
+  dailyHomeSummaryLabel: {
+    color: '#66778c',
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  dailyHomeSummaryValue: {
+    color: '#132536',
+    fontSize: 24,
+    fontWeight: '800'
+  },
+  dailyHomeMacroLine: {
+    color: '#66778c',
+    fontSize: 12,
+    lineHeight: 18
+  },
+  dailyHomeMacroRingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+    justifyContent: 'center'
+  },
+  dailyHomeMacroLegend: {
+    color: '#66778c',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center'
+  },
+  dailyHomeMealPlanHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  dailyHomeEditButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff'
+  },
+  dailyHomeEditButtonLabel: {
+    color: '#17324d',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  dailyHomeMealPlanSlotCopy: {
+    flex: 1,
+    gap: 8
+  },
+  dailyHomeMealPlanSlotMeta: {
+    alignItems: 'flex-end',
+    gap: 8
+  },
+  mealPlanSlotCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dfe7ef',
+    padding: 14,
+    gap: 10
+  },
+  mealPlanSlotHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12
+  },
+  mealPlanSlotTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12
+  },
+  mealPlanSlotTotal: {
+    color: '#17324d',
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  mealPlanItemList: {
+    gap: 8,
+    marginTop: 4
+  },
+  mealPlanItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12
+  },
+  mealPlanItemCopy: {
+    flex: 1,
+    paddingRight: 12
+  },
+  mealPlanItemName: {
+    color: '#17324d',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  mealPlanItemQuantityInline: {
+    color: '#66778c',
+    fontSize: 13,
+    fontWeight: '500'
+  },
+  mealPlanItemInlineMeta: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap'
+  },
+  mealPlanItemMacroLine: {
+    color: '#66778c',
+    fontSize: 12,
+    textAlign: 'right'
+  },
+  mealPlanItemCalories: {
+    color: '#17324d',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  macroSplitRingCard: {
+    minWidth: 98,
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d7dee7',
+    paddingHorizontal: 12,
+    paddingVertical: 14
+  },
+  macroSplitRingWrap: {
+    width: 62,
+    height: 62,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  macroSplitRingCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  macroSplitRingPercent: {
+    color: '#132536',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  macroSplitRingLabel: {
+    color: '#66778c',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  macroSplitRingValue: {
+    color: '#132536',
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  dailyHomeEmptyState: {
+    color: '#66778c',
+    fontSize: 14,
+    lineHeight: 19,
+    textAlign: 'center'
+  },
   dashboardIntro: {
     backgroundColor: '#ffffff',
     borderRadius: 22,
@@ -6495,6 +7020,12 @@ const styles = StyleSheet.create({
   },
   detailSubtitle: {
     color: '#66778c'
+  },
+  dashboardFooterStatus: {
+    color: '#8a98aa',
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center'
   },
   footer: {
     color: '#66778c',

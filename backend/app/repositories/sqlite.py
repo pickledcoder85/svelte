@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta
@@ -420,6 +421,8 @@ class SQLiteRepository:
                     meal_label TEXT NOT NULL,
                     title TEXT NOT NULL,
                     calories INTEGER NOT NULL,
+                    items_json TEXT,
+                    eaten_at TEXT,
                     prep_status TEXT NOT NULL,
                     FOREIGN KEY (meal_plan_day_id) REFERENCES meal_plan_days (id) ON DELETE CASCADE
                 );
@@ -664,6 +667,7 @@ class SQLiteRepository:
         self._ensure_user_profiles_columns()
         self._ensure_user_goals_columns()
         self._ensure_weight_entries_columns()
+        self._ensure_meal_plan_slot_columns()
         self._ensure_meal_template_schema()
         self._ensure_recipe_schema()
         self._ensure_saved_favorites_supports_food()
@@ -844,6 +848,26 @@ class SQLiteRepository:
             for column_name, column_type in missing_columns:
                 self._connection.execute(
                     f"ALTER TABLE weight_entries ADD COLUMN {column_name} {column_type}"
+                )
+
+    def _ensure_meal_plan_slot_columns(self) -> None:
+        existing_columns = self._table_columns("meal_plan_slots")
+        expected_columns = {
+            "items_json": "TEXT",
+            "eaten_at": "TEXT",
+        }
+        missing_columns = [
+            (column_name, column_type)
+            for column_name, column_type in expected_columns.items()
+            if column_name not in existing_columns
+        ]
+        if not missing_columns:
+            return
+
+        with self._lock, self._connection:
+            for column_name, column_type in missing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE meal_plan_slots ADD COLUMN {column_name} {column_type}"
                 )
 
     def _table_columns(self, table_name: str) -> set[str]:
@@ -1976,8 +2000,8 @@ class SQLiteRepository:
                 self._connection.execute(
                     """
                     INSERT INTO meal_plan_slots (
-                        id, meal_plan_day_id, position, meal_label, title, calories, prep_status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        id, meal_plan_day_id, position, meal_label, title, calories, items_json, eaten_at, prep_status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(uuid4()),
@@ -1986,6 +2010,8 @@ class SQLiteRepository:
                         slot["meal_label"],
                         slot["title"],
                         slot["calories"],
+                        json.dumps(slot.get("items", [])),
+                        slot.get("eaten_at"),
                         slot["prep_status"],
                     ),
                 )
@@ -2000,7 +2026,16 @@ class SQLiteRepository:
             """,
             (meal_plan_day_id,),
         ).fetchall()
-        return [dict(row) for row in rows]
+        slots: list[dict[str, Any]] = []
+        for row in rows:
+            payload = dict(row)
+            items_json = payload.get("items_json")
+            if items_json:
+                payload["items"] = json.loads(items_json)
+            else:
+                payload["items"] = []
+            slots.append(payload)
+        return slots
 
     def get_meal_plan_day(self, meal_plan_day_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
@@ -2029,6 +2064,24 @@ class SQLiteRepository:
             }
             for row in rows
         ]
+
+    def update_meal_plan_slot_eaten_at(
+        self,
+        slot_id: str,
+        eaten_at: datetime | None,
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT meal_plan_day_id FROM meal_plan_slots WHERE id = ?",
+                (slot_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            self._connection.execute(
+                "UPDATE meal_plan_slots SET eaten_at = ? WHERE id = ?",
+                (eaten_at.isoformat() if eaten_at is not None else None, slot_id),
+            )
+            return self.get_meal_plan_day(row["meal_plan_day_id"])
 
     def create_meal_prep_task(
         self,

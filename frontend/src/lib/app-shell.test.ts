@@ -29,6 +29,8 @@ describe('app shell metadata', () => {
   });
 
   it('returns consistent section copy and profile initials', () => {
+    expect(getAppSectionMeta('dashboard').label).toBe('Home');
+    expect(getAppSectionMeta('dashboard').detail).toContain("Today's");
     expect(getAppSectionMeta('ingestion').detail).toContain('Scan');
     expect(getProfileInitials('Local Dev User', 'dev@example.com')).toBe('LD');
     expect(getProfileInitials(null, 'dev@example.com')).toBe('DE');

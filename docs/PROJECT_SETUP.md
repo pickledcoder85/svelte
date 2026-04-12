@@ -78,7 +78,7 @@ Run `python -m backend.app.db.bootstrap` any time you need to create the local S
 For repeatable local iteration:
 
 - `python -m backend.app.db.bootstrap --reset` recreates the target SQLite file from migrations.
-- `python -m backend.app.db.bootstrap --reset --seed-dev` recreates the target SQLite file and seeds a stable local development user.
+- `python -m backend.app.db.bootstrap --reset --seed-dev` recreates the target SQLite file and seeds a stable local development user, baseline logs, meal-plan data, and demo recipes.
 - The seeded local development user email is `dev@example.com`.
 - `scripts/dev-backend.sh` defaults `DATABASE_URL` to `sqlite:///./nutrition_os.dev.db` when you do not set it explicitly.
 - `scripts/dev-backend.sh` always creates `tmp/backend.log`, and that log file should be the first place to inspect backend state during live app debugging.

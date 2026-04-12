@@ -824,12 +824,28 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                         "title": "Greek yogurt + berries",
                         "calories": 320,
                         "prep_status": "Prepped",
+                        "items": [
+                            {
+                                "name": "Greek yogurt",
+                                "quantity_label": "300 g",
+                                "calories": 177,
+                                "macros": {"protein": 31, "carbs": 11, "fat": 1},
+                            }
+                        ],
                     },
                     {
                         "meal_label": "Lunch",
                         "title": "Chicken rice bowl",
                         "calories": 610,
                         "prep_status": "Needs prep",
+                        "items": [
+                            {
+                                "name": "Chicken breast",
+                                "quantity_label": "170 g",
+                                "calories": 281,
+                                "macros": {"protein": 53, "carbs": 0, "fat": 6},
+                            }
+                        ],
                     },
                 ],
             )
@@ -842,6 +858,11 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 scheduled_for=date(2026, 3, 30),
             )
             updated_task = repo.update_meal_prep_task_status(task_id, "Done")
+            meal_plan_days = repo.list_meal_plan_days("user-1")
+            updated_meal_plan_day = repo.update_meal_plan_slot_eaten_at(
+                meal_plan_days[0]["slots"][0]["id"],
+                datetime(2026, 3, 31, 7, 30),
+            )
 
             exercises = repo.list_exercise_entries("user-1")
             meal_plan_days = repo.list_meal_plan_days("user-1")
@@ -852,6 +873,9 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertEqual(meal_plan_days[0]["id"], meal_plan_day_id)
         self.assertEqual(len(meal_plan_days[0]["slots"]), 2)
         self.assertEqual(meal_plan_days[0]["slots"][0]["meal_label"], "Breakfast")
+        self.assertEqual(meal_plan_days[0]["slots"][0]["items"][0]["name"], "Greek yogurt")
+        self.assertIsNotNone(updated_meal_plan_day)
+        self.assertEqual(meal_plan_days[0]["slots"][0]["eaten_at"], "2026-03-31T07:30:00")
         self.assertIsNotNone(updated_task)
         self.assertEqual(updated_task["status"], "Done")
         self.assertEqual(meal_prep_tasks[0]["status"], "Done")
