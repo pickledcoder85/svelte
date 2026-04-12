@@ -90,6 +90,8 @@ def add_food_log_entry(
         entry_type=payload.entry_type,
         food_item_id=payload.food_item_id,
         meal_template_id=payload.meal_template_id,
+        meal_plan_slot_id=payload.meal_plan_slot_id,
+        display_name_override=payload.display_name_override,
         grams=payload.grams,
         servings=payload.servings,
         calories=payload.calories,

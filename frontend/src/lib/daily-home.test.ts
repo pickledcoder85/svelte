@@ -48,6 +48,7 @@ const exerciseEntries: ExerciseEntry[] = [
     title: 'Walk',
     duration_minutes: 30,
     calories_burned: 180,
+    logged_on: '2026-04-01',
     logged_at: '07:00',
     intensity: 'Moderate'
   },
@@ -56,6 +57,7 @@ const exerciseEntries: ExerciseEntry[] = [
     title: 'Lift',
     duration_minutes: 45,
     calories_burned: 250,
+    logged_on: '2026-04-01',
     logged_at: '17:00',
     intensity: 'High'
   }

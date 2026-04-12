@@ -49,6 +49,7 @@ The current local-development entry screen should keep moving toward that funnel
 Calculation and plan-generation strategy:
 
 - [CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md)
+- [PLANNED_WORKOUT_STRUCTURE.md](/home/brianminer/workspace/svelte/docs/PLANNED_WORKOUT_STRUCTURE.md)
 
 ## Layer plans
 
@@ -113,6 +114,7 @@ Current status:
 - onboarding now uses dedicated energy and macro calculation helpers instead of inline fixed-ratio logic
 - explicit goal labels are clearer in the frontend onboarding and profile experience
 - full editable profile management is live, with profile edits recalculating targets and appending new goal-history rows
+- planned workout persistence now has a forward-compatible session/block/segment structure in the database, while the UI still uses a temporary flat compatibility layer
 - adaptive maintenance, structured exercise-estimation metadata, versioned target persistence, and broader calculation-module separation are still pending
 
 ### Phase 3: mobile packaging and polish

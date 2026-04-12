@@ -13,6 +13,8 @@ class FoodLogEntryCreateRequest(BaseModel):
     entry_type: Literal["food", "meal"] = "food"
     food_item_id: str | None = None
     meal_template_id: str | None = None
+    meal_plan_slot_id: str | None = None
+    display_name_override: str | None = None
     grams: float = Field(ge=0)
     servings: float = Field(gt=0)
     calories: float = Field(ge=0)
@@ -27,6 +29,8 @@ class FoodLogEntry(BaseModel):
     entry_type: Literal["food", "meal"]
     food_item_id: str | None = None
     meal_template_id: str | None = None
+    meal_plan_slot_id: str | None = None
+    display_name_override: str | None = None
     display_name: str | None = None
     brand: str | None = None
     source: Literal["USDA", "LABEL_SCAN", "CUSTOM"] | None = None

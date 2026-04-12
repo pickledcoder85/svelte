@@ -813,6 +813,30 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 logged_at="07:15",
                 intensity="Moderate",
             )
+            planned_exercise_id = repo.create_planned_exercise_entry(
+                user_id="user-1",
+                title="Swim",
+                duration_minutes=55,
+                calories_burned=520,
+                planned_on=date(2026, 3, 31),
+                planned_at="06:30",
+                intensity="High",
+            )
+            updated_planned_exercise = repo.update_planned_exercise_entry(
+                user_id="user-1",
+                planned_exercise_entry_id=planned_exercise_id,
+                title="Long swim",
+                duration_minutes=60,
+                calories_burned=560,
+                planned_on=date(2026, 4, 1),
+                planned_at="06:45",
+                intensity="High",
+            )
+            completed_planned_exercise = repo.update_planned_exercise_entry_completion(
+                user_id="user-1",
+                planned_exercise_entry_id=planned_exercise_id,
+                completed_at=datetime(2026, 4, 1, 11, 30),
+            )
             meal_plan_day_id = repo.save_meal_plan_day(
                 user_id="user-1",
                 plan_date=date(2026, 3, 31),
@@ -860,25 +884,310 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
             updated_task = repo.update_meal_prep_task_status(task_id, "Done")
             meal_plan_days = repo.list_meal_plan_days("user-1")
             updated_meal_plan_day = repo.update_meal_plan_slot_eaten_at(
+                "user-1",
                 meal_plan_days[0]["slots"][0]["id"],
                 datetime(2026, 3, 31, 7, 30),
             )
+            meal_log = repo.get_food_log_for_date("user-1", date(2026, 3, 31))
+            cleared_meal_plan_day = repo.update_meal_plan_slot_eaten_at(
+                "user-1",
+                meal_plan_days[0]["slots"][0]["id"],
+                None,
+            )
+            cleared_meal_log = repo.get_food_log_for_date("user-1", date(2026, 3, 31))
 
             exercises = repo.list_exercise_entries("user-1")
+            planned_exercises = repo.list_planned_exercise_entries("user-1")
+            planned_workout_sessions = repo.list_planned_workout_sessions("user-1")
             meal_plan_days = repo.list_meal_plan_days("user-1")
             meal_prep_tasks = repo.list_meal_prep_tasks("user-1")
 
-        self.assertEqual(exercises[0]["id"], exercise_id)
-        self.assertEqual(exercises[0]["title"], "Incline walk")
+        self.assertTrue(any(entry["id"] == exercise_id for entry in exercises))
+        self.assertTrue(any(entry["title"] == "Incline walk" for entry in exercises))
+        self.assertEqual(planned_exercises[0]["id"], planned_exercise_id)
+        self.assertEqual(planned_exercises[0]["planned_on"], "2026-04-01")
+        self.assertEqual(planned_workout_sessions[0]["id"], planned_exercise_id)
+        self.assertEqual(planned_workout_sessions[0]["workout_type"], "swim")
+        self.assertEqual(planned_workout_sessions[0]["blocks"][0]["block_kind"], "activity")
+        self.assertEqual(planned_workout_sessions[0]["blocks"][0]["segments"][0]["duration_minutes"], 60)
+        self.assertIsNotNone(updated_planned_exercise)
+        assert updated_planned_exercise is not None
+        self.assertEqual(updated_planned_exercise["title"], "Long swim")
+        self.assertIsNotNone(completed_planned_exercise)
+        assert completed_planned_exercise is not None
+        self.assertEqual(completed_planned_exercise["completed_at"], "2026-04-01T11:30:00")
+        self.assertIsNotNone(completed_planned_exercise["completed_exercise_entry_id"])
+        planned_completed_entry = next(
+            entry for entry in exercises if entry["id"] == completed_planned_exercise["completed_exercise_entry_id"]
+        )
+        self.assertEqual(planned_completed_entry["title"], "Long swim")
+        self.assertEqual(planned_completed_entry["logged_on"], "2026-04-01")
         self.assertEqual(meal_plan_days[0]["id"], meal_plan_day_id)
         self.assertEqual(len(meal_plan_days[0]["slots"]), 2)
         self.assertEqual(meal_plan_days[0]["slots"][0]["meal_label"], "Breakfast")
         self.assertEqual(meal_plan_days[0]["slots"][0]["items"][0]["name"], "Greek yogurt")
         self.assertIsNotNone(updated_meal_plan_day)
-        self.assertEqual(meal_plan_days[0]["slots"][0]["eaten_at"], "2026-03-31T07:30:00")
+        self.assertEqual(updated_meal_plan_day["slots"][0]["eaten_at"], "2026-03-31T07:30:00")
+        self.assertIsNotNone(meal_log)
+        assert meal_log is not None
+        self.assertEqual(len(meal_log["entries"]), 1)
+        self.assertEqual(meal_log["entries"][0]["entry_type"], "meal")
+        self.assertEqual(meal_log["entries"][0]["display_name"], "Breakfast: Greek yogurt + berries")
+        self.assertEqual(meal_log["entries"][0]["meal_plan_slot_id"], meal_plan_days[0]["slots"][0]["id"])
+        self.assertIsNotNone(cleared_meal_plan_day)
+        self.assertIsNotNone(cleared_meal_log)
+        assert cleared_meal_log is not None
+        self.assertEqual(cleared_meal_log["entries"], [])
+        self.assertIsNone(cleared_meal_plan_day["slots"][0]["eaten_at"])
         self.assertIsNotNone(updated_task)
         self.assertEqual(updated_task["status"], "Done")
         self.assertEqual(meal_prep_tasks[0]["status"], "Done")
+
+    def test_sqlite_repository_deletes_planned_exercise_and_linked_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+
+            planned_exercise_id = repo.create_planned_exercise_entry(
+                user_id="user-1",
+                title="Walk",
+                duration_minutes=25,
+                calories_burned=140,
+                planned_on=date(2026, 4, 2),
+                planned_at="06:30",
+                intensity="Low",
+            )
+            completed_planned_exercise = repo.update_planned_exercise_entry_completion(
+                user_id="user-1",
+                planned_exercise_entry_id=planned_exercise_id,
+                completed_at=datetime(2026, 4, 2, 7, 15),
+            )
+
+            deleted = repo.delete_planned_exercise_entry(
+                user_id="user-1",
+                planned_exercise_entry_id=planned_exercise_id,
+            )
+
+            self.assertTrue(deleted)
+            self.assertIsNone(repo.get_planned_exercise_entry(planned_exercise_id))
+            assert completed_planned_exercise is not None
+            self.assertFalse(
+                any(
+                    entry["id"] == completed_planned_exercise["completed_exercise_entry_id"]
+                    for entry in repo.list_exercise_entries("user-1")
+                )
+            )
+            self.assertEqual(repo.list_planned_workout_sessions("user-1"), [])
+
+    def test_sqlite_repository_persists_structured_planned_workout_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+
+            session_id = repo.create_planned_workout_session(
+                user_id="user-1",
+                title="Run workout",
+                workout_type="run",
+                planned_on=date(2026, 4, 7),
+                planned_at="06:00",
+                notes="Threshold focus",
+                estimated_calories_burned=430,
+                blocks=[
+                    {
+                        "block_kind": "warmup",
+                        "title": "Warmup",
+                        "notes": None,
+                        "segments": [
+                            {
+                                "segment_type": "time",
+                                "title": "Easy jog",
+                                "activity_type": "run",
+                                "duration_minutes": 10,
+                                "distance_value": None,
+                                "distance_unit": None,
+                                "reps": None,
+                                "intensity": "Low",
+                                "notes": None,
+                                "calories_estimate": 80,
+                            }
+                        ],
+                    },
+                    {
+                        "block_kind": "activity",
+                        "title": "Main set",
+                        "notes": None,
+                        "segments": [
+                            {
+                                "segment_type": "distance",
+                                "title": "Tempo interval",
+                                "activity_type": "run",
+                                "duration_minutes": None,
+                                "distance_value": 1.0,
+                                "distance_unit": "mi",
+                                "reps": None,
+                                "intensity": "High",
+                                "notes": None,
+                                "calories_estimate": 250,
+                            }
+                        ],
+                    },
+                ],
+            )
+
+            updated_session = repo.update_planned_workout_session(
+                user_id="user-1",
+                planned_workout_session_id=session_id,
+                title="Run workout updated",
+                workout_type="run",
+                planned_on=date(2026, 4, 7),
+                planned_at="06:15",
+                notes="Threshold plus strides",
+                estimated_calories_burned=460,
+                blocks=[
+                    {
+                        "block_kind": "warmup",
+                        "title": "Warmup",
+                        "notes": None,
+                        "segments": [
+                            {
+                                "segment_type": "time",
+                                "title": "Easy jog",
+                                "activity_type": "run",
+                                "duration_minutes": 12,
+                                "distance_value": None,
+                                "distance_unit": None,
+                                "reps": None,
+                                "intensity": "Low",
+                                "notes": None,
+                                "calories_estimate": 90,
+                            }
+                        ],
+                    },
+                    {
+                        "block_kind": "activity",
+                        "title": "Main set",
+                        "notes": None,
+                        "segments": [
+                            {
+                                "segment_type": "distance",
+                                "title": "Tempo interval",
+                                "activity_type": "run",
+                                "duration_minutes": None,
+                                "distance_value": 1.2,
+                                "distance_unit": "mi",
+                                "reps": None,
+                                "intensity": "High",
+                                "notes": None,
+                                "calories_estimate": 280,
+                            },
+                            {
+                                "segment_type": "reps",
+                                "title": "Strides",
+                                "activity_type": "run",
+                                "duration_minutes": None,
+                                "distance_value": None,
+                                "distance_unit": None,
+                                "reps": 4,
+                                "intensity": "Moderate",
+                                "notes": None,
+                                "calories_estimate": 40,
+                            },
+                        ],
+                    },
+                    {
+                        "block_kind": "cooldown",
+                        "title": "Cooldown",
+                        "notes": None,
+                        "segments": [
+                            {
+                                "segment_type": "time",
+                                "title": "Walk",
+                                "activity_type": "run",
+                                "duration_minutes": 8,
+                                "distance_value": None,
+                                "distance_unit": None,
+                                "reps": None,
+                                "intensity": "Low",
+                                "notes": None,
+                                "calories_estimate": 50,
+                            }
+                        ],
+                    },
+                ],
+            )
+            completed_session = repo.update_planned_workout_session_completion(
+                user_id="user-1",
+                planned_workout_session_id=session_id,
+                completed_at=datetime(2026, 4, 7, 11, 45),
+            )
+            loaded_session = repo.get_planned_workout_session("user-1", session_id)
+
+        self.assertIsNotNone(updated_session)
+        assert updated_session is not None
+        self.assertEqual(updated_session["planned_at"], "06:15")
+        self.assertEqual(len(updated_session["blocks"]), 3)
+        self.assertIsNotNone(completed_session)
+        assert completed_session is not None
+        self.assertEqual(completed_session["status"], "completed")
+        self.assertIsNotNone(completed_session["completed_exercise_entry_id"])
+        self.assertIsNotNone(loaded_session)
+        assert loaded_session is not None
+        self.assertEqual(loaded_session["blocks"][1]["segments"][1]["title"], "Strides")
+        self.assertTrue(
+            any(
+                entry["id"] == completed_session["completed_exercise_entry_id"]
+                for entry in repo.list_exercise_entries("user-1")
+            )
+        )
+
+    def test_sqlite_repository_backfills_food_log_entries_for_existing_eaten_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+
+            repo.save_meal_plan_day(
+                user_id="user-1",
+                plan_date=date(2026, 4, 3),
+                label="Fri",
+                focus="Daily plan",
+                slots=[
+                    {
+                        "meal_label": "Breakfast",
+                        "title": "Greek yogurt + berries",
+                        "calories": 376,
+                        "prep_status": "Prepped",
+                        "eaten_at": "2026-04-03T07:30:00",
+                        "items": [
+                            {
+                                "name": "Greek yogurt",
+                                "quantity_label": "300 g",
+                                "calories": 177,
+                                "macros": {"protein": 31, "carbs": 11, "fat": 1},
+                            },
+                            {
+                                "name": "Blueberries",
+                                "quantity_label": "140 g",
+                                "calories": 80,
+                                "macros": {"protein": 1, "carbs": 20, "fat": 0},
+                            },
+                        ],
+                    }
+                ],
+            )
+
+            logs = repo.list_food_logs("user-1")
+            hydrated_log = repo.get_food_log(logs[0]["id"])
+
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]["log_date"], "2026-04-03")
+        self.assertIsNotNone(hydrated_log)
+        assert hydrated_log is not None
+        self.assertEqual(len(hydrated_log["entries"]), 1)
+        self.assertEqual(hydrated_log["entries"][0]["entry_type"], "meal")
+        self.assertEqual(hydrated_log["entries"][0]["display_name"], "Breakfast: Greek yogurt + berries")
 
 
 if __name__ == "__main__":

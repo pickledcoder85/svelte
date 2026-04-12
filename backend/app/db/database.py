@@ -52,6 +52,31 @@ def ensure_schema_migrations_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+    row = connection.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        """,
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def user_tables(connection: sqlite3.Connection) -> list[str]:
+    rows = connection.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
+        """
+    ).fetchall()
+    return [row["name"] for row in rows]
+
+
 def applied_migrations(connection: sqlite3.Connection) -> set[str]:
     ensure_schema_migrations_table(connection)
     rows = connection.execute("SELECT version FROM schema_migrations").fetchall()
@@ -62,13 +87,63 @@ def migration_files() -> list[Path]:
     return sorted(MIGRATIONS_DIR.glob("*.sql"))
 
 
+def table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {row["name"] for row in rows}
+
+
+def migration_already_reflected(connection: sqlite3.Connection, version: str) -> bool:
+    if version == "010_planned_exercise_completion":
+        columns = table_columns(connection, "planned_exercise_entries")
+        return {"completed_at", "completed_exercise_entry_id"}.issubset(columns)
+
+    if version == "011_planned_workout_structure":
+        return all(
+            table_exists(connection, table_name)
+            for table_name in (
+                "planned_workout_sessions",
+                "planned_workout_blocks",
+                "planned_workout_segments",
+            )
+        )
+
+    return False
+
+
+def adopt_legacy_database(connection: sqlite3.Connection) -> None:
+    existing_tables = set(user_tables(connection))
+    if not existing_tables or existing_tables == {"schema_migrations"}:
+        return
+
+    ensure_schema_migrations_table(connection)
+    completed = {
+        row["version"]
+        for row in connection.execute("SELECT version FROM schema_migrations").fetchall()
+    }
+    if completed:
+        return
+    connection.executemany(
+        "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+        [(migration_file.stem,) for migration_file in migration_files()],
+    )
+    connection.commit()
+
+
 def apply_migrations(database_url: str | None = None) -> None:
     with connect(database_url) as connection:
+        adopt_legacy_database(connection)
         completed = applied_migrations(connection)
 
         for migration_file in migration_files():
             version = migration_file.stem
             if version in completed:
+                continue
+
+            if migration_already_reflected(connection, version):
+                connection.execute(
+                    "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                    (version,),
+                )
                 continue
 
             connection.executescript(migration_file.read_text(encoding="utf-8"))

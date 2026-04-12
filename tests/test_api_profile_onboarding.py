@@ -26,6 +26,8 @@ async def test_profile_onboarding_completes_first_run_profile(client):
             "goal_type": "lose",
             "target_weight_lbs": 185,
             "activity_level": "moderate",
+            "dietary_pattern": "omnivore",
+            "nutrition_style": "balanced",
         },
     )
     assert onboarding_response.status_code == 200
@@ -77,6 +79,8 @@ async def test_completed_profile_cannot_onboard_again(client):
             "goal_type": "maintain",
             "target_weight_lbs": 150,
             "activity_level": "light",
+            "dietary_pattern": "omnivore",
+            "nutrition_style": "balanced",
         },
     )
     assert first_response.status_code == 200
@@ -92,6 +96,8 @@ async def test_completed_profile_cannot_onboard_again(client):
             "goal_type": "maintain",
             "target_weight_lbs": 150,
             "activity_level": "light",
+            "dietary_pattern": "omnivore",
+            "nutrition_style": "balanced",
         },
     )
     assert second_response.status_code == 409

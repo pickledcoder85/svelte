@@ -185,9 +185,24 @@ export interface ExerciseEntry {
   title: string;
   duration_minutes: number;
   calories_burned: number;
+  logged_on: string;
   logged_at: string;
   intensity: 'Low' | 'Moderate' | 'High';
   created_at?: string;
+}
+
+export interface PlannedExerciseEntry {
+  id: string;
+  title: string;
+  duration_minutes: number;
+  calories_burned: number;
+  planned_on: string;
+  planned_at: string;
+  intensity: 'Low' | 'Moderate' | 'High';
+  completed_at?: string | null;
+  completed_exercise_entry_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RecipeDefinition {

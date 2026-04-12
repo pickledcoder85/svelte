@@ -148,6 +148,8 @@ Recommended order:
 
 The app should support a structured exercise-estimation hierarchy.
 
+Planned workouts should be time-and-structure driven first. Users generally plan sessions by workout content, duration, distance, or drills rather than by calorie burn. Planned calorie values should therefore be treated as estimates derived from the planned structure, while completed exercise entries can later use more accurate performed data.
+
 ### Preferred source order
 
 1. device-imported estimates
@@ -178,6 +180,14 @@ Use:
 - `net_calories` for adjusting daily calorie allowance and dashboard calculations
 
 This keeps resting expenditure from being counted twice.
+
+For planned workouts, the database should also preserve workout structure so warmup, main work, and cooldown can be modeled separately:
+
+- session
+- ordered blocks
+- ordered segments
+
+See [PLANNED_WORKOUT_STRUCTURE.md](/home/brianminer/workspace/svelte/docs/PLANNED_WORKOUT_STRUCTURE.md).
 
 ## Adaptive maintenance
 

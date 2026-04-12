@@ -5,6 +5,8 @@ import {
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
+  createPlannedExerciseEntry,
+  deletePlannedExerciseEntry,
   ingestNutritionLabel,
   createMealPlanDay,
   createMealPrepTask,
@@ -19,7 +21,10 @@ import {
   fetchFavoriteFoods,
   fetchExerciseEntries,
   fetchFavoriteRecipes,
+  fetchFoodLogForDate,
   fetchMealPlanDays,
+  fetchPlannedExerciseEntries,
+  updateMealPlanSlotEatenAt,
   fetchMealPrepTasks,
   fetchProfile,
   fetchProfileProgress,
@@ -37,6 +42,8 @@ import {
   searchFoodsWithSession,
   updateProfile,
   updateMealPrepTaskStatus,
+  updatePlannedExerciseEntry,
+  updatePlannedExerciseCompletion,
   unfavoriteFood,
   unfavoriteRecipe
 } from './api';
@@ -638,6 +645,163 @@ describe('api helpers', () => {
     );
   });
 
+  it('fetches and creates planned exercise entries with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'planned-1',
+              title: 'Swim',
+              duration_minutes: 55,
+              calories_burned: 520,
+              planned_on: '2026-04-03',
+              planned_at: '06:30',
+              intensity: 'High'
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'planned-2',
+            title: 'Lift',
+            duration_minutes: 45,
+            calories_burned: 300,
+            planned_on: '2026-04-04',
+            planned_at: '17:30',
+            intensity: 'High'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchPlannedExerciseEntries('token-123');
+    await createPlannedExerciseEntry(
+      {
+        title: 'Lift',
+        duration_minutes: 45,
+        calories_burned: 300,
+        planned_on: '2026-04-04',
+        planned_at: '17:30',
+        intensity: 'High'
+      },
+      'token-123'
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/tracker/planned-exercise',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/tracker/planned-exercise',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+  });
+
+  it('updates planned exercise completion with auth headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'planned-1',
+          title: 'Swim',
+          duration_minutes: 55,
+          calories_burned: 520,
+          planned_on: '2026-04-03',
+          planned_at: '06:30',
+          intensity: 'High',
+          completed_at: '2026-04-03T07:10:00.000Z',
+          completed_exercise_entry_id: 'exercise-99'
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await updatePlannedExerciseCompletion('planned-1', '2026-04-03T07:10:00.000Z', 'token-123');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/tracker/planned-exercise/planned-1/completion',
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        },
+        body: JSON.stringify({ completed_at: '2026-04-03T07:10:00.000Z' })
+      })
+    );
+  });
+
+  it('updates and deletes planned exercise entries with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'planned-1',
+            title: 'Long walk',
+            duration_minutes: 40,
+            calories_burned: 210,
+            planned_on: '2026-04-03',
+            planned_at: '06:30',
+            intensity: 'Moderate'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await updatePlannedExerciseEntry(
+      'planned-1',
+      {
+        title: 'Long walk',
+        duration_minutes: 40,
+        calories_burned: 210,
+        planned_on: '2026-04-03',
+        planned_at: '06:30',
+        intensity: 'Moderate'
+      },
+      'token-123'
+    );
+    await deletePlannedExerciseEntry('planned-1', 'token-123');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/tracker/planned-exercise/planned-1',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/tracker/planned-exercise/planned-1',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
   it('fetches and updates profile data with auth headers', async () => {
     const fetchMock = vi
       .fn()
@@ -1013,6 +1177,48 @@ describe('api helpers', () => {
     );
   });
 
+  it('updates meal plan slot eaten timestamps with auth headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'meal-plan-mon',
+          label: 'Mon',
+          focus: 'Training day',
+          plan_date: '2026-03-30',
+          slots: [
+            {
+              id: 'slot-1',
+              meal_plan_day_id: 'meal-plan-mon',
+              position: 0,
+              meal_label: 'Breakfast',
+              title: 'Greek yogurt + berries',
+              calories: 320,
+              prep_status: 'Prepped',
+              eaten_at: '2026-03-30T07:30:00',
+              items: []
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await updateMealPlanSlotEatenAt('slot-1', '2026-03-30T07:30:00', 'token-123');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/tracker/meal-plan/slots/slot-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token-123'
+        },
+        body: JSON.stringify({ eaten_at: '2026-03-30T07:30:00' })
+      })
+    );
+  });
+
   it('fetches the current food log from the logs endpoint and returns an empty today summary when missing', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify([]), {
@@ -1025,6 +1231,37 @@ describe('api helpers', () => {
     const log = await fetchTodaysFoodLog('token-123');
 
     expect(log.entries).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/nutrition/logs',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('fetches a food log for a selected date from the logs endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: 'log-selected',
+            user_id: 'user-123',
+            log_date: '2026-04-03',
+            notes: null,
+            entries: []
+          }
+        ]),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const log = await fetchFoodLogForDate('2026-04-03', 'token-123');
+
+    expect(log.date).toBe('2026-04-03');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/nutrition/logs',
       expect.objectContaining({

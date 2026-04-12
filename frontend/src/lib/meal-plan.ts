@@ -40,7 +40,7 @@ export function resolveSelectedMealPlanDate(
     return todayKey;
   }
 
-  return days[0]?.plan_date ?? null;
+  return days.at(-1)?.plan_date ?? null;
 }
 
 export function selectMealPlanDay(days: MealPlanDay[], selectedDate: string | null): MealPlanDay | null {
