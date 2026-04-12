@@ -102,6 +102,7 @@ describe('daily home helpers', () => {
       plannedMeals: 3,
       completedMeals: 1,
       plannedCalories: 1620,
+      plannedMacros: { protein: 0, carbs: 0, fat: 0 },
       nextMealTitle: 'Chicken salad'
     });
   });
