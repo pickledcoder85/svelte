@@ -11,7 +11,7 @@ if [[ "${APP_ENV:-}" != "production" || "${AUTH_MODE:-}" != "tailscale" ]]; then
   exit 1
 fi
 
-exec uvicorn backend.app.main:app \
+exec uvicorn backend.app.main:create_app --factory \
   --host 127.0.0.1 \
   --port "${PORT:-8000}" \
   --workers 1 \
