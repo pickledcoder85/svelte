@@ -169,4 +169,5 @@ sudo systemctl start relish.service
 
 ## Deployment log
 
-- 2026-11-14: first deploy to `relish` (GCE `e2-micro`, us-central1-f, Ubuntu 24.04.5). Service `relish.service` active, nightly `relish-backup.timer` scheduled, `tailscale serve` publishing https://relish.<tailnet>.ts.net (tailnet only). Off-machine backups not set up yet.
+- 2026-11-14: first deploy to `relish` (GCE `e2-micro`, us-central1-f, Ubuntu 24.04.5). Service `relish.service` active, nightly `relish-backup.timer` scheduled, `tailscale serve` publishing https://relish.<tailnet>.ts.net (tailnet only). Off-machine backups were added the same day (see below).
+- 2026-11-14: off-machine backups enabled (private bucket in us-central1, 30-day retention). Restore drill: downloaded the first bucket copy, `PRAGMA integrity_check` ok, row counts matched the live database. Deploys now run through `scripts/deploy.sh`.
