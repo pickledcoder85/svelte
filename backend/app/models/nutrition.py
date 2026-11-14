@@ -17,8 +17,10 @@ class FoodItem(BaseModel):
     serving_size: float = Field(ge=0)
     serving_unit: str
     macros: MacroTargets
-    source: Literal["USDA", "LABEL_SCAN", "CUSTOM"]
+    source: Literal["USDA", "LABEL_SCAN", "CUSTOM", "OPEN_FOOD_FACTS"]
     favorite: bool = False
+    # 14-digit GTIN for packaged foods found by barcode.
+    barcode: str | None = None
 
 
 class IngredientInput(BaseModel):
@@ -85,7 +87,7 @@ class VisionFoodMatchCandidate(BaseModel):
     food_id: str
     name: str
     brand: str | None = None
-    source: Literal["USDA", "LABEL_SCAN", "CUSTOM"]
+    source: Literal["USDA", "LABEL_SCAN", "CUSTOM", "OPEN_FOOD_FACTS"]
     confidence: float = Field(ge=0, le=1)
 
 

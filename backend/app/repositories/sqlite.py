@@ -390,6 +390,7 @@ class SQLiteRepository:
             serving_unit=row["serving_unit"],
             macros=MacroTargets(protein=row["protein"], carbs=row["carbs"], fat=row["fat"]),
             source=row["source"],
+            barcode=row["barcode"] if "barcode" in row.keys() else None,
         )
 
     @_synchronized
@@ -406,6 +407,14 @@ class SQLiteRepository:
         if row is None:
             return None
         return self._row_to_food(row)
+
+    @_synchronized
+    def get_food_by_barcode(self, barcode: str) -> FoodItem | None:
+        row = self._connection.execute(
+            "SELECT * FROM food_catalog WHERE barcode = ?",
+            (barcode,),
+        ).fetchone()
+        return self._row_to_food(row) if row is not None else None
 
     @_synchronized
     def search_foods(self, query: str) -> list[FoodItem]:
@@ -428,9 +437,10 @@ class SQLiteRepository:
                 """
                 INSERT INTO food_catalog (
                     id, name, brand, calories, serving_size, serving_unit,
-                    protein, carbs, fat, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    protein, carbs, fat, source, barcode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
+                    barcode = COALESCE(excluded.barcode, food_catalog.barcode),
                     name = excluded.name,
                     brand = excluded.brand,
                     calories = excluded.calories,
@@ -452,6 +462,7 @@ class SQLiteRepository:
                     food_item.macros.carbs,
                     food_item.macros.fat,
                     food_item.source,
+                    food_item.barcode,
                 ),
             )
         persisted = self.get_food_by_id(food_item.id)

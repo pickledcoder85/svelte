@@ -48,6 +48,7 @@ import {
   importRecipe,
   fetchTodaysFoodLog,
   fetchWeightEntries,
+  lookupBarcode,
   normalizeApiBaseUrl,
   rejectIngestionOutput,
   saveFoodFromIngestionOutput,
@@ -307,6 +308,24 @@ describe('api helpers', () => {
     );
 
     await expect(fetchOwnerSession()).rejects.toThrow('belongs to someone else');
+  });
+
+  it('posts scanned barcodes to the lookup endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ barcode: '00036000291452', found: false, source: null, food: null, output: null, message: 'Not found' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await lookupBarcode('036000291452', 'token-123');
+
+    expect(result.found).toBe(false);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:8000/api/nutrition/barcode-lookups');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ code: '036000291452' });
   });
 
   it('includes backend error detail in thrown api errors', async () => {

@@ -2,7 +2,11 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.dependencies import get_current_session, get_required_session, get_repository
+from backend.app.config import Settings
+from backend.app.dependencies import get_app_settings, get_current_session, get_required_session, get_repository
+from backend.app.integrations.barcodes import InvalidBarcodeError
+from backend.app.models.ingestion import BarcodeLookupRequest, BarcodeLookupResult
+from backend.app.services.barcodes import lookup_barcode
 from backend.app.models.auth import AuthSession
 from backend.app.models.nutrition import FoodFavoriteState, FoodItem, MealInput, MealTotals, WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
@@ -70,3 +74,16 @@ async def unfavorite_food_route(
 @router.post("/meals/calculate", response_model=MealTotals)
 async def calculate_meal(meal: MealInput) -> MealTotals:
     return meal_totals(meal)
+
+
+@router.post("/barcode-lookups", response_model=BarcodeLookupResult)
+async def barcode_lookup(
+    payload: BarcodeLookupRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+    settings: Settings = Depends(get_app_settings),
+) -> BarcodeLookupResult:
+    try:
+        return await lookup_barcode(repository, session.user_id, payload.code, usda_api_key=settings.usda_api_key)
+    except InvalidBarcodeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error

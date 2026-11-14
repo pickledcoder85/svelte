@@ -44,7 +44,7 @@ class FoodLogEntry(BaseModel):
     display_name_override: str | None = None
     display_name: str | None = None
     brand: str | None = None
-    source: Literal["USDA", "LABEL_SCAN", "CUSTOM"] | None = None
+    source: Literal["USDA", "LABEL_SCAN", "CUSTOM", "OPEN_FOOD_FACTS"] | None = None
     grams: float
     servings: float
     calories: float

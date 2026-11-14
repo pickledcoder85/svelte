@@ -25,20 +25,24 @@ def _schema(connection: sqlite3.Connection) -> set[tuple[str, str, str]]:
     return {(row[0], row[1], row[2]) for row in rows}
 
 
-def test_there_is_exactly_one_baseline_migration():
-    assert [path.name for path in migration_files()] == ["001_baseline.sql"]
+def test_migrations_start_with_the_baseline_in_order():
+    names = [path.name for path in migration_files()]
+    assert names[0] == "001_baseline.sql"
+    assert names == sorted(names)
+    assert "002_food_barcodes.sql" in names
 
 
-def test_fresh_database_gets_the_baseline_once(tmp_path):
+def test_fresh_database_gets_every_migration_once(tmp_path):
     db_url = f"sqlite:///{tmp_path / 'fresh.db'}"
-    assert apply_migrations(db_url) == ["001_baseline"]
+    expected = [path.stem for path in migration_files()]
+    assert apply_migrations(db_url) == expected
     assert apply_migrations(db_url) == []
 
     connection = sqlite3.connect(tmp_path / "fresh.db")
     versions = [row[0] for row in connection.execute("SELECT version FROM schema_migrations")]
     tables = {name for kind, name, _ in _schema(connection) if kind == "table"}
     connection.close()
-    assert versions == ["001_baseline"]
+    assert versions == [path.stem for path in migration_files()]
     assert len(tables) == 28
     assert {"users", "food_catalog", "food_logs", "planned_workout_sessions", "recipes"} <= tables
     assert "food_items" not in tables  # the old, unused migration schema is gone
@@ -134,3 +138,22 @@ def test_reset_removes_wal_and_shared_memory_files(tmp_path):
         Path(f"{db_path}{suffix}").write_text("x")
     reset_database(f"sqlite:///{db_path}")
     assert not any(Path(f"{db_path}{suffix}").exists() for suffix in ("", "-wal", "-shm"))
+
+
+def test_existing_baseline_database_gets_the_barcode_column(tmp_path, monkeypatch):
+    """A database created before 002 (only the baseline applied) is upgraded in place."""
+    import backend.app.db.database as db
+
+    only_baseline = tmp_path / "only-baseline"
+    only_baseline.mkdir()
+    (only_baseline / "001_baseline.sql").write_text((db.MIGRATIONS_DIR / "001_baseline.sql").read_text())
+    real_dir = db.MIGRATIONS_DIR
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", only_baseline)
+    apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}")
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", real_dir)
+
+    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes"]
+    connection = sqlite3.connect(tmp_path / "upgrade.db")
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(food_catalog)")}
+    connection.close()
+    assert "barcode" in columns

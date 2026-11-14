@@ -1,6 +1,7 @@
 import { localDateKey } from './dates';
 import type { TargetPreview } from './setup-goals';
 import type {
+  BarcodeLookupResult,
   ExerciseEntry,
   PlannedExerciseEntry,
   PlannedWorkoutSession,
@@ -37,7 +38,7 @@ interface ApiFoodLogEntry {
   meal_plan_slot_id?: string | null;
   display_name: string | null;
   brand: string | null;
-  source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | null;
+  source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | 'OPEN_FOOD_FACTS' | null;
   grams: number;
   servings: number;
   calories: number;
@@ -598,6 +599,20 @@ export async function ingestNutritionLabel(
         ...authHeaders(accessToken)
       },
       body: JSON.stringify({ image_base64: imageBase64 })
+    })
+  );
+}
+
+/** Look a scanned barcode up in the food bank, then Open Food Facts (and USDA with a key). */
+export async function lookupBarcode(code: string, accessToken: string): Promise<BarcodeLookupResult> {
+  return readJson<BarcodeLookupResult>(
+    await apiFetch(buildApiUrl('/nutrition/barcode-lookups'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ code })
     })
   );
 }
