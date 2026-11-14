@@ -252,3 +252,9 @@ It directly supports:
 - food-bank growth
 - meal prep and meal planning inputs
 - later premium agent workflows that rely on better user food data
+
+## Web capture (2026-11-14)
+
+The installed iPhone web app captures with a file input (`accept="image/*"`, `capture="environment"`), which opens the iPhone camera sheet. It avoids `getUserMedia`, whose permission iOS asks for again on every launch of a home-screen app, and gives a full-resolution still that reads small label print better than a video frame. `frontend/src/lib/web-photo.ts` shrinks the photo to 1600 px on the long side and re-encodes it as JPEG (quality 0.75), which also turns HEIC into JPEG and keeps uploads well under the server's image limit. Package front and nutrition label are separate buttons; either can be scanned alone.
+
+Barcode scanning on web is not part of this: the SDK 54 `expo-camera` web scanner only reads QR codes, so UPC/EAN decoding needs its own library (see Phase 5 in DEPLOYMENT_ROADMAP.md).

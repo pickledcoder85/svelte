@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Scanning works in the web app (the iPhone PWA target): "Photograph package front" and "Photograph nutrition label" open the iPhone camera through a file input (`capture="environment"`), then the photo is shrunk to at most 1600 px and re-encoded as JPEG (which also converts HEIC) before upload. Previously the web app refused to scan.
 - Local-mode sessions are remembered across reloads on web and restored when still valid; a rejected session (401) returns to sign-in with "Your session expired", or re-runs the Tailscale check for owner sessions. The sign-in email is no longer prefilled, and developer hints are hidden in production builds.
 - FastAPI serves the built web app on the API's origin when `WEB_DIST_DIR` is set: app-shell fallback for deep links, JSON 404s for unknown `/api` paths, `no-cache` for `index.html`/`sw.js`/manifest, year-long caching for content-hashed files, path-traversal protection, and `nosniff`/`no-referrer`/`DENY` headers on every response (`no-store` on API responses).
 - `npm run build:web`, systemd units and a server env template in `deploy/`, and [docs/DEPLOY.md](docs/DEPLOY.md) with the Google Cloud + Tailscale deployment, update, backup, and restore steps.
