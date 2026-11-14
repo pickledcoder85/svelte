@@ -128,6 +128,16 @@ Updates the full session structure in one request.
 
 Marks the plan complete or incomplete and links/unlinks the performed workout record.
 
+### `DELETE /api/tracker/planned-workout-sessions/{session_id}`
+
+Deletes the planned session with its blocks and segments, and returns `204`. Returns `404` when the session does not exist, belongs to another user, or was already deleted.
+
+Delete semantics:
+
+- Sessions backed by the legacy flat planner (`legacy_planned_exercise_entry_id` set) delete both the session row and the legacy `planned_exercise_entries` row, so the workout does not reappear through the compatibility backfill.
+- Deleting a plan never deletes logged history. A completed session's `completed_exercise_entry_id` row in `exercise_entries` is kept. The same rule now applies to the legacy `DELETE /api/tracker/planned-exercise/{entry_id}`.
+- Starter/demo workouts are still regenerated for empty dates in the default window. Removing that auto-generation is tracked as Phase 0.3 in [DEPLOYMENT_ROADMAP.md](DEPLOYMENT_ROADMAP.md).
+
 ## Mobile UX implication
 
 The intended mobile flow is:

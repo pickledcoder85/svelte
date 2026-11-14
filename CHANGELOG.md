@@ -19,6 +19,9 @@ The format should remain simple:
 
 ### Added
 
+- `DELETE /api/tracker/planned-workout-sessions/{session_id}` plus app-side create, edit, and delete for structured planned workouts with optional warmup and cooldown blocks.
+- `frontend/src/lib/planned-workouts.ts` now holds the planned-workout payload, mapping, and edit-draft helpers (moved out of `App.tsx`) with unit tests.
+- [docs/DEPLOYMENT_ROADMAP.md](docs/DEPLOYMENT_ROADMAP.md) records the codebase audit and the phased plan to ship Relish as a private, single-user iPhone PWA.
 - Forward-compatible planned-workout persistence structure with session, block, and segment tables so warmups, multiple activity sets, and cooldowns can be modeled without replacing the current flat planner all at once.
 - Structured planned-workout backend routes for listing, creating, updating, and completing nested workout sessions while the frontend still uses the flat planner compatibility layer.
 - First-run onboarding now seeds a default meal plan for today with `Breakfast`, `Snack`, `Lunch`, `Snack`, and `Dinner` slots sized to the generated daily calorie target.
@@ -59,8 +62,15 @@ The format should remain simple:
 - Missing favorites service module wired into the backend route layer.
 - Strict worker orchestration docs, including polling cadence and control-loop rules.
 
+### Fixed
+
+- Deleting a planned workout that came from the legacy flat planner (including auto-generated starter workouts) now removes the structured session too, instead of returning `204` while the workout stayed listed; repeat deletes return `404`.
+- Editing a planned workout no longer adds the warmup and cooldown minutes into the main set on every save.
+- Stale test expectations for the `relish-api` health service name and the two seeded dev exercise entries.
+
 ### Changed
 
+- Deleting a planned workout (structured or legacy) now keeps the linked performed exercise entry, so removing a plan never erases logged exercise history.
 - The current flat planned-exercise tracker flow now mirrors into the new structured planned-workout tables as a compatibility layer for future mobile planner work.
 - Planned workouts no longer ask the user to enter calories manually in Tracker; the UI now derives an estimated burn from workout type and duration.
 - Planned workouts can now be edited or deleted from Tracker, and editing a completed plan also keeps its linked performed exercise entry in sync.

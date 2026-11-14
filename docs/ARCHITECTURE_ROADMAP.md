@@ -127,7 +127,7 @@ Current status:
 Current status:
 
 - Expo browser and iPhone preview are working locally
-- native packaging, signing, and release workflow are not started yet
+- direction changed on 2026-11-14: ship as a private single-user iPhone PWA (Expo web export served by FastAPI on a Tailscale-only GCP VM) instead of native packaging and signing; the phased plan lives in [DEPLOYMENT_ROADMAP.md](DEPLOYMENT_ROADMAP.md)
 - the current `Home` chart now uses persisted meal-plan `eaten_at` timestamps for checked meals, and the next interaction step should allow those consumed meal points to be dragged in 30-minute increments when the user needs to correct when a meal was eaten
 
 ## Recommended implementation order
