@@ -64,6 +64,7 @@ The format should remain simple:
 
 ### Fixed
 
+- Starter meal plans and workouts are now created only once, when onboarding completes. Listing planned workouts or meal plans, loading the profile, and saving the profile no longer regenerate demo plans for the next four days, so deleted starter workouts stay deleted and users who skip onboarding get no demo plans.
 - Deleting a planned workout that came from the legacy flat planner (including auto-generated starter workouts) now removes the structured session too, instead of returning `204` while the workout stayed listed; repeat deletes return `404`.
 - Editing a planned workout no longer adds the warmup and cooldown minutes into the main set on every save.
 - Stale test expectations for the `relish-api` health service name and the two seeded dev exercise entries.

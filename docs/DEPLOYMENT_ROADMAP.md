@@ -66,7 +66,7 @@ Each slice is its own `feature/` or `fix/` branch from `main`, per AGENTS.md.
 
 - [x] 0.1 Planned-workout delete and edit fixes, helpers moved to `frontend/src/lib/planned-workouts.ts` with tests.
 - [x] 0.2 Stale test expectations (`relish-api`, two seeded exercise entries).
-- [ ] 0.3 Stop demo auto-generation on read paths (`services/profile.py`, `services/tracker.py`). Starter plans only at onboarding, opt-in.
+- [x] 0.3 Stop demo auto-generation on read paths (`services/profile.py`, `services/tracker.py`). Starter plans are now created only once, at onboarding. Deferred: an onboarding opt-in toggle for starter plans.
 - [ ] 0.4 Split `save_user_identity` into insert-if-missing and an explicit profile update used only by `PUT /profile`.
 - [ ] 0.5 Show mock data only in preview mode; show a real error state in live mode.
 
