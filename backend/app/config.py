@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Local development only: treat requests without a valid session as the owner.
     dev_auto_login: bool = False
     database_url: str = DEFAULT_DATABASE_URL
+    # When set, a snapshot of the database is written here before each startup (startup
+    # runs schema repairs on the live file). Keep the newest `backup_keep` snapshots.
+    backup_dir: str = ""
+    backup_keep: int = 14
     cors_origins: str = ",".join(
         [
             "http://localhost:5173",
@@ -71,6 +75,11 @@ class Settings(BaseSettings):
                 raise RuntimeError("APP_ENV=production requires AUTH_MODE=tailscale.")
             if self.dev_auto_login:
                 raise RuntimeError("DEV_AUTO_LOGIN must be off when APP_ENV=production.")
+            if not self.backup_dir.strip() or not Path(self.backup_dir).is_absolute():
+                raise RuntimeError(
+                    "APP_ENV=production requires an absolute BACKUP_DIR, "
+                    "for example /var/lib/relish/backups."
+                )
             if not _is_absolute_sqlite_url(self.database_url):
                 raise RuntimeError(
                     "APP_ENV=production requires an absolute DATABASE_URL, "

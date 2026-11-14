@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import sqlite3
 import threading
@@ -273,15 +274,43 @@ DEFAULT_FOOD_CATALOG_SEEDS: list[dict[str, Any]] = [
 DEFAULT_FAVORITE_FOOD_IDS = [seed["id"] for seed in DEFAULT_FOOD_CATALOG_SEEDS]
 
 
+def _synchronized(method):
+    """Run a repository read under the connection lock.
+
+    All access goes through one sqlite3 connection, which must not be used from two threads
+    at once. The lock is re-entrant, so a locked method may call these reads.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class SQLiteRepository:
     def __init__(self, database_path: str) -> None:
         self.database_path = database_path
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(database_path, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self._configure_durability()
         self.initialize()
         self._repair_legacy_schema()
+
+    def _configure_durability(self) -> None:
+        """WAL keeps readers and the writer from blocking each other and survives crashes
+        better; NORMAL sync is safe with WAL; busy_timeout waits briefly instead of failing."""
+        if self.database_path != ":memory:":
+            self._connection.execute("PRAGMA journal_mode = WAL")
+        self._connection.execute("PRAGMA synchronous = NORMAL")
+        self._connection.execute("PRAGMA busy_timeout = 5000")
+
+    @_synchronized
+    def journal_mode(self) -> str:
+        return str(self._connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
 
     def initialize(self) -> None:
         with self._lock, self._connection:
@@ -804,6 +833,7 @@ class SQLiteRepository:
                 )
                 self._connection.execute("DROP TABLE auth_sessions_legacy")
 
+    @_synchronized
     def _ensure_user_profiles_columns(self) -> None:
         existing_columns = {
             row["name"]
@@ -882,6 +912,7 @@ class SQLiteRepository:
                 """
             )
 
+    @_synchronized
     def _ensure_user_goals_columns(self) -> None:
         existing_columns = {
             row["name"]
@@ -910,6 +941,7 @@ class SQLiteRepository:
                     f"ALTER TABLE user_goals ADD COLUMN {column_name} {column_type}"
                 )
 
+    @_synchronized
     def _ensure_weight_entries_columns(self) -> None:
         existing_columns = {
             row["name"]
@@ -1105,6 +1137,7 @@ class SQLiteRepository:
             )
             self._backfill_planned_workout_structure_locked()
 
+    @_synchronized
     def _table_columns(self, table_name: str) -> set[str]:
         return {
             row["name"]
@@ -1396,6 +1429,7 @@ class SQLiteRepository:
             finally:
                 self._connection.execute("PRAGMA foreign_keys = ON")
 
+    @_synchronized
     def _ensure_saved_favorites_supports_food(self) -> None:
         row = self._connection.execute(
             """
@@ -1476,10 +1510,12 @@ class SQLiteRepository:
             source=row["source"],
         )
 
+    @_synchronized
     def list_foods(self) -> list[FoodItem]:
         rows = self._connection.execute("SELECT * FROM food_catalog ORDER BY name").fetchall()
         return [self._row_to_food(row) for row in rows]
 
+    @_synchronized
     def get_food_by_id(self, food_id: str) -> FoodItem | None:
         row = self._connection.execute(
             "SELECT * FROM food_catalog WHERE id = ?",
@@ -1489,6 +1525,7 @@ class SQLiteRepository:
             return None
         return self._row_to_food(row)
 
+    @_synchronized
     def search_foods(self, query: str) -> list[FoodItem]:
         normalized = query.strip()
         if not normalized:
@@ -1540,6 +1577,7 @@ class SQLiteRepository:
             raise RuntimeError("Failed to persist food item.")
         return persisted
 
+    @_synchronized
     def get_weekly_metrics(self) -> WeeklyMetrics:
         row = self._connection.execute("SELECT * FROM weekly_metrics WHERE id = 1").fetchone()
         if row is None:
@@ -1593,6 +1631,7 @@ class SQLiteRepository:
             )
         return session
 
+    @_synchronized
     def get_session(self, access_token: str) -> AuthSession | None:
         row = self._connection.execute(
             "SELECT * FROM auth_sessions WHERE access_token = ?",
@@ -1704,6 +1743,7 @@ class SQLiteRepository:
             raise RuntimeError("Failed to persist user identity.")
         return identity
 
+    @_synchronized
     def _seed_default_favorite_foods_for_user(self, user_id: str) -> None:
         if (
             self._connection.execute(
@@ -1754,6 +1794,7 @@ class SQLiteRepository:
             (user_id,),
         )
 
+    @_synchronized
     def _ensure_user_exists(self, user_id: str) -> None:
         row = self._connection.execute(
             "SELECT id FROM users WHERE id = ?",
@@ -1765,6 +1806,7 @@ class SQLiteRepository:
         placeholder_email = f"{user_id}@local.invalid"
         self.ensure_user_identity(user_id=user_id, email=placeholder_email)
 
+    @_synchronized
     def get_user_identity(self, user_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             """
@@ -1807,6 +1849,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def get_user_identity_by_email(self, email: str) -> dict[str, Any] | None:
         normalized_email = email.strip().lower()
         row = self._connection.execute(
@@ -1954,6 +1997,7 @@ class SQLiteRepository:
             raise RuntimeError("Failed to persist favorite.")
         return favorite
 
+    @_synchronized
     def get_saved_favorite(
         self,
         user_id: str,
@@ -1970,6 +2014,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_saved_favorites(
         self,
         user_id: str,
@@ -2071,6 +2116,7 @@ class SQLiteRepository:
             raise RuntimeError("Failed to persist user goal.")
         return goal
 
+    @_synchronized
     def get_user_goal(self, goal_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM user_goals WHERE id = ?",
@@ -2078,6 +2124,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_user_goals(self, user_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
             """
@@ -2112,6 +2159,7 @@ class SQLiteRepository:
             )
         return identifier
 
+    @_synchronized
     def get_food_log_for_date(self, user_id: str, log_date: date) -> dict[str, Any] | None:
         row = self._connection.execute(
             """
@@ -2170,6 +2218,7 @@ class SQLiteRepository:
             )
         return identifier
 
+    @_synchronized
     def list_food_log_entries(self, food_log_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
             """
@@ -2291,6 +2340,7 @@ class SQLiteRepository:
                     ),
                 )
 
+    @_synchronized
     def get_food_log(self, food_log_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM food_logs WHERE id = ?",
@@ -2302,6 +2352,7 @@ class SQLiteRepository:
         log["entries"] = self.list_food_log_entries(food_log_id)
         return log
 
+    @_synchronized
     def list_food_logs(self, user_id: str) -> list[dict[str, Any]]:
         self.reconcile_meal_plan_food_log_links(user_id)
         rows = self._connection.execute(
@@ -2349,6 +2400,7 @@ class SQLiteRepository:
             )
         return identifier
 
+    @_synchronized
     def get_exercise_entry(self, exercise_entry_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM exercise_entries WHERE id = ?",
@@ -2356,6 +2408,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_exercise_entries(self, user_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
             """
@@ -2379,6 +2432,7 @@ class SQLiteRepository:
             return "weights"
         return "custom"
 
+    @_synchronized
     def _upsert_planned_workout_structure_for_legacy_entry_locked(self, entry: dict[str, Any]) -> None:
         session_id = str(entry["id"])
         block_id = f"{session_id}-activity"
@@ -2492,6 +2546,7 @@ class SQLiteRepository:
             ),
         )
 
+    @_synchronized
     def _backfill_planned_workout_structure_locked(self) -> None:
         legacy_rows = self._connection.execute(
             """
@@ -2502,6 +2557,7 @@ class SQLiteRepository:
         for row in legacy_rows:
             self._upsert_planned_workout_structure_for_legacy_entry_locked(dict(row))
 
+    @_synchronized
     def _list_planned_workout_sessions_locked(self, user_id: str) -> list[dict[str, Any]]:
         sessions = [
             dict(row)
@@ -2571,6 +2627,7 @@ class SQLiteRepository:
                     return session
             return None
 
+    @_synchronized
     def _replace_planned_workout_blocks_locked(
         self,
         planned_workout_session_id: str,
@@ -2732,6 +2789,7 @@ class SQLiteRepository:
                 self._upsert_planned_workout_structure_for_legacy_entry_locked(entry)
         return identifier
 
+    @_synchronized
     def get_planned_exercise_entry(self, planned_exercise_entry_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM planned_exercise_entries WHERE id = ?",
@@ -2739,6 +2797,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_planned_exercise_entries(self, user_id: str) -> list[dict[str, Any]]:
         with self._lock, self._connection:
             self._backfill_planned_workout_structure_locked()
@@ -3263,6 +3322,7 @@ class SQLiteRepository:
                 )
         return actual_id
 
+    @_synchronized
     def _list_meal_plan_slots(self, meal_plan_day_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
             """
@@ -3283,6 +3343,7 @@ class SQLiteRepository:
             slots.append(payload)
         return slots
 
+    @_synchronized
     def get_meal_plan_day(self, meal_plan_day_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM meal_plan_days WHERE id = ?",
@@ -3294,6 +3355,7 @@ class SQLiteRepository:
         day["slots"] = self._list_meal_plan_slots(meal_plan_day_id)
         return day
 
+    @_synchronized
     def list_meal_plan_days(self, user_id: str) -> list[dict[str, Any]]:
         self.reconcile_meal_plan_food_log_links(user_id)
         rows = self._connection.execute(
@@ -3431,6 +3493,7 @@ class SQLiteRepository:
             )
         return identifier
 
+    @_synchronized
     def get_meal_prep_task(self, task_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM meal_prep_tasks WHERE id = ?",
@@ -3438,6 +3501,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_meal_prep_tasks(self, user_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
             """
@@ -3540,6 +3604,7 @@ class SQLiteRepository:
         output["review_state"] = self._ingestion_output_state(row)
         return output
 
+    @_synchronized
     def get_ingestion_output(self, output_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM ingestion_outputs WHERE id = ?",
@@ -3547,6 +3612,7 @@ class SQLiteRepository:
         ).fetchone()
         return self._row_to_ingestion_output(row) if row is not None else None
 
+    @_synchronized
     def list_ingestion_outputs(
         self,
         ingestion_job_id: str | None = None,
@@ -3651,6 +3717,7 @@ class SQLiteRepository:
                 ),
             )
 
+    @_synchronized
     def get_ingestion_job(self, ingestion_job_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM ingestion_jobs WHERE id = ?",
@@ -3658,6 +3725,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_ingestion_jobs(self, user_id: str | None = None) -> list[dict[str, Any]]:
         if user_id is None:
             rows = self._connection.execute(
@@ -3694,6 +3762,7 @@ class SQLiteRepository:
             )
         return identifier
 
+    @_synchronized
     def get_weight_entry(self, entry_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM weight_entries WHERE id = ?",
@@ -3701,6 +3770,7 @@ class SQLiteRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    @_synchronized
     def list_weight_entries(
         self,
         user_id: str,
@@ -3730,6 +3800,28 @@ class SQLiteRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    @_synchronized
+    def latest_activity_date(self, user_id: str) -> date | None:
+        row = self._connection.execute(
+            """
+            SELECT MAX(activity_date) AS activity_date
+            FROM (
+                SELECT MAX(recorded_at) AS activity_date
+                FROM weight_entries
+                WHERE user_id = ?
+                UNION ALL
+                SELECT MAX(log_date) AS activity_date
+                FROM food_logs
+                WHERE user_id = ?
+            )
+            """,
+            (user_id, user_id),
+        ).fetchone()
+        if row is None or row["activity_date"] is None:
+            return None
+        return date.fromisoformat(row["activity_date"])
+
+    @_synchronized
     def get_weekly_metrics_for_user(
         self,
         *,
@@ -3873,6 +3965,7 @@ class SQLiteRepository:
             )
         return meal_template
 
+    @_synchronized
     def _row_to_meal_template(self, row: sqlite3.Row) -> MealTemplate:
         ingredient_rows = self._connection.execute(
             """
@@ -3915,10 +4008,12 @@ class SQLiteRepository:
             ),
         )
 
+    @_synchronized
     def list_meal_templates(self) -> list[MealTemplate]:
         rows = self._connection.execute("SELECT * FROM meal_templates ORDER BY name").fetchall()
         return [self._row_to_meal_template(row) for row in rows]
 
+    @_synchronized
     def get_meal_template(self, meal_template_id: str) -> MealTemplate | None:
         row = self._connection.execute(
             "SELECT * FROM meal_templates WHERE id = ?",
@@ -3987,6 +4082,7 @@ class SQLiteRepository:
             )
         return recipe
 
+    @_synchronized
     def _row_to_recipe(self, row: sqlite3.Row) -> RecipeDefinition:
         step_rows = self._connection.execute(
             "SELECT step_text FROM recipe_steps WHERE recipe_id = ? ORDER BY position",
@@ -4027,15 +4123,18 @@ class SQLiteRepository:
             favorite=bool(row["favorite"]),
         )
 
+    @_synchronized
     def list_recipes(self) -> list[RecipeDefinition]:
         rows = self._connection.execute("SELECT * FROM recipes ORDER BY title").fetchall()
         return [self._row_to_recipe(row) for row in rows]
 
+    @_synchronized
     def get_recipe(self, recipe_id: str) -> RecipeDefinition | None:
         row = self._connection.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
         if row is None:
             return None
         return self._row_to_recipe(row)
 
+    @_synchronized
     def close(self) -> None:
         self._connection.close()

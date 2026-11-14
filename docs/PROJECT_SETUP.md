@@ -79,6 +79,14 @@ Sign-in:
 - The backend reads `.env` from the repo root regardless of the working directory.
 - The pytest `app` fixture uses fixed local test settings and ignores `.env`, so local auth flags do not change test results.
 
+Data safety:
+
+- SQLite runs in WAL mode with `synchronous=NORMAL` and a 5-second busy timeout. WAL creates `*.db-wal` and `*.db-shm` files next to the database; they are part of the database and are gitignored. Never copy a live database with `cp`.
+- `BACKUP_DIR` makes the server snapshot the database before every startup (startup still runs schema repairs on the live file) and keep the newest `BACKUP_KEEP` snapshots (default 14). Production refuses to start without an absolute `BACKUP_DIR`.
+- For nightly snapshots (for example from cron): `python -m backend.app.db.backup --database /var/lib/relish/relish.db --dest /var/lib/relish/backups --keep 14`. Snapshots use SQLite's online backup API, so they are consistent while the app is running.
+- `GET /api/export` downloads all of the owner's data as one JSON file (`relish-export-YYYY-MM-DD.json`).
+- All repository access holds one re-entrant lock around the shared connection; `tests/test_sqlite_durability.py` fails if new code uses the connection without it.
+
 For the phone and browser camera-food flow:
 
 - set `OPENAI_API_KEY` in the backend `.env` if you want real package and label extraction instead of the demo fallback. The demo fallback (fixed fake nutrition) only exists outside production; with `APP_ENV=production` and no key, scans return `503` instead of saving made-up foods

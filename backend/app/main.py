@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.config import Settings, get_settings
 from backend.app.dependencies import get_required_session
+from backend.app.db.backup import backup_database
 from backend.app.db.database import resolve_sqlite_path
 from backend.app.routes.auth import router as auth_router
+from backend.app.routes.export import router as export_router
 from backend.app.routes.ingestion import router as ingestion_router
 from backend.app.routes.food_logs import router as food_logs_router
 from backend.app.routes.health import router as health_router
@@ -35,6 +37,8 @@ def create_app(
     )
 
     app.state.settings = settings
+    if settings.backup_dir.strip():
+        backup_database(db_path, settings.backup_dir, keep=settings.backup_keep, label="startup")
     app.state.repository = SQLiteRepository(db_path)
 
     app.add_middleware(
@@ -58,6 +62,7 @@ def create_app(
         recipes_router,
         tracker_router,
         vision_router,
+        export_router,
     ):
         app.include_router(router, prefix="/api", dependencies=owner_only)
     return app

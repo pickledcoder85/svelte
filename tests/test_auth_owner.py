@@ -159,6 +159,7 @@ def test_production_tailscale_settings_start(tmp_path):
             auth_mode="tailscale",
             owner_email=OWNER,
             database_url=f"sqlite:///{tmp_path / 'prod.db'}",
+            backup_dir=str(tmp_path / "backups"),
         ),
     )
     assert app.state.settings.is_production

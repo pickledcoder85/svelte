@@ -533,14 +533,14 @@ def create_weight_entry(
         recorded_at=payload.recorded_at,
         weight_lbs=payload.weight_lbs,
     )
-    entry = _get_weight_entry(repository, entry_id)
+    entry = repository.get_weight_entry(entry_id)
     if entry is None:
         raise RuntimeError("Failed to load newly created weight entry.")
     return WeightEntry.model_validate(entry)
 
 
 def list_weight_entries(repository: SQLiteRepository, user_id: str) -> list[WeightEntry]:
-    return [WeightEntry.model_validate(entry) for entry in _list_weight_entries(repository, user_id)]
+    return [WeightEntry.model_validate(entry) for entry in repository.list_weight_entries(user_id)]
 
 
 def get_profile_progress(
@@ -551,7 +551,7 @@ def get_profile_progress(
 ) -> ProfileProgress:
     profile = repository.get_user_identity(user_id) or {"user_id": user_id}
     goals = repository.list_user_goals(user_id)
-    weight_entries = _list_weight_entries(repository, user_id)
+    weight_entries = repository.list_weight_entries(user_id)
     weekly_metrics = _resolve_weekly_metrics(repository, user_id, week_start, week_end)
 
     current_weight = float(weight_entries[-1]["weight_lbs"]) if weight_entries else None
@@ -579,7 +579,7 @@ def get_dashboard_summary(
     week_end: date | None = None,
 ) -> DashboardSummary:
     progress = get_profile_progress(repository, user_id, week_start=week_start, week_end=week_end)
-    weight_entries = _list_weight_entries(repository, user_id)
+    weight_entries = repository.list_weight_entries(user_id)
     weekly_metrics = _resolve_weekly_metrics(repository, user_id, week_start, week_end)
     latest_recorded_at = date.fromisoformat(weight_entries[-1]["recorded_at"]) if weight_entries else None
     current_weight = float(weight_entries[-1]["weight_lbs"]) if weight_entries else None
@@ -604,46 +604,10 @@ def get_dashboard_summary(
     )
 
 
-def _list_weight_entries(repository: SQLiteRepository, user_id: str) -> list[dict]:
-    rows = repository._connection.execute(
-        """
-        SELECT *
-        FROM weight_entries
-        WHERE user_id = ?
-        ORDER BY recorded_at ASC, created_at ASC, id ASC
-        """,
-        (user_id,),
-    ).fetchall()
-    return [dict(row) for row in rows]
 
 
-def _get_weight_entry(repository: SQLiteRepository, entry_id: str) -> dict | None:
-    row = repository._connection.execute(
-        "SELECT * FROM weight_entries WHERE id = ?",
-        (entry_id,),
-    ).fetchone()
-    return dict(row) if row is not None else None
 
 
-def _latest_activity_date(repository: SQLiteRepository, user_id: str) -> date | None:
-    row = repository._connection.execute(
-        """
-        SELECT MAX(activity_date) AS activity_date
-        FROM (
-            SELECT MAX(recorded_at) AS activity_date
-            FROM weight_entries
-            WHERE user_id = ?
-            UNION ALL
-            SELECT MAX(log_date) AS activity_date
-            FROM food_logs
-            WHERE user_id = ?
-        )
-        """,
-        (user_id, user_id),
-    ).fetchone()
-    if row is None or row["activity_date"] is None:
-        return None
-    return date.fromisoformat(row["activity_date"])
 
 
 def _resolve_weekly_metrics(
@@ -659,7 +623,7 @@ def _resolve_weekly_metrics(
             week_end=week_end,
         )
 
-    resolved_end = _latest_activity_date(repository, user_id)
+    resolved_end = repository.latest_activity_date(user_id)
     if resolved_end is None:
         return repository.get_weekly_metrics_for_user(user_id=user_id)
     return repository.get_weekly_metrics_for_user(

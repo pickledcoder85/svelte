@@ -19,6 +19,7 @@ def production_client(tmp_path: Path, **overrides) -> httpx.AsyncClient:
         "owner_email": OWNER,
         "openai_api_key": "",
         "database_url": f"sqlite:///{tmp_path / 'prod.db'}",
+        "backup_dir": str(tmp_path / "backups"),
     }
     values.update(overrides)
     app = create_app(
@@ -88,6 +89,7 @@ def test_production_requires_an_absolute_database_url(tmp_path):
         auth_mode="tailscale",
         owner_email=OWNER,
         database_url="sqlite:///./relish.db",
+        backup_dir=str(tmp_path / "backups"),
     )
     with pytest.raises(RuntimeError, match="absolute DATABASE_URL"):
         create_app(database_path=str(tmp_path / "x.db"), settings=settings)
