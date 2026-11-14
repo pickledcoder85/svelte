@@ -115,7 +115,13 @@ import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
 import { registerServiceWorker } from './src/lib/service-worker';
-import { FONT_WAIT_MS, holdSplashForFonts, launchSplashSize } from './src/lib/launch-splash';
+import {
+  FONT_WAIT_MS,
+  holdSplashForFonts,
+  launchSplashSize,
+  msSinceLaunch,
+  splashHoldRemaining
+} from './src/lib/launch-splash';
 import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
 import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
 import {
@@ -1977,6 +1983,19 @@ export default function App(): ReactElement {
   const homeChartTargetValue =
     activeRange === '1D' ? dailyHomeTargets.calorieTarget : activeMetricConfig.targetValue;
   const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
+  const [launchHoldDone, setLaunchHoldDone] = useState(false);
+  useEffect(() => {
+    if (launchHoldDone || !profileLoaded) {
+      return;
+    }
+    const remaining = splashHoldRemaining({ elapsedMs: msSinceLaunch(), firstTimeSetup: onboardingRequired });
+    if (remaining === 0) {
+      setLaunchHoldDone(true);
+      return;
+    }
+    const timer = setTimeout(() => setLaunchHoldDone(true), remaining);
+    return () => clearTimeout(timer);
+  }, [launchHoldDone, onboardingRequired, profileLoaded]);
 
   function submitFoodSearch() {
     setIsSubmittingSearch(true);
@@ -3294,7 +3313,8 @@ export default function App(): ReactElement {
     );
   }
 
-  if (!profileLoaded) {
+  if (!profileLoaded || !launchHoldDone) {
+    // Returning users keep the splash for at least MIN_SPLASH_MS; first-time setup skips it.
     return <LaunchSplash />;
   }
 

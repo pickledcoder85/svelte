@@ -97,6 +97,7 @@ The format should remain simple:
 
 ### Changed
 
+- Returning users see the launch splash for at least 0.5 seconds from the start of page load (`MIN_SPLASH_MS`) so it does not blink in and out; first-time setup goes straight to the welcome card with no hold.
 - Launch shows one still splash (Gherkin and the Relish wordmark, `public/splash.jpg`, 44 KB) from the first moment the page opens until Home appears, instead of a blank screen followed by "Opening Relish" and "Loading your profile" spinners. The same image is inlined in `index.html`, precached by the service worker, and rendered by `LaunchSplash` at the same size.
 - The scan screen is labelled "Scan Food" ("Photograph labels and packages") in the menu instead of "Ingestion", and the app shows a plain "Opening Relish" loading screen while it checks sign-in, so an automatically signed-in owner no longer sees the welcome screen flash.
 - Mascot and activity images are resized to 512 px (about 15 MB of PNGs down to about 1 MB), so the web app loads much faster.
