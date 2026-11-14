@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { launchSplashSize } from './launch-splash';
+import { holdSplashForFonts, launchSplashSize } from './launch-splash';
 
 describe('launch splash size', () => {
   it('uses 70% of a phone-width screen', () => {
@@ -13,5 +13,17 @@ describe('launch splash size', () => {
 
   it('never goes negative', () => {
     expect(launchSplashSize(0)).toEqual({ width: 0, height: 0 });
+  });
+});
+
+describe('holding the splash for fonts', () => {
+  it('holds until the font loads', () => {
+    expect(holdSplashForFonts({ fontLoaded: false, fontError: false, waitExpired: false })).toBe(true);
+    expect(holdSplashForFonts({ fontLoaded: true, fontError: false, waitExpired: false })).toBe(false);
+  });
+
+  it('never hangs on a failed or slow font', () => {
+    expect(holdSplashForFonts({ fontLoaded: false, fontError: true, waitExpired: false })).toBe(false);
+    expect(holdSplashForFonts({ fontLoaded: false, fontError: false, waitExpired: true })).toBe(false);
   });
 });
