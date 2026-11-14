@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # runs schema repairs on the live file). Keep the newest `backup_keep` snapshots.
     backup_dir: str = ""
     backup_keep: int = 14
+    # Built Expo web app (`npm run build:web` in frontend/). When set, FastAPI serves it on
+    # the same origin as the API.
+    web_dist_dir: str = ""
     cors_origins: str = ",".join(
         [
             "http://localhost:5173",

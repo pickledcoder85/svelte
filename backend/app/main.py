@@ -17,6 +17,7 @@ from backend.app.routes.recipes import router as recipes_router
 from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.web import mount_web_app, validate_web_dist
 
 def create_app(
     database_path: str | None = None,
@@ -25,6 +26,8 @@ def create_app(
 ) -> FastAPI:
     settings = settings or get_settings()
     settings.validate_startup()
+    if settings.web_dist_dir.strip():
+        validate_web_dist(settings.web_dist_dir)
     origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
     db_path = database_path or resolve_sqlite_path(database_url or settings.database_url)
     app = FastAPI(
@@ -65,6 +68,21 @@ def create_app(
         export_router,
     ):
         app.include_router(router, prefix="/api", dependencies=owner_only)
+
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        if request.url.path.startswith("/api/"):
+            # API responses carry personal data; never let the browser or a proxy cache them.
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    # Last: the web app's catch-all route must not shadow any API route.
+    if settings.web_dist_dir.strip():
+        mount_web_app(app, settings.web_dist_dir)
     return app
 
 

@@ -1,0 +1,15 @@
+# Nightly snapshot of the Relish database. Paired with relish-backup.timer.
+[Unit]
+Description=Relish nightly database snapshot
+
+[Service]
+Type=oneshot
+User=relish
+Group=relish
+WorkingDirectory=/opt/relish/app
+EnvironmentFile=/etc/relish/relish.env
+ExecStart=/opt/relish/venv/bin/python -m backend.app.db.backup --database /var/lib/relish/relish.db --dest /var/lib/relish/backups --keep 14 --label nightly
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/relish
