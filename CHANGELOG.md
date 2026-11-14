@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- First-run setup opens with a welcome card ("Welcome to Relish!") from Gherkin that previews the three parts of setup (about you, your goal, how you eat) before the first form; Back on Basics returns to it. The step counter still counts only the eight setup steps.
 - Off-machine backups: with `BACKUP_GCS_BUCKET` set, the nightly backup also uploads the snapshot to a private Google Cloud Storage bucket and prunes copies older than 30 days (`backend/app/db/offsite.py`), authenticating as the VM service account through the metadata server with no key files.
 - `scripts/deploy.sh`: one-command deploy over Tailscale that runs both test suites, builds the web app, keeps the previous release, restarts, health-checks, and rolls back automatically on failure. GitHub Actions CI (`.github/workflows/ci.yml`) runs backend tests, the frontend type check and tests, and a production web build on every push and pull request, with no secrets and no deploy step.
 - Edit and delete logged food and exercise: `PATCH`/`DELETE /api/nutrition/logs/{log_id}/entries/{entry_id}` and `PUT`/`DELETE /api/tracker/exercise/{id}`, owner-checked, with Edit and Delete (tap twice to confirm) on each row of today's lists. Deleting a meal-plan entry un-ticks its slot; deleting the exercise of a completed planned workout returns the plan to "planned"; exercise logged from a plan is edited through the plan (`409` otherwise). Food edits rescale calories and macros from the amount, keeping three decimals so repeated edits do not drift.
