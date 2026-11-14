@@ -9,6 +9,7 @@ Usage (nightly cron or before a deploy):
 """
 
 import argparse
+import os
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -67,9 +68,25 @@ def main() -> None:
     parser.add_argument("--dest", required=True, help="Directory for snapshots")
     parser.add_argument("--keep", type=int, default=14, help="Snapshots to keep (default 14)")
     parser.add_argument("--label", default="nightly", help="Label in the snapshot file name")
+    parser.add_argument(
+        "--gcs-bucket",
+        default=os.environ.get("BACKUP_GCS_BUCKET", ""),
+        help="Also copy the snapshot to this Google Cloud Storage bucket (env BACKUP_GCS_BUCKET)",
+    )
+    parser.add_argument(
+        "--remote-keep-days",
+        type=int,
+        default=int(os.environ.get("BACKUP_GCS_KEEP_DAYS", "30")),
+        help="Delete bucket copies older than this many days (default 30)",
+    )
     args = parser.parse_args()
     target = backup_database(args.database, args.dest, keep=args.keep, label=args.label)
     print(target if target else f"No database at {args.database}; nothing to back up.")
+    if target and args.gcs_bucket.strip():
+        from backend.app.db.offsite import copy_offsite
+
+        uploaded, deleted = copy_offsite(target, args.gcs_bucket.strip(), keep_days=args.remote_keep_days)
+        print(f"Copied to gs://{args.gcs_bucket.strip()}/{uploaded}; pruned {len(deleted)} old copies.")
 
 
 if __name__ == "__main__":
