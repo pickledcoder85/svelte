@@ -66,6 +66,19 @@ Create `.env` from `.env.example` and define:
 - `OPENAI_API_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+- `AUTH_MODE`, `OWNER_EMAIL`, `DEV_AUTO_LOGIN` (sign-in, see below)
+
+Sign-in:
+
+- `APP_ENV` accepts only `development`, `test`, or `production`; any other value (for example `prod`) stops the server at startup.
+- Local development defaults to `AUTH_MODE=local`, which keeps the email sign-up / sign-in screen and the bearer sessions used by the tests.
+- To skip the sign-in screen locally, set `OWNER_EMAIL=<any email>` and `DEV_AUTO_LOGIN=true`. Requests without a valid session are treated as that owner, but only when they come from this machine (loopback). Phones and other devices on the Wi-Fi still see the sign-in screen.
+- Production uses `APP_ENV=production`, `AUTH_MODE=tailscale`, and `OWNER_EMAIL=<your Tailscale login email>`, started with `scripts/prod-backend.sh` behind `tailscale serve`. The server trusts the `Tailscale-User-Login` header that Tailscale Serve adds, only on loopback connections, and only when it matches `OWNER_EMAIL`. Email sign-up returns `404`, and the app opens without a sign-in screen.
+- `scripts/prod-backend.sh` runs uvicorn on `127.0.0.1` with one worker and `--no-proxy-headers`. That flag is required: uvicorn trusts `X-Forwarded-For` from loopback by default, and Tailscale Serve sets it to the phone's tailnet address, which would make the loopback check reject every owner request. Never widen `FORWARDED_ALLOW_IPS`.
+- In Tailscale mode every write (`POST`, `PUT`, `PATCH`, `DELETE`) must carry `X-Relish-Request: 1` and must not be marked cross-site by the browser (`Sec-Fetch-Site`). The app's `apiFetch` adds the header. This stops other websites from making changes through the device's Tailscale identity.
+- The server refuses to start with unsafe combinations: production without `AUTH_MODE=tailscale`, production with `DEV_AUTO_LOGIN=true`, or `AUTH_MODE=tailscale` / `DEV_AUTO_LOGIN=true` without `OWNER_EMAIL`.
+- The backend reads `.env` from the repo root regardless of the working directory.
+- The pytest `app` fixture uses fixed local test settings and ignores `.env`, so local auth flags do not change test results.
 
 For the phone and browser camera-food flow:
 

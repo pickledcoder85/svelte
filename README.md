@@ -24,7 +24,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Backend: Python FastAPI application managed through the `svelte` conda environment.
 - Database: SQLite by default for local development, with a checked-in migration file and repository helpers.
 - Mobile runtime: Expo Go during development, with native build/export options later.
-- Auth: Supabase or another hosted auth provider.
+- Auth: single owner. In production, Tailscale identifies the owner (`AUTH_MODE=tailscale`, `OWNER_EMAIL`); local development keeps email sessions or `DEV_AUTO_LOGIN`. See [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md#environment-variables).
 - Nutrition source: USDA FoodData Central API.
 - AI backend: multimodal model for package-front and nutrition-label extraction, plus OCR-style recipe ingestion.
 
@@ -81,7 +81,7 @@ Relational notes:
 4. `cd frontend`.
 5. Install frontend dependencies with `npm install`.
 6. Return to the repo root.
-7. Copy `.env.example` to `.env` and set API credentials.
+7. Copy `.env.example` to `.env` and set API credentials. New sign-in variables: `AUTH_MODE` (`local` for development, `tailscale` in production), `OWNER_EMAIL` (the single owner's Tailscale login), and `DEV_AUTO_LOGIN` (local only, skips the sign-in screen).
 8. Get your computer's LAN IP with `hostname -I` or `ip addr`.
 9. In `frontend/`, copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL=http://<your-lan-ip>:8000/api`.
 10. Run the backend with `scripts/dev-backend.sh`.

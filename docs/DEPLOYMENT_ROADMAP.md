@@ -18,13 +18,14 @@ Relish runs as a private, single-user Progressive Web App installed on the owner
 | Database | SQLite file on the VM's persistent disk, WAL mode, single uvicorn worker |
 | Hosting | Google Cloud Always Free `e2-micro` VM in a US region (`us-west1`, `us-central1`, or `us-east1`) |
 | Network access | Tailscale only (`tailscale serve` for HTTPS on `*.ts.net`); no public ports |
-| Login | Single owner credential on top of Tailscale; Supabase dropped |
+| Login | Tailscale identity only (no password): the owner's Tailscale login must match `OWNER_EMAIL`; Supabase dropped. Optional Face ID passkey later |
+| Vision model | OpenAI, cheapest current multimodal model (`gpt-5.4-nano` at time of decision), set through a `VISION_MODEL` setting |
 | Backups | Litestream or nightly `sqlite3 .backup` to a free R2/B2 bucket, plus a JSON export endpoint |
 | Secrets | Root-only env file loaded by systemd (see below); GCP Secret Manager optional |
 | Existing data | None of the local `.db` files hold real data, so the schema can be rebuilt from a clean baseline |
 | Package pins | Approved: realign `expo-camera`, `expo-image-picker`, `expo-font` to SDK 54 inside `conda activate svelte` |
 
-Open: which AI provider reads label photos when a barcode lookup misses (keep OpenAI with a configurable model, or add Claude Haiku).
+Decided 2026-11-14: keep OpenAI for label photos, using the lowest-cost multimodal model through a setting.
 
 ### Why not a home PC
 
@@ -72,10 +73,10 @@ Each slice is its own `feature/` or `fix/` branch from `main`, per AGENTS.md.
 
 ### Phase 1: deploy-ready backend
 
-- [ ] 1.1 Single-owner auth: hashed owner password from env, random expiring tokens, sign-up removed, login rate-limited, auth required on every router except `/health` and login.
-- [ ] 1.2 Production settings: `/docs` off, fail fast on missing secrets, absolute `DATABASE_URL` and env path, trimmed `/health`, vision returns `503` when unconfigured, image size cap, shared HTTP client, model name as a setting.
+- [x] 1.1 Single-owner auth (option B, decided 2026-11-14): Tailscale identity header checked against `OWNER_EMAIL` on loopback connections, no password; email sign-up only in local mode; auth required on every router except `/health` and `/auth`; expired local sessions rejected; unsafe auth settings fail at startup. Deferred: optional Face ID passkey (option C), and removing the local email-session code once tests no longer need it.
+- [ ] 1.2 Production settings (`APP_ENV` validation and the repo-root `.env` path already landed in 1.1): `/docs`, `/redoc`, and `/openapi.json` off, fail fast on missing secrets, absolute `DATABASE_URL` and env path, trimmed `/health`, vision returns `503` when unconfigured, image size cap, shared HTTP client, model name as a setting.
 - [ ] 1.3 SQLite durability: WAL, `synchronous=NORMAL`, `busy_timeout`, locked reads, `*.db-wal`/`*.db-shm` in `.gitignore`, pre-start backup, `GET /api/export`.
-- [ ] 1.4 Serve the web build from FastAPI with SPA fallback and `no-cache` for `index.html` and `sw.js`; systemd unit and `docs/DEPLOY.md`.
+- [ ] 1.4 Serve the web build from FastAPI with SPA fallback and `no-cache` for `index.html` and `sw.js`; systemd unit (wrapping `scripts/prod-backend.sh`, which already pins `--no-proxy-headers`) and `docs/DEPLOY.md`.
 - [ ] 1.5 Clean schema baseline: the live schema becomes migration 001, migrations run at startup, legacy repair code and the stale migrations are removed (safe because no real data exists).
 
 ### Phase 2: installable PWA
