@@ -274,6 +274,10 @@ DEFAULT_FOOD_CATALOG_SEEDS: list[dict[str, Any]] = [
 DEFAULT_FAVORITE_FOOD_IDS = [seed["id"] for seed in DEFAULT_FOOD_CATALOG_SEEDS]
 
 
+class ExerciseLinkedToPlanError(RuntimeError):
+    """The exercise entry was logged by completing a planned workout; edit the plan instead."""
+
+
 def _synchronized(method):
     """Run a repository read under the connection lock.
 
@@ -1119,6 +1123,73 @@ class SQLiteRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    @_synchronized
+    def _owned_food_log_entry_locked(
+        self, user_id: str, food_log_id: str, entry_id: str
+    ) -> sqlite3.Row | None:
+        return self._connection.execute(
+            """
+            SELECT entries.*
+            FROM food_log_entries entries
+            JOIN food_logs logs ON logs.id = entries.food_log_id
+            WHERE entries.id = ? AND entries.food_log_id = ? AND logs.user_id = ?
+            """,
+            (entry_id, food_log_id, user_id),
+        ).fetchone()
+
+    def update_food_log_entry(
+        self,
+        *,
+        user_id: str,
+        food_log_id: str,
+        entry_id: str,
+        grams: float,
+        servings: float,
+        calories: float,
+        protein: float,
+        carbs: float,
+        fat: float,
+    ) -> bool:
+        """Change the amount and nutrition of a logged entry the user owns."""
+        with self._lock, self._connection:
+            if self._owned_food_log_entry_locked(user_id, food_log_id, entry_id) is None:
+                return False
+            self._connection.execute(
+                """
+                UPDATE food_log_entries
+                SET grams = ?, servings = ?, calories = ?, protein = ?, carbs = ?, fat = ?
+                WHERE id = ?
+                """,
+                (grams, servings, calories, protein, carbs, fat, entry_id),
+            )
+            self._connection.execute(
+                "UPDATE food_logs SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (food_log_id,),
+            )
+            return True
+
+    def delete_food_log_entry(self, *, user_id: str, food_log_id: str, entry_id: str) -> bool:
+        """Delete a logged entry the user owns.
+
+        Entries created by ticking a meal-plan slot un-tick that slot; otherwise
+        reconcile_meal_plan_food_log_links would recreate the entry.
+        """
+        with self._lock, self._connection:
+            entry = self._owned_food_log_entry_locked(user_id, food_log_id, entry_id)
+            if entry is None:
+                return False
+            if entry["meal_plan_slot_id"]:
+                self._connection.execute(
+                    "UPDATE meal_plan_slots SET eaten_at = NULL WHERE id = ?",
+                    (entry["meal_plan_slot_id"],),
+                )
+            self._connection.execute("DELETE FROM food_log_entries WHERE id = ?", (entry_id,))
+            self._connection.execute(
+                "UPDATE food_logs SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (food_log_id,),
+            )
+            return True
+
     def delete_food_log_entries_by_meal_plan_slot(self, meal_plan_slot_id: str) -> None:
         with self._lock, self._connection:
             self._connection.execute(
@@ -1905,12 +1976,97 @@ class SQLiteRepository:
             )
             return True
 
-    def delete_exercise_entry(self, exercise_entry_id: str) -> None:
+    def update_exercise_entry(
+        self,
+        *,
+        user_id: str,
+        exercise_entry_id: str,
+        title: str,
+        duration_minutes: int,
+        calories_burned: int,
+        logged_on: date,
+        logged_at: str,
+        intensity: str,
+    ) -> dict[str, Any] | None:
+        """Update a logged exercise the user owns; None if it is missing or not theirs.
+
+        Raises ExerciseLinkedToPlanError for an entry created by completing a planned
+        workout: the plan owns those values and rewrites them whenever the plan changes.
+        """
         with self._lock, self._connection:
+            linked = self._connection.execute(
+                """
+                SELECT 1 FROM planned_workout_sessions WHERE completed_exercise_entry_id = ? AND user_id = ?
+                UNION ALL
+                SELECT 1 FROM planned_exercise_entries WHERE completed_exercise_entry_id = ? AND user_id = ?
+                LIMIT 1
+                """,
+                (exercise_entry_id, user_id, exercise_entry_id, user_id),
+            ).fetchone()
+            if linked is not None:
+                raise ExerciseLinkedToPlanError(exercise_entry_id)
+            cursor = self._connection.execute(
+                """
+                UPDATE exercise_entries
+                SET title = ?, duration_minutes = ?, calories_burned = ?,
+                    logged_on = ?, logged_at = ?, intensity = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (
+                    title,
+                    duration_minutes,
+                    calories_burned,
+                    logged_on.isoformat(),
+                    logged_at,
+                    intensity,
+                    exercise_entry_id,
+                    user_id,
+                ),
+            )
+            if cursor.rowcount == 0:
+                return None
+            row = self._connection.execute(
+                "SELECT * FROM exercise_entries WHERE id = ?",
+                (exercise_entry_id,),
+            ).fetchone()
+            return dict(row) if row is not None else None
+
+    def delete_exercise_entry(self, *, user_id: str, exercise_entry_id: str) -> bool:
+        """Delete a logged exercise the user owns.
+
+        A planned workout that was completed through this entry goes back to "planned", so
+        the plan and the exercise history never disagree.
+        """
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT user_id FROM exercise_entries WHERE id = ?",
+                (exercise_entry_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return False
+            self._connection.execute(
+                """
+                UPDATE planned_workout_sessions
+                SET status = 'planned', completed_at = NULL, completed_exercise_entry_id = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE completed_exercise_entry_id = ? AND user_id = ?
+                """,
+                (exercise_entry_id, user_id),
+            )
+            self._connection.execute(
+                """
+                UPDATE planned_exercise_entries
+                SET completed_at = NULL, completed_exercise_entry_id = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE completed_exercise_entry_id = ? AND user_id = ?
+                """,
+                (exercise_entry_id, user_id),
+            )
             self._connection.execute(
                 "DELETE FROM exercise_entries WHERE id = ?",
                 (exercise_entry_id,),
             )
+            return True
 
     def update_planned_workout_session_completion(
         self,

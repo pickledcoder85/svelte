@@ -3,11 +3,19 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.app.dependencies import get_required_session, get_repository
-from backend.app.models.food_logs import FoodLog, FoodLogCreateRequest, FoodLogEntry, FoodLogEntryCreateRequest
+from backend.app.models.food_logs import (
+    FoodLog,
+    FoodLogCreateRequest,
+    FoodLogEntry,
+    FoodLogEntryCreateRequest,
+    FoodLogEntryUpdateRequest,
+)
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.food_logs import (
     add_food_log_entry,
     create_food_log,
+    delete_food_log_entry,
+    update_food_log_entry,
     get_food_log,
     list_food_log_entries,
     list_food_logs,
@@ -68,4 +76,31 @@ async def create_log_entry(
     log = add_food_log_entry(repository, session.user_id, food_log_id, payload)
     if log is None:
         raise HTTPException(status_code=404, detail="Food log not found.")
+    return log
+
+
+@router.patch("/logs/{food_log_id}/entries/{entry_id}", response_model=FoodLog)
+async def update_log_entry(
+    food_log_id: str,
+    entry_id: str,
+    payload: FoodLogEntryUpdateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> FoodLog:
+    log = update_food_log_entry(repository, session.user_id, food_log_id, entry_id, payload)
+    if log is None:
+        raise HTTPException(status_code=404, detail="Food log entry not found.")
+    return log
+
+
+@router.delete("/logs/{food_log_id}/entries/{entry_id}", response_model=FoodLog)
+async def delete_log_entry(
+    food_log_id: str,
+    entry_id: str,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> FoodLog:
+    log = delete_food_log_entry(repository, session.user_id, food_log_id, entry_id)
+    if log is None:
+        raise HTTPException(status_code=404, detail="Food log entry not found.")
     return log

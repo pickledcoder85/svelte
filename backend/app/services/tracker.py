@@ -44,6 +44,29 @@ def create_exercise_entry(
     return ExerciseEntry.model_validate(entry)
 
 
+def update_exercise_entry(
+    repository: SQLiteRepository,
+    user_id: str,
+    exercise_entry_id: str,
+    payload: ExerciseEntryCreateRequest,
+) -> ExerciseEntry | None:
+    entry = repository.update_exercise_entry(
+        user_id=user_id,
+        exercise_entry_id=exercise_entry_id,
+        title=payload.title,
+        duration_minutes=payload.duration_minutes,
+        calories_burned=payload.calories_burned,
+        logged_on=payload.logged_on,
+        logged_at=payload.logged_at,
+        intensity=payload.intensity,
+    )
+    return ExerciseEntry.model_validate(entry) if entry is not None else None
+
+
+def delete_exercise_entry(repository: SQLiteRepository, user_id: str, exercise_entry_id: str) -> bool:
+    return repository.delete_exercise_entry(user_id=user_id, exercise_entry_id=exercise_entry_id)
+
+
 def list_exercise_entries(repository: SQLiteRepository, user_id: str) -> list[ExerciseEntry]:
     return [ExerciseEntry.model_validate(entry) for entry in repository.list_exercise_entries(user_id)]
 

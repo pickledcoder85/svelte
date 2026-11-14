@@ -57,9 +57,14 @@ export interface FoodLogEntry {
   calories: number;
   macros: MacroTargets;
   logged_at: string;
+  servings?: number;
+  /** Set when the entry was created by ticking a meal-plan slot. */
+  meal_plan_slot_id?: string | null;
 }
 
 export interface FoodLogSummary {
+  /** Server id of the day's log; absent for an empty day that has no log yet. */
+  log_id?: string;
   date: string;
   entries: FoodLogEntry[];
   totals: {
