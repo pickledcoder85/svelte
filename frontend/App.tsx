@@ -100,6 +100,7 @@ import {
   defaultCooldownTitle,
   buildPlannedWorkoutEditDraft
 } from './src/lib/planned-workouts';
+import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
 import type {
   AppSection,
   DashboardRange,
@@ -133,7 +134,6 @@ import {
 const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
-type EntryMode = 'live' | 'preview';
 const chartHeight = 160;
 const mascotDefaultImage = require('./assets/mascot.png');
 const mascotAvatarImage = require('./assets/mascot-avatar.png');
@@ -878,7 +878,7 @@ export default function App(): ReactElement {
         setRecipeImportTone('checking');
         setRecipeImportStatus('Live recipe import unavailable');
         setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
-        setSnapshot(demoDashboardSnapshot);
+        setSnapshot(createEmptyDashboardSnapshot());
       }
     }
 
@@ -898,15 +898,18 @@ export default function App(): ReactElement {
 
     async function loadProfileSettings() {
       if (!foodSessionToken) {
+        const isPreview = entryMode === 'preview';
         setProfileLoaded(true);
         setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(demoProfileProgress);
-        setWeightEntries(demoWeightEntries);
+        setProfileProgress(fallbackForMode(entryMode, demoProfileProgress, null));
+        setWeightEntries(fallbackForMode(entryMode, demoWeightEntries, []));
         resetPreviewProfileDrafts();
         setProfileTone('checking');
-        setProfileStatus('Preview profile loaded');
-        setProfileError('No active profile session. Showing preview progress data.');
+        setProfileStatus(isPreview ? 'Preview profile loaded' : 'Profile unavailable');
+        setProfileError(
+          isPreview ? 'No active profile session. Showing preview progress data.' : 'No active profile session. Sign in again.'
+        );
         return;
       }
 
@@ -944,12 +947,12 @@ export default function App(): ReactElement {
 
         setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(demoProfileProgress);
-        setWeightEntries(demoWeightEntries);
+        setProfileProgress(null);
+        setWeightEntries([]);
         resetPreviewProfileDrafts();
         setProfileTone('checking');
-        setProfileStatus('Preview profile loaded');
-        setProfileError(error instanceof Error ? `${error.message} Showing preview progress data.` : 'Profile settings unavailable. Showing preview progress data.');
+        setProfileStatus('Profile unavailable');
+        setProfileError(liveLoadErrorMessage(error, 'Profile'));
       } finally {
         if (!cancelled) {
           setProfileLoaded(true);
@@ -1008,13 +1011,16 @@ export default function App(): ReactElement {
 
     async function loadTrackerSections() {
       if (!foodSessionToken) {
-        const demoSessions = buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries);
+        const isPreview = entryMode === 'preview';
+        const fallbackSessions = isPreview ? buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries) : [];
         setTrackerTone('checking');
-        setTrackerStatus('Preview tracker loaded');
-        setTrackerError('No active tracker session. Showing preview tracker data.');
-        setExerciseEntries(demoExerciseEntries);
-        setPlannedWorkoutSessions(demoSessions);
-        setPlannedExerciseEntries(sortPlannedExerciseEntries(demoSessions.map(mapPlannedWorkoutSessionToEntry)));
+        setTrackerStatus(isPreview ? 'Preview tracker loaded' : 'Tracker unavailable');
+        setTrackerError(
+          isPreview ? 'No active tracker session. Showing preview tracker data.' : 'No active tracker session. Sign in again.'
+        );
+        setExerciseEntries(fallbackForMode(entryMode, demoExerciseEntries, []));
+        setPlannedWorkoutSessions(fallbackSessions);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(fallbackSessions.map(mapPlannedWorkoutSessionToEntry)));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable until a backend session is ready');
         setMealPlanError('No active tracker session.');
@@ -1103,12 +1109,8 @@ export default function App(): ReactElement {
         setMealPlanEatenSlots({});
         setMealPrepTasks([]);
         setTrackerTone('checking');
-        setTrackerStatus('Preview tracker loaded');
-        setTrackerError(error instanceof Error ? `${error.message} Showing preview tracker data.` : 'Tracker data unavailable. Showing preview tracker data.');
-        setExerciseEntries(demoExerciseEntries);
-        const demoSessions = buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries);
-        setPlannedWorkoutSessions(demoSessions);
-        setPlannedExerciseEntries(sortPlannedExerciseEntries(demoSessions.map(mapPlannedWorkoutSessionToEntry)));
+        setTrackerStatus('Tracker unavailable');
+        setTrackerError(liveLoadErrorMessage(error, 'Tracker data'));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable');
         setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
@@ -1137,10 +1139,19 @@ export default function App(): ReactElement {
       setFoodLogStatus("Loading today's log");
       setFoodLogError(null);
 
+      if (!foodSessionToken) {
+        const isPreview = entryMode === 'preview';
+        setFoodLog(fallbackForMode(entryMode, demoFoodLog, createEmptyFoodLog()));
+        setFoodLogTone('checking');
+        setFoodLogStatus(isPreview ? 'Preview daily log loaded' : 'Daily log unavailable');
+        setFoodLogError(
+          isPreview ? 'No active food session. Showing preview daily log.' : 'No active food session. Sign in again.'
+        );
+        setFoodLogLoading(false);
+        return;
+      }
+
       try {
-        if (!foodSessionToken) {
-          throw new Error('No active food session.');
-        }
         const log = await fetchTodaysFoodLog(foodSessionToken);
 
         if (cancelled) {
@@ -1160,10 +1171,9 @@ export default function App(): ReactElement {
         }
 
         setFoodLog(createEmptyFoodLog());
-        setFoodLog(demoFoodLog);
         setFoodLogTone('checking');
-        setFoodLogStatus('Preview daily log loaded');
-        setFoodLogError(error instanceof Error ? `${error.message} Showing preview daily log.` : 'Daily log unavailable. Showing preview daily log.');
+        setFoodLogStatus('Daily log unavailable');
+        setFoodLogError(liveLoadErrorMessage(error, 'Daily log'));
       } finally {
         if (!cancelled) {
           setFoodLogLoading(false);

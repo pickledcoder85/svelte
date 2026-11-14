@@ -68,7 +68,7 @@ Each slice is its own `feature/` or `fix/` branch from `main`, per AGENTS.md.
 - [x] 0.2 Stale test expectations (`relish-api`, two seeded exercise entries).
 - [x] 0.3 Stop demo auto-generation on read paths (`services/profile.py`, `services/tracker.py`). Starter plans are now created only once, at onboarding. Deferred: an onboarding opt-in toggle for starter plans.
 - [x] 0.4 Split `save_user_identity` into insert-if-missing (`ensure_user_identity`) and an explicit profile update used only by `PUT /profile`.
-- [ ] 0.5 Show mock data only in preview mode; show a real error state in live mode.
+- [x] 0.5 Show mock data only in preview mode; show a real error state in live mode (`frontend/src/lib/live-fallback.ts`). Deferred to Phase 2.2: preview-mode actions (add exercise, toggle meal, favorite) still report success without saving, and the 401 handling that returns to sign-in.
 
 ### Phase 1: deploy-ready backend
 
