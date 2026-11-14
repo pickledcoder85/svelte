@@ -116,6 +116,7 @@ import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
 import { registerServiceWorker } from './src/lib/service-worker';
 import { launchSplashSize } from './src/lib/launch-splash';
+import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
 import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
 import {
   clearStoredSessionToken,
@@ -220,7 +221,8 @@ type GoalPace = 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive';
 type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
 type NutritionStyle = 'balanced' | 'keto' | 'mediterranean';
 type AllergyChoice = 'none' | 'milk' | 'egg' | 'peanut' | 'tree_nuts' | 'wheat' | 'shellfish' | 'other';
-type OnboardingStep = 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
+// 'welcome' is the intro card before the numbered steps; it is not in onboardingSteps.
+type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
 
 const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
   { id: 'basics', label: 'Basics' },
@@ -558,7 +560,7 @@ export default function App(): ReactElement {
   const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle>('balanced');
   const [onboardingAllergySelectionsDraft, setOnboardingAllergySelectionsDraft] = useState<AllergyChoice[]>(['none']);
   const [onboardingAllergyOtherDraft, setOnboardingAllergyOtherDraft] = useState('');
-  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('basics');
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('welcome');
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
@@ -713,7 +715,7 @@ export default function App(): ReactElement {
     setOnboardingNutritionStyleDraft('balanced');
     setOnboardingAllergySelectionsDraft(['none']);
     setOnboardingAllergyOtherDraft('');
-    setOnboardingStep('basics');
+    setOnboardingStep('welcome');
   }
 
   function applyProfileDrafts(loadedProfile: UserProfile, goals: UserGoal[] = []) {
@@ -749,7 +751,7 @@ export default function App(): ReactElement {
     const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
     setOnboardingAllergySelectionsDraft(parsedAllergies.selected);
     setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
-    setOnboardingStep('basics');
+    setOnboardingStep('welcome');
 
     const latestGoal = goals[0];
     if (latestGoal) {
@@ -2754,6 +2756,11 @@ export default function App(): ReactElement {
 
   function goToPreviousOnboardingStep() {
     const currentIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
+    if (currentIndex === 0) {
+      setOnboardingError(null);
+      setOnboardingStep('welcome');
+      return;
+    }
     const previousStep = onboardingSteps[currentIndex - 1];
     if (previousStep) {
       setOnboardingError(null);
@@ -3281,6 +3288,50 @@ export default function App(): ReactElement {
     return <LaunchSplash />;
   }
 
+  if (onboardingRequired && onboardingStep === 'welcome') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+          <View style={styles.setupBackdrop}>
+            <View style={[styles.setupCard, styles.onboardingWelcomeCard]}>
+              <Image source={mascotDefaultImage} style={styles.onboardingWelcomeImage} resizeMode="contain" />
+              <Text style={[styles.onboardingWelcomeTitle, ribeyeLoaded && styles.onboardingWelcomeTitleDisplay]}>
+                {ONBOARDING_WELCOME.title}
+              </Text>
+              <Text style={styles.onboardingWelcomeIntro}>{ONBOARDING_WELCOME.intro}</Text>
+              <View style={styles.onboardingWelcomeList}>
+                {ONBOARDING_WELCOME.sections.map((section) => (
+                  <View key={section.number} style={styles.onboardingWelcomeRow}>
+                    <View style={styles.onboardingWelcomeBadge}>
+                      <Text style={styles.onboardingWelcomeBadgeLabel}>{section.number}</Text>
+                    </View>
+                    <View style={styles.onboardingWelcomeRowCopy}>
+                      <Text style={styles.onboardingWelcomeRowTitle}>{section.title}</Text>
+                      <Text style={styles.onboardingWelcomeRowDetail}>{section.detail}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.onboardingWelcomeFootnote}>{ONBOARDING_WELCOME.footnote}</Text>
+              <Pressable
+                style={[styles.setupActionButton, styles.setupActionButtonPrimary, styles.onboardingWelcomeAction]}
+                onPress={() => {
+                  setOnboardingError(null);
+                  setOnboardingStatus('Basics step ready');
+                  setOnboardingStep('basics');
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.setupActionButtonLabelPrimary}>{ONBOARDING_WELCOME.action} →</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (onboardingRequired) {
     const activeStepIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
     const currentStepLabel = onboardingSteps[activeStepIndex]?.label ?? 'Basics';
@@ -3722,7 +3773,7 @@ export default function App(): ReactElement {
                     <Pressable
                       style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
                       onPress={goToPreviousOnboardingStep}
-                      disabled={activeStepIndex === 0 || onboardingSaving}
+                      disabled={onboardingSaving}
                     >
                       <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
                     </Pressable>
@@ -6220,6 +6271,80 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 16
+  },
+  onboardingWelcomeCard: {
+    alignItems: 'center',
+    gap: 14
+  },
+  onboardingWelcomeImage: {
+    width: 170,
+    height: 210
+  },
+  onboardingWelcomeTitle: {
+    color: RELISH_COLORS.text,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '900',
+    textAlign: 'center'
+  },
+  onboardingWelcomeTitleDisplay: {
+    fontFamily: 'Ribeye_400Regular',
+    fontWeight: '400'
+  },
+  onboardingWelcomeIntro: {
+    color: RELISH_COLORS.text,
+    fontSize: 16,
+    lineHeight: 23,
+    textAlign: 'center',
+    maxWidth: 420
+  },
+  onboardingWelcomeList: {
+    alignSelf: 'stretch',
+    gap: 10,
+    marginTop: 4
+  },
+  onboardingWelcomeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e7e0cf'
+  },
+  onboardingWelcomeBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: RELISH_COLORS.text
+  },
+  onboardingWelcomeBadgeLabel: {
+    color: '#f4efe4',
+    fontWeight: '800'
+  },
+  onboardingWelcomeRowCopy: {
+    flex: 1
+  },
+  onboardingWelcomeRowTitle: {
+    color: RELISH_COLORS.text,
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  onboardingWelcomeRowDetail: {
+    color: '#5b6b62',
+    fontSize: 13,
+    marginTop: 2
+  },
+  onboardingWelcomeFootnote: {
+    color: '#5b6b62',
+    fontSize: 13,
+    textAlign: 'center'
+  },
+  onboardingWelcomeAction: {
+    alignSelf: 'stretch'
   },
   launchSplash: {
     flex: 1,
