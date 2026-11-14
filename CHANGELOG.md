@@ -19,6 +19,8 @@ The format should remain simple:
 
 ### Added
 
+- Label and package scans use the `VISION_MODEL` setting (default `gpt-6-luna`, OpenAI's cheapest current model with image input) with `VISION_REASONING_EFFORT` (default `none`). A real test scan of a synthetic label extracted every field correctly for about $0.0002.
+- Scan uploads are validated before any model call: size limit (`VISION_MAX_IMAGE_BASE64_CHARS`), real base64, and JPEG/PNG/WEBP/GIF detected from the file bytes (HEIC and other formats get a readable `400`).
 - Single-owner sign-in. With `AUTH_MODE=tailscale` (required when `APP_ENV=production`), the server identifies the owner from the Tailscale Serve `Tailscale-User-Login` header, only on loopback connections and only when it matches `OWNER_EMAIL`; the app opens straight to Home with no sign-in screen. Local development keeps email sessions and gains an opt-in `DEV_AUTO_LOGIN`. The server refuses to start with unsafe auth settings.
 - `GET /api/health` now reports `auth_mode`.
 - `scripts/prod-backend.sh` starts the production API on `127.0.0.1` with one worker and `--no-proxy-headers`, and refuses to run unless `APP_ENV=production` and `AUTH_MODE=tailscale`.
@@ -77,6 +79,9 @@ The format should remain simple:
 
 ### Changed
 
+- In production, scans without `OPENAI_API_KEY` return `503` instead of saving fixed demo nutrition; the demo fallback remains for development and tests. Scan failures return a generic `502` message, with details only in the server log. The OpenAI HTTP client is now closed after each call.
+- Production turns off `/docs`, `/redoc`, and `/openapi.json`, requires an absolute `DATABASE_URL`, and `/api/health` no longer reports the database path.
+- Removed the unused `SUPABASE_URL` and `SUPABASE_ANON_KEY` settings.
 - `APP_ENV` now only accepts `development`, `test`, or `production`, and `.env` is read from the repo root regardless of the working directory. `DEV_AUTO_LOGIN` applies only to requests from the same machine.
 - Every API route except `/api/health` and `/api/auth/session` now requires a session, including vision scans, recipes, meal templates, food search, weekly metrics, and meal calculation, which were previously open. Expired local sessions are rejected. Email sign-up and sign-in return `404` in Tailscale mode.
 - Deleting a planned workout (structured or legacy) now keeps the linked performed exercise entry, so removing a plan never erases logged exercise history.
