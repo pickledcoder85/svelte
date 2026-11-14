@@ -11,7 +11,7 @@ export const appShellSections: AppShellSectionMeta[] = [
   { id: 'dashboard', label: 'Home', detail: "Today's targets and plan", group: 'primary' },
   { id: 'tracker', label: 'Tracker', detail: 'Exercise and today logs', group: 'primary' },
   { id: 'foods', label: 'Food Search', detail: 'Find and favorite foods', group: 'primary' },
-  { id: 'ingestion', label: 'Ingestion', detail: 'Scan and review foods', group: 'primary' },
+  { id: 'ingestion', label: 'Scan Food', detail: 'Photograph labels and packages', group: 'primary' },
   { id: 'meals', label: 'Meals', detail: 'Compose and scale meals', group: 'organize' },
   { id: 'meal-plan', label: 'Meal Plan', detail: 'Weekly meal schedule', group: 'organize' },
   { id: 'meal-prep', label: 'Meal Prep', detail: 'Batch cooking checklist', group: 'organize' },
