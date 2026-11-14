@@ -135,6 +135,8 @@ export interface UserOnboardingRequest {
   dietary_pattern: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
   nutrition_style: 'balanced' | 'keto' | 'mediterranean';
   allergy_notes?: string | null;
+  units?: 'imperial' | 'metric';
+  timezone?: string;
 }
 
 export interface UserGoal {

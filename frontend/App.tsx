@@ -123,6 +123,15 @@ import {
   splashHoldRemaining
 } from './src/lib/launch-splash';
 import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
+import {
+  bodyMeasurementsFromDrafts,
+  convertBodyDrafts,
+  defaultUnitSystemForLocale,
+  deviceLocale,
+  deviceTimeZone,
+  type BodyDrafts,
+  type UnitSystem
+} from './src/lib/body-units';
 import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
 import {
   clearStoredSessionToken,
@@ -561,6 +570,11 @@ export default function App(): ReactElement {
   const [onboardingHeightFeetDraft, setOnboardingHeightFeetDraft] = useState('5');
   const [onboardingHeightInchesDraft, setOnboardingHeightInchesDraft] = useState('10');
   const [onboardingCurrentWeightDraft, setOnboardingCurrentWeightDraft] = useState('180');
+  // Setup asks in the user's units; the server always stores cm and lb.
+  const [onboardingUnitsDraft, setOnboardingUnitsDraft] = useState<UnitSystem>(() =>
+    defaultUnitSystemForLocale(deviceLocale())
+  );
+  const [onboardingHeightCmDraft, setOnboardingHeightCmDraft] = useState('');
   const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
   const [onboardingGoalPaceDraft, setOnboardingGoalPaceDraft] = useState<GoalPace>('recommended');
   const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('170');
@@ -747,6 +761,22 @@ export default function App(): ReactElement {
         ? String(loadedProfile.current_weight_lbs)
         : '180'
     );
+    if (!loadedProfile.setup_complete) {
+      // First-time setup starts empty, with "e.g." hints, not sample values that look filled in.
+      const unitsForSetup = defaultUnitSystemForLocale(deviceLocale());
+      setOnboardingUnitsDraft(unitsForSetup);
+      setOnboardingHeightCmDraft('');
+      if (loadedProfile.age_years === null || loadedProfile.age_years === undefined) {
+        setOnboardingAgeDraft('');
+      }
+      if (loadedProfile.height_cm === null || loadedProfile.height_cm === undefined) {
+        setOnboardingHeightFeetDraft('');
+        setOnboardingHeightInchesDraft('');
+      }
+      if (loadedProfile.current_weight_lbs === null || loadedProfile.current_weight_lbs === undefined) {
+        setOnboardingCurrentWeightDraft('');
+      }
+    }
     setOnboardingGoalTypeDraft(loadedProfile.goal_type ?? 'lose');
     setOnboardingGoalPaceDraft(
       loadedProfile.goal_pace ?? (loadedProfile.goal_type === 'gain' ? 'lean' : 'recommended')
@@ -2110,20 +2140,9 @@ export default function App(): ReactElement {
 
   async function completeOnboardingSetup() {
     const age_years = Number(onboardingAgeDraft);
-    const feet = Number(onboardingHeightFeetDraft);
-    const inches = Number(onboardingHeightInchesDraft);
-    const current_weight_lbs = Number(onboardingCurrentWeightDraft);
+    const measurements = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
 
-    if (
-      !Number.isFinite(age_years) ||
-      age_years <= 0 ||
-      !Number.isFinite(feet) ||
-      feet <= 0 ||
-      !Number.isFinite(inches) ||
-      inches < 0 ||
-      !Number.isFinite(current_weight_lbs) ||
-      current_weight_lbs <= 0
-    ) {
+    if (!Number.isFinite(age_years) || age_years <= 0 || measurements === null) {
       setOnboardingStatus('Could not save onboarding');
       setOnboardingError('Enter a valid age, height, and weight before continuing.');
       return;
@@ -2135,7 +2154,6 @@ export default function App(): ReactElement {
       return;
     }
 
-    const height_cm = round1(((feet * 12 + inches) * 2.54));
     const allergy_notes = formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft);
 
     setOnboardingSaving(true);
@@ -2147,11 +2165,13 @@ export default function App(): ReactElement {
         {
           sex: onboardingSexDraft,
           age_years: Math.round(age_years),
-          height_cm,
-          current_weight_lbs: round1(current_weight_lbs),
+          height_cm: measurements.height_cm,
+          current_weight_lbs: measurements.weight_lbs,
           goal_type: onboardingGoalTypeDraft,
           goal_pace: onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft,
           target_weight_lbs: null,
+          units: onboardingUnitsDraft,
+          ...(deviceTimeZone() ? { timezone: deviceTimeZone() as string } : {}),
           activity_level: onboardingActivityLevelDraft,
           dietary_pattern: onboardingDietaryPatternDraft,
           nutrition_style: onboardingNutritionStyleDraft,
@@ -2721,24 +2741,37 @@ export default function App(): ReactElement {
     }
   }
 
+  function onboardingBodyDrafts(): BodyDrafts {
+    return {
+      heightFeet: onboardingHeightFeetDraft,
+      heightInches: onboardingHeightInchesDraft,
+      heightCm: onboardingHeightCmDraft,
+      weight: onboardingCurrentWeightDraft
+    };
+  }
+
+  function switchOnboardingUnits(next: UnitSystem) {
+    if (next === onboardingUnitsDraft) {
+      return;
+    }
+    const converted = convertBodyDrafts(onboardingBodyDrafts(), onboardingUnitsDraft, next);
+    setOnboardingHeightFeetDraft(converted.heightFeet);
+    setOnboardingHeightInchesDraft(converted.heightInches);
+    setOnboardingHeightCmDraft(converted.heightCm);
+    setOnboardingCurrentWeightDraft(converted.weight);
+    setOnboardingUnitsDraft(next);
+  }
+
   function validateOnboardingStep(step: OnboardingStep): string | null {
     if (step === 'basics') {
       const age_years = Number(onboardingAgeDraft);
-      const feet = Number(onboardingHeightFeetDraft);
-      const inches = Number(onboardingHeightInchesDraft);
-      const current_weight_lbs = Number(onboardingCurrentWeightDraft);
-
-      if (
-        !Number.isFinite(age_years) ||
-        age_years <= 0 ||
-        !Number.isFinite(feet) ||
-        feet <= 0 ||
-        !Number.isFinite(inches) ||
-        inches < 0 ||
-        !Number.isFinite(current_weight_lbs) ||
-        current_weight_lbs <= 0
-      ) {
-        return 'Enter valid body details before continuing.';
+      if (bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts()) === null) {
+        return onboardingUnitsDraft === 'metric'
+          ? 'Enter your height in cm and weight in kg.'
+          : 'Enter your height in feet and inches (0-11) and weight in lb.';
+      }
+      if (!Number.isFinite(age_years) || age_years <= 0 || age_years >= 120) {
+        return 'Enter your age.';
       }
     }
 
@@ -3424,11 +3457,22 @@ export default function App(): ReactElement {
           >
             <View style={styles.setupBackdrop}>
               <View style={styles.setupCard}>
-                <View style={styles.setupStepMeta}>
-                  <Text style={styles.setupStepCounter}>
-                    Step {activeStepIndex + 1} of {onboardingSteps.length}
+                <View
+                  style={styles.setupProgress}
+                  accessibilityRole="progressbar"
+                  accessibilityLabel={`Step ${activeStepIndex + 1} of ${onboardingSteps.length}: ${currentStepLabel}`}
+                >
+                  <View style={styles.setupProgressTrack}>
+                    {onboardingSteps.map((step, index) => (
+                      <View
+                        key={step.id}
+                        style={[styles.setupProgressSegment, index <= activeStepIndex && styles.setupProgressSegmentDone]}
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.setupProgressCount}>
+                    {activeStepIndex + 1} of {onboardingSteps.length}
                   </Text>
-                  <Text style={styles.setupStepCaption}>{currentStepLabel}</Text>
                 </View>
 
                 {showOnboardingStatus ? (
@@ -3447,73 +3491,125 @@ export default function App(): ReactElement {
 
               {onboardingStep === 'basics' ? (
                 <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Start with body basics</Text>
+                  <Text style={styles.panelTitle}>About you</Text>
+                  <Text style={styles.setupIntroText}>
+                    We use these to estimate how many calories your body uses each day.
+                  </Text>
 
+                  <View style={styles.unitToggle} accessibilityRole="radiogroup" accessibilityLabel="Units">
+                    {(
+                      [
+                        { id: 'imperial' as const, label: 'lb · ft/in' },
+                        { id: 'metric' as const, label: 'kg · cm' }
+                      ]
+                    ).map((option) => {
+                      const active = onboardingUnitsDraft === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.unitToggleOption, active && styles.unitToggleOptionActive]}
+                          onPress={() => switchOnboardingUnits(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                        >
+                          <Text style={[styles.unitToggleLabel, active && styles.unitToggleLabelActive]}>{option.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.profileFieldLabel}>Sex</Text>
                   <View style={styles.setupChoiceRow}>
                     {(['female', 'male'] as const).map((option) => {
                       const active = onboardingSexDraft === option;
                       return (
                         <Pressable
                           key={option}
-                          style={[styles.setupChoiceCard, active && styles.setupChoiceCardActive]}
+                          style={[styles.setupChoiceCard, styles.setupChoiceCardCompact, active && styles.setupChoiceCardActive]}
                           onPress={() => setOnboardingSexDraft(option)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
                         >
                           <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
                             {option === 'male' ? 'Male' : 'Female'}
                           </Text>
-                          <Text style={styles.setupChoiceDetail}>Used for the initial energy estimate</Text>
                         </Pressable>
                       );
                     })}
                   </View>
 
+                  {onboardingUnitsDraft === 'imperial' ? (
+                    <View>
+                      <Text style={styles.profileFieldLabel}>Height</Text>
+                      <View style={styles.profileFieldRow}>
+                        <View style={styles.profileFieldHalf}>
+                          <TextInput
+                            value={onboardingHeightFeetDraft}
+                            onChangeText={setOnboardingHeightFeetDraft}
+                            keyboardType="number-pad"
+                            placeholder="e.g. 5"
+                            placeholderTextColor="#9aa6b8"
+                            style={styles.profileFieldInput}
+                            accessibilityLabel="Height, feet"
+                          />
+                          <Text style={styles.unitSuffix}>ft</Text>
+                        </View>
+                        <View style={styles.profileFieldHalf}>
+                          <TextInput
+                            value={onboardingHeightInchesDraft}
+                            onChangeText={setOnboardingHeightInchesDraft}
+                            keyboardType="number-pad"
+                            placeholder="e.g. 10"
+                            placeholderTextColor="#9aa6b8"
+                            style={styles.profileFieldInput}
+                            accessibilityLabel="Height, inches"
+                          />
+                          <Text style={styles.unitSuffix}>in</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : (
+                    <View>
+                      <Text style={styles.profileFieldLabel}>Height</Text>
+                      <TextInput
+                        value={onboardingHeightCmDraft}
+                        onChangeText={setOnboardingHeightCmDraft}
+                        keyboardType="number-pad"
+                        placeholder="e.g. 175"
+                        placeholderTextColor="#9aa6b8"
+                        style={styles.profileFieldInput}
+                        accessibilityLabel="Height, centimetres"
+                      />
+                      <Text style={styles.unitSuffix}>cm</Text>
+                    </View>
+                  )}
+
                   <View style={styles.profileFieldRow}>
+                    <View style={styles.profileFieldHalf}>
+                      <Text style={styles.profileFieldLabel}>Weight</Text>
+                      <TextInput
+                        value={onboardingCurrentWeightDraft}
+                        onChangeText={setOnboardingCurrentWeightDraft}
+                        keyboardType="decimal-pad"
+                        placeholder={onboardingUnitsDraft === 'metric' ? 'e.g. 75' : 'e.g. 165'}
+                        placeholderTextColor="#9aa6b8"
+                        style={styles.profileFieldInput}
+                        accessibilityLabel={onboardingUnitsDraft === 'metric' ? 'Weight, kilograms' : 'Weight, pounds'}
+                      />
+                      <Text style={styles.unitSuffix}>{onboardingUnitsDraft === 'metric' ? 'kg' : 'lb'}</Text>
+                    </View>
                     <View style={styles.profileFieldHalf}>
                       <Text style={styles.profileFieldLabel}>Age</Text>
                       <TextInput
                         value={onboardingAgeDraft}
                         onChangeText={setOnboardingAgeDraft}
-                        keyboardType="numeric"
-                        placeholder="34"
-                        placeholderTextColor="#7c8aa5"
+                        keyboardType="number-pad"
+                        placeholder="e.g. 34"
+                        placeholderTextColor="#9aa6b8"
                         style={styles.profileFieldInput}
+                        accessibilityLabel="Age, years"
                       />
-                    </View>
-                    <View style={styles.profileFieldHalf}>
-                      <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
-                      <TextInput
-                        value={onboardingCurrentWeightDraft}
-                        onChangeText={setOnboardingCurrentWeightDraft}
-                        keyboardType="decimal-pad"
-                        placeholder="180"
-                        placeholderTextColor="#7c8aa5"
-                        style={styles.profileFieldInput}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.profileFieldRow}>
-                    <View style={styles.profileFieldHalf}>
-                      <Text style={styles.profileFieldLabel}>Height, ft</Text>
-                      <TextInput
-                        value={onboardingHeightFeetDraft}
-                        onChangeText={setOnboardingHeightFeetDraft}
-                        keyboardType="numeric"
-                        placeholder="5"
-                        placeholderTextColor="#7c8aa5"
-                        style={styles.profileFieldInput}
-                      />
-                    </View>
-                    <View style={styles.profileFieldHalf}>
-                      <Text style={styles.profileFieldLabel}>Height, in</Text>
-                      <TextInput
-                        value={onboardingHeightInchesDraft}
-                        onChangeText={setOnboardingHeightInchesDraft}
-                        keyboardType="numeric"
-                        placeholder="10"
-                        placeholderTextColor="#7c8aa5"
-                        style={styles.profileFieldInput}
-                      />
+                      <Text style={styles.unitSuffix}>years</Text>
                     </View>
                   </View>
                 </View>
@@ -3753,8 +3849,10 @@ export default function App(): ReactElement {
                       <View style={styles.setupReviewTile}>
                         <Text style={styles.setupReviewLabel}>Body stats</Text>
                         <Text style={styles.setupReviewValue}>
-                          {Math.round(Number(onboardingCurrentWeightDraft) || 0)} lb · {onboardingHeightFeetDraft}'
-                          {onboardingHeightInchesDraft}" · age {onboardingAgeDraft}
+                          {onboardingUnitsDraft === 'metric'
+                            ? `${onboardingCurrentWeightDraft} kg · ${onboardingHeightCmDraft} cm`
+                            : `${onboardingCurrentWeightDraft} lb · ${onboardingHeightFeetDraft}' ${onboardingHeightInchesDraft || 0}"`}{' '}
+                          · age {onboardingAgeDraft}
                         </Text>
                       </View>
                       <View style={styles.setupReviewTile}>
@@ -6431,23 +6529,67 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%'
   },
-  setupStepMeta: {
+  setupProgress: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12
+    gap: 10
   },
-  setupStepCounter: {
-    color: '#17324d',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6
+  setupProgressTrack: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 4
   },
-  setupStepCaption: {
+  setupProgressSegment: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#e3dccb'
+  },
+  setupProgressSegmentDone: {
+    backgroundColor: RELISH_COLORS.text
+  },
+  setupProgressCount: {
     color: '#66778c',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  setupIntroText: {
+    color: '#5b6b62',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: -6
+  },
+  unitToggle: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    padding: 3,
+    borderRadius: 12,
+    backgroundColor: '#ece6d6'
+  },
+  unitToggleOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 9
+  },
+  unitToggleOptionActive: {
+    backgroundColor: '#ffffff'
+  },
+  unitToggleLabel: {
+    color: '#5b6b62',
     fontSize: 13,
     fontWeight: '700'
+  },
+  unitToggleLabelActive: {
+    color: RELISH_COLORS.text
+  },
+  unitSuffix: {
+    color: '#66778c',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4
+  },
+  setupChoiceCardCompact: {
+    paddingVertical: 12
   },
   setupPanel: {
     gap: 14
