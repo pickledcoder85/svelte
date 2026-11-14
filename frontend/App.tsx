@@ -115,7 +115,7 @@ import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
 import { registerServiceWorker } from './src/lib/service-worker';
-import { launchSplashSize } from './src/lib/launch-splash';
+import { FONT_WAIT_MS, holdSplashForFonts, launchSplashSize } from './src/lib/launch-splash';
 import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
 import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
 import {
@@ -481,9 +481,14 @@ function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
 }
 
 export default function App(): ReactElement {
-  const [ribeyeLoaded] = useRibeyeFonts({
+  const [ribeyeLoaded, ribeyeError] = useRibeyeFonts({
     Ribeye_400Regular
   });
+  const [fontWaitExpired, setFontWaitExpired] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setFontWaitExpired(true), FONT_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
   const entryModeRef = useRef<EntryMode | null>(null);
   const [entryIntent, setEntryIntent] = useState<'signup' | 'signin' | null>(null);
@@ -3119,6 +3124,11 @@ export default function App(): ReactElement {
     } finally {
       setRecipeSavingId(null);
     }
+  }
+
+  if (holdSplashForFonts({ fontLoaded: ribeyeLoaded, fontError: Boolean(ribeyeError), waitExpired: fontWaitExpired })) {
+    // Show screens only once their display font is ready, so headings do not pop in late.
+    return <LaunchSplash />;
   }
 
   if (entryMode === null && ownerAccess === 'checking') {
