@@ -1,10 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Svg, { Circle } from 'react-native-svg';
 import {
   ActivityIndicator,
+  AppState,
   type DimensionValue,
   Image,
   type ImageSourcePropType,
@@ -25,6 +26,8 @@ import {
   createExerciseEntry,
   createPlannedWorkoutSession,
   createLocalSession,
+  fetchOwnerSession,
+  OWNER_SESSION_TOKEN,
   createWeightEntry,
   deletePlannedWorkoutSession,
   completeOnboarding,
@@ -101,6 +104,7 @@ import {
   buildPlannedWorkoutEditDraft
 } from './src/lib/planned-workouts';
 import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
+import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import type {
   AppSection,
   DashboardRange,
@@ -461,6 +465,7 @@ export default function App(): ReactElement {
     Ribeye_400Regular
   });
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
+  const entryModeRef = useRef<EntryMode | null>(null);
   const [entryIntent, setEntryIntent] = useState<'signup' | 'signin' | null>(null);
   const [entryEmailDraft, setEntryEmailDraft] = useState('dev@example.com');
   const [entryDisplayNameDraft, setEntryDisplayNameDraft] = useState('Local Dev User');
@@ -469,6 +474,11 @@ export default function App(): ReactElement {
   const [entryError, setEntryError] = useState<string | null>(null);
   const [entryBackendTone, setEntryBackendTone] = useState<'checking' | 'live'>('checking');
   const [entryBackendStatus, setEntryBackendStatus] = useState('Checking backend reachability');
+  // 'checking' until the server says whether it already knows the owner; 'blocked' when the
+  // server requires Tailscale identity and this device did not provide it.
+  const [ownerAccess, setOwnerAccess] = useState<'checking' | 'signin' | 'blocked'>('checking');
+  const [ownerAccessMessage, setOwnerAccessMessage] = useState<string | null>(null);
+  const [ownerCheckNonce, setOwnerCheckNonce] = useState(0);
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   const [isShellMenuOpen, setIsShellMenuOpen] = useState(false);
@@ -483,6 +493,7 @@ export default function App(): ReactElement {
   const [foodDraft, setFoodDraft] = useState('');
   const [foodSearchTerm, setFoodSearchTerm] = useState('');
   const [foodSessionToken, setFoodSessionToken] = useState<string | null>(null);
+  const isOwnerSession = foodSessionToken === OWNER_SESSION_TOKEN;
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([]);
   const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
   const [selectedFoodId, setSelectedFoodId] = useState('');
@@ -728,31 +739,72 @@ export default function App(): ReactElement {
     let cancelled = false;
 
     async function checkEntryBackend() {
+      setOwnerAccess('checking');
       setEntryBackendTone('checking');
       setEntryBackendStatus('Checking backend reachability');
       setEntryBackendDetail(`Using ${getApiBaseUrl()}`);
+      const tailnetHint = isTailnetHost(
+        getApiBaseUrl(),
+        typeof window !== 'undefined' ? window.location?.href : undefined
+      );
 
+      let health: Awaited<ReturnType<typeof fetchBackendHealth>> | null = null;
       try {
-        const health = await fetchBackendHealth();
-        if (cancelled) {
-          return;
-        }
+        health = await fetchBackendHealth();
+      } catch {
+        health = null;
+      }
+      if (cancelled) {
+        return;
+      }
+
+      let ownerSessionFound = false;
+      let ownerError: string | null = null;
+      if (health) {
         setEntryBackendTone('live');
         setEntryBackendStatus(`${health.service} reachable`);
         setEntryBackendDetail(`${getApiBaseUrl()} responded at ${new Date(health.timestamp).toLocaleTimeString([], {
           hour: 'numeric',
           minute: '2-digit'
         })}`);
-      } catch (error) {
+        try {
+          ownerSessionFound = (await fetchOwnerSession()) !== null;
+        } catch (error) {
+          ownerError = error instanceof Error ? error.message : 'Sign-in check failed.';
+        }
         if (cancelled) {
           return;
         }
+      } else {
         setEntryBackendTone('checking');
-        setEntryBackendStatus('Backend unavailable for live profile mode');
+        setEntryBackendStatus(tailnetHint ? 'Relish unreachable' : 'Backend unavailable for live profile mode');
         setEntryBackendDetail(
-          `Could not reach ${getApiBaseUrl()}. Start the backend on port 8000 or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`
+          tailnetHint
+            ? `Could not reach ${getApiBaseUrl()}.`
+            : `Could not reach ${getApiBaseUrl()}. Start the backend on port 8000 or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`
         );
       }
+
+      const decision = resolveOwnerAccess({
+        healthReachable: health !== null,
+        healthAuthMode: health?.auth_mode ?? null,
+        ownerSessionFound,
+        ownerError,
+        tailnetHint
+      });
+      if (decision.access === 'owner') {
+        setOwnerAccess('signin');
+        setOwnerAccessMessage(null);
+        // Never pull the user out of a mode they already chose (for example preview).
+        if (entryModeRef.current === null) {
+          setProfileLoaded(false);
+          setFoodSessionToken(OWNER_SESSION_TOKEN);
+          setEntryMode('live');
+        }
+        return;
+      }
+      setOwnerAccess(decision.access);
+      setOwnerAccessMessage(decision.message);
     }
 
     void checkEntryBackend();
@@ -760,7 +812,24 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ownerCheckNonce]);
+
+  useEffect(() => {
+    entryModeRef.current = entryMode;
+  }, [entryMode]);
+
+  useEffect(() => {
+    if (ownerAccess !== 'blocked') {
+      return;
+    }
+    // Re-check when the user comes back to the app, for example after turning on Tailscale.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setOwnerCheckNonce((nonce) => nonce + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, [ownerAccess]);
 
   useEffect(() => {
     if (entryMode === null) {
@@ -828,7 +897,7 @@ export default function App(): ReactElement {
       try {
         const [health, metrics] = await Promise.all([
           fetchBackendHealth(),
-          fetchWeeklyMetrics()
+          fetchWeeklyMetrics(foodSessionToken)
         ]);
         if (cancelled) {
           return;
@@ -1286,7 +1355,7 @@ export default function App(): ReactElement {
       setLogSearchError(null);
 
       try {
-        const results = await searchFoods(query);
+        const results = await searchFoods(query, foodSessionToken);
 
         if (cancelled) {
           return;
@@ -1314,7 +1383,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [entryMode, logFoodSearchTerm]);
+  }, [entryMode, foodSessionToken, logFoodSearchTerm]);
 
   useEffect(() => {
     if (entryMode === null) {
@@ -1332,7 +1401,7 @@ export default function App(): ReactElement {
         if (!foodSessionToken) {
           throw new Error('No active recipe session.');
         }
-        const [catalog, favorites] = await Promise.all([fetchRecipes(), fetchFavoriteRecipes(foodSessionToken)]);
+        const [catalog, favorites] = await Promise.all([fetchRecipes(foodSessionToken), fetchFavoriteRecipes(foodSessionToken)]);
 
         if (cancelled) {
           return;
@@ -1484,7 +1553,7 @@ export default function App(): ReactElement {
       setRecipeDetailLoading(true);
 
       try {
-        const recipe = await fetchRecipe(selectedRecipeId);
+        const recipe = await fetchRecipe(selectedRecipeId, foodSessionToken);
 
         if (cancelled) {
           return;
@@ -1512,7 +1581,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [recipeCatalog, recipeFavorites, selectedRecipeId]);
+  }, [foodSessionToken, recipeCatalog, recipeFavorites, selectedRecipeId]);
 
   const selectedSeries = useMemo(
     () => selectRangeSeries(snapshot.rangeSeries, activeRange),
@@ -2823,7 +2892,26 @@ export default function App(): ReactElement {
                 <Image source={mascotDefaultImage} style={styles.welcomeMascotImage} resizeMode="contain" />
               </View>
 
-              {entryIntent === null ? (
+              {ownerAccess === 'blocked' ? (
+                <View style={styles.entryCard}>
+                  <View style={styles.entryCardHeader}>
+                    <Text style={styles.entryCardEyebrow}>Private app</Text>
+                    <Text style={styles.panelTitle}>Connect Tailscale to open Relish</Text>
+                  </View>
+                  <Text style={styles.welcomeStatusDetail}>{ownerAccessMessage}</Text>
+                  <Pressable
+                    style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
+                    onPress={() => setOwnerCheckNonce((nonce) => nonce + 1)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.setupActionButtonLabelPrimary}>Try again</Text>
+                  </Pressable>
+                </View>
+              ) : ownerAccess === 'checking' ? (
+                <View style={styles.entryCard}>
+                  <Text style={styles.welcomeStatusDetail}>Checking sign-in…</Text>
+                </View>
+              ) : entryIntent === null ? (
                 <View style={styles.welcomeActions}>
                   <Pressable
                     style={styles.welcomePrimaryButton}
@@ -3505,13 +3593,18 @@ export default function App(): ReactElement {
                   <View>
                     <Text style={styles.modeControlLabel}>Mode</Text>
                     <Text style={styles.shellMenuModeValue}>
-                      {entryMode === 'live' ? 'Live local profile' : 'Preview demo'}
+                      {isOwnerSession ? 'Owner' : entryMode === 'live' ? 'Live local profile' : 'Preview demo'}
                     </Text>
                   </View>
                   <Text style={styles.shellMenuModeDetail}>
-                    {entryMode === 'live' ? 'Backend session active' : 'Preview state only'}
+                    {isOwnerSession
+                      ? 'Signed in automatically on this device'
+                      : entryMode === 'live'
+                        ? 'Backend session active'
+                        : 'Preview state only'}
                   </Text>
                 </View>
+                {isOwnerSession ? null : (
                 <View style={styles.modeControlActions}>
                   {entryMode === 'live' ? (
                     <Pressable
@@ -3552,6 +3645,7 @@ export default function App(): ReactElement {
                     <Text style={styles.inlinePillButtonLabel}>Change entry mode</Text>
                   </Pressable>
                 </View>
+                )}
               </View>
             </View>
           ) : null}

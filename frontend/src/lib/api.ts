@@ -56,6 +56,7 @@ interface ApiFoodLog {
 
 interface AuthSession {
   access_token: string;
+  provider?: 'local' | 'supabase' | 'tailscale' | 'dev';
 }
 
 interface SessionResponse {
@@ -66,6 +67,31 @@ export interface ApiHealth {
   ok: boolean;
   service: string;
   timestamp: string;
+  auth_mode?: 'local' | 'tailscale';
+}
+
+/**
+ * Marker stored as the session token when the server identifies the owner on its own
+ * (Tailscale identity in production, dev auto-login locally). It is not a credential;
+ * the server ignores it.
+ */
+export const OWNER_SESSION_TOKEN = 'owner-session';
+
+/** Header the server requires on every write in Tailscale mode (cross-site request guard). */
+export const RELISH_REQUEST_HEADER = 'X-Relish-Request';
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** fetch wrapper that marks writes as coming from the Relish app. */
+export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (SAFE_METHODS.has(method)) {
+    return init === undefined ? fetch(input) : fetch(input, init);
+  }
+  return fetch(input, {
+    ...init,
+    headers: { ...(init?.headers as Record<string, string> | undefined), [RELISH_REQUEST_HEADER]: '1' }
+  });
 }
 
 export interface ApiError extends Error {
@@ -117,11 +143,13 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function fetchBackendHealth(): Promise<ApiHealth> {
-  return readJson<ApiHealth>(await fetch(buildApiUrl('/health')));
+  return readJson<ApiHealth>(await apiFetch(buildApiUrl('/health')));
 }
 
-export async function fetchWeeklyMetrics(): Promise<WeeklyMetrics> {
-  return readJson<WeeklyMetrics>(await fetch(buildApiUrl('/nutrition/weekly-metrics')));
+export async function fetchWeeklyMetrics(accessToken?: string | null): Promise<WeeklyMetrics> {
+  return readJson<WeeklyMetrics>(
+    await apiFetch(buildApiUrl('/nutrition/weekly-metrics'), optionalAuthInit(accessToken))
+  );
 }
 
 function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
@@ -164,7 +192,7 @@ function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
 
 export async function fetchProfile(accessToken: string): Promise<UserProfile> {
   return readJson<UserProfile>(
-    await fetch(buildApiUrl('/profile'), {
+    await apiFetch(buildApiUrl('/profile'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -175,7 +203,7 @@ export async function updateProfile(
   accessToken: string
 ): Promise<UserProfile> {
   return readJson<UserProfile>(
-    await fetch(buildApiUrl('/profile'), {
+    await apiFetch(buildApiUrl('/profile'), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -188,7 +216,7 @@ export async function updateProfile(
 
 export async function fetchUserGoals(accessToken: string): Promise<UserGoal[]> {
   return readJson<UserGoal[]>(
-    await fetch(buildApiUrl('/profile/goals'), {
+    await apiFetch(buildApiUrl('/profile/goals'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -196,7 +224,7 @@ export async function fetchUserGoals(accessToken: string): Promise<UserGoal[]> {
 
 export async function fetchProfileProgress(accessToken: string): Promise<ProfileProgress> {
   return readJson<ProfileProgress>(
-    await fetch(buildApiUrl('/profile/progress'), {
+    await apiFetch(buildApiUrl('/profile/progress'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -204,7 +232,7 @@ export async function fetchProfileProgress(accessToken: string): Promise<Profile
 
 export async function fetchWeightEntries(accessToken: string): Promise<WeightEntry[]> {
   return readJson<WeightEntry[]>(
-    await fetch(buildApiUrl('/profile/weights'), {
+    await apiFetch(buildApiUrl('/profile/weights'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -215,7 +243,7 @@ export async function createWeightEntry(
   accessToken: string
 ): Promise<WeightEntry> {
   return readJson<WeightEntry>(
-    await fetch(buildApiUrl('/profile/weights'), {
+    await apiFetch(buildApiUrl('/profile/weights'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -228,7 +256,7 @@ export async function createWeightEntry(
 
 export async function createUserGoal(payload: UserGoalCreate, accessToken: string): Promise<UserGoal> {
   return readJson<UserGoal>(
-    await fetch(buildApiUrl('/profile/goals'), {
+    await apiFetch(buildApiUrl('/profile/goals'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -239,18 +267,42 @@ export async function createUserGoal(payload: UserGoalCreate, accessToken: strin
   );
 }
 
-export async function searchFoods(query: string): Promise<FoodItem[]> {
+export async function searchFoods(query: string, accessToken?: string | null): Promise<FoodItem[]> {
   const normalizedQuery = query.trim();
 
   return readJson<FoodItem[]>(
-    await fetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`))
+    await apiFetch(
+      buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`),
+      optionalAuthInit(accessToken)
+    )
   );
 }
 
-function authHeaders(accessToken: string): HeadersInit {
+function authHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`
   };
+}
+
+function optionalAuthHeaders(accessToken?: string | null): Record<string, string> {
+  return accessToken ? authHeaders(accessToken) : {};
+}
+
+function optionalAuthInit(accessToken?: string | null): RequestInit | undefined {
+  return accessToken ? { headers: authHeaders(accessToken) } : undefined;
+}
+
+/**
+ * Asks the server whether it already knows who this is (Tailscale identity or dev
+ * auto-login). Resolves to null when the server needs an explicit local sign-in.
+ */
+export async function fetchOwnerSession(): Promise<AuthSession | null> {
+  const response = await apiFetch(buildApiUrl('/auth/session'));
+  if (response.status === 401) {
+    return null;
+  }
+  const payload = await readJson<SessionResponse>(response);
+  return payload.session;
 }
 
 export async function createLocalSession(
@@ -259,7 +311,7 @@ export async function createLocalSession(
   intent: 'signup' | 'signin' = 'signup'
 ): Promise<AuthSession> {
   const response = await readJson<SessionResponse>(
-    await fetch(buildApiUrl('/auth/session'), {
+    await apiFetch(buildApiUrl('/auth/session'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, display_name: displayName, intent })
@@ -273,7 +325,7 @@ export async function completeOnboarding(
   accessToken: string
 ): Promise<UserProfile> {
   return readJson<UserProfile>(
-    await fetch(buildApiUrl('/profile/onboarding'), {
+    await apiFetch(buildApiUrl('/profile/onboarding'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -286,7 +338,7 @@ export async function completeOnboarding(
 
 export async function fetchFavoriteFoods(accessToken: string): Promise<FoodItem[]> {
   return readJson<FoodItem[]>(
-    await fetch(buildApiUrl('/nutrition/favorites/foods'), {
+    await apiFetch(buildApiUrl('/nutrition/favorites/foods'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -296,7 +348,7 @@ export async function searchFoodsWithSession(query: string, accessToken: string)
   const normalizedQuery = query.trim();
 
   return readJson<FoodItem[]>(
-    await fetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`), {
+    await apiFetch(buildApiUrl(`/nutrition/foods/search?q=${encodeURIComponent(normalizedQuery)}`), {
       headers: authHeaders(accessToken)
     })
   );
@@ -304,7 +356,7 @@ export async function searchFoodsWithSession(query: string, accessToken: string)
 
 export async function addFavoriteFood(foodId: string, accessToken: string): Promise<{ food_id: string; favorite: boolean }> {
   return readJson<{ food_id: string; favorite: boolean }>(
-    await fetch(buildApiUrl(`/nutrition/favorites/foods/${foodId}`), {
+    await apiFetch(buildApiUrl(`/nutrition/favorites/foods/${foodId}`), {
       method: 'POST',
       headers: authHeaders(accessToken)
     })
@@ -316,7 +368,7 @@ export async function unfavoriteFood(
   accessToken: string
 ): Promise<{ food_id: string; favorite: boolean }> {
   return readJson<{ food_id: string; favorite: boolean }>(
-    await fetch(buildApiUrl(`/nutrition/favorites/foods/${foodId}`), {
+    await apiFetch(buildApiUrl(`/nutrition/favorites/foods/${foodId}`), {
       method: 'DELETE',
       headers: authHeaders(accessToken)
     })
@@ -325,7 +377,7 @@ export async function unfavoriteFood(
 
 async function fetchFoodLogs(accessToken: string): Promise<ApiFoodLog[]> {
   return readJson<ApiFoodLog[]>(
-    await fetch(buildApiUrl('/nutrition/logs'), {
+    await apiFetch(buildApiUrl('/nutrition/logs'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -333,7 +385,7 @@ async function fetchFoodLogs(accessToken: string): Promise<ApiFoodLog[]> {
 
 async function createFoodLogForDate(logDate: string, accessToken: string): Promise<ApiFoodLog> {
   return readJson<ApiFoodLog>(
-    await fetch(buildApiUrl('/nutrition/logs'), {
+    await apiFetch(buildApiUrl('/nutrition/logs'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -379,7 +431,7 @@ export async function addFoodLogEntry(
   const todaysLog = logs.find((log) => log.log_date === today) ?? (await createFoodLogForDate(today, accessToken));
 
   const updatedLog = await readJson<ApiFoodLog>(
-    await fetch(buildApiUrl(`/nutrition/logs/${todaysLog.id}/entries`), {
+    await apiFetch(buildApiUrl(`/nutrition/logs/${todaysLog.id}/entries`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -401,33 +453,38 @@ export async function addFoodLogEntry(
   return summarizeFoodLog(updatedLog);
 }
 
-export async function calculateMeal(meal: MealInput): Promise<MealTotals> {
+export async function calculateMeal(meal: MealInput, accessToken?: string | null): Promise<MealTotals> {
   return readJson<MealTotals>(
-    await fetch(buildApiUrl('/nutrition/meals/calculate'), {
+    await apiFetch(buildApiUrl('/nutrition/meals/calculate'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...optionalAuthHeaders(accessToken) },
       body: JSON.stringify(meal)
     })
   );
 }
 
-export async function importRecipe(payload: RecipeImportInput): Promise<RecipeImportResult> {
+export async function importRecipe(
+  payload: RecipeImportInput,
+  accessToken?: string | null
+): Promise<RecipeImportResult> {
   return readJson<RecipeImportResult>(
-    await fetch(buildApiUrl('/recipes/import'), {
+    await apiFetch(buildApiUrl('/recipes/import'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...optionalAuthHeaders(accessToken) },
       body: JSON.stringify(payload)
     })
   );
 }
 
-export async function fetchRecipes(): Promise<RecipeDefinition[]> {
-  return readJson<RecipeDefinition[]>(await fetch(buildApiUrl('/recipes')));
+export async function fetchRecipes(accessToken?: string | null): Promise<RecipeDefinition[]> {
+  return readJson<RecipeDefinition[]>(
+    await apiFetch(buildApiUrl('/recipes'), optionalAuthInit(accessToken))
+  );
 }
 
 export async function fetchFavoriteRecipes(accessToken: string): Promise<RecipeDefinition[]> {
   return readJson<RecipeDefinition[]>(
-    await fetch(buildApiUrl('/recipes/favorites'), {
+    await apiFetch(buildApiUrl('/recipes/favorites'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -435,7 +492,7 @@ export async function fetchFavoriteRecipes(accessToken: string): Promise<RecipeD
 
 export async function fetchIngestionQueue(accessToken: string): Promise<IngestionOutput[]> {
   return readJson<IngestionOutput[]>(
-    await fetch(buildApiUrl('/ingestion/queue'), {
+    await apiFetch(buildApiUrl('/ingestion/queue'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -446,7 +503,7 @@ export async function fetchIngestionOutput(
   accessToken: string
 ): Promise<IngestionOutput> {
   return readJson<IngestionOutput>(
-    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}`), {
+    await apiFetch(buildApiUrl(`/ingestion/outputs/${outputId}`), {
       headers: authHeaders(accessToken)
     })
   );
@@ -458,7 +515,7 @@ export async function acceptIngestionOutput(
   payload?: { extracted_text?: string; structured_json?: unknown }
 ): Promise<IngestionOutput> {
   return readJson<IngestionOutput>(
-    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/accept`), {
+    await apiFetch(buildApiUrl(`/ingestion/outputs/${outputId}/accept`), {
       method: 'POST',
       headers: payload
         ? {
@@ -476,7 +533,7 @@ export async function rejectIngestionOutput(
   accessToken: string
 ): Promise<IngestionOutput> {
   return readJson<IngestionOutput>(
-    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/reject`), {
+    await apiFetch(buildApiUrl(`/ingestion/outputs/${outputId}/reject`), {
       method: 'POST',
       headers: authHeaders(accessToken)
     })
@@ -488,7 +545,7 @@ export async function scanFoodPackage(
   accessToken: string
 ): Promise<VisionPackageScanResult> {
   return readJson<VisionPackageScanResult>(
-    await fetch(buildApiUrl('/vision/package'), {
+    await apiFetch(buildApiUrl('/vision/package'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -504,7 +561,7 @@ export async function ingestNutritionLabel(
   accessToken: string
 ): Promise<VisionLabelScanResult> {
   return readJson<VisionLabelScanResult>(
-    await fetch(buildApiUrl('/vision/label/ingest'), {
+    await apiFetch(buildApiUrl('/vision/label/ingest'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -520,20 +577,22 @@ export async function saveFoodFromIngestionOutput(
   accessToken: string
 ): Promise<SaveFoodsResult> {
   return readJson<SaveFoodsResult>(
-    await fetch(buildApiUrl(`/ingestion/outputs/${outputId}/save-food`), {
+    await apiFetch(buildApiUrl(`/ingestion/outputs/${outputId}/save-food`), {
       method: 'POST',
       headers: authHeaders(accessToken)
     })
   );
 }
 
-export async function fetchRecipe(recipeId: string): Promise<RecipeDefinition> {
-  return readJson<RecipeDefinition>(await fetch(buildApiUrl(`/recipes/${recipeId}`)));
+export async function fetchRecipe(recipeId: string, accessToken?: string | null): Promise<RecipeDefinition> {
+  return readJson<RecipeDefinition>(
+    await apiFetch(buildApiUrl(`/recipes/${recipeId}`), optionalAuthInit(accessToken))
+  );
 }
 
 export async function favoriteRecipe(recipeId: string, accessToken: string): Promise<RecipeDefinition> {
   return readJson<RecipeDefinition>(
-    await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
+    await apiFetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
       method: 'POST',
       headers: authHeaders(accessToken)
     })
@@ -542,7 +601,7 @@ export async function favoriteRecipe(recipeId: string, accessToken: string): Pro
 
 export async function unfavoriteRecipe(recipeId: string, accessToken: string): Promise<RecipeDefinition> {
   return readJson<RecipeDefinition>(
-    await fetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
+    await apiFetch(buildApiUrl(`/recipes/${recipeId}/favorite`), {
       method: 'DELETE',
       headers: authHeaders(accessToken)
     })
@@ -616,7 +675,7 @@ interface MealPrepTaskCreatePayload {
 
 export async function fetchExerciseEntries(accessToken: string): Promise<ExerciseEntry[]> {
   return readJson<ExerciseEntry[]>(
-    await fetch(buildApiUrl('/tracker/exercise'), {
+    await apiFetch(buildApiUrl('/tracker/exercise'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -627,7 +686,7 @@ export async function createExerciseEntry(
   accessToken: string
 ): Promise<ExerciseEntry> {
   return readJson<ExerciseEntry>(
-    await fetch(buildApiUrl('/tracker/exercise'), {
+    await apiFetch(buildApiUrl('/tracker/exercise'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -640,7 +699,7 @@ export async function createExerciseEntry(
 
 export async function fetchPlannedExerciseEntries(accessToken: string): Promise<PlannedExerciseEntry[]> {
   return readJson<PlannedExerciseEntry[]>(
-    await fetch(buildApiUrl('/tracker/planned-exercise'), {
+    await apiFetch(buildApiUrl('/tracker/planned-exercise'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -648,7 +707,7 @@ export async function fetchPlannedExerciseEntries(accessToken: string): Promise<
 
 export async function fetchPlannedWorkoutSessions(accessToken: string): Promise<PlannedWorkoutSession[]> {
   return readJson<PlannedWorkoutSession[]>(
-    await fetch(buildApiUrl('/tracker/planned-workout-sessions'), {
+    await apiFetch(buildApiUrl('/tracker/planned-workout-sessions'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -659,7 +718,7 @@ export async function createPlannedWorkoutSession(
   accessToken: string
 ): Promise<PlannedWorkoutSession> {
   return readJson<PlannedWorkoutSession>(
-    await fetch(buildApiUrl('/tracker/planned-workout-sessions'), {
+    await apiFetch(buildApiUrl('/tracker/planned-workout-sessions'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -676,7 +735,7 @@ export async function updatePlannedWorkoutSession(
   accessToken: string
 ): Promise<PlannedWorkoutSession> {
   return readJson<PlannedWorkoutSession>(
-    await fetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}`), {
+    await apiFetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -693,7 +752,7 @@ export async function updatePlannedWorkoutSessionCompletion(
   accessToken: string
 ): Promise<PlannedWorkoutSession> {
   return readJson<PlannedWorkoutSession>(
-    await fetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}/completion`), {
+    await apiFetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}/completion`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -705,7 +764,7 @@ export async function updatePlannedWorkoutSessionCompletion(
 }
 
 export async function deletePlannedWorkoutSession(sessionId: string, accessToken: string): Promise<void> {
-  const response = await fetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}`), {
+  const response = await apiFetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}`), {
     method: 'DELETE',
     headers: authHeaders(accessToken)
   });
@@ -719,7 +778,7 @@ export async function createPlannedExerciseEntry(
   accessToken: string
 ): Promise<PlannedExerciseEntry> {
   return readJson<PlannedExerciseEntry>(
-    await fetch(buildApiUrl('/tracker/planned-exercise'), {
+    await apiFetch(buildApiUrl('/tracker/planned-exercise'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -736,7 +795,7 @@ export async function updatePlannedExerciseEntry(
   accessToken: string
 ): Promise<PlannedExerciseEntry> {
   return readJson<PlannedExerciseEntry>(
-    await fetch(buildApiUrl(`/tracker/planned-exercise/${entryId}`), {
+    await apiFetch(buildApiUrl(`/tracker/planned-exercise/${entryId}`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -748,7 +807,7 @@ export async function updatePlannedExerciseEntry(
 }
 
 export async function deletePlannedExerciseEntry(entryId: string, accessToken: string): Promise<void> {
-  const response = await fetch(buildApiUrl(`/tracker/planned-exercise/${entryId}`), {
+  const response = await apiFetch(buildApiUrl(`/tracker/planned-exercise/${entryId}`), {
     method: 'DELETE',
     headers: authHeaders(accessToken)
   });
@@ -763,7 +822,7 @@ export async function updatePlannedExerciseCompletion(
   accessToken: string
 ): Promise<PlannedExerciseEntry> {
   return readJson<PlannedExerciseEntry>(
-    await fetch(buildApiUrl(`/tracker/planned-exercise/${entryId}/completion`), {
+    await apiFetch(buildApiUrl(`/tracker/planned-exercise/${entryId}/completion`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -776,7 +835,7 @@ export async function updatePlannedExerciseCompletion(
 
 export async function fetchMealPlanDays(accessToken: string): Promise<MealPlanDay[]> {
   return readJson<MealPlanDay[]>(
-    await fetch(buildApiUrl('/tracker/meal-plan'), {
+    await apiFetch(buildApiUrl('/tracker/meal-plan'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -787,7 +846,7 @@ export async function createMealPlanDay(
   accessToken: string
 ): Promise<MealPlanDay> {
   return readJson<MealPlanDay>(
-    await fetch(buildApiUrl('/tracker/meal-plan'), {
+    await apiFetch(buildApiUrl('/tracker/meal-plan'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -804,7 +863,7 @@ export async function updateMealPlanSlotEatenAt(
   accessToken: string
 ): Promise<MealPlanDay> {
   return readJson<MealPlanDay>(
-    await fetch(buildApiUrl(`/tracker/meal-plan/slots/${slotId}`), {
+    await apiFetch(buildApiUrl(`/tracker/meal-plan/slots/${slotId}`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -817,7 +876,7 @@ export async function updateMealPlanSlotEatenAt(
 
 export async function fetchMealPrepTasks(accessToken: string): Promise<MealPrepTask[]> {
   return readJson<MealPrepTask[]>(
-    await fetch(buildApiUrl('/tracker/meal-prep'), {
+    await apiFetch(buildApiUrl('/tracker/meal-prep'), {
       headers: authHeaders(accessToken)
     })
   );
@@ -828,7 +887,7 @@ export async function createMealPrepTask(
   accessToken: string
 ): Promise<MealPrepTask> {
   return readJson<MealPrepTask>(
-    await fetch(buildApiUrl('/tracker/meal-prep'), {
+    await apiFetch(buildApiUrl('/tracker/meal-prep'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -845,7 +904,7 @@ export async function updateMealPrepTaskStatus(
   accessToken: string
 ): Promise<MealPrepTask> {
   return readJson<MealPrepTask>(
-    await fetch(buildApiUrl(`/tracker/meal-prep/${taskId}`), {
+    await apiFetch(buildApiUrl(`/tracker/meal-prep/${taskId}`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
