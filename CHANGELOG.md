@@ -89,6 +89,7 @@ The format should remain simple:
 
 ### Changed
 
+- Mascot and activity images are resized to 512 px (about 15 MB of PNGs down to about 1 MB), so the web app loads much faster.
 - The `svelte` conda environment now uses Node 22 LTS (22.22.2) instead of the end-of-life Node 20. `npx expo install --fix` aligned the remaining SDK 54 packages (`expo` ~54.0.37, `react-native` 0.81.5, `react-native-svg` 15.12.1, `@types/react` ~19.1.10); `expo install --check` now reports no mismatches, and `npm audit` findings dropped from 36 to 29.
 - One schema: the live schema is now the single baseline migration `001_baseline.sql`, applied automatically at startup with each migration in its own transaction. Removed the per-startup schema repair code (about 1,100 lines that rebuilt tables with foreign keys off), the twelve unused `001`-`011` migration files (including two numbered `006`), and the unused `repositories/memory.py` and `repositories/nutrition.py`. Databases from before the baseline are refused with a reset instruction; reset local ones with `python -m backend.app.db.bootstrap --reset`.
 - The backend now starts with `uvicorn backend.app.main:create_app --factory`; importing `backend.app.main` no longer opens the database, so tests no longer touch a developer's local database.
