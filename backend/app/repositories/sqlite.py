@@ -581,6 +581,26 @@ class SQLiteRepository:
             raise RuntimeError("Failed to persist user identity.")
         return identity
 
+    def update_user_preferences(
+        self,
+        *,
+        user_id: str,
+        timezone: str | None = None,
+        units: str | None = None,
+    ) -> None:
+        """Set timezone and/or units; a None argument keeps the saved value."""
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                UPDATE user_profiles
+                SET timezone = COALESCE(?, timezone),
+                    units = COALESCE(?, units),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                """,
+                (timezone, units, user_id),
+            )
+
     def ensure_user_identity(
         self,
         *,

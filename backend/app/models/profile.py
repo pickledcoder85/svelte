@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.app.models.nutrition import WeeklyMetrics
 
@@ -51,6 +52,22 @@ class UserOnboardingRequest(BaseModel):
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
     nutrition_style: Literal["balanced", "keto", "mediterranean"] = "balanced"
     allergy_notes: str | None = None
+    # Display preferences captured during setup. Measurements above are always cm and lb.
+    units: Literal["imperial", "metric"] | None = None
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        # The device reports this automatically; an unrecognised name must not block setup,
+        # so it is dropped (the profile keeps its current timezone) instead of rejected.
+        if value is None:
+            return None
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
+        return value
 
 
 class UserProfileUpdateRequest(BaseModel):

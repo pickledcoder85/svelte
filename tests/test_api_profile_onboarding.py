@@ -163,3 +163,60 @@ async def test_onboarding_seeds_starter_plans_once_and_deletes_stick(client):
     assert (await client.get("/api/profile", headers=headers)).status_code == 200
     meal_plan_after = (await client.get("/api/tracker/meal-plan", headers=headers)).json()
     assert [day["id"] for day in meal_plan_after] == [day["id"] for day in meal_plan_before]
+
+
+ONBOARDING_BODY = {
+    "sex": "female",
+    "age_years": 35,
+    "height_cm": 165,
+    "current_weight_lbs": 150,
+    "goal_type": "maintain",
+    "target_weight_lbs": 150,
+    "activity_level": "moderate",
+    "dietary_pattern": "omnivore",
+    "nutrition_style": "balanced",
+}
+
+
+async def _headers(client, email: str) -> dict[str, str]:
+    response = await client.post("/api/auth/session", json={"email": email, "display_name": "Setup"})
+    return {"Authorization": f"Bearer {response.json()['session']['access_token']}"}
+
+
+@pytest.mark.asyncio
+async def test_onboarding_saves_unit_and_timezone_preferences(client):
+    headers = await _headers(client, "metric@example.com")
+    response = await client.post(
+        "/api/profile/onboarding",
+        headers=headers,
+        json={**ONBOARDING_BODY, "units": "metric", "timezone": "Europe/Berlin"},
+    )
+    assert response.status_code == 200
+    assert (response.json()["units"], response.json()["timezone"]) == ("metric", "Europe/Berlin")
+    profile = (await client.get("/api/profile", headers=headers)).json()
+    assert (profile["units"], profile["timezone"]) == ("metric", "Europe/Berlin")
+
+
+@pytest.mark.asyncio
+async def test_onboarding_without_preferences_keeps_defaults(client):
+    headers = await _headers(client, "defaults@example.com")
+    response = await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)
+    assert response.status_code == 200
+    assert (response.json()["units"], response.json()["timezone"]) == ("imperial", "UTC")
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_unknown_units_but_ignores_unknown_timezones(client):
+    headers = await _headers(client, "bad@example.com")
+    bad_units = await client.post(
+        "/api/profile/onboarding", headers=headers, json={**ONBOARDING_BODY, "units": "stones"}
+    )
+    assert bad_units.status_code == 422
+    # An odd device timezone must not block setup; the profile keeps UTC.
+    odd_zone = await client.post(
+        "/api/profile/onboarding",
+        headers=headers,
+        json={**ONBOARDING_BODY, "units": "metric", "timezone": "Mars/Olympus"},
+    )
+    assert odd_zone.status_code == 200
+    assert (odd_zone.json()["units"], odd_zone.json()["timezone"]) == ("metric", "UTC")
