@@ -13,6 +13,7 @@ async def test_meal_template_favorites_are_session_scoped(client, repository):
 
     response = await client.post(
         "/api/meals/templates",
+        headers=headers,
         json={
             "id": "meal-breakfast-bowl",
             "name": "Blueberry Protein Bowl",
@@ -33,11 +34,11 @@ async def test_meal_template_favorites_are_session_scoped(client, repository):
     assert response.status_code == 200
     assert response.json()["calories"] == 311.2
 
-    listing = await client.get("/api/meals/templates")
+    listing = await client.get("/api/meals/templates", headers=headers)
     assert listing.status_code == 200
     assert len(listing.json()) == 1
 
-    fetched = await client.get("/api/meals/templates/meal-breakfast-bowl")
+    fetched = await client.get("/api/meals/templates/meal-breakfast-bowl", headers=headers)
     assert fetched.status_code == 200
     assert fetched.json()["name"] == "Blueberry Protein Bowl"
 
@@ -74,9 +75,10 @@ async def test_meal_template_favorites_are_session_scoped(client, repository):
 
 
 @pytest.mark.asyncio
-async def test_meal_template_update_recalculates_totals_and_ingredients(client, repository):
+async def test_meal_template_update_recalculates_totals_and_ingredients(client, repository, auth_headers):
     create_response = await client.post(
         "/api/meals/templates",
+        headers=auth_headers,
         json={
             "id": "meal-protein-bowl",
             "name": "Protein Bowl",
@@ -100,6 +102,7 @@ async def test_meal_template_update_recalculates_totals_and_ingredients(client, 
 
     update_response = await client.put(
         "/api/meals/templates/meal-protein-bowl",
+        headers=auth_headers,
         json={
             "name": "Protein Bowl Deluxe",
             "serving_count": 4,
@@ -126,13 +129,14 @@ async def test_meal_template_update_recalculates_totals_and_ingredients(client, 
     assert updated["per_serving_macros"] == {"protein": 4.2, "carbs": 16.6, "fat": 1.7}
     assert updated["ingredients"][0]["grams"] == 100
 
-    fetched = await client.get("/api/meals/templates/meal-protein-bowl")
+    fetched = await client.get("/api/meals/templates/meal-protein-bowl", headers=auth_headers)
     assert fetched.status_code == 200
     assert fetched.json()["name"] == "Protein Bowl Deluxe"
     assert fetched.json()["ingredients"][0]["grams"] == 100
 
     missing_update = await client.put(
         "/api/meals/templates/missing-template",
+        headers=auth_headers,
         json={
             "name": "Missing Template",
             "serving_count": 1,
@@ -154,6 +158,7 @@ async def test_recipe_create_update_read_favorite_and_scale_flow(client, reposit
 
     create_response = await client.post(
         "/api/recipes",
+        headers=headers,
         json={
             "title": "Citrus Chicken Bowl",
             "steps": ["Roast chicken.", "Add grains.", "Top with herbs."],
@@ -243,6 +248,7 @@ async def test_recipe_favorites_are_session_scoped(client, repository):
 
     response = await client.post(
         "/api/recipes/import",
+        headers=headers,
         json={
             "title": "Overnight Oats",
             "steps": ["Combine", "Chill", "Serve"],
@@ -254,28 +260,28 @@ async def test_recipe_favorites_are_session_scoped(client, repository):
     recipe_id = response.json()["id"]
     assert response.json()["favorite"] is False
 
+    # Every recipe route now requires a session.
     listing = await client.get("/api/recipes")
-    assert listing.status_code == 200
-    assert any(recipe["id"] == recipe_id for recipe in listing.json())
+    assert listing.status_code == 401
 
     authed_listing = await client.get("/api/recipes", headers=headers)
     assert authed_listing.status_code == 200
     assert any(recipe["id"] == recipe_id and recipe["favorite"] is False for recipe in authed_listing.json())
 
     fetched = await client.get(f"/api/recipes/{recipe_id}")
-    assert fetched.status_code == 200
-    assert fetched.json()["title"] == "Overnight Oats"
+    assert fetched.status_code == 401
 
     authed_fetched = await client.get(f"/api/recipes/{recipe_id}", headers=headers)
     assert authed_fetched.status_code == 200
+    assert authed_fetched.json()["title"] == "Overnight Oats"
     assert authed_fetched.json()["favorite"] is False
 
     scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5")
-    assert scaled.status_code == 200
-    assert scaled.json()["default_yield"] == 3.0
+    assert scaled.status_code == 401
 
     authed_scaled = await client.get(f"/api/recipes/{recipe_id}/scale/1.5", headers=headers)
     assert authed_scaled.status_code == 200
+    assert authed_scaled.json()["default_yield"] == 3.0
     assert authed_scaled.json()["favorite"] is False
 
     favorites = await client.get("/api/recipes/favorites")

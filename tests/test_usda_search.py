@@ -7,7 +7,7 @@ from backend.app.integrations.usda import UsdaSearchError
 
 
 @pytest.mark.asyncio
-async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch):
+async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch, auth_headers):
     async def fake_search_usda_foods(query: str, api_key: str):
         assert query == "quinoa"
         assert api_key == "test-key"
@@ -33,7 +33,7 @@ async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch
         fake_search_usda_foods,
     )
 
-    response = await client.get("/api/nutrition/foods/search?q=quinoa")
+    response = await client.get("/api/nutrition/foods/search?q=quinoa", headers=auth_headers)
 
     assert response.status_code == 200
     foods = response.json()
@@ -44,7 +44,7 @@ async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_food_search_falls_back_to_sqlite_when_usda_errors(client, monkeypatch):
+async def test_food_search_falls_back_to_sqlite_when_usda_errors(client, monkeypatch, auth_headers):
     async def failing_search_usda_foods(query: str, api_key: str):
         raise UsdaSearchError("USDA unavailable.")
 
@@ -57,7 +57,7 @@ async def test_food_search_falls_back_to_sqlite_when_usda_errors(client, monkeyp
         failing_search_usda_foods,
     )
 
-    response = await client.get("/api/nutrition/foods/search?q=oats")
+    response = await client.get("/api/nutrition/foods/search?q=oats", headers=auth_headers)
 
     assert response.status_code == 200
     foods = response.json()

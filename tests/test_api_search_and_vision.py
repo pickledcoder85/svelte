@@ -13,8 +13,8 @@ def disable_openai_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_food_search_uses_seed_data(client):
-    response = await client.get("/api/nutrition/foods/search?q=oats")
+async def test_food_search_uses_seed_data(client, auth_headers):
+    response = await client.get("/api/nutrition/foods/search?q=oats", headers=auth_headers)
 
     assert response.status_code == 200
     foods = response.json()
@@ -24,8 +24,12 @@ async def test_food_search_uses_seed_data(client):
 
 
 @pytest.mark.asyncio
-async def test_vision_label_returns_demo_extraction(client):
-    response = await client.post("/api/vision/label", json={"image_base64": "ZmFrZS1pbWFnZQ=="})
+async def test_vision_label_returns_demo_extraction(client, auth_headers):
+    response = await client.post(
+        "/api/vision/label",
+        headers=auth_headers,
+        json={"image_base64": "ZmFrZS1pbWFnZQ=="},
+    )
 
     assert response.status_code == 200
     body = response.json()
