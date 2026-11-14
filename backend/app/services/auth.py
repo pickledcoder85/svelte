@@ -14,7 +14,7 @@ def create_session(repository: SQLiteRepository, payload: LoginRequest) -> AuthS
         raise AuthIntentConflictError("No profile found for that email. Sign up instead.")
 
     session = AuthSession.create_local(payload.email, payload.display_name)
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
