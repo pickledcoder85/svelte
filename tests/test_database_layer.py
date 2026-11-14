@@ -336,7 +336,8 @@ class DatabaseLayerTests(unittest.TestCase):
         self.assertEqual(len(weights), 4)
         self.assertEqual(len(logs), 1)
         self.assertEqual(len(log["entries"]), 3)
-        self.assertEqual(len(exercise), 1)
+        # dev_seed creates a historical swim entry plus one dated today.
+        self.assertEqual(len(exercise), 2)
 
     def test_create_app_uses_database_url_when_path_override_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

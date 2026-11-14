@@ -8,7 +8,7 @@ async def test_health_endpoint(client):
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True
-    assert body["service"] == "nutrition-os-api"
+    assert body["service"] == "relish-api"
     assert "environment" in body
     assert body["mode"] in {"sqlite-demo", "configured"}
     assert "timestamp" in body
