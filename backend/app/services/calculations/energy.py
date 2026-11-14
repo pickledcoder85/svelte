@@ -12,6 +12,10 @@ GOAL_CALORIE_ADJUSTMENTS = {
     ("lose", "extreme"): -1000,
     ("lose", None): -500,
     ("maintain", None): 0,
+    # Maintenance focus changes the macro split, not the calories.
+    ("maintain", "steady"): 0,
+    ("maintain", "build_muscle"): 0,
+    ("maintain", "fuel_training"): 0,
     ("gain", "lean"): 200,
     ("gain", "aggressive"): 500,
     ("gain", None): 200,
@@ -34,7 +38,10 @@ def calculate_energy_targets(
     sex_adjustment = 5 if sex == "male" else -161
     resting_energy = 10 * weight_kg + 6.25 * height_cm - 5 * age_years + sex_adjustment
     maintenance = resting_energy * NON_EXERCISE_ACTIVITY_FACTORS[activity_level]
-    calorie_adjustment = GOAL_CALORIE_ADJUSTMENTS[(goal_type, goal_pace)]
+    try:
+        calorie_adjustment = GOAL_CALORIE_ADJUSTMENTS[(goal_type, goal_pace)]
+    except KeyError as error:
+        raise ValueError(f"Pace {goal_pace!r} does not apply to goal {goal_type!r}.") from error
     calorie_target = max(MINIMUM_CALORIE_TARGET, maintenance + calorie_adjustment)
     return round(resting_energy), round(maintenance), round(calorie_target)
 

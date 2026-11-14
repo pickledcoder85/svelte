@@ -2,7 +2,9 @@ from datetime import date, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from backend.app.services.calculations.types import GoalPace, is_valid_goal_pace
 
 from backend.app.models.nutrition import WeeklyMetrics
 
@@ -23,7 +25,7 @@ class UserProfile(BaseModel):
     height_cm: float | None = None
     current_weight_lbs: float | None = None
     goal_type: Literal["lose", "maintain", "gain"] | None = None
-    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
+    goal_pace: GoalPace = None
     target_weight_lbs: float | None = None
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
@@ -46,12 +48,18 @@ class UserOnboardingRequest(BaseModel):
     height_cm: float = Field(gt=0)
     current_weight_lbs: float = Field(gt=0)
     goal_type: Literal["lose", "maintain", "gain"]
-    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
+    goal_pace: GoalPace = None
     target_weight_lbs: float | None = Field(default=None, gt=0)
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"]
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
     nutrition_style: Literal["balanced", "keto", "mediterranean"] = "balanced"
     allergy_notes: str | None = None
+    @model_validator(mode="after")
+    def _pace_matches_goal(self):
+        if not is_valid_goal_pace(self.goal_type, self.goal_pace):
+            raise ValueError(f"goal_pace {self.goal_pace!r} does not apply to goal_type {self.goal_type!r}.")
+        return self
+
     # Display preferences captured during setup. Measurements above are always cm and lb.
     units: Literal["imperial", "metric"] | None = None
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
@@ -79,13 +87,18 @@ class UserProfileUpdateRequest(BaseModel):
     height_cm: float | None = Field(default=None, gt=0)
     current_weight_lbs: float | None = Field(default=None, gt=0)
     goal_type: Literal["lose", "maintain", "gain"] | None = None
-    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
+    goal_pace: GoalPace = None
     target_weight_lbs: float | None = Field(default=None, gt=0)
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
     nutrition_style: Literal["balanced", "keto", "mediterranean"] | None = None
     allergy_notes: str | None = None
 
+    @model_validator(mode="after")
+    def _pace_matches_goal(self):
+        if self.goal_type is not None and not is_valid_goal_pace(self.goal_type, self.goal_pace):
+            raise ValueError(f"goal_pace {self.goal_pace!r} does not apply to goal_type {self.goal_type!r}.")
+        return self
 
 class UserGoal(BaseModel):
     id: str
@@ -97,7 +110,7 @@ class UserGoal(BaseModel):
     fat_goal: float
     fiber_goal: float | None = None
     goal_type: Literal["lose", "maintain", "gain"] | None = None
-    goal_pace: Literal["light", "recommended", "extreme", "lean", "aggressive"] | None = None
+    goal_pace: GoalPace = None
     calculation_version: str | None = None
     target_source: Literal["system_default", "user_custom", "agent_adjusted", "admin_override"] | None = None
     target_weight_lbs: float | None = None
@@ -153,3 +166,33 @@ class DashboardSummary(BaseModel):
     progress: ProfileProgress
     weekly_metrics: WeeklyMetrics
     weight_history: WeightHistorySummary
+
+
+class TargetPreviewRequest(BaseModel):
+    """Body details for previewing targets during setup; nothing is saved."""
+
+    sex: Literal["male", "female"]
+    age_years: int = Field(gt=0, lt=120)
+    height_cm: float = Field(gt=0, lt=300)
+    current_weight_lbs: float = Field(gt=0, lt=1500)
+    activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"]
+
+
+class TargetPreviewOption(BaseModel):
+    goal_type: Literal["lose", "maintain", "gain"]
+    goal_pace: GoalPace = None
+    calorie_target: int
+    daily_adjustment: int
+    limited_by_minimum: bool
+    weekly_change_lbs: float
+    protein_target_g: float
+    carbs_target_g: float
+    fat_target_g: float
+
+
+class TargetPreview(BaseModel):
+    bmr_calories: int
+    maintenance_calories: int
+    minimum_calorie_target: int
+    maintenance_below_minimum: bool
+    options: list[TargetPreviewOption]
