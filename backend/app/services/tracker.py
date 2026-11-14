@@ -148,6 +148,17 @@ def update_planned_workout_session_completion(
     return PlannedWorkoutSession.model_validate(planned_workout_session)
 
 
+def delete_planned_workout_session(
+    repository: SQLiteRepository,
+    user_id: str,
+    session_id: str,
+) -> bool:
+    return repository.delete_planned_workout_session(
+        user_id=user_id,
+        planned_workout_session_id=session_id,
+    )
+
+
 def update_planned_exercise_entry(
     repository: SQLiteRepository,
     user_id: str,

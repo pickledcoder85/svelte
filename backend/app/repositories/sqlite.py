@@ -2905,13 +2905,8 @@ class SQLiteRepository:
             if row is None or row["user_id"] != user_id:
                 return False
 
-            completed_exercise_entry_id = row["completed_exercise_entry_id"]
-            if completed_exercise_entry_id:
-                self._connection.execute(
-                    "DELETE FROM exercise_entries WHERE id = ?",
-                    (completed_exercise_entry_id,),
-                )
-
+            # Keep any completed exercise_entries row: deleting a plan must not
+            # erase logged exercise history.
             self._connection.execute(
                 "DELETE FROM planned_workout_sessions WHERE id = ?",
                 (planned_exercise_entry_id,),
@@ -3067,6 +3062,35 @@ class SQLiteRepository:
                 if session["id"] == planned_workout_session_id:
                     return session
             return None
+
+    def delete_planned_workout_session(
+        self,
+        *,
+        user_id: str,
+        planned_workout_session_id: str,
+    ) -> bool:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_workout_sessions WHERE id = ?",
+                (planned_workout_session_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return False
+
+            # Deleting a plan never erases logged exercise history: the linked
+            # exercise_entries row is kept (it is only referenced, never owned).
+            # Blocks and segments cascade from planned_workout_sessions.
+            legacy_planned_exercise_entry_id = row["legacy_planned_exercise_entry_id"]
+            if legacy_planned_exercise_entry_id:
+                self._connection.execute(
+                    "DELETE FROM planned_exercise_entries WHERE id = ?",
+                    (legacy_planned_exercise_entry_id,),
+                )
+            self._connection.execute(
+                "DELETE FROM planned_workout_sessions WHERE id = ?",
+                (planned_workout_session_id,),
+            )
+            return True
 
     def update_planned_exercise_entry_completion(
         self,

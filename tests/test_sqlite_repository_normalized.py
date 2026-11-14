@@ -972,13 +972,66 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
             self.assertTrue(deleted)
             self.assertIsNone(repo.get_planned_exercise_entry(planned_exercise_id))
             assert completed_planned_exercise is not None
-            self.assertFalse(
+            # Deleting the plan keeps the logged exercise history.
+            self.assertTrue(
                 any(
                     entry["id"] == completed_planned_exercise["completed_exercise_entry_id"]
                     for entry in repo.list_exercise_entries("user-1")
                 )
             )
             self.assertEqual(repo.list_planned_workout_sessions("user-1"), [])
+
+    def test_sqlite_repository_deletes_legacy_backed_planned_workout_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = Path(tmp_dir) / "normalized.db"
+            repo = SQLiteRepository(str(db_path))
+            repo.save_user_identity(user_id="user-1", email="user@example.com")
+
+            legacy_id = repo.create_planned_exercise_entry(
+                user_id="user-1",
+                title="Recovery walk",
+                duration_minutes=25,
+                calories_burned=140,
+                planned_on=date(2026, 4, 2),
+                planned_at="18:00",
+                intensity="Low",
+            )
+            sessions = repo.list_planned_workout_sessions("user-1")
+            self.assertEqual([session["id"] for session in sessions], [legacy_id])
+            completed = repo.update_planned_workout_session_completion(
+                user_id="user-1",
+                planned_workout_session_id=legacy_id,
+                completed_at=datetime(2026, 4, 2, 18, 30),
+            )
+            assert completed is not None
+            completed_exercise_entry_id = completed["completed_exercise_entry_id"]
+            self.assertIsNotNone(completed_exercise_entry_id)
+
+            self.assertFalse(
+                repo.delete_planned_workout_session(
+                    user_id="someone-else",
+                    planned_workout_session_id=legacy_id,
+                )
+            )
+            deleted = repo.delete_planned_workout_session(
+                user_id="user-1",
+                planned_workout_session_id=legacy_id,
+            )
+            deleted_again = repo.delete_planned_workout_session(
+                user_id="user-1",
+                planned_workout_session_id=legacy_id,
+            )
+
+            self.assertTrue(deleted)
+            self.assertFalse(deleted_again)
+            self.assertIsNone(repo.get_planned_exercise_entry(legacy_id))
+            self.assertEqual(repo.list_planned_workout_sessions("user-1"), [])
+            self.assertTrue(
+                any(
+                    entry["id"] == completed_exercise_entry_id
+                    for entry in repo.list_exercise_entries("user-1")
+                )
+            )
 
     def test_sqlite_repository_persists_structured_planned_workout_sessions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1123,6 +1176,11 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
                 completed_at=datetime(2026, 4, 7, 11, 45),
             )
             loaded_session = repo.get_planned_workout_session("user-1", session_id)
+            exercise_entries = repo.list_exercise_entries("user-1")
+            deleted_session = repo.delete_planned_workout_session(
+                user_id="user-1",
+                planned_workout_session_id=session_id,
+            )
 
         self.assertIsNotNone(updated_session)
         assert updated_session is not None
@@ -1138,9 +1196,11 @@ class SQLiteRepositoryNormalizedPersistenceTests(unittest.TestCase):
         self.assertTrue(
             any(
                 entry["id"] == completed_session["completed_exercise_entry_id"]
-                for entry in repo.list_exercise_entries("user-1")
+                for entry in exercise_entries
             )
         )
+        self.assertTrue(deleted_session)
+        self.assertEqual(repo.list_planned_workout_sessions("user-1"), [])
 
     def test_sqlite_repository_backfills_food_log_entries_for_existing_eaten_slots(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

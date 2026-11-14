@@ -25,6 +25,7 @@ from backend.app.services.tracker import (
     create_planned_exercise_entry,
     create_planned_workout_session,
     create_meal_prep_task,
+    delete_planned_workout_session,
     list_exercise_entries,
     list_meal_plan_days,
     list_planned_exercise_entries,
@@ -122,6 +123,17 @@ async def update_planned_workout_completion(
     if planned_workout_session is None:
         raise HTTPException(status_code=404, detail="Planned workout session not found.")
     return planned_workout_session
+
+
+@router.delete("/planned-workout-sessions/{session_id}", status_code=204)
+async def delete_planned_workout(
+    session_id: str,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> None:
+    deleted = delete_planned_workout_session(repository, session.user_id, session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Planned workout session not found.")
 
 
 @router.put("/planned-exercise/{entry_id}", response_model=PlannedExerciseEntry)

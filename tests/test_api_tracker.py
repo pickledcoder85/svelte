@@ -251,6 +251,61 @@ async def test_tracker_persists_exercise_meal_plan_and_meal_prep(client):
     exercise_entries_after_structured = exercise_entries_response.json()
     assert any(entry["id"] == completed_structured["completed_exercise_entry_id"] for entry in exercise_entries_after_structured)
 
+    delete_structured_response = await client.delete(
+        f"/api/tracker/planned-workout-sessions/{created_structured['id']}",
+        headers=headers,
+    )
+    assert delete_structured_response.status_code == 204
+
+    sessions_after_delete_response = await client.get(
+        "/api/tracker/planned-workout-sessions",
+        headers=headers,
+    )
+    assert sessions_after_delete_response.status_code == 200
+    assert not any(
+        session["id"] == created_structured["id"]
+        for session in sessions_after_delete_response.json()
+    )
+    exercise_after_delete_response = await client.get("/api/tracker/exercise", headers=headers)
+    assert any(
+        entry["id"] == completed_structured["completed_exercise_entry_id"]
+        for entry in exercise_after_delete_response.json()
+    )
+    repeat_delete_response = await client.delete(
+        f"/api/tracker/planned-workout-sessions/{created_structured['id']}",
+        headers=headers,
+    )
+    assert repeat_delete_response.status_code == 404
+
+    create_legacy_response = await client.post(
+        "/api/tracker/planned-exercise",
+        headers=headers,
+        json={
+            "title": "Recovery walk",
+            "duration_minutes": 25,
+            "calories_burned": 140,
+            "planned_on": "2026-04-09",
+            "planned_at": "18:00",
+            "intensity": "Low",
+        },
+    )
+    assert create_legacy_response.status_code == 200
+    legacy_session_id = create_legacy_response.json()["id"]
+    delete_legacy_response = await client.delete(
+        f"/api/tracker/planned-workout-sessions/{legacy_session_id}",
+        headers=headers,
+    )
+    assert delete_legacy_response.status_code == 204
+    sessions_after_legacy_delete = await client.get(
+        "/api/tracker/planned-workout-sessions",
+        headers=headers,
+    )
+    assert not any(
+        session["id"] == legacy_session_id for session in sessions_after_legacy_delete.json()
+    )
+    planned_after_legacy_delete = await client.get("/api/tracker/planned-exercise", headers=headers)
+    assert not any(entry["id"] == legacy_session_id for entry in planned_after_legacy_delete.json())
+
     meal_plan_response = await client.post(
         "/api/tracker/meal-plan",
         headers=headers,
