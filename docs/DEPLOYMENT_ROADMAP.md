@@ -81,7 +81,7 @@ Each slice is its own `feature/` or `fix/` branch from `main`, per AGENTS.md.
 
 ### Phase 2: installable PWA
 
-- [ ] 2.1 SDK 54 package pins, `engines.node >= 20.19`, `build:web` script.
+- [x] 2.1 SDK 54 pins for `expo-camera`, `expo-image-picker`, `expo-font`; `engines.node >= 20.19`; `build:web` (added in 1.4). Still mismatched and awaiting approval: `expo` ~54.0.37, `react-native` 0.81.5, `react-native-svg` 15.12.1, `@types/react` ~19.1.10.
 - [ ] 2.2 Relative `/api` base URL, persisted session, sign-in copy cleanup, `localDateKey()` replacing UTC "today".
 - [ ] 2.3 Web camera capture via file input (`capture=environment`), downscaled to about 1600 px JPEG before upload.
 - [ ] 2.4 Manifest, apple-touch-icon, square icons, iOS meta tags, `viewport-fit=cover` and safe areas, service worker (app shell only, never `/api`), compressed images.
@@ -105,7 +105,7 @@ The service worker belongs to the live app, not development. It caches the app s
 ### Phase 5: scan pipeline
 
 - [ ] Barcode first: local food bank, then Open Food Facts, then USDA branded foods by GTIN/UPC. Cache results with source and attribution.
-- [ ] Self-hosted zxing WASM for barcode decoding on iOS Safari.
+- [ ] Barcode decoding on iOS Safari needs its own library: the SDK 54 `expo-camera` web scanner only reads QR codes (jsQR) and loads jsQR from the jsDelivr CDN. Plan: a zxing-wasm based decoder (for example the `barcode-detector` polyfill) with the WASM file self-hosted. New package, needs approval.
 - [ ] AI label reading only when a barcode misses or for a photographed panel, always reviewed before saving.
 - [ ] Free fallback: paste label text from iOS Live Text, parsed on the server.
 

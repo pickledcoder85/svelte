@@ -74,6 +74,7 @@ The format should remain simple:
 
 ### Fixed
 
+- `expo-camera`, `expo-image-picker`, and `expo-font` are now the Expo SDK 54 versions (`~17.0.10`, `~17.0.11`, `~14.0.12`) instead of SDK 55 majors; `expo install` also registered the `expo-font` config plugin in `app.json`. `frontend/package.json` declares `node >= 20.19`.
 - The seeded development user's profile and goals no longer fail to load with a 500: `dev_seed` wrote `target_source='generated_onboarding'`, which the profile model rejects; it now writes `system_default`.
 - Live mode no longer swaps in demo data when the dashboard, profile progress, tracker, or daily food log fails to load. Those screens now show empty data with a "could not be loaded" error, and demo data appears only in preview mode.
 - Saved profile timezone, units, and display name are no longer reset to `UTC`, `imperial`, and the session name by profile loads, sign-in, onboarding, food logs, exercise and planner writes, goals, or weights. Only `PUT /profile` changes them, and omitting `display_name` there keeps the saved name.
