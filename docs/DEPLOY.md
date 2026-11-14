@@ -142,7 +142,13 @@ Continuous integration (`.github/workflows/ci.yml`) runs the same tests and a pr
 ## Backups and restore
 
 - Startup snapshots and nightly snapshots (03:30, `relish-backup.timer`) go to `/var/lib/relish/backups`; the newest 14 of each kind are kept.
-- Off-machine copies (Litestream or rclone to a free Cloudflare R2 or Backblaze B2 bucket) are set up in Phase 3.
+- Off-machine copies: set `BACKUP_GCS_BUCKET` in `/etc/relish/relish.env` and the nightly job also uploads each snapshot to that private Cloud Storage bucket and deletes bucket copies older than `BACKUP_GCS_KEEP_DAYS` (default 30), always keeping the newest. It authenticates as the VM's service account through the metadata server, so there are no key files. One-time setup: stop the VM, Edit → Access scopes → Storage: **Read Write**, start it, then create the bucket from the VM:
+
+  ```bash
+  gcloud storage buckets create gs://<bucket> --location=us-central1 --uniform-bucket-level-access --public-access-prevention
+  ```
+
+  A US-region bucket of this size stays within the Cloud Storage free tier.
 - `GET /api/export` (or the app's export, once added) downloads everything as JSON.
 
 Restore drill (do this once after going live):
