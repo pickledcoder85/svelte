@@ -89,7 +89,7 @@ export interface UserProfile {
   height_cm?: number | null;
   current_weight_lbs?: number | null;
   goal_type?: 'lose' | 'maintain' | 'gain' | null;
-  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | 'steady' | 'build_muscle' | 'fuel_training' | null;
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
@@ -115,7 +115,7 @@ export interface UserProfileUpdate {
   height_cm?: number | null;
   current_weight_lbs?: number | null;
   goal_type?: 'lose' | 'maintain' | 'gain' | null;
-  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | 'steady' | 'build_muscle' | 'fuel_training' | null;
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
@@ -129,7 +129,7 @@ export interface UserOnboardingRequest {
   height_cm: number;
   current_weight_lbs: number;
   goal_type: 'lose' | 'maintain' | 'gain';
-  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | 'steady' | 'build_muscle' | 'fuel_training' | null;
   target_weight_lbs?: number | null;
   activity_level: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
   dietary_pattern: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
@@ -149,7 +149,7 @@ export interface UserGoal {
   fat_goal: number;
   fiber_goal?: number | null;
   goal_type?: 'lose' | 'maintain' | 'gain' | null;
-  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | null;
+  goal_pace?: 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive' | 'steady' | 'build_muscle' | 'fuel_training' | null;
   calculation_version?: string | null;
   target_source?: 'system_default' | 'user_custom' | 'agent_adjusted' | 'admin_override' | null;
   target_weight_lbs: number | null;

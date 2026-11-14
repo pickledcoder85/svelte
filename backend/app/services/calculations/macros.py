@@ -1,4 +1,4 @@
-from backend.app.services.calculations.types import GoalType
+from backend.app.services.calculations.types import GoalPace, GoalType
 
 PROTEIN_PER_KG = {
     "lose": 1.8,
@@ -18,17 +18,36 @@ FAT_CALORIE_SHARE = {
     "gain": 0.25,
 }
 
+# Maintenance focus: same calories, different split (docs/CALCULATION_STRATEGY.md).
+# build_muscle: more protein for recomposition alongside strength training.
+# fuel_training: less fat, so more of the calories come from carbohydrate for endurance work.
+MAINTENANCE_FOCUS_MACROS = {
+    "steady": {"protein_per_kg": 1.6, "fat_floor_per_kg": 0.7, "fat_share": 0.30},
+    "build_muscle": {"protein_per_kg": 2.0, "fat_floor_per_kg": 0.7, "fat_share": 0.27},
+    "fuel_training": {"protein_per_kg": 1.6, "fat_floor_per_kg": 0.6, "fat_share": 0.22},
+}
+
 
 def generate_macro_targets(
     *,
     calorie_target: int,
     current_weight_lbs: float,
     goal_type: GoalType,
+    goal_pace: GoalPace = None,
 ) -> tuple[float, float, float]:
     weight_kg = current_weight_lbs / 2.2046226218
-    protein_goal = round(weight_kg * PROTEIN_PER_KG[goal_type], 1)
-    fat_floor = weight_kg * FAT_FLOOR_PER_KG[goal_type]
-    fat_from_calorie_share = (calorie_target * FAT_CALORIE_SHARE[goal_type]) / 9
+    if goal_type == "maintain" and goal_pace in MAINTENANCE_FOCUS_MACROS:
+        profile = MAINTENANCE_FOCUS_MACROS[goal_pace]
+        protein_per_kg = profile["protein_per_kg"]
+        fat_floor_per_kg = profile["fat_floor_per_kg"]
+        fat_share = profile["fat_share"]
+    else:
+        protein_per_kg = PROTEIN_PER_KG[goal_type]
+        fat_floor_per_kg = FAT_FLOOR_PER_KG[goal_type]
+        fat_share = FAT_CALORIE_SHARE[goal_type]
+    protein_goal = round(weight_kg * protein_per_kg, 1)
+    fat_floor = weight_kg * fat_floor_per_kg
+    fat_from_calorie_share = (calorie_target * fat_share) / 9
     fat_goal = round(max(fat_floor, fat_from_calorie_share), 1)
     carb_calories = max(calorie_target - protein_goal * 4 - fat_goal * 9, 0)
     carbs_goal = round(carb_calories / 4, 1)

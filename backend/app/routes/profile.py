@@ -6,6 +6,8 @@ from backend.app.dependencies import get_required_session, get_repository
 from backend.app.models.profile import (
     DashboardSummary,
     ProfileProgress,
+    TargetPreview,
+    TargetPreviewRequest,
     UserOnboardingRequest,
     UserGoal,
     UserGoalCreateRequest,
@@ -15,6 +17,7 @@ from backend.app.models.profile import (
     WeightEntryCreateRequest,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.calculations.targets import preview_target_options
 from backend.app.services.profile import (
     OnboardingAlreadyCompletedError,
     complete_user_onboarding,
@@ -126,3 +129,9 @@ async def complete_onboarding(
         return complete_user_onboarding(repository, session, payload)
     except OnboardingAlreadyCompletedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/targets/preview", response_model=TargetPreview)
+async def preview_targets(payload: TargetPreviewRequest) -> TargetPreview:
+    """BMR, maintenance, and every goal/pace option for setup screens; nothing is saved."""
+    return TargetPreview.model_validate(preview_target_options(**payload.model_dump()))

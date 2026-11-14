@@ -1,4 +1,5 @@
 import { localDateKey } from './dates';
+import type { TargetPreview } from './setup-goals';
 import type {
   ExerciseEntry,
   PlannedExerciseEntry,
@@ -1002,4 +1003,23 @@ export async function deleteExerciseEntry(entryId: string, accessToken: string):
   if (!response.ok) {
     await readJson<unknown>(response);
   }
+}
+
+export type TargetPreviewRequest = {
+  sex: 'male' | 'female';
+  age_years: number;
+  height_cm: number;
+  current_weight_lbs: number;
+  activity_level: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
+};
+
+/** BMR, maintenance, and every goal option for setup screens. Nothing is saved. */
+export async function previewTargets(payload: TargetPreviewRequest, accessToken: string): Promise<TargetPreview> {
+  return readJson<TargetPreview>(
+    await apiFetch(buildApiUrl('/profile/targets/preview'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
 }

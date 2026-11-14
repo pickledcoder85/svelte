@@ -93,6 +93,7 @@ The app should use bounded default adjustments rather than large unbounded defic
 ### Maintenance
 
 - no default deficit or surplus
+- a maintenance **focus** (stored in `goal_pace`) changes only the macro split, never calories: `steady` (default), `build_muscle`, `fuel_training`. See Macro strategy → Maintenance.
 
 ### Weight gain
 
@@ -136,6 +137,16 @@ Recommended order:
 - fat: roughly `25-35%` of calories
 - carbs: remainder
 - fiber: `14 g / 1000 kcal`
+
+Implemented focus profiles (`backend/app/services/calculations/macros.py`, 2026-11-14):
+
+| Focus | Protein | Fat floor | Fat share of calories | Effect |
+|---|---|---|---|---|
+| `steady` (and legacy `null`) | 1.6 g/kg | 0.7 g/kg | 30% | unchanged v1 maintenance split |
+| `build_muscle` | 2.0 g/kg | 0.7 g/kg | 27% | more protein for recomposition alongside strength training |
+| `fuel_training` | 1.6 g/kg | 0.6 g/kg | 22% | less fat, so more carbohydrate for endurance training |
+
+Calories are identical across focuses, and carbs remain the remainder. Known limitation (shared with the v1 loss paces from about 220 lb): for very heavy, sedentary bodies the protein and fat floors can exceed the calorie target, so carbs clamp to 0 and macro calories run slightly over the target. `calculation_version` stays `v1` because every pre-existing input (including maintenance with no focus) produces the same targets as before; focus is an additive input. The macro split still does not depend on `dietary_pattern` or `nutrition_style`; style-aware macros remain future work.
 
 #### Weight gain
 
@@ -258,6 +269,17 @@ Exercise entries should eventually include structured estimation metadata descri
 
 ## Onboarding and profile UX requirements
 
+Setup order (2026-11-14): **About you → Activity → Your goal → How fast? / Your focus → Diet → Nutrition style → Allergies → Review**. Activity comes before the goal because maintenance (BMR × activity factor) is needed to show honest numbers on the goal screens.
+
+- Activity shows an energy card: BMR ("at rest") and maintenance ("with your activity").
+- Your goal shows each goal's calorie target at its default pace.
+- How fast? shows each pace's calories and approximate weekly change (daily change × 7 / 3,500 kcal per lb), plus an optional goal weight with an estimated date. Paces clamped by the 1,200 kcal floor are labelled as limited.
+- Your focus (maintenance) shows each focus's calories and its protein or carb difference.
+- All numbers come from `POST /api/profile/targets/preview`, which runs the same engine as onboarding and saves nothing, so previews always match the saved targets.
+- Invalid goal/pace pairs (for example `lose` with `lean`) are rejected with `422`.
+- When even maintenance is below the 1,200 kcal floor, every target is a small surplus. The preview sets `maintenance_below_minimum`, loss paces stay flagged `limited_by_minimum`, and How fast? says the pace will not lower weight instead of showing a loss rate.
+- No pace and the goal's default pace are treated as equal when deciding whether a profile save changes targets, so profiles saved before paces were stored are not recalculated (and custom goals not replaced) on unrelated edits. A pace left over from a previous goal falls back to the default.
+
 Signup and profile setup should support:
 
 1. age, sex, height, and current weight
@@ -266,7 +288,7 @@ Signup and profile setup should support:
    - maintenance
    - weight gain
 3. activity baseline selection
-4. optional target weight where appropriate
+4. optional target weight where appropriate (collected on How fast? for lose and gain)
 5. generated initial targets:
    - calories
    - protein

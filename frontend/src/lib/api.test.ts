@@ -17,6 +17,7 @@ import {
   calculateMeal,
   createLocalSession,
   fetchOwnerSession,
+  previewTargets,
   deleteExerciseEntry,
   deleteFoodLogEntry,
   updateExerciseEntry,
@@ -211,6 +212,26 @@ describe('api helpers', () => {
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'Exercise entry not found.' }), { status: 404 }))
     );
     await expect(deleteExerciseEntry('missing', 'token-123')).rejects.toThrow('Exercise entry not found.');
+  });
+
+  it('previews targets with a POST that saves nothing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ bmr_calories: 1887, maintenance_calories: 2736, minimum_calorie_target: 1200, options: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const body = { sex: 'male' as const, age_years: 30, height_cm: 180, current_weight_lbs: 200, activity_level: 'moderate' as const };
+
+    const preview = await previewTargets(body, 'token-123');
+
+    expect(preview.maintenance_calories).toBe(2736);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/profile/targets/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-123', 'X-Relish-Request': '1' },
+      body: JSON.stringify(body)
+    });
   });
 
   it('accepts a relative api base for same-origin production builds', () => {

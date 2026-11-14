@@ -16,6 +16,7 @@ from backend.app.models.profile import (
 )
 from backend.app.models.nutrition import WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.calculations.types import DEFAULT_GOAL_PACE, is_valid_goal_pace
 from backend.app.services.calculations.macros import generate_fiber_target
 from backend.app.services.calculations.targets import generate_nutrition_targets
 from backend.app.services.calculations.types import CALCULATION_VERSION
@@ -388,8 +389,20 @@ def update_user_profile(
             else existing_profile.get("allergy_notes")
         ),
     }
+    # A pace carried over from a different goal no longer applies; fall back to the default.
+    if resolved["goal_type"] and not is_valid_goal_pace(resolved["goal_type"], resolved["goal_pace"]):
+        resolved["goal_pace"] = None
+
+    def comparable(key: str, value):
+        # "No pace" and the goal's default pace produce the same targets, so they are equal here;
+        # otherwise a profile saved before paces were stored would be recalculated (and a
+        # custom goal replaced) on every unrelated save.
+        if key == "goal_pace":
+            return value or DEFAULT_GOAL_PACE.get(resolved["goal_type"] or "")
+        return value
+
     derived_fields_changed = any(
-        resolved[key] != existing_profile.get(key)
+        comparable(key, resolved[key]) != comparable(key, existing_profile.get(key))
         for key in (
             "sex",
             "age_years",
