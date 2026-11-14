@@ -77,7 +77,7 @@ Each slice is its own `feature/` or `fix/` branch from `main`, per AGENTS.md.
 - [x] 1.2 Production settings: `APP_ENV` validation, repo-root `.env`, `/docs` `/redoc` `/openapi.json` off in production, absolute `DATABASE_URL` required in production, trimmed `/health`, vision returns `503` without a key in production (demo results only in development), image size and format validation, HTTP client closed per call, generic `502` messages, `VISION_MODEL` and `VISION_REASONING_EFFORT` settings, Supabase settings removed. Deferred: a shared long-lived HTTP client (not needed for one user).
 - [x] 1.3 SQLite durability: WAL, `synchronous=NORMAL`, `busy_timeout`, every repository connection use under a re-entrant lock (with a static test), `*.db-wal`/`*.db-shm` in `.gitignore`, startup snapshot (`BACKUP_DIR`, required in production) plus a nightly backup CLI, and `GET /api/export`. Off-machine copies (Litestream or rclone to R2/B2) are part of Phase 3.
 - [x] 1.4 FastAPI serves the web build (`WEB_DIST_DIR`) with SPA fallback, cache rules, and security headers; `npm run build:web`; systemd units, nightly backup timer, and server env template in `deploy/`; [DEPLOY.md](DEPLOY.md).
-- [ ] 1.5 Clean schema baseline: the live schema becomes migration 001, migrations run at startup, legacy repair code and the stale migrations are removed (safe because no real data exists).
+- [x] 1.5 One schema baseline (`001_baseline.sql`, generated from the live schema), startup migration runner with per-migration transactions that refuses pre-baseline databases, legacy repair code and stale migrations removed, unused repositories removed, uvicorn factory mode.
 
 ### Phase 2: installable PWA
 
@@ -112,7 +112,7 @@ The service worker belongs to the live app, not development. It caches the app s
 ### Phase 6: refactor
 
 - [ ] Split `frontend/App.tsx` (about 7,800 lines) into screens and hooks, and `backend/app/repositories/sqlite.py` by domain.
-- [ ] Remove dead code (`repositories/memory.py`, `repositories/nutrition.py`, unused components and API wrappers).
+- [ ] Remove dead code (unused frontend components and API wrappers; the unused backend repositories went in 1.5).
 - [ ] Generate `frontend/src/types.ts` from the OpenAPI schema.
 
 ## Feature backlog
