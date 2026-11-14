@@ -7797,7 +7797,8 @@ const styles = StyleSheet.create({
     minWidth: 64,
     color: '#17324d',
     fontWeight: '800',
-    textAlign: 'right'
+    textAlign: 'right',
+    fontSize: 16
   },
   mealIngredientUnit: {
     color: '#6b7b90',
@@ -8071,7 +8072,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
-    color: '#132536'
+    color: '#132536',
+    fontSize: 16
   },
   primaryButton: {
     borderRadius: 18,
@@ -8120,7 +8122,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: '#ffffff',
-    color: '#17324d'
+    color: '#17324d',
+    fontSize: 16
   },
   entryActionRow: {
     flexDirection: 'row',
@@ -8395,7 +8398,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
-    color: '#132536'
+    color: '#132536',
+    fontSize: 16
   },
   profileFieldInputError: {
     borderColor: '#2563eb'

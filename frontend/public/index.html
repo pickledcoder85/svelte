@@ -42,6 +42,16 @@
       /* The only launch splash on web: a layer above the app that stays until the first real
          screen is ready, then fades out (dismissLaunchSplash in src/lib/launch-splash-dom.ts).
          The image never changes hands, so nothing can blink. */
+      /* iOS Safari zooms the page into any text field smaller than 16px when it is tapped and
+         leaves it zoomed. Keep every field at 16px or more on touch screens, whatever a
+         component's own style says. */
+      @media (pointer: coarse) {
+        input,
+        textarea,
+        select {
+          font-size: max(16px, 1em) !important;
+        }
+      }
       .launch-splash {
         position: fixed;
         inset: 0;

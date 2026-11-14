@@ -1350,7 +1350,8 @@ const styles = StyleSheet.create({
     borderColor: '#d8e1eb',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14
+    // 16 px or more: iOS Safari zooms the page into smaller text fields on focus.
+    fontSize: 16
   },
   savedFoodBanner: {
     backgroundColor: '#ecfdf3',
