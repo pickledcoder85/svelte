@@ -78,6 +78,7 @@ The format should remain simple:
 
 ### Fixed
 
+- Food Search's add buttons and status now describe the amount in the food's own unit ("Add 1 × can (355mL) to today"), not always in grams; scanned foods are measured per serving.
 - Production web builds now call the API at `/api` on their own origin: the base URL is read as a literal `process.env.EXPO_PUBLIC_API_BASE_URL` (which Expo inlines) and `npm run build:web` sets it to `/api`. Previously builds always called `http://localhost:8000/api`.
 - "Today" and every other day key now use the device's local date instead of the UTC date, so food, exercise, weights, goals, plans, and scan groups no longer jump to tomorrow in the evening in US time zones. "Today" refreshes when the app returns to the foreground.
 - `expo-camera`, `expo-image-picker`, and `expo-font` are now the Expo SDK 54 versions (`~17.0.10`, `~17.0.11`, `~14.0.12`) instead of SDK 55 majors; `expo install` also registered the `expo-font` config plugin in `app.json`. `frontend/package.json` declares `node >= 20.19`.
