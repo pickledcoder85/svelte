@@ -23,15 +23,19 @@ import {
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
+  createPlannedWorkoutSession,
   createLocalSession,
   createWeightEntry,
+  deletePlannedWorkoutSession,
   completeOnboarding,
   createUserGoal,
   fetchBackendHealth,
   getApiBaseUrl,
   fetchExerciseEntries,
+  fetchPlannedWorkoutSessions,
   fetchFavoriteFoods,
   fetchFavoriteRecipes,
+  fetchFoodLogForDate,
   fetchMealPlanDays,
   fetchMealPrepTasks,
   fetchProfileProgress,
@@ -48,6 +52,8 @@ import {
   updateProfile,
   updateMealPlanSlotEatenAt,
   updateMealPrepTaskStatus,
+  updatePlannedWorkoutSession,
+  updatePlannedWorkoutSessionCompletion,
   unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
@@ -55,13 +61,10 @@ import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from '.
 import {
   buildDailyExerciseSummary,
   buildDailyMealPlanSummary,
-  buildDailyTargetSummary,
-  calculateMacroPercentages
+  buildDailyTargetSummary
 } from './src/lib/daily-home';
 import {
-  appShellMenuGroups,
-  getAppSectionMeta,
-  primaryAppSections
+  appShellMenuGroups
 } from './src/lib/app-shell';
 import { DashboardTimeRangeTabs } from './src/components/dashboard/DashboardTimeRangeTabs';
 import { DashboardHeroChart } from './src/components/dashboard/DashboardHeroChart';
@@ -87,6 +90,16 @@ import {
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
+import {
+  buildDemoPlannedWorkoutSessions,
+  buildPlannedWorkoutPayload,
+  buildOptimisticPlannedWorkoutSession,
+  mapPlannedWorkoutSessionToEntry,
+  sortPlannedWorkoutSessions,
+  defaultWarmupTitle,
+  defaultCooldownTitle,
+  buildPlannedWorkoutEditDraft
+} from './src/lib/planned-workouts';
 import type {
   AppSection,
   DashboardRange,
@@ -100,6 +113,8 @@ import type {
   MealTotals,
   MealPlanDay,
   MealPrepTask,
+  PlannedExerciseEntry,
+  PlannedWorkoutSession,
   ProfileProgress,
   RecipeDefinition,
   UserGoal,
@@ -111,6 +126,7 @@ import {
   demoDashboardSnapshot,
   demoExerciseEntries,
   demoFoodLog,
+  demoPlannedExerciseEntries,
   demoProfileProgress,
   demoWeightEntries
 } from './src/mock-data';
@@ -517,7 +533,6 @@ export default function App(): ReactElement {
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
-  const currentSectionMeta = getAppSectionMeta(section);
 
   function handleSectionChange(nextSection: AppSection) {
     setSection(nextSection);
@@ -575,7 +590,10 @@ export default function App(): ReactElement {
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
   const [selectedLogFoodId, setSelectedLogFoodId] = useState('');
   const [logGrams, setLogGrams] = useState('100');
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedHomeDate, setSelectedHomeDate] = useState(todayKey);
   const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
+  const [homeFoodLog, setHomeFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog(todayKey));
   const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live'>('checking');
   const [foodLogStatus, setFoodLogStatus] = useState("Loading today's log");
   const [foodLogError, setFoodLogError] = useState<string | null>(null);
@@ -585,9 +603,17 @@ export default function App(): ReactElement {
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
+  const [plannedExerciseEntries, setPlannedExerciseEntries] = useState<PlannedExerciseEntry[]>([]);
+  const [plannedWorkoutSessions, setPlannedWorkoutSessions] = useState<PlannedWorkoutSession[]>([]);
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
   const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
   const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
+  const [plannedExerciseTitleDraft, setPlannedExerciseTitleDraft] = useState('Swim');
+  const [plannedExerciseMinutesDraft, setPlannedExerciseMinutesDraft] = useState('55');
+  const [plannedExerciseWarmupEnabled, setPlannedExerciseWarmupEnabled] = useState(false);
+  const [plannedExerciseWarmupMinutesDraft, setPlannedExerciseWarmupMinutesDraft] = useState('10');
+  const [plannedExerciseCooldownEnabled, setPlannedExerciseCooldownEnabled] = useState(false);
+  const [plannedExerciseCooldownMinutesDraft, setPlannedExerciseCooldownMinutesDraft] = useState('8');
   const [trackerTone, setTrackerTone] = useState<'checking' | 'live'>('checking');
   const [trackerStatus, setTrackerStatus] = useState('Loading tracker data');
   const [trackerError, setTrackerError] = useState<string | null>(null);
@@ -616,7 +642,20 @@ export default function App(): ReactElement {
   const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
   const activeExercisePreset = useMemo(() => selectExercisePreset(exerciseTitleDraft), [exerciseTitleDraft]);
+  const activePlannedExercisePreset = useMemo(() => selectExercisePreset(plannedExerciseTitleDraft), [plannedExerciseTitleDraft]);
+  const plannedExerciseDurationValue = Number(plannedExerciseMinutesDraft);
+  const estimatedPlannedExerciseCalories = useMemo(
+    () =>
+      Number.isFinite(plannedExerciseDurationValue) && plannedExerciseDurationValue > 0
+        ? estimatePlannedExerciseCalories(plannedExerciseDurationValue, activePlannedExercisePreset)
+        : 0,
+    [activePlannedExercisePreset, plannedExerciseDurationValue]
+  );
   const [exerciseSaving, setExerciseSaving] = useState(false);
+  const [plannedExerciseSaving, setPlannedExerciseSaving] = useState(false);
+  const [plannedExerciseUpdatingId, setPlannedExerciseUpdatingId] = useState<string | null>(null);
+  const [plannedExerciseEditingId, setPlannedExerciseEditingId] = useState<string | null>(null);
+  const [plannedExerciseDeletingId, setPlannedExerciseDeletingId] = useState<string | null>(null);
   const [mealPrepSavingId, setMealPrepSavingId] = useState<string | null>(null);
 
   function resetPreviewProfileDrafts() {
@@ -926,6 +965,42 @@ export default function App(): ReactElement {
   }, [entryMode, foodSessionToken]);
 
   useEffect(() => {
+    if (selectedHomeDate === todayKey) {
+      setHomeFoodLog(foodLog);
+      return;
+    }
+    if (entryMode === null) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSelectedHomeFoodLog() {
+      if (!foodSessionToken) {
+        setHomeFoodLog(createEmptyFoodLog(selectedHomeDate));
+        return;
+      }
+
+      try {
+        const log = await fetchFoodLogForDate(selectedHomeDate, foodSessionToken);
+        if (!cancelled) {
+          setHomeFoodLog(log);
+        }
+      } catch {
+        if (!cancelled) {
+          setHomeFoodLog(createEmptyFoodLog(selectedHomeDate));
+        }
+      }
+    }
+
+    void loadSelectedHomeFoodLog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entryMode, foodLog, foodSessionToken, selectedHomeDate, todayKey]);
+
+  useEffect(() => {
     if (entryMode === null) {
       return;
     }
@@ -933,10 +1008,13 @@ export default function App(): ReactElement {
 
     async function loadTrackerSections() {
       if (!foodSessionToken) {
+        const demoSessions = buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries);
         setTrackerTone('checking');
         setTrackerStatus('Preview tracker loaded');
         setTrackerError('No active tracker session. Showing preview tracker data.');
         setExerciseEntries(demoExerciseEntries);
+        setPlannedWorkoutSessions(demoSessions);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(demoSessions.map(mapPlannedWorkoutSessionToEntry)));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable until a backend session is ready');
         setMealPlanError('No active tracker session.');
@@ -961,8 +1039,9 @@ export default function App(): ReactElement {
       setMealPrepError(null);
 
       try {
-        const [exercise, mealPlan, mealPrep] = await Promise.all([
+        const [exercise, plannedWorkoutSessionItems, mealPlan, mealPrep] = await Promise.all([
           fetchExerciseEntries(foodSessionToken),
+          fetchPlannedWorkoutSessions(foodSessionToken),
           fetchMealPlanDays(foodSessionToken),
           fetchMealPrepTasks(foodSessionToken)
         ]);
@@ -972,6 +1051,8 @@ export default function App(): ReactElement {
         }
 
         setExerciseEntries(exercise);
+        setPlannedWorkoutSessions(plannedWorkoutSessionItems);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(plannedWorkoutSessionItems.map(mapPlannedWorkoutSessionToEntry)));
         setTrackerTone('live');
         setTrackerStatus(
           exercise.length > 0
@@ -1015,6 +1096,8 @@ export default function App(): ReactElement {
         }
 
         setExerciseEntries([]);
+        setPlannedExerciseEntries([]);
+        setPlannedWorkoutSessions([]);
         setMealPlanDays([]);
         setSelectedMealPlanDate(null);
         setMealPlanEatenSlots({});
@@ -1023,6 +1106,9 @@ export default function App(): ReactElement {
         setTrackerStatus('Preview tracker loaded');
         setTrackerError(error instanceof Error ? `${error.message} Showing preview tracker data.` : 'Tracker data unavailable. Showing preview tracker data.');
         setExerciseEntries(demoExerciseEntries);
+        const demoSessions = buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries);
+        setPlannedWorkoutSessions(demoSessions);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(demoSessions.map(mapPlannedWorkoutSessionToEntry)));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable');
         setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
@@ -1435,61 +1521,69 @@ export default function App(): ReactElement {
     () => selectMealPlanDay(sortedMealPlanDays, selectedMealPlanDate),
     [selectedMealPlanDate, sortedMealPlanDays]
   );
+  const homeDateOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (let offset = -1; offset <= 5; offset += 1) {
+      values.add(addDaysToIsoDate(todayKey, offset));
+    }
+    sortedMealPlanDays.forEach((day) => {
+      if (day.plan_date) {
+        values.add(day.plan_date);
+      }
+    });
+    exerciseEntries.forEach((entry) => values.add(entry.logged_on));
+    plannedExerciseEntries.forEach((entry) => values.add(entry.planned_on));
+    values.add(selectedHomeDate);
+    return [...values].sort();
+  }, [exerciseEntries, plannedExerciseEntries, selectedHomeDate, sortedMealPlanDays, todayKey]);
+  const selectedHomeDateIndex = useMemo(
+    () => homeDateOptions.findIndex((value) => value === selectedHomeDate),
+    [homeDateOptions, selectedHomeDate]
+  );
   const trackerTotals = useMemo(() => buildTrackerTotals(foodLog, exerciseEntries), [exerciseEntries, foodLog]);
   const weightProgress = useMemo(
     () => buildWeightProgressSummary(profileProgress, weightEntries),
     [profileProgress, weightEntries]
   );
   const latestProfileGoal = useMemo(() => profileGoals[0] ?? null, [profileGoals]);
-  const todayMealPlanDate = useMemo(
-    () => resolveSelectedMealPlanDate(sortedMealPlanDays, new Date().toISOString().slice(0, 10)),
-    [sortedMealPlanDays]
+  const homeCompletedExerciseEntries = useMemo(
+    () => exerciseEntries.filter((entry) => entry.logged_on === selectedHomeDate),
+    [exerciseEntries, selectedHomeDate]
   );
-  const todayMealPlanDay = useMemo(
-    () => selectMealPlanDay(sortedMealPlanDays, todayMealPlanDate),
-    [sortedMealPlanDays, todayMealPlanDate]
+  const homePlannedExerciseEntries = useMemo(
+    () => plannedExerciseEntries.filter((entry) => entry.planned_on === selectedHomeDate),
+    [plannedExerciseEntries, selectedHomeDate]
   );
-  const todayMealPlanEatenSlots = useMemo(
-    () => (todayMealPlanDay ? mealPlanEatenSlots[todayMealPlanDay.id] ?? {} : {}),
-    [mealPlanEatenSlots, todayMealPlanDay]
+  const homeMealPlanDay = useMemo(
+    () => sortedMealPlanDays.find((day) => day.plan_date === selectedHomeDate) ?? null,
+    [selectedHomeDate, sortedMealPlanDays]
   );
-  const todayEatenMealSlots = useMemo(
-    () =>
-      todayMealPlanDay
-        ? todayMealPlanDay.slots.filter((slot) => Boolean(todayMealPlanEatenSlots[slot.id]))
-        : [],
-    [todayMealPlanDay, todayMealPlanEatenSlots]
-  );
-  const checkedMealCalories = useMemo(
-    () =>
-      todayEatenMealSlots.reduce((sum, slot) => sum + slot.calories, 0),
-    [todayEatenMealSlots]
+  const homeMealPlanEatenSlots = useMemo(
+    () => (homeMealPlanDay ? mealPlanEatenSlots[homeMealPlanDay.id] ?? {} : {}),
+    [homeMealPlanDay, mealPlanEatenSlots]
   );
   const dailyHomeTargets = useMemo(
     () =>
       buildDailyTargetSummary({
         goal: latestProfileGoal,
         profile,
-        foodLog,
-        exerciseEntries
+        foodLog: homeFoodLog,
+        exerciseEntries: homeCompletedExerciseEntries
       }),
-    [exerciseEntries, foodLog, latestProfileGoal, profile]
+    [homeCompletedExerciseEntries, homeFoodLog, latestProfileGoal, profile]
   );
   const dailyMealPlanSummary = useMemo(
-    () => buildDailyMealPlanSummary(todayMealPlanDay, todayMealPlanEatenSlots),
-    [todayMealPlanDay, todayMealPlanEatenSlots]
+    () => buildDailyMealPlanSummary(homeMealPlanDay, homeMealPlanEatenSlots),
+    [homeMealPlanDay, homeMealPlanEatenSlots]
   );
   const dailyExerciseSummary = useMemo(
-    () => buildDailyExerciseSummary(exerciseEntries),
-    [exerciseEntries]
+    () => buildDailyExerciseSummary(homePlannedExerciseEntries),
+    [homePlannedExerciseEntries]
   );
-  const homeConsumedCalories = dailyHomeTargets.intakeCalories + checkedMealCalories;
+  const homeConsumedMacros = homeFoodLog.totals.macros;
+  const homeConsumedCalories = dailyHomeTargets.intakeCalories;
   const homeNetCalories = homeConsumedCalories - dailyHomeTargets.exerciseCalories;
   const homeRemainingCalories = dailyHomeTargets.calorieTarget - homeNetCalories;
-  const consumedMacroSplit = useMemo(
-    () => calculateMacroPercentages(foodLog.totals.macros),
-    [foodLog.totals.macros]
-  );
   const filteredRecipeCatalog = useMemo(
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
@@ -1663,23 +1757,19 @@ export default function App(): ReactElement {
         { label: '6p', hour: 18 },
         { label: '12a', hour: 24 },
       ];
-      const sortedEaten = [...todayEatenMealSlots]
-        .map((slot) => {
-          const eatenAt = todayMealPlanEatenSlots[slot.id];
-          const parsed = eatenAt ? new Date(eatenAt) : null;
-          return { slot, parsed };
-        })
+      const sortedLoggedEntries = [...homeFoodLog.entries]
+        .map((entry) => ({ entry, parsed: new Date(entry.logged_at) }))
         .filter((item) => item.parsed && !Number.isNaN(item.parsed.getTime()))
         .sort((left, right) => left.parsed!.getTime() - right.parsed!.getTime());
 
       return [
         ...checkpoints.map((checkpoint) => {
-          const cumulative = sortedEaten.reduce((sum, item) => {
+          const cumulative = sortedLoggedEntries.reduce((sum, item) => {
             const parsed = item.parsed!;
             const hour = parsed.getHours() + parsed.getMinutes() / 60;
             const normalizedHour = checkpoint.hour === 24 ? 24 : hour;
             if (normalizedHour <= checkpoint.hour) {
-              return sum + item.slot.calories;
+              return sum + item.entry.calories;
             }
             return sum;
           }, 0);
@@ -1692,15 +1782,12 @@ export default function App(): ReactElement {
       return activeMetricConfig.points;
     }
 
-    const adjustedLastCalories = Math.max(
-      0,
-      activeMetricConfig.points[activeMetricConfig.points.length - 1].calories + checkedMealCalories
-    );
+    const adjustedLastCalories = Math.max(0, homeConsumedCalories);
 
     return activeMetricConfig.points.map((point, index) =>
       index === activeMetricConfig.points.length - 1 ? { ...point, calories: adjustedLastCalories } : point
     );
-  }, [activeMetricConfig.points, activeRange, checkedMealCalories, homeConsumedCalories, todayEatenMealSlots, todayMealPlanEatenSlots]);
+  }, [activeMetricConfig.points, activeRange, homeConsumedCalories, homeFoodLog.entries]);
   const homeChartTargetValue =
     activeRange === '1D' ? dailyHomeTargets.calorieTarget : activeMetricConfig.targetValue;
   const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
@@ -1984,6 +2071,227 @@ export default function App(): ReactElement {
       setTrackerError(error instanceof Error ? error.message : 'Unable to save tracker entry.');
     } finally {
       setExerciseSaving(false);
+    }
+  }
+
+  async function addPlannedExerciseEntry() {
+    const duration_minutes = Number(plannedExerciseMinutesDraft);
+    const warmup_minutes = Number(plannedExerciseWarmupMinutesDraft);
+    const cooldown_minutes = Number(plannedExerciseCooldownMinutesDraft);
+    const title = plannedExerciseTitleDraft.trim();
+
+    if (!title || !Number.isFinite(duration_minutes) || duration_minutes <= 0) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title || 'workout'}`);
+      setTrackerError('Enter a workout title and a valid duration before saving planned exercise.');
+      return;
+    }
+
+    const estimatedCaloriesBurned = estimatePlannedExerciseCalories(duration_minutes, activePlannedExercisePreset);
+    if (!Number.isFinite(estimatedCaloriesBurned) || estimatedCaloriesBurned <= 0) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
+      setTrackerError('Enter a valid duration so the planned calorie estimate can be generated.');
+      return;
+    }
+
+    if (plannedExerciseWarmupEnabled && (!Number.isFinite(warmup_minutes) || warmup_minutes <= 0)) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
+      setTrackerError('Enter valid warmup minutes or turn warmup off.');
+      return;
+    }
+
+    if (plannedExerciseCooldownEnabled && (!Number.isFinite(cooldown_minutes) || cooldown_minutes <= 0)) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
+      setTrackerError('Enter valid cooldown minutes or turn cooldown off.');
+      return;
+    }
+
+    const payload = buildPlannedWorkoutPayload({
+      title,
+      workoutType: activePlannedExercisePreset.id,
+      mainMinutes: Math.round(duration_minutes),
+      warmupMinutes: plannedExerciseWarmupEnabled ? Math.round(warmup_minutes) : 0,
+      cooldownMinutes: plannedExerciseCooldownEnabled ? Math.round(cooldown_minutes) : 0,
+      plannedOn: selectedHomeDate,
+      plannedAt: '06:30',
+      estimatedCaloriesBurned: Math.round(estimatedCaloriesBurned),
+      intensity: deriveExerciseIntensity(Math.round(duration_minutes), Math.round(estimatedCaloriesBurned))
+    });
+
+    setPlannedExerciseSaving(true);
+    setTrackerTone('checking');
+    setTrackerStatus(`${plannedExerciseEditingId ? 'Updating' : 'Planning'} ${title}`);
+    setTrackerError(null);
+    let previousSessions: PlannedWorkoutSession[] = [];
+    const optimisticSessionId = plannedExerciseEditingId ?? `planned-workout-${Date.now()}`;
+    const optimisticSession = buildOptimisticPlannedWorkoutSession(optimisticSessionId, payload);
+
+    setPlannedWorkoutSessions((current) => {
+      previousSessions = current;
+      if (plannedExerciseEditingId) {
+        return sortPlannedWorkoutSessions(
+          current.map((session) => (session.id === plannedExerciseEditingId ? optimisticSession : session))
+        );
+      }
+      return sortPlannedWorkoutSessions([...current, optimisticSession]);
+    });
+    setPlannedExerciseEntries((current) => {
+      const optimisticEntry = mapPlannedWorkoutSessionToEntry(optimisticSession);
+      if (plannedExerciseEditingId) {
+        return sortPlannedExerciseEntries(
+          current.map((entry) => (entry.id === plannedExerciseEditingId ? optimisticEntry : entry))
+        );
+      }
+      return sortPlannedExerciseEntries([...current, optimisticEntry]);
+    });
+
+    try {
+      if (!foodSessionToken) {
+        throw new Error(`Create a live local session before ${plannedExerciseEditingId ? 'updating' : 'saving'} planned exercise.`);
+      }
+
+      const saved = plannedExerciseEditingId
+        ? await updatePlannedWorkoutSession(plannedExerciseEditingId, payload, foodSessionToken)
+        : await createPlannedWorkoutSession(payload, foodSessionToken);
+      setPlannedWorkoutSessions((current) =>
+        sortPlannedWorkoutSessions([
+          ...current.filter((session) => session.id !== optimisticSessionId),
+          saved
+        ])
+      );
+      setPlannedExerciseEntries((current) =>
+        sortPlannedExerciseEntries([
+          ...current.filter((entry) => entry.id !== optimisticSessionId),
+          mapPlannedWorkoutSessionToEntry(saved)
+        ])
+      );
+      setTrackerTone('live');
+      setTrackerStatus(
+        `${title} ${plannedExerciseEditingId ? 'updated for' : 'planned for'} ${formatHomeDateLabel(selectedHomeDate, todayKey)}`
+      );
+      resetPlannedExerciseDrafts();
+    } catch (error) {
+      setPlannedWorkoutSessions(previousSessions);
+      setPlannedExerciseEntries(sortPlannedExerciseEntries(previousSessions.map(mapPlannedWorkoutSessionToEntry)));
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
+      setTrackerError(error instanceof Error ? error.message : `Unable to ${plannedExerciseEditingId ? 'update' : 'save'} planned exercise.`);
+    } finally {
+      setPlannedExerciseSaving(false);
+    }
+  }
+
+  function beginPlannedExerciseEdit(entry: PlannedExerciseEntry) {
+    const session = plannedWorkoutSessions.find((item) => item.id === entry.id);
+    const draft = buildPlannedWorkoutEditDraft(entry, session);
+    setPlannedExerciseEditingId(entry.id);
+    setSelectedHomeDate(entry.planned_on);
+    setPlannedExerciseTitleDraft(draft.title);
+    setPlannedExerciseMinutesDraft(String(draft.mainMinutes));
+    setPlannedExerciseWarmupEnabled(draft.warmupEnabled);
+    setPlannedExerciseWarmupMinutesDraft(String(draft.warmupMinutes));
+    setPlannedExerciseCooldownEnabled(draft.cooldownEnabled);
+    setPlannedExerciseCooldownMinutesDraft(String(draft.cooldownMinutes));
+    setTrackerTone('live');
+    setTrackerStatus(`Editing ${entry.title}`);
+    setTrackerError(null);
+  }
+
+  function resetPlannedExerciseDrafts() {
+    setPlannedExerciseEditingId(null);
+    setPlannedExerciseTitleDraft('Walk');
+    setPlannedExerciseMinutesDraft('25');
+    setPlannedExerciseWarmupEnabled(false);
+    setPlannedExerciseWarmupMinutesDraft('10');
+    setPlannedExerciseCooldownEnabled(false);
+    setPlannedExerciseCooldownMinutesDraft('8');
+  }
+
+  async function removePlannedExerciseEntry(entry: PlannedExerciseEntry) {
+    let previousSessions: PlannedWorkoutSession[] = [];
+    setPlannedExerciseDeletingId(entry.id);
+    setTrackerTone('checking');
+    setTrackerStatus(`Deleting ${entry.title}`);
+    setTrackerError(null);
+    setPlannedWorkoutSessions((current) => {
+      previousSessions = current;
+      return current.filter((item) => item.id !== entry.id);
+    });
+    setPlannedExerciseEntries((current) => current.filter((item) => item.id !== entry.id));
+
+    try {
+      if (!foodSessionToken) {
+        throw new Error('Create a live local session before deleting planned exercise.');
+      }
+      await deletePlannedWorkoutSession(entry.id, foodSessionToken);
+      if (entry.completed_exercise_entry_id) {
+        setExerciseEntries(await fetchExerciseEntries(foodSessionToken));
+      }
+      if (plannedExerciseEditingId === entry.id) {
+        resetPlannedExerciseDrafts();
+      }
+      setTrackerTone('live');
+      setTrackerStatus(`${entry.title} deleted`);
+    } catch (error) {
+      setPlannedWorkoutSessions(previousSessions);
+      setPlannedExerciseEntries(sortPlannedExerciseEntries(previousSessions.map(mapPlannedWorkoutSessionToEntry)));
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not delete ${entry.title}`);
+      setTrackerError(error instanceof Error ? error.message : 'Unable to delete planned exercise.');
+    } finally {
+      setPlannedExerciseDeletingId(null);
+    }
+  }
+
+  async function togglePlannedExerciseCompletion(entry: PlannedExerciseEntry) {
+    const nextCompletedAt = entry.completed_at ? null : new Date().toISOString();
+    const session = plannedWorkoutSessions.find((item) => item.id === entry.id);
+    if (!session) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not update ${entry.title}`);
+      setTrackerError('Planned workout session is missing from local state.');
+      return;
+    }
+    const optimisticSession: PlannedWorkoutSession = {
+      ...session,
+      status: nextCompletedAt ? 'completed' : 'planned',
+      completed_at: nextCompletedAt,
+      completed_exercise_entry_id: nextCompletedAt ? session.completed_exercise_entry_id ?? `exercise-${Date.now()}` : null
+    };
+    const optimisticEntry = mapPlannedWorkoutSessionToEntry(optimisticSession);
+
+    setPlannedExerciseUpdatingId(entry.id);
+    setTrackerTone('checking');
+    setTrackerStatus(
+      `${entry.title} ${nextCompletedAt ? 'completed' : 'marked incomplete'}`
+    );
+    setTrackerError(null);
+    setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? optimisticSession : item)));
+    setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? optimisticEntry : item)));
+
+    try {
+      if (!foodSessionToken) {
+        throw new Error('Create a live local session before updating planned exercise.');
+      }
+      const saved = await updatePlannedWorkoutSessionCompletion(entry.id, nextCompletedAt, foodSessionToken);
+      setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? saved : item)));
+      setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? mapPlannedWorkoutSessionToEntry(saved) : item)));
+      setExerciseEntries(await fetchExerciseEntries(foodSessionToken));
+      setTrackerTone('live');
+      setTrackerStatus(
+        `${entry.title} ${nextCompletedAt ? 'completed' : 'marked incomplete'}`
+      );
+    } catch (error) {
+      setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? session : item)));
+      setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? entry : item)));
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not update ${entry.title}`);
+      setTrackerError(error instanceof Error ? error.message : 'Unable to update planned exercise completion.');
+    } finally {
+      setPlannedExerciseUpdatingId(null);
     }
   }
 
@@ -2287,6 +2595,8 @@ export default function App(): ReactElement {
   async function toggleMealPlanMeal(day: MealPlanDay, slotId: string, slotLabel: string) {
     const currentlyLogged = mealPlanEatenSlots[day.id]?.[slotId] ?? null;
     const nextEatenAt = currentlyLogged ? null : new Date().toISOString();
+    const isSelectedHomeDay = day.plan_date === selectedHomeDate;
+    const isTodayPlan = day.plan_date === todayKey;
 
     setMealPlanEatenSlots((current) => {
       const nextDayState = { ...(current[day.id] ?? {}) };
@@ -2332,6 +2642,21 @@ export default function App(): ReactElement {
               .map((slot) => [slot.id, slot.eaten_at as string])
           ),
         }));
+        if (isTodayPlan) {
+          const updatedLog = await fetchFoodLogForDate(todayKey, foodSessionToken);
+          setFoodLog(updatedLog);
+          setFoodLogTone('live');
+          setFoodLogError(null);
+          setFoodLogStatus(
+            updatedLog.entries.length === 0
+              ? 'No foods logged yet'
+              : `${updatedLog.entries.length} persisted entr${updatedLog.entries.length === 1 ? 'y' : 'ies'} loaded`
+          );
+        }
+        if (isSelectedHomeDay) {
+          const updatedHomeLog = await fetchFoodLogForDate(selectedHomeDate, foodSessionToken);
+          setHomeFoodLog(updatedHomeLog);
+        }
       }
       setMealPlanTone('live');
       setMealPlanStatus(`${slotLabel} ${currentlyLogged ? 'unchecked' : 'logged as eaten'} for ${day.label}`);
@@ -3111,8 +3436,7 @@ export default function App(): ReactElement {
         <View style={styles.appHeader}>
           <View style={styles.appShellTopRow}>
             <View style={styles.appHeaderTitleWrap}>
-              <Text style={styles.appEyebrow}>Relish</Text>
-              <Text style={styles.appTitle}>{currentSectionMeta.label}</Text>
+              <Text style={[styles.appBrandTitle, ribeyeLoaded && styles.appBrandTitleDisplay]}>Relish</Text>
             </View>
             <View style={styles.appShellActions}>
               <Pressable
@@ -3136,23 +3460,6 @@ export default function App(): ReactElement {
                 </View>
               </Pressable>
             </View>
-          </View>
-
-          <Text style={styles.appDetail}>{currentSectionMeta.detail}</Text>
-
-          <View style={styles.primarySectionTabs}>
-            {primaryAppSections.map((item) => {
-              const active = item.id === section;
-              return (
-                <Pressable
-                  key={item.id}
-                  style={[styles.sectionTab, active && styles.sectionTabActive]}
-                  onPress={() => handleSectionChange(item.id)}
-                >
-                  <Text style={[styles.sectionTabLabel, active && styles.sectionTabLabelActive]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
           </View>
 
           {isShellMenuOpen ? (
@@ -3250,10 +3557,40 @@ export default function App(): ReactElement {
         {section === 'dashboard' && (
           <>
             <View style={styles.dashboardStack}>
-              <View style={styles.detailCard}>
+              <View style={styles.homeSection}>
                 <View style={styles.dailyHomeSummaryHeader}>
                   <View>
                     <Text style={styles.detailTitle}>Daily Plan</Text>
+                    <Text style={styles.detailSubtitle}>{formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
+                  </View>
+                  <View style={styles.homeDateNavigator}>
+                    <Pressable
+                      style={[styles.homeDateButton, selectedHomeDateIndex <= 0 && styles.homeDateButtonDisabled]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show previous day"
+                      disabled={selectedHomeDateIndex <= 0}
+                      onPress={() => setSelectedHomeDate(homeDateOptions[Math.max(selectedHomeDateIndex - 1, 0)] ?? selectedHomeDate)}
+                    >
+                      <Text style={styles.homeDateButtonLabel}>{'<'}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.homeDateButton,
+                        selectedHomeDateIndex < 0 || selectedHomeDateIndex >= homeDateOptions.length - 1
+                          ? styles.homeDateButtonDisabled
+                          : null
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show next day"
+                      disabled={selectedHomeDateIndex < 0 || selectedHomeDateIndex >= homeDateOptions.length - 1}
+                      onPress={() =>
+                        setSelectedHomeDate(
+                          homeDateOptions[Math.min(selectedHomeDateIndex + 1, homeDateOptions.length - 1)] ?? selectedHomeDate
+                        )
+                      }
+                    >
+                      <Text style={styles.homeDateButtonLabel}>{'>'}</Text>
+                    </Pressable>
                   </View>
                 </View>
 
@@ -3276,7 +3613,7 @@ export default function App(): ReactElement {
                 </Text>
               </View>
 
-              <View style={styles.detailCard}>
+              <View style={styles.homeSection}>
                 <View style={styles.recipeRowTitleWrap}>
                   <View>
                     <Text style={styles.detailTitle}>Consumed calories</Text>
@@ -3285,26 +3622,23 @@ export default function App(): ReactElement {
                 <View style={styles.dailyHomeMacroRingRow}>
                   <MacroSplitRing
                     label="Protein"
-                    grams={Math.round(foodLog.totals.macros.protein)}
-                    percentage={consumedMacroSplit.protein}
-                    color="#0f766e"
+                    consumed={Math.round(homeConsumedMacros.protein)}
+                    target={Math.round(dailyHomeTargets.macroTargets.protein)}
+                    baseColor="#0f766e"
                   />
                   <MacroSplitRing
                     label="Carbs"
-                    grams={Math.round(foodLog.totals.macros.carbs)}
-                    percentage={consumedMacroSplit.carbs}
-                    color="#ea580c"
+                    consumed={Math.round(homeConsumedMacros.carbs)}
+                    target={Math.round(dailyHomeTargets.macroTargets.carbs)}
+                    baseColor="#ea580c"
                   />
                   <MacroSplitRing
                     label="Fat"
-                    grams={Math.round(foodLog.totals.macros.fat)}
-                    percentage={consumedMacroSplit.fat}
-                    color="#2563eb"
+                    consumed={Math.round(homeConsumedMacros.fat)}
+                    target={Math.round(dailyHomeTargets.macroTargets.fat)}
+                    baseColor="#2563eb"
                   />
                 </View>
-                <Text style={styles.dailyHomeMacroLegend}>
-                  P ({Math.round(foodLog.totals.macros.protein)}g) · C ({Math.round(foodLog.totals.macros.carbs)}g) · F ({Math.round(foodLog.totals.macros.fat)}g)
-                </Text>
                 {homeConsumedCalories === 0 ? (
                   <Text style={styles.dailyHomeEmptyState}>No calories logged yet.</Text>
                 ) : null}
@@ -3318,25 +3652,29 @@ export default function App(): ReactElement {
                     ranges={rangeTabs}
                   />
                 }
-                detail={`${dailyHomeTargets.calorieTarget.toLocaleString()} kcal target · ${homeConsumedCalories.toLocaleString()} kcal consumed`}
+                caption={null}
+                detail={null}
                 legendLabel="Consumed calories"
+                plannedLabel="Planned calories"
+                plannedValue={dailyMealPlanSummary.hasPlan ? dailyMealPlanSummary.plannedCalories : null}
                 points={homeChartPoints}
                 range={activeRange}
                 targetLabel="Target calories"
                 targetValue={homeChartTargetValue}
                 title="Calories"
+                flat
               />
 
-              <View style={styles.detailCard}>
+              <View style={styles.homeSection}>
                   <View style={styles.recipeRowTitleWrap}>
                     <View>
                       <Text style={styles.panelEyebrow}>Planned exercise</Text>
-                      <Text style={styles.detailTitle}>Today&apos;s session</Text>
+                      <Text style={styles.detailTitle}>{formatHomeSectionTitle(selectedHomeDate, todayKey, 'session')}</Text>
                     </View>
                     <Text style={styles.detailSubtitle}>
                       {dailyExerciseSummary.sessionCount > 0
-                        ? `${dailyExerciseSummary.sessionCount} session${dailyExerciseSummary.sessionCount === 1 ? '' : 's'} logged`
-                        : 'No exercise saved yet'}
+                        ? `${dailyExerciseSummary.sessionCount} session${dailyExerciseSummary.sessionCount === 1 ? '' : 's'} planned`
+                        : 'No planned exercise yet'}
                     </Text>
                   </View>
 
@@ -3346,16 +3684,33 @@ export default function App(): ReactElement {
                   </View>
 
                   <View>
-                    {exerciseEntries.length > 0 ? (
-                      exerciseEntries.slice(0, 2).map((entry) => (
+                    {homePlannedExerciseEntries.length > 0 ? (
+                      homePlannedExerciseEntries.slice(0, 2).map((entry) => (
                         <View key={entry.id} style={styles.listRow}>
-                          <View>
+                          <View style={styles.listRowCopyFlex}>
                             <Text style={styles.listTitle}>{entry.title}</Text>
                             <Text style={styles.listCaption}>
-                              {entry.logged_at} · {entry.duration_minutes} min · {entry.intensity}
+                              {entry.completed_at
+                                ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}`
+                                : `${entry.planned_at} · ${entry.duration_minutes} min · ${entry.intensity}`}
                             </Text>
                           </View>
-                          <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                          <View style={styles.listRowActions}>
+                            <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                            <Pressable
+                              style={[styles.inlinePillButton, entry.completed_at ? styles.inlinePillButtonComplete : null]}
+                              onPress={() => void togglePlannedExerciseCompletion(entry)}
+                              disabled={plannedExerciseUpdatingId === entry.id}
+                            >
+                              <Text style={[styles.inlinePillButtonLabel, entry.completed_at ? styles.inlinePillButtonLabelComplete : null]}>
+                                {plannedExerciseUpdatingId === entry.id
+                                  ? 'Saving...'
+                                  : entry.completed_at
+                                    ? 'Undo'
+                                    : 'Complete'}
+                              </Text>
+                            </Pressable>
+                          </View>
                         </View>
                       ))
                     ) : (
@@ -3364,10 +3719,11 @@ export default function App(): ReactElement {
                   </View>
               </View>
 
-              <View style={styles.detailCard}>
+              <View style={styles.homeSection}>
                   <View style={styles.recipeRowTitleWrap}>
                     <View>
                       <Text style={styles.detailTitle}>Meal Plan</Text>
+                      <Text style={styles.detailSubtitle}>{formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
                       {dailyMealPlanSummary.hasPlan ? (
                         <Text style={styles.detailSubtitle}>
                           P {Math.round(dailyMealPlanSummary.plannedMacros.protein)}g · C {Math.round(dailyMealPlanSummary.plannedMacros.carbs)}g · F {Math.round(dailyMealPlanSummary.plannedMacros.fat)}g
@@ -3388,22 +3744,22 @@ export default function App(): ReactElement {
 
                   {dailyMealPlanSummary.hasPlan ? (
                     <>
-                      {todayMealPlanDay?.slots.map((slot) => {
-                        const logged = todayMealPlanEatenSlots[slot.id] ?? false;
+                      {homeMealPlanDay?.slots.map((slot) => {
+                        const logged = homeMealPlanEatenSlots[slot.id] ?? false;
                         const slotItems = slot.items ?? [];
                         return (
                           <Pressable
                             key={slot.id}
                             style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
-                            onPress={() => void toggleMealPlanMeal(todayMealPlanDay, slot.id, slot.meal_label)}
+                            onPress={() => void toggleMealPlanMeal(homeMealPlanDay, slot.id, slot.meal_label)}
                           >
                             <View style={styles.mealPlanSlotHeader}>
                               <View style={styles.dailyHomeMealPlanSlotCopy}>
                                 <View style={styles.mealPlanSlotTitleRow}>
-                                  <Text style={styles.listTitle}>{slot.meal_label}</Text>
+                                  <Text style={styles.mealPlanSlotLabel}>{slot.meal_label}</Text>
                                   <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
                                 </View>
-                                <Text style={styles.listCaption}>{slot.title}</Text>
+                                <Text style={styles.mealPlanSlotSubtitle}>{slot.title}</Text>
                               </View>
                               <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
                                 <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
@@ -4044,10 +4400,209 @@ export default function App(): ReactElement {
             </View>
 
             <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Planned exercise</Text>
+              <Text style={styles.panelTitle}>Plan a workout for the selected Home date</Text>
+              <Text style={styles.panelDetail}>
+                Save a future or same-day training session so Home can show planned movement separately from completed tracker logs.
+              </Text>
+
+              <View style={styles.inlinePillRow}>
+                <Text style={styles.inlinePillText}>Planning for {formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
+              </View>
+
+              {plannedExerciseEditingId ? (
+                <View style={styles.searchRow}>
+                  <View style={styles.inlinePillRow}>
+                    <Text style={styles.inlinePillText}>Editing planned session</Text>
+                  </View>
+                  <Pressable style={styles.inlinePillButton} onPress={resetPlannedExerciseDrafts}>
+                    <Text style={styles.inlinePillButtonLabel}>Cancel edit</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <View style={styles.exercisePresetGrid}>
+                {exercisePresets.map((preset) => {
+                  const active = preset.id === activePlannedExercisePreset.id;
+                  return (
+                    <Pressable
+                      key={`planned-${preset.id}`}
+                      style={[styles.exercisePresetCard, active && styles.exercisePresetCardActive]}
+                      onPress={() => {
+                        setPlannedExerciseTitleDraft(preset.title);
+                        setPlannedExerciseMinutesDraft(preset.minutes);
+                      }}
+                    >
+                      <Image source={preset.image} style={styles.exercisePresetImage} resizeMode="contain" />
+                      <Text style={styles.exercisePresetLabel}>{preset.label}</Text>
+                      <Text style={styles.exercisePresetMeta}>
+                        {preset.minutes} min · est. {preset.calories} kcal
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={plannedExerciseTitleDraft}
+                  onChangeText={setPlannedExerciseTitleDraft}
+                  placeholder="Swim, walk, lift..."
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  autoCorrect={false}
+                />
+                <Pressable style={styles.primaryButton} onPress={() => void addPlannedExerciseEntry()}>
+                  <Text style={styles.primaryButtonLabel}>
+                    {plannedExerciseSaving ? 'Saving...' : plannedExerciseEditingId ? 'Update plan' : 'Plan exercise'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={plannedExerciseMinutesDraft}
+                  onChangeText={setPlannedExerciseMinutesDraft}
+                  placeholder="Main set minutes"
+                  placeholderTextColor="#7c8aa5"
+                  style={styles.searchInput}
+                  keyboardType="numeric"
+                  autoCorrect={false}
+                />
+                <View style={styles.metricTileCompact}>
+                  <Text style={styles.metricLabel}>Estimated burn</Text>
+                  <Text style={styles.metricValue}>{estimatedPlannedExerciseCalories} kcal</Text>
+                </View>
+              </View>
+
+              <View style={styles.listActionRow}>
+                <Pressable
+                  style={[styles.inlinePillButton, plannedExerciseWarmupEnabled ? styles.inlinePillButtonComplete : null]}
+                  onPress={() => setPlannedExerciseWarmupEnabled((current) => !current)}
+                >
+                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseWarmupEnabled ? styles.inlinePillButtonLabelComplete : null]}>
+                    {plannedExerciseWarmupEnabled ? 'Remove warmup' : 'Add warmup'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.inlinePillButton, plannedExerciseCooldownEnabled ? styles.inlinePillButtonComplete : null]}
+                  onPress={() => setPlannedExerciseCooldownEnabled((current) => !current)}
+                >
+                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseCooldownEnabled ? styles.inlinePillButtonLabelComplete : null]}>
+                    {plannedExerciseCooldownEnabled ? 'Remove cooldown' : 'Add cooldown'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {plannedExerciseWarmupEnabled ? (
+                <View style={styles.searchRow}>
+                  <TextInput
+                    value={plannedExerciseWarmupMinutesDraft}
+                    onChangeText={setPlannedExerciseWarmupMinutesDraft}
+                    placeholder="Warmup minutes"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.searchInput}
+                    keyboardType="numeric"
+                    autoCorrect={false}
+                  />
+                  <View style={styles.inlinePillRow}>
+                    <Text style={styles.inlinePillText}>{defaultWarmupTitle(activePlannedExercisePreset.id)}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {plannedExerciseCooldownEnabled ? (
+                <View style={styles.searchRow}>
+                  <TextInput
+                    value={plannedExerciseCooldownMinutesDraft}
+                    onChangeText={setPlannedExerciseCooldownMinutesDraft}
+                    placeholder="Cooldown minutes"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.searchInput}
+                    keyboardType="numeric"
+                    autoCorrect={false}
+                  />
+                  <View style={styles.inlinePillRow}>
+                    <Text style={styles.inlinePillText}>{defaultCooldownTitle(activePlannedExercisePreset.id)}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={styles.metricRow}>
+                <MetricTile label="Minutes" value={`${plannedExerciseMinutesDraft} min`} compact />
+                <MetricTile label="Estimated burn" value={`${estimatedPlannedExerciseCalories} kcal`} compact />
+              </View>
+
+              <View style={styles.foodList}>
+                {plannedExerciseEntries.length > 0 ? (
+                  plannedExerciseEntries.map((entry) => (
+                    <View key={entry.id} style={styles.foodRow}>
+                      <View style={styles.foodRowCopy}>
+                        <Text style={styles.listTitle}>{entry.title}</Text>
+                        <Text style={styles.listCaption}>
+                          {formatHomeDateLabel(entry.planned_on, todayKey)} · {entry.duration_minutes} min · {entry.intensity} · {entry.completed_at ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}` : entry.planned_at}
+                        </Text>
+                        {plannedWorkoutSessions.find((session) => session.id === entry.id)?.blocks.length ? (
+                          <Text style={styles.listCaption}>
+                            {plannedWorkoutSessions
+                              .find((session) => session.id === entry.id)
+                              ?.blocks.map((block) => `${block.title}: ${block.segments.map((segment) => segment.title).join(', ')}`)
+                              .join(' · ')}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.listRowActions}>
+                        <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                        <View style={styles.listActionRow}>
+                          <Pressable
+                            style={styles.inlinePillButton}
+                            onPress={() => beginPlannedExerciseEdit(entry)}
+                            disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
+                          >
+                            <Text style={styles.inlinePillButtonLabel}>Edit</Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.inlinePillButton}
+                            onPress={() => void removePlannedExerciseEntry(entry)}
+                            disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
+                          >
+                            <Text style={styles.inlinePillButtonLabel}>
+                              {plannedExerciseDeletingId === entry.id ? 'Deleting...' : 'Delete'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.inlinePillButton, entry.completed_at ? styles.inlinePillButtonComplete : null]}
+                            onPress={() => void togglePlannedExerciseCompletion(entry)}
+                            disabled={plannedExerciseUpdatingId === entry.id || plannedExerciseDeletingId === entry.id}
+                          >
+                            <Text style={[styles.inlinePillButtonLabel, entry.completed_at ? styles.inlinePillButtonLabelComplete : null]}>
+                              {plannedExerciseUpdatingId === entry.id
+                                ? 'Saving...'
+                                : entry.completed_at
+                                  ? 'Undo'
+                                  : 'Complete'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailTitle}>No planned sessions yet</Text>
+                    <Text style={styles.detailSubtitle}>
+                      Add a workout above to populate Home with future planned exercise.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.panel}>
               <Text style={styles.panelEyebrow}>Exercise performed</Text>
               <Text style={styles.panelTitle}>Log activity output</Text>
               <Text style={styles.panelDetail}>
-                Capture exercise locally now so the tracker reflects both food and movement in one place.
+                Capture completed exercise separately so tracker history reflects performed movement rather than planned sessions.
               </Text>
 
               <View style={styles.exercisePresetGrid}>
@@ -4849,20 +5404,31 @@ function MetricTile({
 }
 
 function MacroSplitRing({
+  baseColor,
+  consumed,
   label,
-  grams,
-  percentage,
-  color
+  target
 }: {
+  baseColor: string;
+  consumed: number;
   label: string;
-  grams: number;
-  percentage: number;
-  color: string;
+  target: number;
 }): ReactElement {
   const radius = 20;
   const circumference = 2 * Math.PI * radius;
-  const clamped = Math.max(0, Math.min(percentage, 100));
+  const ratio = target > 0 ? consumed / target : 0;
+  const percent = target > 0 ? Math.round(ratio * 100) : 0;
+  const clamped = Math.max(0, Math.min(percent, 100));
+  const overflowPercent = Math.max(0, percent - 100);
   const offset = circumference - (clamped / 100) * circumference;
+  const overflowOffset = circumference - (Math.min(overflowPercent, 100) / 100) * circumference;
+
+  let accentColor = baseColor;
+  if (ratio >= 1.2) {
+    accentColor = '#b91c1c';
+  } else if (ratio >= 0.9 && ratio <= 1.1) {
+    accentColor = '#15803d';
+  }
 
   return (
     <View style={styles.macroSplitRingCard}>
@@ -4873,7 +5439,7 @@ function MacroSplitRing({
             cx="27"
             cy="27"
             r={radius}
-            stroke={color}
+            stroke={accentColor}
             strokeWidth="7"
             fill="none"
             strokeDasharray={`${circumference} ${circumference}`}
@@ -4882,13 +5448,48 @@ function MacroSplitRing({
             rotation="-90"
             origin="27,27"
           />
+          {overflowPercent > 0 ? (
+            <Circle
+              cx="27"
+              cy="27"
+              r={radius + 4}
+              stroke="#b91c1c"
+              strokeWidth="3"
+              fill="none"
+              strokeDasharray={`${circumference} ${circumference}`}
+              strokeDashoffset={overflowOffset}
+              strokeLinecap="round"
+              rotation="-90"
+              origin="27,27"
+            />
+          ) : null}
         </Svg>
         <View style={styles.macroSplitRingCenter}>
-          <Text style={styles.macroSplitRingPercent}>{clamped}%</Text>
+          <Text
+            style={[
+              styles.macroSplitRingPercent,
+              ratio >= 1.2
+                ? styles.macroSplitRingPercentOver
+                : ratio >= 0.9 && ratio <= 1.1
+                  ? styles.macroSplitRingPercentNear
+                  : null
+            ]}>
+            {Math.max(percent, 0)}%
+          </Text>
         </View>
       </View>
       <Text style={styles.macroSplitRingLabel}>{label}</Text>
-      <Text style={styles.macroSplitRingValue}>{grams}g</Text>
+      <Text
+        style={[
+          styles.macroSplitRingValue,
+          ratio >= 1.2
+            ? styles.macroSplitRingValueOver
+            : ratio >= 0.9 && ratio <= 1.1
+              ? styles.macroSplitRingValueNear
+              : null
+        ]}>
+        {consumed}g
+      </Text>
     </View>
   );
 }
@@ -4986,6 +5587,79 @@ function formatLogDate(value: string): string {
     month: 'short',
     day: 'numeric'
   });
+}
+
+function addDaysToIsoDate(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatHomeDateLabel(value: string, todayKey: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const base = date.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+  if (value === todayKey) {
+    return `Today · ${base}`;
+  }
+  return base;
+}
+
+function formatHomeSectionTitle(value: string, todayKey: string, noun: string): string {
+  return value === todayKey ? `Today's ${noun}` : `${formatHomeDateLabel(value, todayKey)} ${noun}`;
+}
+
+function formatCompletionTimeLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function deriveExerciseIntensity(
+  durationMinutes: number,
+  caloriesBurned: number
+): PlannedExerciseEntry['intensity'] {
+  if (caloriesBurned >= 300) {
+    return 'High';
+  }
+  if (durationMinutes >= 30) {
+    return 'Moderate';
+  }
+  return 'Low';
+}
+
+function estimatePlannedExerciseCalories(
+  durationMinutes: number,
+  preset: (typeof exercisePresets)[number]
+): number {
+  const presetMinutes = Number(preset.minutes);
+  const presetCalories = Number(preset.calories);
+  if (!Number.isFinite(presetMinutes) || presetMinutes <= 0 || !Number.isFinite(presetCalories) || presetCalories <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.round((presetCalories / presetMinutes) * durationMinutes));
+}
+
+function sortPlannedExerciseEntries(entries: PlannedExerciseEntry[]): PlannedExerciseEntry[] {
+  return [...entries].sort((left, right) =>
+    `${left.planned_on}T${left.planned_at}`.localeCompare(`${right.planned_on}T${right.planned_at}`)
+  );
 }
 
 function createEmptyFoodLog(date = new Date().toISOString().slice(0, 10)): FoodLogSummary {
@@ -5375,12 +6049,9 @@ const styles = StyleSheet.create({
     fontSize: 15
   },
   appHeader: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#d7dee7',
-    padding: 18,
-    gap: 14
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    gap: 0
   },
   appShellTopRow: {
     flexDirection: 'row',
@@ -5389,7 +6060,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   appHeaderTitleWrap: {
-    gap: 4,
+    gap: 2,
     flex: 1,
     minWidth: 0,
     paddingRight: 4
@@ -5400,26 +6071,23 @@ const styles = StyleSheet.create({
     gap: 8,
     flexShrink: 0
   },
-  appEyebrow: {
-    color: '#0f766e',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.1
-  },
-  appTitle: {
+  appBrandTitle: {
     color: '#132536',
-    fontSize: 22,
+    fontSize: 28,
+    lineHeight: 30,
     fontWeight: '800'
   },
-  appDetail: {
-    color: '#66778c',
-    fontSize: 12,
-    lineHeight: 18
+  appBrandTitleDisplay: {
+    fontFamily: 'Ribeye_400Regular',
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: '400',
+    letterSpacing: 0.4
   },
   avatarButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: '#d7dee7',
     backgroundColor: '#f7f4ef',
@@ -5427,9 +6095,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   avatarBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center'
@@ -5439,9 +6107,9 @@ const styles = StyleSheet.create({
     height: '100%'
   },
   menuButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#d7dee7',
     backgroundColor: '#ffffff',
@@ -5769,11 +6437,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
-  primarySectionTabs: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
   shellMenuCard: {
     backgroundColor: '#f9fbfd',
     borderRadius: 20,
@@ -5892,26 +6555,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center'
   },
-  sectionTab: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#ced7e3',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: '#ffffff'
-  },
-  sectionTabActive: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
-  },
-  sectionTabLabel: {
-    color: '#17324d',
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  sectionTabLabelActive: {
-    color: '#ffffff'
-  },
   panel: {
     backgroundColor: '#ffffff',
     borderRadius: 24,
@@ -5938,13 +6581,41 @@ const styles = StyleSheet.create({
     lineHeight: 18
   },
   dashboardStack: {
-    gap: 14
+    gap: 0
+  },
+  homeSection: {
+    paddingVertical: 16,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dbe3ec'
   },
   dailyHomeSummaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 12
+  },
+  homeDateNavigator: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  homeDateButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ced7e3',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  homeDateButtonDisabled: {
+    opacity: 0.45
+  },
+  homeDateButtonLabel: {
+    color: '#17324d',
+    fontSize: 16,
+    fontWeight: '800'
   },
   dailyHomeGoalBadge: {
     backgroundColor: '#edf8f1',
@@ -6043,14 +6714,25 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     gap: 12
   },
+  mealPlanSlotLabel: {
+    color: '#132536',
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 20
+  },
+  mealPlanSlotSubtitle: {
+    color: '#7890ad',
+    fontSize: 13,
+    lineHeight: 18
+  },
   mealPlanSlotTotal: {
     color: '#17324d',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800'
   },
   mealPlanItemList: {
-    gap: 8,
-    marginTop: 4
+    gap: 10,
+    marginTop: 6
   },
   mealPlanItemRow: {
     flexDirection: 'row',
@@ -6064,29 +6746,30 @@ const styles = StyleSheet.create({
   },
   mealPlanItemName: {
     color: '#17324d',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700'
   },
   mealPlanItemQuantityInline: {
-    color: '#66778c',
+    color: '#7c8aa5',
     fontSize: 13,
     fontWeight: '500'
   },
   mealPlanItemInlineMeta: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
+    alignItems: 'baseline',
+    gap: 16,
     justifyContent: 'flex-end',
     flexWrap: 'wrap'
   },
   mealPlanItemMacroLine: {
-    color: '#66778c',
-    fontSize: 12,
+    color: '#73859d',
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: 'right'
   },
   mealPlanItemCalories: {
     color: '#17324d',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700'
   },
   macroSplitRingCard: {
@@ -6116,6 +6799,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800'
   },
+  macroSplitRingPercentNear: {
+    color: '#15803d'
+  },
+  macroSplitRingPercentOver: {
+    color: '#b91c1c'
+  },
   macroSplitRingLabel: {
     color: '#66778c',
     fontSize: 11,
@@ -6126,6 +6815,12 @@ const styles = StyleSheet.create({
     color: '#132536',
     fontSize: 14,
     fontWeight: '800'
+  },
+  macroSplitRingValueNear: {
+    color: '#15803d'
+  },
+  macroSplitRingValueOver: {
+    color: '#b91c1c'
   },
   dailyHomeEmptyState: {
     color: '#66778c',
@@ -6765,6 +7460,41 @@ const styles = StyleSheet.create({
     color: '#17324d',
     fontSize: 12,
     fontWeight: '800'
+  },
+  inlinePillRow: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cdd8e5',
+    backgroundColor: '#f6f9fc',
+    paddingHorizontal: 12,
+    paddingVertical: 7
+  },
+  inlinePillText: {
+    color: '#4c627a',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  inlinePillButtonComplete: {
+    borderColor: '#15803d',
+    backgroundColor: '#edf8f1'
+  },
+  inlinePillButtonLabelComplete: {
+    color: '#15803d'
+  },
+  listRowCopyFlex: {
+    flex: 1,
+    minWidth: 0
+  },
+  listRowActions: {
+    alignItems: 'flex-end',
+    gap: 8
+  },
+  listActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8
   },
   favoriteToggleButton: {
     width: 42,

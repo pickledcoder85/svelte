@@ -18,14 +18,20 @@ describe('app shell metadata', () => {
   });
 
   it('keeps secondary destinations inside menu groups', () => {
-    expect(appShellMenuGroups.map((group) => group.title)).toEqual(['Organize', 'Account']);
+    expect(appShellMenuGroups.map((group) => group.title)).toEqual(['Navigate', 'Organize', 'Account']);
     expect(appShellMenuGroups[0]?.sections.map((section) => section.id)).toEqual([
+      'dashboard',
+      'tracker',
+      'foods',
+      'ingestion'
+    ]);
+    expect(appShellMenuGroups[1]?.sections.map((section) => section.id)).toEqual([
       'meals',
       'meal-plan',
       'meal-prep',
       'recipes'
     ]);
-    expect(appShellMenuGroups[1]?.sections.map((section) => section.id)).toEqual(['profile']);
+    expect(appShellMenuGroups[2]?.sections.map((section) => section.id)).toEqual(['profile']);
   });
 
   it('returns consistent section copy and profile initials', () => {

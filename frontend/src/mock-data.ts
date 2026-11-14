@@ -8,12 +8,19 @@ import type {
   MealInput,
   MealPlanDay,
   MealPrepTask,
+  PlannedExerciseEntry,
   RecipeDefinition,
   RecipeImportInput,
   ProfileProgress,
   WeightEntry,
   WeeklyMetrics
 } from './types';
+
+function addDays(base: Date, days: number): Date {
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  return next;
+}
 
 export const demoMeal: MealInput = {
   id: 'meal-breakfast-bowl',
@@ -683,6 +690,7 @@ export const demoExerciseEntries: ExerciseEntry[] = [
     title: 'Incline walk',
     duration_minutes: 35,
     calories_burned: 240,
+    logged_on: new Date().toISOString().slice(0, 10),
     logged_at: '07:15',
     intensity: 'Moderate'
   },
@@ -691,7 +699,29 @@ export const demoExerciseEntries: ExerciseEntry[] = [
     title: 'Upper body lift',
     duration_minutes: 52,
     calories_burned: 310,
+    logged_on: new Date().toISOString().slice(0, 10),
     logged_at: '17:40',
+    intensity: 'High'
+  }
+];
+
+export const demoPlannedExerciseEntries: PlannedExerciseEntry[] = [
+  {
+    id: 'planned-swim',
+    title: 'Swim 2000m · 400m warmup · 4 x 50m drills · 10 x 100m steady · 400m cool-down',
+    duration_minutes: 55,
+    calories_burned: 520,
+    planned_on: new Date().toISOString().slice(0, 10),
+    planned_at: '06:30',
+    intensity: 'High'
+  },
+  {
+    id: 'planned-lift',
+    title: 'Upper body lift',
+    duration_minutes: 52,
+    calories_burned: 310,
+    planned_on: addDays(new Date(), 1).toISOString().slice(0, 10),
+    planned_at: '17:40',
     intensity: 'High'
   }
 ];

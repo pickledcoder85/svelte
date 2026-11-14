@@ -23,6 +23,10 @@ export const primaryAppSections = appShellSections.filter((section) => section.g
 
 export const appShellMenuGroups: Array<{ title: string; sections: AppShellSectionMeta[] }> = [
   {
+    title: 'Navigate',
+    sections: appShellSections.filter((section) => section.group === 'primary')
+  },
+  {
     title: 'Organize',
     sections: appShellSections.filter((section) => section.group === 'organize')
   },

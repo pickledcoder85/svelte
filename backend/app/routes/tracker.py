@@ -7,6 +7,14 @@ from backend.app.models.tracker import (
     MealPlanDay,
     MealPlanDayCreateRequest,
     MealPlanSlotEatenAtUpdateRequest,
+    PlannedExerciseEntryCompletionRequest,
+    PlannedExerciseEntry,
+    PlannedExerciseEntryCreateRequest,
+    PlannedExerciseEntryUpdateRequest,
+    PlannedWorkoutSession,
+    PlannedWorkoutSessionCompletionRequest,
+    PlannedWorkoutSessionCreateRequest,
+    PlannedWorkoutSessionUpdateRequest,
     MealPrepTask,
     MealPrepTaskCreateRequest,
     MealPrepTaskStatusUpdateRequest,
@@ -14,11 +22,21 @@ from backend.app.models.tracker import (
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.tracker import (
     create_exercise_entry,
+    create_planned_exercise_entry,
+    create_planned_workout_session,
     create_meal_prep_task,
+    delete_planned_workout_session,
     list_exercise_entries,
     list_meal_plan_days,
+    list_planned_exercise_entries,
+    list_planned_workout_sessions,
     list_meal_prep_tasks,
     save_meal_plan_day,
+    delete_planned_exercise_entry,
+    update_planned_exercise_entry,
+    update_planned_exercise_entry_completion,
+    update_planned_workout_session,
+    update_planned_workout_session_completion,
     update_meal_plan_slot_eaten_at,
     update_meal_prep_task_status,
 )
@@ -40,6 +58,124 @@ async def create_exercise(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> ExerciseEntry:
     return create_exercise_entry(repository, session, payload)
+
+
+@router.get("/planned-exercise", response_model=list[PlannedExerciseEntry])
+async def read_planned_exercise_entries(
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> list[PlannedExerciseEntry]:
+    return list_planned_exercise_entries(repository, session.user_id)
+
+
+@router.get("/planned-workout-sessions", response_model=list[PlannedWorkoutSession])
+async def read_planned_workout_sessions(
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> list[PlannedWorkoutSession]:
+    return list_planned_workout_sessions(repository, session.user_id)
+
+
+@router.post("/planned-exercise", response_model=PlannedExerciseEntry)
+async def create_planned_exercise(
+    payload: PlannedExerciseEntryCreateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> PlannedExerciseEntry:
+    return create_planned_exercise_entry(repository, session, payload)
+
+
+@router.post("/planned-workout-sessions", response_model=PlannedWorkoutSession)
+async def create_planned_workout(
+    payload: PlannedWorkoutSessionCreateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> PlannedWorkoutSession:
+    return create_planned_workout_session(repository, session, payload)
+
+
+@router.put("/planned-workout-sessions/{session_id}", response_model=PlannedWorkoutSession)
+async def update_planned_workout(
+    session_id: str,
+    payload: PlannedWorkoutSessionUpdateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> PlannedWorkoutSession:
+    planned_workout_session = update_planned_workout_session(repository, session.user_id, session_id, payload)
+    if planned_workout_session is None:
+        raise HTTPException(status_code=404, detail="Planned workout session not found.")
+    return planned_workout_session
+
+
+@router.patch("/planned-workout-sessions/{session_id}/completion", response_model=PlannedWorkoutSession)
+async def update_planned_workout_completion(
+    session_id: str,
+    payload: PlannedWorkoutSessionCompletionRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> PlannedWorkoutSession:
+    planned_workout_session = update_planned_workout_session_completion(
+        repository,
+        session.user_id,
+        session_id,
+        payload.completed_at,
+    )
+    if planned_workout_session is None:
+        raise HTTPException(status_code=404, detail="Planned workout session not found.")
+    return planned_workout_session
+
+
+@router.delete("/planned-workout-sessions/{session_id}", status_code=204)
+async def delete_planned_workout(
+    session_id: str,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> None:
+    deleted = delete_planned_workout_session(repository, session.user_id, session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Planned workout session not found.")
+
+
+@router.put("/planned-exercise/{entry_id}", response_model=PlannedExerciseEntry)
+async def update_planned_exercise(
+    entry_id: str,
+    payload: PlannedExerciseEntryUpdateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> PlannedExerciseEntry:
+    entry = update_planned_exercise_entry(repository, session.user_id, entry_id, payload)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Planned exercise entry not found.")
+    return entry
+
+
+@router.delete("/planned-exercise/{entry_id}", status_code=204)
+async def delete_planned_exercise(
+    entry_id: str,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> None:
+    deleted = delete_planned_exercise_entry(repository, session.user_id, entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Planned exercise entry not found.")
+
+
+@router.patch("/planned-exercise/{entry_id}/completion", response_model=PlannedExerciseEntry)
+async def update_planned_exercise_completion(
+    entry_id: str,
+    payload: PlannedExerciseEntryCompletionRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> PlannedExerciseEntry:
+    entry = update_planned_exercise_entry_completion(
+        repository,
+        session.user_id,
+        entry_id,
+        payload.completed_at,
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Planned exercise entry not found.")
+    return entry
 
 
 @router.get("/meal-plan", response_model=list[MealPlanDay])

@@ -25,16 +25,21 @@ class OnboardingAlreadyCompletedError(RuntimeError):
     pass
 
 
-def _seed_default_meal_plan_for_today(
+def ensure_default_meal_plan_window(
     repository: SQLiteRepository,
     *,
     user_id: str,
-    calorie_target: int,
+    calorie_target: int | None = None,
+    start_date: date | None = None,
+    day_count: int = 4,
 ) -> None:
-    today = date.today()
-    existing_days = repository.list_meal_plan_days(user_id)
-    if any(day.get("plan_date") == today.isoformat() for day in existing_days):
+    profile = repository.get_user_identity(user_id) or {}
+    resolved_target = calorie_target or profile.get("initial_calorie_target")
+    if resolved_target is None:
         return
+    existing_dates = {day.get("plan_date") for day in repository.list_meal_plan_days(user_id)}
+    first_day = start_date or date.today()
+    calorie_target = int(round(resolved_target))
 
     slot_specs = [
         {
@@ -169,13 +174,73 @@ def _seed_default_meal_plan_for_today(
         }
         for spec, calories in zip(slot_specs, rounded, strict=False)
     ]
-    repository.save_meal_plan_day(
-        user_id=user_id,
-        plan_date=today,
-        label=today.strftime("%a"),
-        focus="Daily plan",
-        slots=slots,
-    )
+    for day_offset in range(max(day_count, 1)):
+        plan_day = first_day + timedelta(days=day_offset)
+        if plan_day.isoformat() in existing_dates:
+            continue
+        repository.save_meal_plan_day(
+            user_id=user_id,
+            plan_date=plan_day,
+            label=plan_day.strftime("%a"),
+            focus="Daily plan",
+            slots=slots,
+        )
+
+
+def ensure_default_planned_exercise_window(
+    repository: SQLiteRepository,
+    *,
+    user_id: str,
+    start_date: date | None = None,
+    day_count: int = 4,
+) -> None:
+    existing_dates = {entry.get("planned_on") for entry in repository.list_planned_exercise_entries(user_id)}
+    first_day = start_date or date.today()
+    plan_specs = [
+        {
+            "title": "Swim 2000m · 400m warmup · 4 x 50m drills · 10 x 100m steady · 400m cool-down",
+            "duration_minutes": 55,
+            "calories_burned": 520,
+            "planned_at": "06:30",
+            "intensity": "High",
+        },
+        {
+            "title": "Incline walk",
+            "duration_minutes": 35,
+            "calories_burned": 240,
+            "planned_at": "07:15",
+            "intensity": "Moderate",
+        },
+        {
+            "title": "Upper body lift",
+            "duration_minutes": 52,
+            "calories_burned": 310,
+            "planned_at": "17:40",
+            "intensity": "High",
+        },
+        {
+            "title": "Recovery walk",
+            "duration_minutes": 25,
+            "calories_burned": 140,
+            "planned_at": "18:00",
+            "intensity": "Low",
+        },
+    ]
+
+    for day_offset in range(max(day_count, 1)):
+        planned_day = first_day + timedelta(days=day_offset)
+        if planned_day.isoformat() in existing_dates:
+            continue
+        spec = plan_specs[day_offset % len(plan_specs)]
+        repository.create_planned_exercise_entry(
+            user_id=user_id,
+            title=spec["title"],
+            duration_minutes=spec["duration_minutes"],
+            calories_burned=spec["calories_burned"],
+            planned_on=planned_day,
+            planned_at=spec["planned_at"],
+            intensity=spec["intensity"],
+        )
 
 
 def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> UserProfile:
@@ -187,6 +252,9 @@ def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> User
     profile = repository.get_user_identity(session.user_id)
     if profile is None:
         raise RuntimeError("Failed to load user profile.")
+    if profile.get("setup_completed_at") is not None:
+        ensure_default_meal_plan_window(repository, user_id=session.user_id)
+        ensure_default_planned_exercise_window(repository, user_id=session.user_id)
     return UserProfile.model_validate(profile)
 
 
@@ -250,11 +318,12 @@ def complete_user_onboarding(
         target_source=targets.target_source,
         target_weight_lbs=payload.target_weight_lbs,
     )
-    _seed_default_meal_plan_for_today(
+    ensure_default_meal_plan_window(
         repository,
         user_id=session.user_id,
         calorie_target=targets.calorie_target,
     )
+    ensure_default_planned_exercise_window(repository, user_id=session.user_id)
     if profile is None:
         raise RuntimeError("Failed to persist onboarding profile.")
     return UserProfile.model_validate(profile)
@@ -408,6 +477,13 @@ def update_user_profile(
 
     if profile is None:
         raise RuntimeError("Failed to persist user profile setup state.")
+    if profile.get("setup_completed_at") is not None:
+        ensure_default_meal_plan_window(
+            repository,
+            user_id=session.user_id,
+            calorie_target=profile.get("initial_calorie_target"),
+        )
+        ensure_default_planned_exercise_window(repository, user_id=session.user_id)
     return UserProfile.model_validate(profile)
 
 

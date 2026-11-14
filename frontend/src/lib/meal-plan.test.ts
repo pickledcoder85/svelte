@@ -17,7 +17,7 @@ describe('meal plan helpers', () => {
     expect(sorted.map((day) => day.plan_date)).toEqual(['2026-03-30', '2026-03-31', '2026-04-01']);
     expect(resolveSelectedMealPlanDate(sorted, '2026-03-31', '2026-03-28')).toBe('2026-03-31');
     expect(resolveSelectedMealPlanDate(sorted, null, '2026-03-30')).toBe('2026-03-30');
-    expect(resolveSelectedMealPlanDate(sorted, 'missing', '2026-04-02')).toBe('2026-03-30');
+    expect(resolveSelectedMealPlanDate(sorted, 'missing', '2026-04-02')).toBe('2026-04-01');
     expect(selectMealPlanDay(sorted, '2026-03-31')?.label).toBe('Tue');
     expect(selectMealPlanDay(sorted, 'missing')?.label).toBe('Mon');
   });

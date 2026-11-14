@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -385,12 +385,83 @@ class SQLiteRepository:
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS planned_exercise_entries (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    duration_minutes INTEGER NOT NULL,
+                    calories_burned INTEGER NOT NULL,
+                    planned_on TEXT NOT NULL,
+                    planned_at TEXT NOT NULL,
+                    intensity TEXT NOT NULL,
+                    completed_at TEXT,
+                    completed_exercise_entry_id TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (completed_exercise_entry_id) REFERENCES exercise_entries (id) ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS planned_workout_sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    legacy_planned_exercise_entry_id TEXT UNIQUE,
+                    title TEXT NOT NULL,
+                    workout_type TEXT NOT NULL,
+                    planned_on TEXT NOT NULL,
+                    planned_at TEXT NOT NULL,
+                    notes TEXT,
+                    estimated_calories_burned INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'planned',
+                    completed_at TEXT,
+                    completed_exercise_entry_id TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (completed_exercise_entry_id) REFERENCES exercise_entries (id) ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS planned_workout_blocks (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    block_kind TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    notes TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES planned_workout_sessions (id) ON DELETE CASCADE,
+                    UNIQUE (session_id, position)
+                );
+
+                CREATE TABLE IF NOT EXISTS planned_workout_segments (
+                    id TEXT PRIMARY KEY,
+                    block_id TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    segment_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    activity_type TEXT,
+                    duration_minutes INTEGER,
+                    distance_value REAL,
+                    distance_unit TEXT,
+                    reps INTEGER,
+                    intensity TEXT,
+                    notes TEXT,
+                    calories_estimate INTEGER,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (block_id) REFERENCES planned_workout_blocks (id) ON DELETE CASCADE,
+                    UNIQUE (block_id, position)
+                );
+
                 CREATE TABLE IF NOT EXISTS food_log_entries (
                     id TEXT PRIMARY KEY,
                     food_log_id TEXT NOT NULL,
                     entry_type TEXT NOT NULL,
                     food_item_id TEXT,
                     meal_template_id TEXT,
+                    meal_plan_slot_id TEXT,
+                    display_name_override TEXT,
                     grams REAL NOT NULL DEFAULT 0,
                     servings REAL NOT NULL DEFAULT 1,
                     calories REAL NOT NULL,
@@ -399,7 +470,8 @@ class SQLiteRepository:
                     fat REAL NOT NULL,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (food_log_id) REFERENCES food_logs (id) ON DELETE CASCADE,
-                    FOREIGN KEY (meal_template_id) REFERENCES meal_templates (id) ON DELETE SET NULL
+                    FOREIGN KEY (meal_template_id) REFERENCES meal_templates (id) ON DELETE SET NULL,
+                    FOREIGN KEY (meal_plan_slot_id) REFERENCES meal_plan_slots (id) ON DELETE SET NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS meal_plan_days (
@@ -576,6 +648,14 @@ class SQLiteRepository:
                 CREATE INDEX IF NOT EXISTS idx_food_logs_user_date ON food_logs (user_id, log_date);
                 CREATE INDEX IF NOT EXISTS idx_exercise_entries_user_logged_on
                     ON exercise_entries (user_id, logged_on DESC, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_planned_exercise_entries_user_planned_on
+                    ON planned_exercise_entries (user_id, planned_on ASC, planned_at ASC, created_at ASC);
+                CREATE INDEX IF NOT EXISTS idx_planned_workout_sessions_user_planned_on
+                    ON planned_workout_sessions (user_id, planned_on ASC, planned_at ASC, created_at ASC);
+                CREATE INDEX IF NOT EXISTS idx_planned_workout_blocks_session_position
+                    ON planned_workout_blocks (session_id, position ASC);
+                CREATE INDEX IF NOT EXISTS idx_planned_workout_segments_block_position
+                    ON planned_workout_segments (block_id, position ASC);
                 CREATE INDEX IF NOT EXISTS idx_food_log_entries_log ON food_log_entries (food_log_id);
                 CREATE INDEX IF NOT EXISTS idx_food_log_entries_food_item ON food_log_entries (food_item_id);
                 CREATE INDEX IF NOT EXISTS idx_food_log_entries_meal_template ON food_log_entries (meal_template_id);
@@ -667,7 +747,10 @@ class SQLiteRepository:
         self._ensure_user_profiles_columns()
         self._ensure_user_goals_columns()
         self._ensure_weight_entries_columns()
+        self._ensure_food_log_entry_columns()
         self._ensure_meal_plan_slot_columns()
+        self._ensure_planned_exercise_schema()
+        self._ensure_planned_workout_structure()
         self._ensure_meal_template_schema()
         self._ensure_recipe_schema()
         self._ensure_saved_favorites_supports_food()
@@ -850,6 +933,37 @@ class SQLiteRepository:
                     f"ALTER TABLE weight_entries ADD COLUMN {column_name} {column_type}"
                 )
 
+    def _ensure_food_log_entry_columns(self) -> None:
+        existing_columns = self._table_columns("food_log_entries")
+        expected_columns = {
+            "meal_plan_slot_id": "TEXT",
+            "display_name_override": "TEXT",
+        }
+        missing_columns = [
+            (column_name, column_type)
+            for column_name, column_type in expected_columns.items()
+            if column_name not in existing_columns
+        ]
+
+        with self._lock, self._connection:
+            for column_name, column_type in missing_columns:
+                self._connection.execute(
+                    f"ALTER TABLE food_log_entries ADD COLUMN {column_name} {column_type}"
+                )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_food_log_entries_meal_plan_slot
+                    ON food_log_entries (meal_plan_slot_id)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_food_log_entries_meal_plan_slot_unique
+                    ON food_log_entries (meal_plan_slot_id)
+                    WHERE meal_plan_slot_id IS NOT NULL
+                """
+            )
+
     def _ensure_meal_plan_slot_columns(self) -> None:
         existing_columns = self._table_columns("meal_plan_slots")
         expected_columns = {
@@ -869,6 +983,127 @@ class SQLiteRepository:
                 self._connection.execute(
                     f"ALTER TABLE meal_plan_slots ADD COLUMN {column_name} {column_type}"
                 )
+
+    def _ensure_planned_exercise_schema(self) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS planned_exercise_entries (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    duration_minutes INTEGER NOT NULL,
+                    calories_burned INTEGER NOT NULL,
+                    planned_on TEXT NOT NULL,
+                    planned_at TEXT NOT NULL,
+                    intensity TEXT NOT NULL,
+                    completed_at TEXT,
+                    completed_exercise_entry_id TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (completed_exercise_entry_id) REFERENCES exercise_entries (id) ON DELETE SET NULL
+                )
+                """
+            )
+            existing_columns = self._table_columns("planned_exercise_entries")
+            for column_name, column_type in {
+                "completed_at": "TEXT",
+                "completed_exercise_entry_id": "TEXT",
+            }.items():
+                if column_name not in existing_columns:
+                    self._connection.execute(
+                        f"ALTER TABLE planned_exercise_entries ADD COLUMN {column_name} {column_type}"
+                    )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_planned_exercise_entries_user_planned_on
+                    ON planned_exercise_entries (user_id, planned_on ASC, planned_at ASC, created_at ASC)
+                """
+            )
+
+    def _ensure_planned_workout_structure(self) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS planned_workout_sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    legacy_planned_exercise_entry_id TEXT UNIQUE,
+                    title TEXT NOT NULL,
+                    workout_type TEXT NOT NULL,
+                    planned_on TEXT NOT NULL,
+                    planned_at TEXT NOT NULL,
+                    notes TEXT,
+                    estimated_calories_burned INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'planned',
+                    completed_at TEXT,
+                    completed_exercise_entry_id TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (completed_exercise_entry_id) REFERENCES exercise_entries (id) ON DELETE SET NULL
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS planned_workout_blocks (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    block_kind TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    notes TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES planned_workout_sessions (id) ON DELETE CASCADE,
+                    UNIQUE (session_id, position)
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS planned_workout_segments (
+                    id TEXT PRIMARY KEY,
+                    block_id TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    segment_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    activity_type TEXT,
+                    duration_minutes INTEGER,
+                    distance_value REAL,
+                    distance_unit TEXT,
+                    reps INTEGER,
+                    intensity TEXT,
+                    notes TEXT,
+                    calories_estimate INTEGER,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (block_id) REFERENCES planned_workout_blocks (id) ON DELETE CASCADE,
+                    UNIQUE (block_id, position)
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_planned_workout_sessions_user_planned_on
+                    ON planned_workout_sessions (user_id, planned_on ASC, planned_at ASC, created_at ASC)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_planned_workout_blocks_session_position
+                    ON planned_workout_blocks (session_id, position ASC)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_planned_workout_segments_block_position
+                    ON planned_workout_segments (block_id, position ASC)
+                """
+            )
+            self._backfill_planned_workout_structure_locked()
 
     def _table_columns(self, table_name: str) -> set[str]:
         return {
@@ -1820,12 +2055,24 @@ class SQLiteRepository:
                 INSERT INTO food_logs (id, user_id, log_date, notes)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(user_id, log_date) DO UPDATE SET
-                    notes = excluded.notes,
+                    notes = COALESCE(excluded.notes, food_logs.notes),
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (identifier, user_id, log_date.isoformat(), notes),
             )
         return identifier
+
+    def get_food_log_for_date(self, user_id: str, log_date: date) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            """
+            SELECT * FROM food_logs
+            WHERE user_id = ? AND log_date = ?
+            """,
+            (user_id, log_date.isoformat()),
+        ).fetchone()
+        if row is None:
+            return None
+        return self.get_food_log(row["id"])
 
     def add_food_log_entry(
         self,
@@ -1840,6 +2087,9 @@ class SQLiteRepository:
         servings: float = 1,
         food_item_id: str | None = None,
         meal_template_id: str | None = None,
+        meal_plan_slot_id: str | None = None,
+        display_name_override: str | None = None,
+        created_at: str | None = None,
         entry_id: str | None = None,
     ) -> str:
         identifier = entry_id or str(uuid4())
@@ -1848,8 +2098,8 @@ class SQLiteRepository:
                 """
                 INSERT INTO food_log_entries (
                     id, food_log_id, entry_type, food_item_id, meal_template_id,
-                    grams, servings, calories, protein, carbs, fat
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    meal_plan_slot_id, display_name_override, grams, servings, calories, protein, carbs, fat, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     identifier,
@@ -1857,12 +2107,15 @@ class SQLiteRepository:
                     entry_type,
                     food_item_id,
                     meal_template_id,
+                    meal_plan_slot_id,
+                    display_name_override,
                     grams,
                     servings,
                     calories,
                     protein,
                     carbs,
                     fat,
+                    created_at or datetime.now(UTC).isoformat(),
                 ),
             )
         return identifier
@@ -1873,6 +2126,7 @@ class SQLiteRepository:
             SELECT
                 entries.*,
                 CASE
+                    WHEN entries.display_name_override IS NOT NULL THEN entries.display_name_override
                     WHEN entries.entry_type = 'meal' THEN meals.name
                     ELSE foods.name
                 END AS display_name,
@@ -1888,6 +2142,105 @@ class SQLiteRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def delete_food_log_entries_by_meal_plan_slot(self, meal_plan_slot_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "DELETE FROM food_log_entries WHERE meal_plan_slot_id = ?",
+                (meal_plan_slot_id,),
+            )
+
+    def reconcile_meal_plan_food_log_links(self, user_id: str) -> None:
+        with self._lock, self._connection:
+            rows = self._connection.execute(
+                """
+                SELECT
+                    slots.id,
+                    slots.meal_label,
+                    slots.title,
+                    slots.calories,
+                    slots.items_json,
+                    slots.eaten_at,
+                    days.plan_date
+                FROM meal_plan_slots slots
+                JOIN meal_plan_days days ON days.id = slots.meal_plan_day_id
+                WHERE days.user_id = ?
+                ORDER BY days.plan_date ASC, slots.position ASC, slots.id ASC
+                """,
+                (user_id,),
+            ).fetchall()
+
+            for row in rows:
+                self._connection.execute(
+                    "DELETE FROM food_log_entries WHERE meal_plan_slot_id = ? AND ? IS NULL",
+                    (row["id"], row["eaten_at"]),
+                )
+                if row["eaten_at"] is None:
+                    continue
+
+                existing = self._connection.execute(
+                    "SELECT id FROM food_log_entries WHERE meal_plan_slot_id = ?",
+                    (row["id"],),
+                ).fetchone()
+                if existing is not None:
+                    continue
+
+                items = json.loads(row["items_json"]) if row["items_json"] else []
+                protein = 0.0
+                carbs = 0.0
+                fat = 0.0
+                for item in items:
+                    macros = item.get("macros", {})
+                    protein += float(macros.get("protein", 0) or 0)
+                    carbs += float(macros.get("carbs", 0) or 0)
+                    fat += float(macros.get("fat", 0) or 0)
+
+                food_log_row = self._connection.execute(
+                    """
+                    SELECT id FROM food_logs
+                    WHERE user_id = ? AND log_date = ?
+                    """,
+                    (user_id, row["plan_date"]),
+                ).fetchone()
+                food_log_id = food_log_row["id"] if food_log_row is not None else f"log-{user_id}-{row['plan_date']}"
+                if food_log_row is None:
+                    self._connection.execute(
+                        """
+                        INSERT INTO food_logs (id, user_id, log_date, notes)
+                        VALUES (?, ?, ?, NULL)
+                        """,
+                        (food_log_id, user_id, row["plan_date"]),
+                    )
+
+                self._connection.execute(
+                    """
+                    INSERT INTO food_log_entries (
+                        id,
+                        food_log_id,
+                        entry_type,
+                        meal_plan_slot_id,
+                        display_name_override,
+                        grams,
+                        servings,
+                        calories,
+                        protein,
+                        carbs,
+                        fat,
+                        created_at
+                    ) VALUES (?, ?, 'meal', ?, ?, 0, 1, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()),
+                        food_log_id,
+                        row["id"],
+                        f"{row['meal_label']}: {row['title']}",
+                        row["calories"],
+                        round(protein, 1),
+                        round(carbs, 1),
+                        round(fat, 1),
+                        row["eaten_at"],
+                    ),
+                )
+
     def get_food_log(self, food_log_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT * FROM food_logs WHERE id = ?",
@@ -1900,6 +2253,7 @@ class SQLiteRepository:
         return log
 
     def list_food_logs(self, user_id: str) -> list[dict[str, Any]]:
+        self.reconcile_meal_plan_food_log_links(user_id)
         rows = self._connection.execute(
             """
             SELECT * FROM food_logs
@@ -1963,6 +2317,839 @@ class SQLiteRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def _infer_planned_workout_type(self, title: str) -> str:
+        normalized = title.lower()
+        if "swim" in normalized:
+            return "swim"
+        if "bike" in normalized or "ride" in normalized or "cycle" in normalized:
+            return "bike"
+        if "run" in normalized or "jog" in normalized:
+            return "run"
+        if "lift" in normalized or "strength" in normalized or "weight" in normalized:
+            return "weights"
+        return "custom"
+
+    def _upsert_planned_workout_structure_for_legacy_entry_locked(self, entry: dict[str, Any]) -> None:
+        session_id = str(entry["id"])
+        block_id = f"{session_id}-activity"
+        segment_id = f"{block_id}-1"
+        workout_type = self._infer_planned_workout_type(str(entry["title"]))
+        status = "completed" if entry.get("completed_at") else "planned"
+        created_at = entry.get("created_at") or datetime.now(UTC).isoformat()
+        updated_at = entry.get("updated_at") or created_at
+
+        self._connection.execute(
+            """
+            INSERT INTO planned_workout_sessions (
+                id,
+                user_id,
+                legacy_planned_exercise_entry_id,
+                title,
+                workout_type,
+                planned_on,
+                planned_at,
+                notes,
+                estimated_calories_burned,
+                status,
+                completed_at,
+                completed_exercise_entry_id,
+                created_at,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                user_id = excluded.user_id,
+                legacy_planned_exercise_entry_id = excluded.legacy_planned_exercise_entry_id,
+                title = excluded.title,
+                workout_type = excluded.workout_type,
+                planned_on = excluded.planned_on,
+                planned_at = excluded.planned_at,
+                estimated_calories_burned = excluded.estimated_calories_burned,
+                status = excluded.status,
+                completed_at = excluded.completed_at,
+                completed_exercise_entry_id = excluded.completed_exercise_entry_id,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                session_id,
+                entry["user_id"],
+                session_id,
+                entry["title"],
+                workout_type,
+                entry["planned_on"],
+                entry["planned_at"],
+                entry["calories_burned"],
+                status,
+                entry.get("completed_at"),
+                entry.get("completed_exercise_entry_id"),
+                created_at,
+                updated_at,
+            ),
+        )
+        self._connection.execute(
+            """
+            INSERT INTO planned_workout_blocks (
+                id, session_id, block_kind, position, title, notes, created_at, updated_at
+            ) VALUES (?, ?, 'activity', 0, 'Main set', NULL, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                session_id = excluded.session_id,
+                block_kind = excluded.block_kind,
+                position = excluded.position,
+                title = excluded.title,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (block_id, session_id, created_at, updated_at),
+        )
+        self._connection.execute(
+            """
+            INSERT INTO planned_workout_segments (
+                id,
+                block_id,
+                position,
+                segment_type,
+                title,
+                activity_type,
+                duration_minutes,
+                distance_value,
+                distance_unit,
+                reps,
+                intensity,
+                notes,
+                calories_estimate,
+                created_at,
+                updated_at
+            ) VALUES (?, ?, 0, 'time', ?, ?, ?, NULL, NULL, NULL, ?, NULL, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                block_id = excluded.block_id,
+                position = excluded.position,
+                segment_type = excluded.segment_type,
+                title = excluded.title,
+                activity_type = excluded.activity_type,
+                duration_minutes = excluded.duration_minutes,
+                intensity = excluded.intensity,
+                calories_estimate = excluded.calories_estimate,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                segment_id,
+                block_id,
+                entry["title"],
+                workout_type,
+                entry["duration_minutes"],
+                entry["intensity"],
+                entry["calories_burned"],
+                created_at,
+                updated_at,
+            ),
+        )
+
+    def _backfill_planned_workout_structure_locked(self) -> None:
+        legacy_rows = self._connection.execute(
+            """
+            SELECT * FROM planned_exercise_entries
+            ORDER BY planned_on ASC, planned_at ASC, created_at ASC, id ASC
+            """
+        ).fetchall()
+        for row in legacy_rows:
+            self._upsert_planned_workout_structure_for_legacy_entry_locked(dict(row))
+
+    def _list_planned_workout_sessions_locked(self, user_id: str) -> list[dict[str, Any]]:
+        sessions = [
+            dict(row)
+            for row in self._connection.execute(
+                """
+                SELECT * FROM planned_workout_sessions
+                WHERE user_id = ?
+                ORDER BY planned_on ASC, planned_at ASC, created_at ASC, id ASC
+                """,
+                (user_id,),
+            ).fetchall()
+        ]
+        if not sessions:
+            return []
+
+        session_ids = [session["id"] for session in sessions]
+        placeholders = ",".join("?" for _ in session_ids)
+        blocks = [
+            dict(row)
+            for row in self._connection.execute(
+                f"""
+                SELECT * FROM planned_workout_blocks
+                WHERE session_id IN ({placeholders})
+                ORDER BY session_id ASC, position ASC, id ASC
+                """,
+                session_ids,
+            ).fetchall()
+        ]
+        block_ids = [block["id"] for block in blocks]
+        segments_by_block_id: dict[str, list[dict[str, Any]]] = {}
+        if block_ids:
+            block_placeholders = ",".join("?" for _ in block_ids)
+            segments = [
+                dict(row)
+                for row in self._connection.execute(
+                    f"""
+                    SELECT * FROM planned_workout_segments
+                    WHERE block_id IN ({block_placeholders})
+                    ORDER BY block_id ASC, position ASC, id ASC
+                    """,
+                    block_ids,
+                ).fetchall()
+            ]
+            for segment in segments:
+                segments_by_block_id.setdefault(str(segment["block_id"]), []).append(segment)
+
+        blocks_by_session_id: dict[str, list[dict[str, Any]]] = {}
+        for block in blocks:
+            block["segments"] = segments_by_block_id.get(str(block["id"]), [])
+            blocks_by_session_id.setdefault(str(block["session_id"]), []).append(block)
+
+        for session in sessions:
+            session["blocks"] = blocks_by_session_id.get(str(session["id"]), [])
+        return sessions
+
+    def list_planned_workout_sessions(self, user_id: str) -> list[dict[str, Any]]:
+        with self._lock, self._connection:
+            self._backfill_planned_workout_structure_locked()
+            return self._list_planned_workout_sessions_locked(user_id)
+
+    def get_planned_workout_session(self, user_id: str, planned_workout_session_id: str) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            self._backfill_planned_workout_structure_locked()
+            sessions = self._list_planned_workout_sessions_locked(user_id)
+            for session in sessions:
+                if session["id"] == planned_workout_session_id:
+                    return session
+            return None
+
+    def _replace_planned_workout_blocks_locked(
+        self,
+        planned_workout_session_id: str,
+        blocks: list[dict[str, Any]],
+    ) -> None:
+        existing_block_rows = self._connection.execute(
+            "SELECT id FROM planned_workout_blocks WHERE session_id = ?",
+            (planned_workout_session_id,),
+        ).fetchall()
+        existing_block_ids = [str(row["id"]) for row in existing_block_rows]
+        if existing_block_ids:
+            placeholders = ",".join("?" for _ in existing_block_ids)
+            self._connection.execute(
+                f"DELETE FROM planned_workout_segments WHERE block_id IN ({placeholders})",
+                existing_block_ids,
+            )
+        self._connection.execute(
+            "DELETE FROM planned_workout_blocks WHERE session_id = ?",
+            (planned_workout_session_id,),
+        )
+
+        for block_position, block in enumerate(blocks):
+            block_id = str(uuid4())
+            self._connection.execute(
+                """
+                INSERT INTO planned_workout_blocks (
+                    id, session_id, block_kind, position, title, notes
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    block_id,
+                    planned_workout_session_id,
+                    block["block_kind"],
+                    block_position,
+                    block["title"],
+                    block.get("notes"),
+                ),
+            )
+            for segment_position, segment in enumerate(block.get("segments", [])):
+                self._connection.execute(
+                    """
+                    INSERT INTO planned_workout_segments (
+                        id, block_id, position, segment_type, title, activity_type,
+                        duration_minutes, distance_value, distance_unit, reps, intensity,
+                        notes, calories_estimate
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()),
+                        block_id,
+                        segment_position,
+                        segment["segment_type"],
+                        segment["title"],
+                        segment.get("activity_type"),
+                        segment.get("duration_minutes"),
+                        segment.get("distance_value"),
+                        segment.get("distance_unit"),
+                        segment.get("reps"),
+                        segment.get("intensity"),
+                        segment.get("notes"),
+                        segment.get("calories_estimate"),
+                    ),
+                )
+
+    def _summarize_planned_workout_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        fallback_intensity: str = "Moderate",
+    ) -> tuple[int, str]:
+        total_duration_minutes = 0
+        seen_intensities: set[str] = set()
+        for block in blocks:
+            for segment in block.get("segments", []):
+                duration_minutes = segment.get("duration_minutes")
+                if isinstance(duration_minutes, int) and duration_minutes > 0:
+                    total_duration_minutes += duration_minutes
+                intensity = segment.get("intensity")
+                if isinstance(intensity, str) and intensity:
+                    seen_intensities.add(intensity)
+
+        for intensity in ("High", "Moderate", "Low"):
+            if intensity in seen_intensities:
+                return total_duration_minutes, intensity
+        return total_duration_minutes, fallback_intensity
+
+    def create_planned_workout_session(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        workout_type: str,
+        planned_on: date,
+        planned_at: str,
+        notes: str | None,
+        estimated_calories_burned: int,
+        blocks: list[dict[str, Any]],
+        planned_workout_session_id: str | None = None,
+    ) -> str:
+        identifier = planned_workout_session_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO planned_workout_sessions (
+                    id, user_id, legacy_planned_exercise_entry_id, title, workout_type,
+                    planned_on, planned_at, notes, estimated_calories_burned, status,
+                    completed_at, completed_exercise_entry_id
+                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 'planned', NULL, NULL)
+                """,
+                (
+                    identifier,
+                    user_id,
+                    title,
+                    workout_type,
+                    planned_on.isoformat(),
+                    planned_at,
+                    notes,
+                    estimated_calories_burned,
+                ),
+            )
+            self._replace_planned_workout_blocks_locked(identifier, blocks)
+        return identifier
+
+    def create_planned_exercise_entry(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        duration_minutes: int,
+        calories_burned: int,
+        planned_on: date,
+        planned_at: str,
+        intensity: str,
+        planned_exercise_entry_id: str | None = None,
+    ) -> str:
+        identifier = planned_exercise_entry_id or str(uuid4())
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO planned_exercise_entries (
+                    id, user_id, title, duration_minutes, calories_burned,
+                    planned_on, planned_at, intensity, completed_at, completed_exercise_entry_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                """,
+                (
+                    identifier,
+                    user_id,
+                    title,
+                    duration_minutes,
+                    calories_burned,
+                    planned_on.isoformat(),
+                    planned_at,
+                    intensity,
+                ),
+            )
+            entry = self.get_planned_exercise_entry(identifier)
+            if entry is not None:
+                self._upsert_planned_workout_structure_for_legacy_entry_locked(entry)
+        return identifier
+
+    def get_planned_exercise_entry(self, planned_exercise_entry_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM planned_exercise_entries WHERE id = ?",
+            (planned_exercise_entry_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_planned_exercise_entries(self, user_id: str) -> list[dict[str, Any]]:
+        with self._lock, self._connection:
+            self._backfill_planned_workout_structure_locked()
+        rows = self._connection.execute(
+            """
+            SELECT * FROM planned_exercise_entries
+            WHERE user_id = ?
+            ORDER BY planned_on ASC, planned_at ASC, created_at ASC, id ASC
+            """,
+            (user_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_planned_workout_session(
+        self,
+        *,
+        user_id: str,
+        planned_workout_session_id: str,
+        title: str,
+        workout_type: str,
+        planned_on: date,
+        planned_at: str,
+        notes: str | None,
+        estimated_calories_burned: int,
+        blocks: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_workout_sessions WHERE id = ?",
+                (planned_workout_session_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return None
+
+            self._connection.execute(
+                """
+                UPDATE planned_workout_sessions
+                SET
+                    title = ?,
+                    workout_type = ?,
+                    planned_on = ?,
+                    planned_at = ?,
+                    notes = ?,
+                    estimated_calories_burned = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    title,
+                    workout_type,
+                    planned_on.isoformat(),
+                    planned_at,
+                    notes,
+                    estimated_calories_burned,
+                    planned_workout_session_id,
+                ),
+            )
+            self._replace_planned_workout_blocks_locked(planned_workout_session_id, blocks)
+
+            legacy_planned_exercise_entry_id = row["legacy_planned_exercise_entry_id"]
+            if legacy_planned_exercise_entry_id:
+                total_duration_minutes, intensity = self._summarize_planned_workout_blocks(
+                    blocks,
+                    fallback_intensity="Moderate",
+                )
+                total_duration_minutes = max(total_duration_minutes, 1)
+                self._connection.execute(
+                    """
+                    UPDATE planned_exercise_entries
+                    SET
+                        title = ?,
+                        duration_minutes = ?,
+                        calories_burned = ?,
+                        planned_on = ?,
+                        planned_at = ?,
+                        intensity = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (
+                        title,
+                        total_duration_minutes,
+                        estimated_calories_burned,
+                        planned_on.isoformat(),
+                        planned_at,
+                        intensity,
+                        legacy_planned_exercise_entry_id,
+                    ),
+                )
+                completed_exercise_entry_id = row["completed_exercise_entry_id"]
+                if completed_exercise_entry_id:
+                    completed_at_value = row["completed_at"]
+                    logged_on = planned_on.isoformat()
+                    logged_at = planned_at
+                    if completed_at_value:
+                        try:
+                            completed_at = datetime.fromisoformat(str(completed_at_value).replace("Z", "+00:00"))
+                        except ValueError:
+                            completed_at = None
+                        if completed_at is not None:
+                            logged_on = completed_at.date().isoformat()
+                            logged_at = completed_at.strftime("%H:%M")
+                    self._connection.execute(
+                        """
+                        UPDATE exercise_entries
+                        SET title = ?, duration_minutes = ?, calories_burned = ?, logged_on = ?, logged_at = ?, intensity = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            title,
+                            total_duration_minutes,
+                            estimated_calories_burned,
+                            logged_on,
+                            logged_at,
+                            intensity,
+                            completed_exercise_entry_id,
+                        ),
+                    )
+
+            for session in self._list_planned_workout_sessions_locked(user_id):
+                if session["id"] == planned_workout_session_id:
+                    return session
+            return None
+
+    def update_planned_exercise_entry(
+        self,
+        *,
+        user_id: str,
+        planned_exercise_entry_id: str,
+        title: str,
+        duration_minutes: int,
+        calories_burned: int,
+        planned_on: date,
+        planned_at: str,
+        intensity: str,
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_exercise_entries WHERE id = ?",
+                (planned_exercise_entry_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return None
+
+            self._connection.execute(
+                """
+                UPDATE planned_exercise_entries
+                SET
+                    title = ?,
+                    duration_minutes = ?,
+                    calories_burned = ?,
+                    planned_on = ?,
+                    planned_at = ?,
+                    intensity = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    title,
+                    duration_minutes,
+                    calories_burned,
+                    planned_on.isoformat(),
+                    planned_at,
+                    intensity,
+                    planned_exercise_entry_id,
+                ),
+                )
+
+            completed_exercise_entry_id = row["completed_exercise_entry_id"]
+            if completed_exercise_entry_id:
+                completed_at_value = row["completed_at"]
+                logged_on = planned_on.isoformat()
+                logged_at = planned_at
+                if completed_at_value:
+                    try:
+                        completed_at = datetime.fromisoformat(str(completed_at_value).replace("Z", "+00:00"))
+                    except ValueError:
+                        completed_at = None
+                    if completed_at is not None:
+                        logged_on = completed_at.date().isoformat()
+                        logged_at = completed_at.strftime("%H:%M")
+                self._connection.execute(
+                    """
+                    UPDATE exercise_entries
+                    SET title = ?, duration_minutes = ?, calories_burned = ?, logged_on = ?, logged_at = ?, intensity = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        title,
+                        duration_minutes,
+                        calories_burned,
+                        logged_on,
+                        logged_at,
+                        intensity,
+                        completed_exercise_entry_id,
+                    ),
+                )
+            entry = self.get_planned_exercise_entry(planned_exercise_entry_id)
+            if entry is not None:
+                self._upsert_planned_workout_structure_for_legacy_entry_locked(entry)
+            return entry
+
+    def delete_planned_exercise_entry(
+        self,
+        *,
+        user_id: str,
+        planned_exercise_entry_id: str,
+    ) -> bool:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_exercise_entries WHERE id = ?",
+                (planned_exercise_entry_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return False
+
+            # Keep any completed exercise_entries row: deleting a plan must not
+            # erase logged exercise history.
+            self._connection.execute(
+                "DELETE FROM planned_workout_sessions WHERE id = ?",
+                (planned_exercise_entry_id,),
+            )
+
+            self._connection.execute(
+                "DELETE FROM planned_exercise_entries WHERE id = ?",
+                (planned_exercise_entry_id,),
+            )
+            return True
+
+    def delete_exercise_entry(self, exercise_entry_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "DELETE FROM exercise_entries WHERE id = ?",
+                (exercise_entry_id,),
+            )
+
+    def update_planned_workout_session_completion(
+        self,
+        *,
+        user_id: str,
+        planned_workout_session_id: str,
+        completed_at: datetime | None,
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_workout_sessions WHERE id = ?",
+                (planned_workout_session_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return None
+
+            legacy_planned_exercise_entry_id = row["legacy_planned_exercise_entry_id"]
+            if legacy_planned_exercise_entry_id:
+                existing_completed_exercise_entry_id = row["completed_exercise_entry_id"]
+                if existing_completed_exercise_entry_id:
+                    self._connection.execute(
+                        "DELETE FROM exercise_entries WHERE id = ?",
+                        (existing_completed_exercise_entry_id,),
+                    )
+
+                next_completed_exercise_entry_id: str | None = None
+                next_completed_at = completed_at.isoformat() if completed_at is not None else None
+                if completed_at is not None:
+                    session_blocks: list[dict[str, Any]] = []
+                    for session in self._list_planned_workout_sessions_locked(user_id):
+                        if session["id"] == planned_workout_session_id:
+                            session_blocks = session["blocks"]
+                            break
+                    total_duration_minutes, intensity = self._summarize_planned_workout_blocks(
+                        session_blocks,
+                        fallback_intensity="Moderate",
+                    )
+                    next_completed_exercise_entry_id = str(uuid4())
+                    self._connection.execute(
+                        """
+                        INSERT INTO exercise_entries (
+                            id, user_id, title, duration_minutes, calories_burned,
+                            logged_on, logged_at, intensity
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            next_completed_exercise_entry_id,
+                            user_id,
+                            row["title"],
+                            max(1, total_duration_minutes),
+                            row["estimated_calories_burned"],
+                            completed_at.date().isoformat(),
+                            completed_at.strftime("%H:%M"),
+                            intensity,
+                        ),
+                    )
+                self._connection.execute(
+                    """
+                    UPDATE planned_exercise_entries
+                    SET completed_at = ?, completed_exercise_entry_id = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (next_completed_at, next_completed_exercise_entry_id, legacy_planned_exercise_entry_id),
+                )
+                self._connection.execute(
+                    """
+                    UPDATE planned_workout_sessions
+                    SET status = ?, completed_at = ?, completed_exercise_entry_id = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (
+                        "completed" if completed_at is not None else "planned",
+                        next_completed_at,
+                        next_completed_exercise_entry_id,
+                        planned_workout_session_id,
+                    ),
+                )
+                for session in self._list_planned_workout_sessions_locked(user_id):
+                    if session["id"] == planned_workout_session_id:
+                        return session
+                return None
+
+            existing_completed_exercise_entry_id = row["completed_exercise_entry_id"]
+            if existing_completed_exercise_entry_id:
+                self._connection.execute(
+                    "DELETE FROM exercise_entries WHERE id = ?",
+                    (existing_completed_exercise_entry_id,),
+                )
+
+            next_completed_exercise_entry_id: str | None = None
+            next_completed_at = completed_at.isoformat() if completed_at is not None else None
+            if completed_at is not None:
+                blocks: list[dict[str, Any]] = []
+                for session in self._list_planned_workout_sessions_locked(user_id):
+                    if session["id"] == planned_workout_session_id:
+                        blocks = session["blocks"]
+                        break
+                total_duration_minutes, intensity = self._summarize_planned_workout_blocks(
+                    blocks,
+                    fallback_intensity="Moderate",
+                )
+                next_completed_exercise_entry_id = str(uuid4())
+                self._connection.execute(
+                    """
+                    INSERT INTO exercise_entries (
+                        id, user_id, title, duration_minutes, calories_burned,
+                        logged_on, logged_at, intensity
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        next_completed_exercise_entry_id,
+                        user_id,
+                        row["title"],
+                        max(total_duration_minutes, 1),
+                        row["estimated_calories_burned"],
+                        completed_at.date().isoformat(),
+                        completed_at.strftime("%H:%M"),
+                        intensity,
+                    ),
+                )
+
+            self._connection.execute(
+                """
+                UPDATE planned_workout_sessions
+                SET status = ?, completed_at = ?, completed_exercise_entry_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    "completed" if completed_at is not None else "planned",
+                    next_completed_at,
+                    next_completed_exercise_entry_id,
+                    planned_workout_session_id,
+                ),
+            )
+            for session in self._list_planned_workout_sessions_locked(user_id):
+                if session["id"] == planned_workout_session_id:
+                    return session
+            return None
+
+    def delete_planned_workout_session(
+        self,
+        *,
+        user_id: str,
+        planned_workout_session_id: str,
+    ) -> bool:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_workout_sessions WHERE id = ?",
+                (planned_workout_session_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return False
+
+            # Deleting a plan never erases logged exercise history: the linked
+            # exercise_entries row is kept (it is only referenced, never owned).
+            # Blocks and segments cascade from planned_workout_sessions.
+            legacy_planned_exercise_entry_id = row["legacy_planned_exercise_entry_id"]
+            if legacy_planned_exercise_entry_id:
+                self._connection.execute(
+                    "DELETE FROM planned_exercise_entries WHERE id = ?",
+                    (legacy_planned_exercise_entry_id,),
+                )
+            self._connection.execute(
+                "DELETE FROM planned_workout_sessions WHERE id = ?",
+                (planned_workout_session_id,),
+            )
+            return True
+
+    def update_planned_exercise_entry_completion(
+        self,
+        *,
+        user_id: str,
+        planned_exercise_entry_id: str,
+        completed_at: datetime | None,
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                "SELECT * FROM planned_exercise_entries WHERE id = ?",
+                (planned_exercise_entry_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return None
+
+            existing_completed_exercise_entry_id = row["completed_exercise_entry_id"]
+            if existing_completed_exercise_entry_id:
+                self._connection.execute(
+                    "DELETE FROM exercise_entries WHERE id = ?",
+                    (existing_completed_exercise_entry_id,),
+                )
+
+            next_completed_exercise_entry_id: str | None = None
+            next_completed_at = completed_at.isoformat() if completed_at is not None else None
+            if completed_at is not None:
+                next_completed_exercise_entry_id = str(uuid4())
+                self._connection.execute(
+                    """
+                    INSERT INTO exercise_entries (
+                        id, user_id, title, duration_minutes, calories_burned,
+                        logged_on, logged_at, intensity
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        next_completed_exercise_entry_id,
+                        user_id,
+                        row["title"],
+                        row["duration_minutes"],
+                        row["calories_burned"],
+                        completed_at.date().isoformat(),
+                        completed_at.strftime("%H:%M"),
+                        row["intensity"],
+                    ),
+                )
+
+            self._connection.execute(
+                """
+                UPDATE planned_exercise_entries
+                SET completed_at = ?, completed_exercise_entry_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (next_completed_at, next_completed_exercise_entry_id, planned_exercise_entry_id),
+            )
+            entry = self.get_planned_exercise_entry(planned_exercise_entry_id)
+            if entry is not None:
+                self._upsert_planned_workout_structure_for_legacy_entry_locked(entry)
+            return entry
+
     def save_meal_plan_day(
         self,
         *,
@@ -1992,6 +3179,15 @@ class SQLiteRepository:
                 (user_id, plan_date.isoformat()),
             ).fetchone()
             actual_id = row["id"] if row is not None else identifier
+            self._connection.execute(
+                """
+                DELETE FROM food_log_entries
+                WHERE meal_plan_slot_id IN (
+                    SELECT id FROM meal_plan_slots WHERE meal_plan_day_id = ?
+                )
+                """,
+                (actual_id,),
+            )
             self._connection.execute(
                 "DELETE FROM meal_plan_slots WHERE meal_plan_day_id = ?",
                 (actual_id,),
@@ -2049,6 +3245,7 @@ class SQLiteRepository:
         return day
 
     def list_meal_plan_days(self, user_id: str) -> list[dict[str, Any]]:
+        self.reconcile_meal_plan_food_log_links(user_id)
         rows = self._connection.execute(
             """
             SELECT * FROM meal_plan_days
@@ -2067,20 +3264,89 @@ class SQLiteRepository:
 
     def update_meal_plan_slot_eaten_at(
         self,
+        user_id: str,
         slot_id: str,
         eaten_at: datetime | None,
     ) -> dict[str, Any] | None:
         with self._lock, self._connection:
             row = self._connection.execute(
-                "SELECT meal_plan_day_id FROM meal_plan_slots WHERE id = ?",
+                """
+                SELECT
+                    slots.*,
+                    days.id AS meal_plan_day_id,
+                    days.user_id AS user_id,
+                    days.plan_date AS plan_date
+                FROM meal_plan_slots slots
+                JOIN meal_plan_days days ON days.id = slots.meal_plan_day_id
+                WHERE slots.id = ?
+                """,
                 (slot_id,),
             ).fetchone()
-            if row is None:
+            if row is None or row["user_id"] != user_id:
                 return None
+            items = json.loads(row["items_json"]) if row["items_json"] else []
+            protein = 0.0
+            carbs = 0.0
+            fat = 0.0
+            for item in items:
+                macros = item.get("macros", {})
+                protein += float(macros.get("protein", 0) or 0)
+                carbs += float(macros.get("carbs", 0) or 0)
+                fat += float(macros.get("fat", 0) or 0)
             self._connection.execute(
                 "UPDATE meal_plan_slots SET eaten_at = ? WHERE id = ?",
                 (eaten_at.isoformat() if eaten_at is not None else None, slot_id),
             )
+            self._connection.execute(
+                "DELETE FROM food_log_entries WHERE meal_plan_slot_id = ?",
+                (slot_id,),
+            )
+            if eaten_at is not None:
+                food_log_row = self._connection.execute(
+                    """
+                    SELECT id FROM food_logs
+                    WHERE user_id = ? AND log_date = ?
+                    """,
+                    (user_id, row["plan_date"]),
+                ).fetchone()
+                food_log_id = food_log_row["id"] if food_log_row is not None else f"log-{user_id}-{row['plan_date']}"
+                if food_log_row is None:
+                    self._connection.execute(
+                        """
+                        INSERT INTO food_logs (id, user_id, log_date, notes)
+                        VALUES (?, ?, ?, NULL)
+                        """,
+                        (food_log_id, user_id, row["plan_date"]),
+                    )
+                self._connection.execute(
+                    """
+                    INSERT INTO food_log_entries (
+                        id,
+                        food_log_id,
+                        entry_type,
+                        meal_plan_slot_id,
+                        display_name_override,
+                        grams,
+                        servings,
+                        calories,
+                        protein,
+                        carbs,
+                        fat,
+                        created_at
+                    ) VALUES (?, ?, 'meal', ?, ?, 0, 1, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()),
+                        food_log_id,
+                        slot_id,
+                        f"{row['meal_label']}: {row['title']}",
+                        row["calories"],
+                        round(protein, 1),
+                        round(carbs, 1),
+                        round(fat, 1),
+                        eaten_at.isoformat(),
+                    ),
+                )
             return self.get_meal_plan_day(row["meal_plan_day_id"])
 
     def create_meal_prep_task(

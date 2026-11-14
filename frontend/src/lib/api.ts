@@ -1,5 +1,7 @@
 import type {
   ExerciseEntry,
+  PlannedExerciseEntry,
+  PlannedWorkoutSession,
   IngestionOutput,
   VisionLabelScanResult,
   VisionPackageScanResult,
@@ -344,11 +346,15 @@ async function createFoodLogForDate(logDate: string, accessToken: string): Promi
 
 export async function fetchTodaysFoodLog(accessToken: string): Promise<FoodLogSummary> {
   const today = new Date().toISOString().slice(0, 10);
+  return fetchFoodLogForDate(today, accessToken);
+}
+
+export async function fetchFoodLogForDate(logDate: string, accessToken: string): Promise<FoodLogSummary> {
   const logs = await fetchFoodLogs(accessToken);
-  const todaysLog = logs.find((log) => log.log_date === today);
-  if (!todaysLog) {
+  const matchingLog = logs.find((log) => log.log_date === logDate);
+  if (!matchingLog) {
     return {
-      date: today,
+      date: logDate,
       entries: [],
       totals: {
         calories: 0,
@@ -356,7 +362,7 @@ export async function fetchTodaysFoodLog(accessToken: string): Promise<FoodLogSu
       }
     };
   }
-  return summarizeFoodLog(todaysLog);
+  return summarizeFoodLog(matchingLog);
 }
 
 export async function addFoodLogEntry(
@@ -552,6 +558,47 @@ interface ExerciseEntryCreatePayload {
   intensity: ExerciseEntry['intensity'];
 }
 
+interface PlannedExerciseEntryCreatePayload {
+  title: string;
+  duration_minutes: number;
+  calories_burned: number;
+  planned_on: string;
+  planned_at: string;
+  intensity: PlannedExerciseEntry['intensity'];
+}
+
+interface PlannedExerciseEntryUpdatePayload extends PlannedExerciseEntryCreatePayload {}
+
+interface PlannedWorkoutSegmentPayload {
+  segment_type: 'time' | 'distance' | 'activity' | 'reps';
+  title: string;
+  activity_type?: 'weights' | 'swim' | 'bike' | 'run' | 'custom' | null;
+  duration_minutes?: number | null;
+  distance_value?: number | null;
+  distance_unit?: 'm' | 'km' | 'mi' | 'yd' | null;
+  reps?: number | null;
+  intensity?: 'Low' | 'Moderate' | 'High' | null;
+  notes?: string | null;
+  calories_estimate?: number | null;
+}
+
+interface PlannedWorkoutBlockPayload {
+  block_kind: 'warmup' | 'activity' | 'cooldown';
+  title: string;
+  notes?: string | null;
+  segments: PlannedWorkoutSegmentPayload[];
+}
+
+interface PlannedWorkoutSessionPayload {
+  title: string;
+  workout_type: PlannedWorkoutSession['workout_type'];
+  planned_on: string;
+  planned_at: string;
+  notes?: string | null;
+  estimated_calories_burned: number;
+  blocks: PlannedWorkoutBlockPayload[];
+}
+
 interface MealPlanDayCreatePayload {
   plan_date: string;
   label: string;
@@ -587,6 +634,142 @@ export async function createExerciseEntry(
         ...authHeaders(accessToken)
       },
       body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function fetchPlannedExerciseEntries(accessToken: string): Promise<PlannedExerciseEntry[]> {
+  return readJson<PlannedExerciseEntry[]>(
+    await fetch(buildApiUrl('/tracker/planned-exercise'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function fetchPlannedWorkoutSessions(accessToken: string): Promise<PlannedWorkoutSession[]> {
+  return readJson<PlannedWorkoutSession[]>(
+    await fetch(buildApiUrl('/tracker/planned-workout-sessions'), {
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+export async function createPlannedWorkoutSession(
+  payload: PlannedWorkoutSessionPayload,
+  accessToken: string
+): Promise<PlannedWorkoutSession> {
+  return readJson<PlannedWorkoutSession>(
+    await fetch(buildApiUrl('/tracker/planned-workout-sessions'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function updatePlannedWorkoutSession(
+  sessionId: string,
+  payload: PlannedWorkoutSessionPayload,
+  accessToken: string
+): Promise<PlannedWorkoutSession> {
+  return readJson<PlannedWorkoutSession>(
+    await fetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function updatePlannedWorkoutSessionCompletion(
+  sessionId: string,
+  completedAt: string | null,
+  accessToken: string
+): Promise<PlannedWorkoutSession> {
+  return readJson<PlannedWorkoutSession>(
+    await fetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}/completion`), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ completed_at: completedAt })
+    })
+  );
+}
+
+export async function deletePlannedWorkoutSession(sessionId: string, accessToken: string): Promise<void> {
+  const response = await fetch(buildApiUrl(`/tracker/planned-workout-sessions/${sessionId}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken)
+  });
+  if (!response.ok) {
+    await readJson<void>(response);
+  }
+}
+
+export async function createPlannedExerciseEntry(
+  payload: PlannedExerciseEntryCreatePayload,
+  accessToken: string
+): Promise<PlannedExerciseEntry> {
+  return readJson<PlannedExerciseEntry>(
+    await fetch(buildApiUrl('/tracker/planned-exercise'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function updatePlannedExerciseEntry(
+  entryId: string,
+  payload: PlannedExerciseEntryUpdatePayload,
+  accessToken: string
+): Promise<PlannedExerciseEntry> {
+  return readJson<PlannedExerciseEntry>(
+    await fetch(buildApiUrl(`/tracker/planned-exercise/${entryId}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function deletePlannedExerciseEntry(entryId: string, accessToken: string): Promise<void> {
+  const response = await fetch(buildApiUrl(`/tracker/planned-exercise/${entryId}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken)
+  });
+  if (!response.ok) {
+    await readJson<void>(response);
+  }
+}
+
+export async function updatePlannedExerciseCompletion(
+  entryId: string,
+  completedAt: string | null,
+  accessToken: string
+): Promise<PlannedExerciseEntry> {
+  return readJson<PlannedExerciseEntry>(
+    await fetch(buildApiUrl(`/tracker/planned-exercise/${entryId}/completion`), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(accessToken)
+      },
+      body: JSON.stringify({ completed_at: completedAt })
     })
   );
 }

@@ -8,18 +8,26 @@ import type { DashboardRange, DashboardTrendPoint } from '../../types';
 const intradayAxisTicks = ['12a', '6a', '12p', '6p', '12a'];
 
 export function DashboardHeroChart({
+  caption,
   controls,
   detail,
+  flat = false,
   legendLabel,
+  plannedLabel,
+  plannedValue,
   points,
   range,
   targetLabel,
   targetValue,
   title
 }: {
+  caption?: string | null;
   controls?: ReactElement | null;
-  detail: string;
+  detail?: string | null;
+  flat?: boolean;
   legendLabel: string;
+  plannedLabel?: string | null;
+  plannedValue?: number | null;
   points: DashboardTrendPoint[];
   range: DashboardRange;
   targetLabel: string;
@@ -35,7 +43,7 @@ export function DashboardHeroChart({
       return null;
     }
 
-    const peak = Math.max(targetValue, ...points.map((point) => point.calories), 1);
+    const peak = Math.max(targetValue, plannedValue ?? 0, ...points.map((point) => point.calories), 1);
     const plotWidth = Math.max(width - padding.left - padding.right, 1);
     const plotHeight = Math.max(chartHeight - padding.top - padding.bottom, 1);
     const count = Math.max(points.length - 1, 1);
@@ -52,6 +60,10 @@ export function DashboardHeroChart({
     const areaPath = `${linePath} L ${nodes.at(-1)?.x ?? padding.left} ${chartHeight - padding.bottom} L ${nodes[0]?.x ?? padding.left} ${chartHeight - padding.bottom} Z`;
     const targetY = padding.top + (1 - targetValue / peak) * plotHeight;
     const targetLinePath = `M ${padding.left} ${targetY} L ${width - padding.right} ${targetY}`;
+    const plannedY =
+      plannedValue && plannedValue > 0 ? padding.top + (1 - plannedValue / peak) * plotHeight : null;
+    const plannedLinePath =
+      plannedY !== null ? `M ${padding.left} ${plannedY} L ${width - padding.right} ${plannedY}` : null;
     const gridValues = [0, 0.33, 0.66, 1].map((value) => {
       const y = padding.top + (1 - value) * plotHeight;
       const label = Math.round(peak * value);
@@ -59,22 +71,22 @@ export function DashboardHeroChart({
     });
     const majorXValues = nodes.map((point) => point.x);
 
-    return { areaPath, gridValues, linePath, majorXValues, nodes, targetLinePath, targetY };
-  }, [chartHeight, padding.bottom, padding.left, padding.right, padding.top, points, targetValue, width]);
+    return { areaPath, gridValues, linePath, majorXValues, nodes, plannedLinePath, plannedY, targetLinePath, targetY };
+  }, [chartHeight, padding.bottom, padding.left, padding.right, padding.top, plannedValue, points, targetValue, width]);
 
   function handleLayout(event: LayoutChangeEvent) {
     setWidth(Math.max(event.nativeEvent.layout.width, 260));
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, flat && styles.cardFlat]}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>{title}</Text>
           {controls}
         </View>
         <View style={styles.headerMeta}>
-          <Text style={styles.detail}>{detail}</Text>
+          {detail ? <Text style={styles.detail}>{detail}</Text> : null}
           <View style={styles.legend}>
             <View style={styles.legendItem}>
               <View style={styles.legendLine} />
@@ -84,6 +96,12 @@ export function DashboardHeroChart({
               <View style={styles.legendGuide} />
               <Text style={styles.legendLabel}>{targetLabel}</Text>
             </View>
+            {plannedLabel && plannedValue !== null && plannedValue !== undefined ? (
+              <View style={styles.legendItem}>
+                <View style={styles.legendPlannedGuide} />
+                <Text style={styles.legendLabel}>{plannedLabel}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </View>
@@ -118,6 +136,15 @@ export function DashboardHeroChart({
               strokeDasharray="6 6"
               strokeWidth="1.5"
             />
+            {geometry.plannedLinePath ? (
+              <Path
+                d={geometry.plannedLinePath}
+                fill="none"
+                stroke="#0f766e"
+                strokeDasharray="3 5"
+                strokeWidth="1.5"
+              />
+            ) : null}
 
             <Path d={geometry.areaPath} fill="url(#heroArea)" />
 
@@ -174,7 +201,7 @@ export function DashboardHeroChart({
             ))}
           </View>
         )}
-        <Text style={styles.caption}>{targetLabel}: {targetValue.toLocaleString()}</Text>
+        {caption ? <Text style={styles.caption}>{caption}</Text> : null}
       </View>
     </View>
   );
@@ -188,6 +215,16 @@ const styles = StyleSheet.create({
     borderColor: '#d7dee7',
     padding: 16,
     gap: 14
+  },
+  cardFlat: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dbe3ec',
+    paddingHorizontal: 0,
+    paddingTop: 12,
+    paddingBottom: 18
   },
   header: {
     gap: 8
@@ -233,6 +270,13 @@ const styles = StyleSheet.create({
     height: 0,
     borderTopWidth: 2,
     borderTopColor: '#8ea0b6',
+    borderStyle: 'dashed'
+  },
+  legendPlannedGuide: {
+    width: 18,
+    height: 0,
+    borderTopWidth: 2,
+    borderTopColor: '#0f766e',
     borderStyle: 'dashed'
   },
   legendLabel: {

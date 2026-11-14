@@ -1,11 +1,9 @@
-import type {
-  ExerciseEntry,
-  FoodLogSummary,
-  MacroTargets,
-  MealPlanDay,
-  UserGoal,
-  UserProfile
-} from '../types';
+import type { FoodLogSummary, MacroTargets, MealPlanDay, UserGoal, UserProfile } from '../types';
+
+type ExerciseLike = {
+  duration_minutes: number;
+  calories_burned: number;
+};
 
 export interface DailyTargetSummary {
   calorieTarget: number;
@@ -57,7 +55,7 @@ export function buildDailyTargetSummary({
   goal: UserGoal | null;
   profile: UserProfile | null;
   foodLog: FoodLogSummary;
-  exerciseEntries: ExerciseEntry[];
+  exerciseEntries: ExerciseLike[];
 }): DailyTargetSummary {
   const calorieTarget = Math.round(goal?.calorie_goal ?? profile?.initial_calorie_target ?? 0);
   const macroTargets = {
@@ -132,7 +130,7 @@ export function buildDailyMealPlanSummary(
   };
 }
 
-export function buildDailyExerciseSummary(exerciseEntries: ExerciseEntry[]): DailyExerciseSummary {
+export function buildDailyExerciseSummary(exerciseEntries: ExerciseLike[]): DailyExerciseSummary {
   return {
     sessionCount: exerciseEntries.length,
     totalMinutes: exerciseEntries.reduce((sum, entry) => sum + entry.duration_minutes, 0),

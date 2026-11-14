@@ -96,6 +96,13 @@ Main issues:
 - `user_goals` should be versioned over time, not overwritten in place
 - `weight_entries` enables trend and adherence analytics
 
+#### Planned workout model
+
+- `planned_workout_sessions` should own the workout header for one planned session
+- `planned_workout_blocks` should represent ordered `warmup`, `activity`, and `cooldown` sections
+- `planned_workout_segments` should represent ordered time-, distance-, activity-, or reps-based instructions inside each block
+- the current flat `planned_exercise_entries` contract may remain as a temporary compatibility layer, but new planner work should target the structured workout tables
+
 ### Storage choice
 
 Recommended progression:
