@@ -252,9 +252,6 @@ def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> User
     profile = repository.get_user_identity(session.user_id)
     if profile is None:
         raise RuntimeError("Failed to load user profile.")
-    if profile.get("setup_completed_at") is not None:
-        ensure_default_meal_plan_window(repository, user_id=session.user_id)
-        ensure_default_planned_exercise_window(repository, user_id=session.user_id)
     return UserProfile.model_validate(profile)
 
 
@@ -477,13 +474,6 @@ def update_user_profile(
 
     if profile is None:
         raise RuntimeError("Failed to persist user profile setup state.")
-    if profile.get("setup_completed_at") is not None:
-        ensure_default_meal_plan_window(
-            repository,
-            user_id=session.user_id,
-            calorie_target=profile.get("initial_calorie_target"),
-        )
-        ensure_default_planned_exercise_window(repository, user_id=session.user_id)
     return UserProfile.model_validate(profile)
 
 

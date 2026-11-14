@@ -35,15 +35,12 @@ async def test_tracker_persists_exercise_meal_plan_and_meal_prep(client):
 
     planned_exercise_response = await client.get("/api/tracker/planned-exercise", headers=headers)
     assert planned_exercise_response.status_code == 200
-    planned_exercise_entries = planned_exercise_response.json()
-    assert len(planned_exercise_entries) == 4
-    assert planned_exercise_entries[0]["planned_on"] <= planned_exercise_entries[-1]["planned_on"]
+    # Read paths never generate starter/demo workouts.
+    assert planned_exercise_response.json() == []
 
     planned_workout_response = await client.get("/api/tracker/planned-workout-sessions", headers=headers)
     assert planned_workout_response.status_code == 200
-    planned_workout_sessions = planned_workout_response.json()
-    assert len(planned_workout_sessions) == 4
-    assert planned_workout_sessions[0]["blocks"][0]["block_kind"] == "activity"
+    assert planned_workout_response.json() == []
 
     create_planned_response = await client.post(
         "/api/tracker/planned-exercise",

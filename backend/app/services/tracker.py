@@ -17,7 +17,6 @@ from backend.app.models.tracker import (
     MealPrepTaskCreateRequest,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
-from backend.app.services.profile import ensure_default_meal_plan_window, ensure_default_planned_exercise_window
 
 
 def create_exercise_entry(
@@ -75,12 +74,10 @@ def create_planned_exercise_entry(
 
 
 def list_planned_exercise_entries(repository: SQLiteRepository, user_id: str) -> list[PlannedExerciseEntry]:
-    ensure_default_planned_exercise_window(repository, user_id=user_id)
     return [PlannedExerciseEntry.model_validate(entry) for entry in repository.list_planned_exercise_entries(user_id)]
 
 
 def list_planned_workout_sessions(repository: SQLiteRepository, user_id: str) -> list[PlannedWorkoutSession]:
-    ensure_default_planned_exercise_window(repository, user_id=user_id)
     return [PlannedWorkoutSession.model_validate(entry) for entry in repository.list_planned_workout_sessions(user_id)]
 
 
@@ -228,7 +225,6 @@ def save_meal_plan_day(
 
 
 def list_meal_plan_days(repository: SQLiteRepository, user_id: str) -> list[MealPlanDay]:
-    ensure_default_meal_plan_window(repository, user_id=user_id)
     return [MealPlanDay.model_validate(day) for day in repository.list_meal_plan_days(user_id)]
 
 
