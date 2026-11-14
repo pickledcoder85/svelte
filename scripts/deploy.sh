@@ -58,12 +58,22 @@ echo "==> Building web app"
 (cd frontend && rm -rf dist && npm run build:web)
 
 echo "==> Copying release to the server"
+# Directory excludes are anchored with a leading "/" so they only match at the repo root:
+# the web build has its own assets/node_modules/ (fonts) that must ship.
 rsync -az --delete \
-  --exclude .git --exclude node_modules --exclude 'frontend/.expo' \
-  --exclude '*.db' --exclude '*.db-*' --exclude tmp --exclude .env --exclude 'frontend/.env' \
-  --exclude .pytest_cache --exclude .ruff_cache --exclude __pycache__ --exclude .codex \
-  --exclude .claude --exclude '*.egg-info' --exclude backups \
+  --exclude /.git --exclude /node_modules --exclude /frontend/node_modules --exclude /frontend/.expo \
+  --exclude '*.db' --exclude '*.db-*' --exclude /tmp --exclude .env \
+  --exclude .pytest_cache --exclude .ruff_cache --exclude __pycache__ --exclude /.codex \
+  --exclude /.claude --exclude '*.egg-info' --exclude /backups \
   ./ "$TARGET:/tmp/relish-release/"
+
+LOCAL_DIST_FILES="$(cd frontend/dist && find . -type f | wc -l)"
+REMOTE_DIST_FILES="$(ssh "$TARGET" 'cd /tmp/relish-release/frontend/dist && find . -type f | wc -l')"
+if [[ "$LOCAL_DIST_FILES" != "$REMOTE_DIST_FILES" ]]; then
+  echo "Web build mismatch: $LOCAL_DIST_FILES files locally, $REMOTE_DIST_FILES on the server. Not deploying." >&2
+  exit 1
+fi
+echo "==> Web build copied ($LOCAL_DIST_FILES files)"
 
 echo "==> Installing and restarting on the server"
 ssh "$TARGET" "COMMIT=$COMMIT bash -s" <<'REMOTE'

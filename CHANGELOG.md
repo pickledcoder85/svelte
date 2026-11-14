@@ -81,6 +81,7 @@ The format should remain simple:
 
 ### Fixed
 
+- Production was missing the Ribeye display font: the deploy script excluded every `node_modules` folder, including the web build's `assets/node_modules/` where Expo puts fonts, so the server returned 404 and screens fell back to a system font. Excludes are now anchored to the repo root, and a deploy stops if the server's copy of the web build has a different number of files.
 - Headings in the Ribeye display font (such as "Welcome to Relish!") no longer pop in after the rest of the screen: launch keeps the splash up until the font has loaded, capped at 2 seconds (or a font error) so it never hangs.
 - Food Search's add buttons and status now describe the amount in the food's own unit ("Add 1 × can (355mL) to today"), not always in grams; scanned foods are measured per serving.
 - Production web builds now call the API at `/api` on their own origin: the base URL is read as a literal `process.env.EXPO_PUBLIC_API_BASE_URL` (which Expo inlines) and `npm run build:web` sets it to `/api`. Previously builds always called `http://localhost:8000/api`.
