@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 DEFAULT_DATABASE_URL = "sqlite:///./nutrition_os.db"
 MIGRATIONS_DIR = Path(__file__).with_name("migrations")
+MIGRATION_NAME = re.compile(r"^(\d{3})_[a-z0-9_]+\.sql$")
+RESET_HINT = "Reset it with `python -m backend.app.db.bootstrap --reset` (this deletes its data)."
+
+
+class DatabaseSchemaError(RuntimeError):
+    """The database file was not created by this schema history and cannot be migrated."""
 
 
 def get_database_url() -> str:
@@ -41,7 +48,42 @@ def connect(database_url: str | None = None) -> sqlite3.Connection:
     return connection
 
 
-def ensure_schema_migrations_table(connection: sqlite3.Connection) -> None:
+def migration_files() -> list[Path]:
+    """Numbered migrations in order. Names must be unique, three-digit, and snake_case."""
+    files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    seen: dict[str, Path] = {}
+    for path in files:
+        match = MIGRATION_NAME.match(path.name)
+        if not match:
+            raise DatabaseSchemaError(f"Badly named migration file: {path.name}")
+        number = match.group(1)
+        if number in seen:
+            raise DatabaseSchemaError(f"Duplicate migration number {number}: {seen[number].name}, {path.name}")
+        seen[number] = path
+    return files
+
+
+def _user_tables(connection: sqlite3.Connection) -> set[str]:
+    rows = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    return {row[0] for row in rows}
+
+
+def apply_pending_migrations(connection: sqlite3.Connection) -> list[str]:
+    """Apply every migration not yet recorded, each in its own transaction.
+
+    Refuses databases from before the 001 baseline (tables but no schema history, or
+    recorded versions this code does not know) instead of guessing how to repair them.
+    Returns the versions applied by this call.
+    """
+    files = migration_files()
+    known_versions = {path.stem for path in files}
+    tables = _user_tables(connection)
+
+    if tables and "schema_migrations" not in tables:
+        raise DatabaseSchemaError(f"This database predates the schema baseline. {RESET_HINT}")
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -50,136 +92,74 @@ def ensure_schema_migrations_table(connection: sqlite3.Connection) -> None:
         )
         """
     )
-
-
-def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
-    row = connection.execute(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table' AND name = ?
-        """,
-        (table_name,),
-    ).fetchone()
-    return row is not None
-
-
-def user_tables(connection: sqlite3.Connection) -> list[str]:
-    rows = connection.execute(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table'
-          AND name NOT LIKE 'sqlite_%'
-        ORDER BY name
-        """
-    ).fetchall()
-    return [row["name"] for row in rows]
-
-
-def applied_migrations(connection: sqlite3.Connection) -> set[str]:
-    ensure_schema_migrations_table(connection)
-    rows = connection.execute("SELECT version FROM schema_migrations").fetchall()
-    return {row["version"] for row in rows}
-
-
-def migration_files() -> list[Path]:
-    return sorted(MIGRATIONS_DIR.glob("*.sql"))
-
-
-def table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
-    rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
-    return {row["name"] for row in rows}
-
-
-def migration_already_reflected(connection: sqlite3.Connection, version: str) -> bool:
-    if version == "010_planned_exercise_completion":
-        columns = table_columns(connection, "planned_exercise_entries")
-        return {"completed_at", "completed_exercise_entry_id"}.issubset(columns)
-
-    if version == "011_planned_workout_structure":
-        return all(
-            table_exists(connection, table_name)
-            for table_name in (
-                "planned_workout_sessions",
-                "planned_workout_blocks",
-                "planned_workout_segments",
-            )
+    connection.commit()
+    applied = {row[0] for row in connection.execute("SELECT version FROM schema_migrations").fetchall()}
+    unknown = sorted(applied - known_versions)
+    if unknown:
+        raise DatabaseSchemaError(
+            f"This database records migrations this version does not know ({', '.join(unknown)}). "
+            f"It was created by an older or newer schema history. {RESET_HINT}"
         )
 
-    return False
+    newly_applied: list[str] = []
+    for path in files:
+        version = path.stem
+        if version in applied:
+            continue
+        script = path.read_text(encoding="utf-8")
+        try:
+            connection.execute("BEGIN")
+            for statement in _split_statements(script):
+                connection.execute(statement)
+            connection.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
+        newly_applied.append(version)
+    return newly_applied
 
 
-def adopt_legacy_database(connection: sqlite3.Connection) -> None:
-    existing_tables = set(user_tables(connection))
-    if not existing_tables or existing_tables == {"schema_migrations"}:
-        return
+def _split_statements(script: str) -> list[str]:
+    """Split a migration into statements so they run inside one explicit transaction.
 
-    ensure_schema_migrations_table(connection)
-    completed = {
-        row["version"]
-        for row in connection.execute("SELECT version FROM schema_migrations").fetchall()
-    }
-    if completed:
-        return
-    connection.executemany(
-        "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
-        [(migration_file.stem,) for migration_file in migration_files()],
-    )
-    connection.commit()
+    `executescript` would commit first and run outside our transaction. sqlite3's
+    `complete_statement` handles semicolons inside strings and CREATE TRIGGER bodies.
+    """
+    statements: list[str] = []
+    buffer = ""
+    for line in script.splitlines(keepends=True):
+        stripped = line.strip()
+        if not buffer.strip() and (not stripped or stripped.startswith("--")):
+            buffer = ""
+            continue
+        buffer += line
+        if sqlite3.complete_statement(buffer):
+            if buffer.strip().rstrip(";").strip():
+                statements.append(buffer.strip())
+            buffer = ""
+    if buffer.strip():
+        raise DatabaseSchemaError("Migration ends with an incomplete SQL statement.")
+    return statements
 
 
-def apply_migrations(database_url: str | None = None) -> None:
-    with connect(database_url) as connection:
-        adopt_legacy_database(connection)
-        completed = applied_migrations(connection)
-
-        for migration_file in migration_files():
-            version = migration_file.stem
-            if version in completed:
-                continue
-
-            if migration_already_reflected(connection, version):
-                connection.execute(
-                    "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
-                    (version,),
-                )
-                continue
-
-            connection.executescript(migration_file.read_text(encoding="utf-8"))
-            connection.execute(
-                "INSERT INTO schema_migrations (version) VALUES (?)",
-                (version,),
-            )
-
-        connection.commit()
+def apply_migrations(database_url: str | None = None) -> list[str]:
+    connection = connect(database_url)
+    try:
+        return apply_pending_migrations(connection)
+    finally:
+        connection.close()
 
 
 def reset_database(database_url: str | None = None) -> str:
     path = resolve_sqlite_path(database_url)
     if path == ":memory:":
         raise ValueError("Reset is not supported for in-memory SQLite databases.")
-    database_file = Path(path)
-    if database_file.exists():
-        database_file.unlink()
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        database_file = Path(f"{path}{suffix}")
+        if database_file.exists():
+            database_file.unlink()
     return path
-
-
-def fetch_all(connection: sqlite3.Connection, sql: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
-    rows = connection.execute(sql, tuple(params)).fetchall()
-    return [dict(row) for row in rows]
-
-
-def fetch_one(
-    connection: sqlite3.Connection, sql: str, params: Iterable[Any] = ()
-) -> dict[str, Any] | None:
-    row = connection.execute(sql, tuple(params)).fetchone()
-    return dict(row) if row is not None else None
-
-
-def execute(connection: sqlite3.Connection, sql: str, params: Iterable[Any] = ()) -> str:
-    cursor = connection.execute(sql, tuple(params))
-    return str(cursor.lastrowid)
 
 
 def json_text(value: Any) -> str:
