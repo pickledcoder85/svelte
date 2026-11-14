@@ -269,6 +269,12 @@ def complete_user_onboarding(
         email=session.email,
         display_name=session.display_name,
     )
+    if payload.units is not None or payload.timezone is not None:
+        repository.update_user_preferences(
+            user_id=session.user_id,
+            timezone=payload.timezone,
+            units=payload.units,
+        )
     targets = generate_nutrition_targets(
         sex=payload.sex,
         age_years=payload.age_years,
