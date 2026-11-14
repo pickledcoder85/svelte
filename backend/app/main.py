@@ -85,5 +85,3 @@ def create_app(
         mount_web_app(app, settings.web_dist_dir)
     return app
 
-
-app = create_app()

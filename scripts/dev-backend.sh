@@ -17,4 +17,4 @@ mkdir -p "$LOG_DIR"
 : > "$LOG_FILE"
 echo "Writing backend logs to $LOG_FILE" >&2
 
-uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000 2>&1 | tee -a "$LOG_FILE"
+uvicorn backend.app.main:create_app --factory --reload --host 0.0.0.0 --port 8000 2>&1 | tee -a "$LOG_FILE"

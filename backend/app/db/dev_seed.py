@@ -191,7 +191,7 @@ def seed_dev_data(database_url: str | None = None) -> dict[str, str]:
         fat_target_g=60,
         fiber_target_g=30,
         calculation_version="v1",
-        target_source="generated_onboarding",
+        target_source="system_default",
     )
     repository.save_user_goal(
         user_id=session.user_id,
@@ -204,7 +204,7 @@ def seed_dev_data(database_url: str | None = None) -> dict[str, str]:
         goal_type="lose",
         goal_pace="recommended",
         calculation_version="v1",
-        target_source="generated_onboarding",
+        target_source="system_default",
         target_weight_lbs=175.0,
     )
 

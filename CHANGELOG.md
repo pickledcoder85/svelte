@@ -74,6 +74,7 @@ The format should remain simple:
 
 ### Fixed
 
+- The seeded development user's profile and goals no longer fail to load with a 500: `dev_seed` wrote `target_source='generated_onboarding'`, which the profile model rejects; it now writes `system_default`.
 - Live mode no longer swaps in demo data when the dashboard, profile progress, tracker, or daily food log fails to load. Those screens now show empty data with a "could not be loaded" error, and demo data appears only in preview mode.
 - Saved profile timezone, units, and display name are no longer reset to `UTC`, `imperial`, and the session name by profile loads, sign-in, onboarding, food logs, exercise and planner writes, goals, or weights. Only `PUT /profile` changes them, and omitting `display_name` there keeps the saved name.
 - Starter meal plans and workouts are now created only once, when onboarding completes. Listing planned workouts or meal plans, loading the profile, and saving the profile no longer regenerate demo plans for the next four days, so deleted starter workouts stay deleted and users who skip onboarding get no demo plans.
@@ -83,6 +84,8 @@ The format should remain simple:
 
 ### Changed
 
+- One schema: the live schema is now the single baseline migration `001_baseline.sql`, applied automatically at startup with each migration in its own transaction. Removed the per-startup schema repair code (about 1,100 lines that rebuilt tables with foreign keys off), the twelve unused `001`-`011` migration files (including two numbered `006`), and the unused `repositories/memory.py` and `repositories/nutrition.py`. Databases from before the baseline are refused with a reset instruction; reset local ones with `python -m backend.app.db.bootstrap --reset`.
+- The backend now starts with `uvicorn backend.app.main:create_app --factory`; importing `backend.app.main` no longer opens the database, so tests no longer touch a developer's local database.
 - SQLite now uses WAL mode, `synchronous=NORMAL`, and a 5-second busy timeout. Every repository read now holds the connection lock (now re-entrant), fixing races a concurrency test reproduced; service code no longer queries the connection directly.
 - `.gitignore` covers SQLite WAL, shared-memory, and journal files and a `backups/` folder.
 - In production, scans without `OPENAI_API_KEY` return `503` instead of saving fixed demo nutrition; the demo fallback remains for development and tests. Scan failures return a generic `502` message, with details only in the server log. The OpenAI HTTP client is now closed after each call.

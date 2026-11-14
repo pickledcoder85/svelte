@@ -38,7 +38,9 @@ Main issues:
 
 ## Improved plan
 
-### Recommended core tables
+> Current schema (2026-11-14): the live schema is the single baseline migration [`backend/app/db/migrations/001_baseline.sql`](../backend/app/db/migrations/001_baseline.sql) (28 tables, including `food_catalog`, `food_logs`, `planned_workout_sessions`, and `recipes`). The `food_items` / `food_item_sources` design below was the original plan and was never used by the app. Schema changes are new numbered migrations (`002_<change>.sql`, ...) that run automatically at startup.
+
+### Recommended core tables (original plan)
 
 - `users`
 - `user_profiles`
@@ -116,7 +118,7 @@ SQLite is the cleaner default for this product right now because:
 - the repository layer can still enforce constraints and migrations
 - the schema can remain PostgreSQL-friendly if a future migration is needed
 
-Migration files live in `backend/app/db/migrations/`.
+Migration files live in `backend/app/db/migrations/`. `SQLiteRepository` applies pending ones at startup, each in its own transaction, recorded in `schema_migrations`. Databases created before the baseline are refused with a reset instruction instead of being repaired in place.
 
 ## Implementation steps
 

@@ -104,7 +104,9 @@ Run `python -m backend.app.db.bootstrap` any time you need to create the local S
 
 For repeatable local iteration:
 
-- `python -m backend.app.db.bootstrap --reset` recreates the target SQLite file from migrations.
+- `python -m backend.app.db.bootstrap --reset` recreates the target SQLite file from migrations (and removes its `-wal`/`-shm` files).
+- The schema is one baseline migration, `backend/app/db/migrations/001_baseline.sql`. Add changes as new numbered files (`002_<change>.sql`); the server applies them at startup, each in a transaction. A database created before the baseline (2026-11-14) is refused with a message telling you to reset it.
+- The app is built by `create_app()` and started with `uvicorn backend.app.main:create_app --factory` (both launch scripts do this), so importing the backend never opens a database.
 - `python -m backend.app.db.bootstrap --reset --seed-dev` recreates the target SQLite file and seeds a stable local development user, baseline logs, meal-plan data, and demo recipes.
 - The seeded local development user email is `dev@example.com`.
 - `scripts/dev-backend.sh` defaults `DATABASE_URL` to `sqlite:///./nutrition_os.dev.db` when you do not set it explicitly.

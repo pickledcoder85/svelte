@@ -22,7 +22,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 
 - Frontend: Expo / React Native TypeScript app with web support and hot reload.
 - Backend: Python FastAPI application managed through the `svelte` conda environment.
-- Database: SQLite by default for local development, with a checked-in migration file and repository helpers.
+- Database: SQLite, with one baseline migration (`backend/app/db/migrations/001_baseline.sql`) applied automatically at startup and new numbered migrations for later changes.
 - Mobile runtime: Expo Go during development, with native build/export options later.
 - Auth: single owner. In production, Tailscale identifies the owner (`AUTH_MODE=tailscale`, `OWNER_EMAIL`); local development keeps email sessions or `DEV_AUTO_LOGIN`. See [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md#environment-variables).
 - Nutrition source: USDA FoodData Central API.
