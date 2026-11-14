@@ -90,7 +90,8 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ### Phase 3: go live
 
-- [ ] GCP e2-micro in a US region, Tailscale with no public ports, systemd, secrets env file, backups to R2/B2, one restore drill.
+- [x] GCP e2-micro (us-central1), Tailscale with no public ports, systemd service and nightly backup timer, root-only secrets env file (2026-11-14).
+- [ ] Off-machine backups (Litestream or rclone to R2/B2) and one restore drill.
 - [ ] iPhone: Tailscale app with on-demand VPN for the `ts.net` domain, then Safari, Share, Add to Home Screen, and sign in once inside the installed app.
 - [ ] AI key spending cap.
 

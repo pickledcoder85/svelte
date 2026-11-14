@@ -23,6 +23,10 @@ Status: these steps are written ahead of Phase 3 (go live) in [DEPLOYMENT_ROADMA
 - Firewall: do not tick "Allow HTTP/HTTPS traffic". Nothing on the VM needs a public port; Tailscale connects outbound.
 - Keep the ephemeral external IP (Tailscale needs outbound internet; Google's free tier docs say an in-use external IP on the free e2-micro is not charged).
 - Set a billing budget alert (for example $1) so any surprise charge emails you.
+- Change the boot disk type to **Standard persistent disk**: the default (Balanced) is not in the free tier.
+- Under Data protection choose no snapshot schedule, and under Observability untick the Ops Agent (it costs memory and can cost money).
+- The create page's monthly estimate shows list prices; the free tier is credited on the bill.
+- If linking the project to a billing account fails with "reached the limit of projects on which you can enable billing", disable billing on an unused project under that account (Billing → Account management → ⋮ → Disable billing) to free a slot.
 
 ## 2. Install Tailscale on the VM
 
@@ -31,11 +35,22 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up --ssh          # approve the login in your browser
 ```
 
-In the Tailscale admin console: enable MagicDNS and HTTPS certificates, and rename the machine `relish`. After this you can SSH with `tailscale ssh <user>@relish` and close port 22 in the Google Cloud firewall.
+Run these in the VM's browser SSH window (Compute Engine → VM instances → SSH) and open the printed login link in your normal browser. In the Tailscale admin console: enable MagicDNS and HTTPS certificates, and rename the machine `relish` (the Tailscale name sets the app address; the Google Cloud VM name, for example `instance-20261114-205742`, does not matter). After this you can SSH with `ssh <user>@relish` from any tailnet device and close port 22 in the Google Cloud firewall.
+
+Google grants `sudo` only to its own browser SSH sessions. For deployment over Tailscale SSH, run once in the browser SSH window:
+
+```bash
+echo '<user> ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/90-<user> && sudo chmod 440 /etc/sudoers.d/90-<user> && sudo visudo -c
+```
+
+Remove it later with `sudo rm /etc/sudoers.d/90-<user>` if you prefer.
 
 ## 3. Prepare directories, user, and Python
 
 ```bash
+# The e2-micro has 1 GB of RAM and no swap; add 1 GB so package installs do not run out of memory.
+sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 sudo apt-get update && sudo apt-get install -y python3-venv sqlite3 rsync
 sudo useradd --system --home /opt/relish --shell /usr/sbin/nologin relish
 sudo mkdir -p /opt/relish/app /var/lib/relish/backups /etc/relish
@@ -73,6 +88,7 @@ sudoedit /etc/relish/relish.env
 ```
 
 - `OWNER_EMAIL` must be the exact email of the Tailscale account you sign in with on the iPhone.
+- Paste `OPENAI_API_KEY` yourself in a VM terminal (`sudoedit /etc/relish/relish.env`). Use a key made just for this server, with a spending limit, and never paste it into chats, issues, or commits.
 - `OPENAI_API_KEY`: set a monthly spending limit on the key in the OpenAI dashboard.
 - The file is root-only. systemd reads it as root and passes the values to the `relish` user, which cannot read the file itself. Never commit it.
 - Optional: store the values in Google Secret Manager instead and write this file from them at boot. For one user the root-only file is enough.
@@ -133,3 +149,7 @@ sudo systemctl start relish.service
 - App shows "Connect Tailscale to open Relish": the iPhone's Tailscale VPN is off or signed into a different account than `OWNER_EMAIL`.
 - Every request returns 403 "Untrusted identity source": uvicorn is running without `--no-proxy-headers`; start it through `scripts/prod-backend.sh`.
 - Logs: `journalctl -u relish.service -f`.
+
+## Deployment log
+
+- 2026-11-14: first deploy to `relish` (GCE `e2-micro`, us-central1-f, Ubuntu 24.04.5). Service `relish.service` active, nightly `relish-backup.timer` scheduled, `tailscale serve` publishing https://relish.taile5f6df.ts.net (tailnet only). Off-machine backups not set up yet.
