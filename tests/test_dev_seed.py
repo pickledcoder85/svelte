@@ -1,3 +1,5 @@
+import pytest
+
 from pathlib import Path
 
 from backend.app.db.database import apply_migrations
@@ -29,3 +31,27 @@ def test_seed_dev_data_includes_demo_recipes(tmp_path: Path) -> None:
         "recipe-overnight-oats",
         "recipe-summer-parfait",
     }
+
+
+@pytest.mark.asyncio
+async def test_seeded_dev_user_can_load_profile_and_goals(tmp_path: Path) -> None:
+    """Regression: dev_seed once wrote target_source='generated_onboarding', which made
+    GET /api/profile fail with a 500 for the seeded user."""
+    import httpx
+
+    from backend.app.main import create_app
+    from tests.conftest import isolated_test_settings
+
+    database_path = tmp_path / "seeded-api.db"
+    result = seed_dev_data(f"sqlite:///{database_path}")
+    app = create_app(database_path=str(database_path), settings=isolated_test_settings())
+    headers = {"Authorization": f"Bearer {result['access_token']}"}
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        profile = await client.get("/api/profile", headers=headers)
+        goals = await client.get("/api/profile/goals", headers=headers)
+
+    assert profile.status_code == 200
+    assert profile.json()["target_source"] == "system_default"
+    assert goals.status_code == 200
+    assert goals.json()[0]["target_source"] == "system_default"
