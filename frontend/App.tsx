@@ -17,7 +17,8 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
+  useWindowDimensions
 } from 'react-native';
 
 import {
@@ -114,6 +115,7 @@ import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
 import { registerServiceWorker } from './src/lib/service-worker';
+import { launchSplashSize } from './src/lib/launch-splash';
 import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
 import {
   clearStoredSessionToken,
@@ -3113,18 +3115,8 @@ export default function App(): ReactElement {
   }
 
   if (entryMode === null && ownerAccess === 'checking') {
-    // Same screen as profile loading, so an owner who is signed in automatically never sees
-    // the welcome screen flash before their profile opens.
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <View style={styles.bootState}>
-          <ActivityIndicator size="large" color="#17324d" />
-          <Text style={styles.bootStateTitle}>Opening Relish</Text>
-          <Text style={styles.bootStateDetail}>Checking sign-in…</Text>
-        </View>
-      </SafeAreaView>
-    );
+    // The same splash as the HTML page and profile loading, so launch shows one still image.
+    return <LaunchSplash />;
   }
 
   if (entryMode === null) {
@@ -3286,16 +3278,7 @@ export default function App(): ReactElement {
   }
 
   if (!profileLoaded) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <View style={styles.bootState}>
-          <ActivityIndicator size="large" color="#17324d" />
-          <Text style={styles.bootStateTitle}>Loading your profile</Text>
-          <Text style={styles.bootStateDetail}>{profileStatus}</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <LaunchSplash />;
   }
 
   if (onboardingRequired) {
@@ -5856,6 +5839,22 @@ export default function App(): ReactElement {
   );
 }
 
+// Web serves the splash from public/ (already shown by index.html and cached by the service
+// worker); native builds bundle the same file.
+const launchSplashSource: ImageSourcePropType =
+  Platform.OS === 'web' ? { uri: '/splash.jpg' } : require('./public/splash.jpg');
+
+function LaunchSplash(): ReactElement {
+  const { width } = useWindowDimensions();
+  const size = launchSplashSize(width);
+  return (
+    <View style={styles.launchSplash} accessibilityLabel="Relish is loading">
+      <StatusBar style="dark" />
+      <Image source={launchSplashSource} style={size} resizeMode="contain" accessibilityIgnoresInvertColors />
+    </View>
+  );
+}
+
 function MetricTile({
   label,
   value,
@@ -6222,23 +6221,11 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16
   },
-  bootState: {
+  launchSplash: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    padding: 24
-  },
-  bootStateTitle: {
-    color: '#17324d',
-    fontSize: 20,
-    fontWeight: '800'
-  },
-  bootStateDetail: {
-    color: '#66778c',
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center'
+    backgroundColor: '#f4efe4'
   },
   setupBackdrop: {
     minHeight: '100%',

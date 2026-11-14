@@ -1,7 +1,7 @@
 /* Relish service worker: caches the app shell only. Never caches /api (personal data). */
 /* Served with Cache-Control: no-cache, so a changed file reaches phones on next launch. */
 
-const SHELL_CACHE = 'relish-shell-v1';
+const SHELL_CACHE = 'relish-shell-v2';
 const ASSET_CACHE = 'relish-assets-v1';
 const KNOWN_CACHES = [SHELL_CACHE, ASSET_CACHE];
 // Content-hashed build output: safe to serve from cache forever.
@@ -13,7 +13,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(['/', '/manifest.json', '/icons/apple-touch-icon.png']))
+      .then((cache) => cache.addAll(['/', '/manifest.json', '/icons/apple-touch-icon.png', '/splash.jpg']))
       .catch(() => undefined)
       .then(() => self.skipWaiting())
   );
