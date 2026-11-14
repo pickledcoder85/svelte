@@ -96,7 +96,7 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ### Phase 4: daily-use completeness
 
-- [ ] Edit and delete food-log and exercise entries (with ownership checks).
+- [x] Edit and delete food-log and exercise entries (ownership checks, meal-plan slot un-ticking, plan re-opening; exercise made by a plan is edited through the plan).
 - [ ] Manual custom-food create, edit, and delete.
 - [ ] `GET /nutrition/logs?date=` instead of downloading every log.
 - [ ] Server-side calorie calculation from food and grams.
