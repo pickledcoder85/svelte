@@ -64,6 +64,7 @@ The format should remain simple:
 
 ### Fixed
 
+- Saved profile timezone, units, and display name are no longer reset to `UTC`, `imperial`, and the session name by profile loads, sign-in, onboarding, food logs, exercise and planner writes, goals, or weights. Only `PUT /profile` changes them, and omitting `display_name` there keeps the saved name.
 - Starter meal plans and workouts are now created only once, when onboarding completes. Listing planned workouts or meal plans, loading the profile, and saving the profile no longer regenerate demo plans for the next four days, so deleted starter workouts stay deleted and users who skip onboarding get no demo plans.
 - Deleting a planned workout that came from the legacy flat planner (including auto-generated starter workouts) now removes the structured session too, instead of returning `204` while the workout stayed listed; repeat deletes return `404`.
 - Editing a planned workout no longer adds the warmup and cooldown minutes into the main set on every save.

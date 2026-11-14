@@ -24,7 +24,7 @@ def create_exercise_entry(
     session: AuthSession,
     payload: ExerciseEntryCreateRequest,
 ) -> ExerciseEntry:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -53,7 +53,7 @@ def create_planned_exercise_entry(
     session: AuthSession,
     payload: PlannedExerciseEntryCreateRequest,
 ) -> PlannedExerciseEntry:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -86,7 +86,7 @@ def create_planned_workout_session(
     session: AuthSession,
     payload: PlannedWorkoutSessionCreateRequest,
 ) -> PlannedWorkoutSession:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -206,7 +206,7 @@ def save_meal_plan_day(
     session: AuthSession,
     payload: MealPlanDayCreateRequest,
 ) -> MealPlanDay:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -245,7 +245,7 @@ def create_meal_prep_task(
     session: AuthSession,
     payload: MealPrepTaskCreateRequest,
 ) -> MealPrepTask:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,

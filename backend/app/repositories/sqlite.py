@@ -1618,14 +1618,20 @@ class SQLiteRepository:
         timezone: str = "UTC",
         units: str = "imperial",
     ) -> dict[str, Any]:
-        user_existed = (
-            self._connection.execute(
-                "SELECT 1 FROM users WHERE id = ?",
-                (user_id,),
-            ).fetchone()
-            is not None
-        )
+        """Create or explicitly overwrite the user's display name, timezone, and units.
+
+        Only call this when the user is deliberately changing those settings (for example
+        `PUT /profile`). Incidental paths should use `ensure_user_identity`, which never
+        overwrites saved settings.
+        """
         with self._lock, self._connection:
+            user_existed = (
+                self._connection.execute(
+                    "SELECT 1 FROM users WHERE id = ?",
+                    (user_id,),
+                ).fetchone()
+                is not None
+            )
             self._connection.execute(
                 """
                 INSERT INTO users (id, email)
@@ -1646,6 +1652,50 @@ class SQLiteRepository:
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (user_id, display_name, timezone, units),
+            )
+            if not user_existed:
+                self._seed_default_favorite_foods_for_user(user_id)
+        identity = self.get_user_identity(user_id)
+        if identity is None:
+            raise RuntimeError("Failed to persist user identity.")
+        return identity
+
+    def ensure_user_identity(
+        self,
+        *,
+        user_id: str,
+        email: str,
+        display_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Make sure the user and profile rows exist without overwriting saved settings.
+
+        New users get the default timezone and units. Existing users keep their saved
+        display name, timezone, and units.
+        """
+        with self._lock, self._connection:
+            user_existed = (
+                self._connection.execute(
+                    "SELECT 1 FROM users WHERE id = ?",
+                    (user_id,),
+                ).fetchone()
+                is not None
+            )
+            self._connection.execute(
+                """
+                INSERT INTO users (id, email)
+                VALUES (?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    email = excluded.email
+                """,
+                (user_id, email),
+            )
+            self._connection.execute(
+                """
+                INSERT INTO user_profiles (user_id, display_name, timezone, units)
+                VALUES (?, ?, 'UTC', 'imperial')
+                ON CONFLICT(user_id) DO NOTHING
+                """,
+                (user_id, display_name),
             )
             if not user_existed:
                 self._seed_default_favorite_foods_for_user(user_id)
@@ -1713,7 +1763,7 @@ class SQLiteRepository:
             return
 
         placeholder_email = f"{user_id}@local.invalid"
-        self.save_user_identity(user_id=user_id, email=placeholder_email)
+        self.ensure_user_identity(user_id=user_id, email=placeholder_email)
 
     def get_user_identity(self, user_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(

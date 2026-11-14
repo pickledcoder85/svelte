@@ -23,7 +23,7 @@ def create_food_log(
         log_date=payload.log_date,
         notes=payload.notes,
     )
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,

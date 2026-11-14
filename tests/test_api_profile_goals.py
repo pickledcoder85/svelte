@@ -251,3 +251,75 @@ async def test_weight_history_and_progress(client, repository):
     assert progress["weekly_weight_change"] == -1.2
     assert progress["weight_entries"] == 2
     assert progress["calorie_goal"] == 2100
+
+
+@pytest.mark.asyncio
+async def test_saved_profile_settings_survive_reads_and_other_writes(client):
+    session_response = await client.post(
+        "/api/auth/session",
+        json={"email": "settings@example.com", "display_name": "Settings User"},
+    )
+    assert session_response.status_code == 200
+    headers = {"Authorization": f"Bearer {session_response.json()['session']['access_token']}"}
+
+    update_response = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={
+            "display_name": "Renamed User",
+            "timezone": "America/Chicago",
+            "units": "metric",
+        },
+    )
+    assert update_response.status_code == 200
+
+    # Every incidental path that used to reset settings to UTC / imperial.
+    assert (await client.get("/api/profile", headers=headers)).status_code == 200
+    assert (
+        await client.post(
+            "/api/nutrition/logs",
+            headers=headers,
+            json={"log_date": "2026-04-01", "notes": None},
+        )
+    ).status_code in {200, 201}
+    assert (
+        await client.post(
+            "/api/tracker/exercise",
+            headers=headers,
+            json={
+                "title": "Walk",
+                "duration_minutes": 20,
+                "calories_burned": 90,
+                "logged_on": "2026-04-01",
+                "logged_at": "07:00",
+                "intensity": "Low",
+            },
+        )
+    ).status_code == 200
+    assert (
+        await client.post(
+            "/api/profile/weights",
+            headers=headers,
+            json={"recorded_at": "2026-04-01", "weight_lbs": 180},
+        )
+    ).status_code in {200, 201}
+    signin_response = await client.post(
+        "/api/auth/session",
+        json={"email": "settings@example.com", "display_name": "Settings User", "intent": "signin"},
+    )
+    assert signin_response.status_code == 200
+
+    profile = (await client.get("/api/profile", headers=headers)).json()
+    assert profile["timezone"] == "America/Chicago"
+    assert profile["units"] == "metric"
+    assert profile["display_name"] == "Renamed User"
+
+    # Omitting display_name in a profile update keeps the saved name.
+    keep_name_response = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={"timezone": "America/Denver", "units": "metric"},
+    )
+    assert keep_name_response.status_code == 200
+    assert keep_name_response.json()["display_name"] == "Renamed User"
+    assert keep_name_response.json()["timezone"] == "America/Denver"

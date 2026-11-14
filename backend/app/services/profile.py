@@ -244,7 +244,7 @@ def ensure_default_planned_exercise_window(
 
 
 def get_user_profile(repository: SQLiteRepository, session: AuthSession) -> UserProfile:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -264,7 +264,7 @@ def complete_user_onboarding(
     if profile is not None and profile.get("setup_completed_at") is not None:
         raise OnboardingAlreadyCompletedError("User onboarding is already complete.")
 
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -336,7 +336,11 @@ def update_user_profile(
     repository.save_user_identity(
         user_id=session.user_id,
         email=session.email,
-        display_name=payload.display_name,
+        display_name=(
+            payload.display_name
+            if "display_name" in provided_fields
+            else existing_profile.get("display_name")
+        ),
         timezone=payload.timezone,
         units=payload.units,
     )
@@ -488,7 +492,7 @@ def create_user_goal(
         if payload.fiber_goal is not None
         else generate_fiber_target(payload.calorie_goal)
     )
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
@@ -519,7 +523,7 @@ def create_weight_entry(
     session: AuthSession,
     payload: WeightEntryCreateRequest,
 ) -> WeightEntry:
-    repository.save_user_identity(
+    repository.ensure_user_identity(
         user_id=session.user_id,
         email=session.email,
         display_name=session.display_name,
