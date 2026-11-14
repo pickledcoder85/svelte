@@ -19,6 +19,10 @@ The format should remain simple:
 
 ### Added
 
+- Single-owner sign-in. With `AUTH_MODE=tailscale` (required when `APP_ENV=production`), the server identifies the owner from the Tailscale Serve `Tailscale-User-Login` header, only on loopback connections and only when it matches `OWNER_EMAIL`; the app opens straight to Home with no sign-in screen. Local development keeps email sessions and gains an opt-in `DEV_AUTO_LOGIN`. The server refuses to start with unsafe auth settings.
+- `GET /api/health` now reports `auth_mode`.
+- `scripts/prod-backend.sh` starts the production API on `127.0.0.1` with one worker and `--no-proxy-headers`, and refuses to run unless `APP_ENV=production` and `AUTH_MODE=tailscale`.
+- Tailscale-mode writes require the `X-Relish-Request: 1` header (sent by the app's `apiFetch`) and are rejected when the browser marks them cross-site.
 - `DELETE /api/tracker/planned-workout-sessions/{session_id}` plus app-side create, edit, and delete for structured planned workouts with optional warmup and cooldown blocks.
 - `frontend/src/lib/planned-workouts.ts` now holds the planned-workout payload, mapping, and edit-draft helpers (moved out of `App.tsx`) with unit tests.
 - [docs/DEPLOYMENT_ROADMAP.md](docs/DEPLOYMENT_ROADMAP.md) records the codebase audit and the phased plan to ship Relish as a private, single-user iPhone PWA.
@@ -73,6 +77,8 @@ The format should remain simple:
 
 ### Changed
 
+- `APP_ENV` now only accepts `development`, `test`, or `production`, and `.env` is read from the repo root regardless of the working directory. `DEV_AUTO_LOGIN` applies only to requests from the same machine.
+- Every API route except `/api/health` and `/api/auth/session` now requires a session, including vision scans, recipes, meal templates, food search, weekly metrics, and meal calculation, which were previously open. Expired local sessions are rejected. Email sign-up and sign-in return `404` in Tailscale mode.
 - Deleting a planned workout (structured or legacy) now keeps the linked performed exercise entry, so removing a plan never erases logged exercise history.
 - The current flat planned-exercise tracker flow now mirrors into the new structured planned-workout tables as a compatibility layer for future mobile planner work.
 - Planned workouts no longer ask the user to enter calories manually in Tracker; the UI now derives an estimated burn from workout type and duration.

@@ -53,7 +53,7 @@ async def test_food_search_and_favorite_food_flow(client, repository, monkeypatc
 
     _install_food_favorite_store(repository, monkeypatch)
 
-    search_response = await client.get("/api/nutrition/foods/search?q=oats")
+    search_response = await client.get("/api/nutrition/foods/search?q=oats", headers=headers)
     assert search_response.status_code == 200
     foods = search_response.json()
     assert foods

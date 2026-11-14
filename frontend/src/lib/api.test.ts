@@ -15,6 +15,9 @@ import {
   createWeightEntry,
   calculateMeal,
   createLocalSession,
+  fetchOwnerSession,
+  apiFetch,
+  fetchWeeklyMetrics,
   completeOnboarding,
   createUserGoal,
   fetchIngestionOutput,
@@ -104,6 +107,72 @@ describe('api helpers', () => {
     );
   });
 
+  it('marks writes with the Relish request header and leaves reads untouched', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiFetch('http://localhost:8000/api/profile');
+    await apiFetch('http://localhost:8000/api/profile', { method: 'put', headers: { A: 'b' } });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:8000/api/profile');
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://localhost:8000/api/profile', {
+      method: 'put',
+      headers: { A: 'b', 'X-Relish-Request': '1' }
+    });
+  });
+
+  it('sends the session on reads that used to be anonymous', async () => {
+    const fetchMock = vi.fn().mockImplementation(
+      async () => new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchWeeklyMetrics('token-123');
+    await searchFoods('oats', 'token-123');
+    await fetchRecipes('token-123');
+    await fetchRecipe('recipe-1', 'token-123');
+
+    for (const call of fetchMock.mock.calls) {
+      expect(call[1]).toEqual({ headers: { Authorization: 'Bearer token-123' } });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('returns the owner session when the server already knows the user', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ session: { access_token: 'owner-session', provider: 'tailscale' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await fetchOwnerSession();
+
+    expect(session?.provider).toBe('tailscale');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/auth/session');
+  });
+
+  it('returns null when the server needs an explicit sign-in', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'No active session.' }), { status: 401 }))
+    );
+
+    await expect(fetchOwnerSession()).resolves.toBeNull();
+  });
+
+  it('surfaces other owner-session failures as errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ detail: 'This Relish server belongs to someone else.' }), { status: 403 })
+      )
+    );
+
+    await expect(fetchOwnerSession()).rejects.toThrow('belongs to someone else');
+  });
+
   it('includes backend error detail in thrown api errors', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ detail: 'Vision response did not include structured text output.' }), {
@@ -169,7 +238,7 @@ describe('api helpers', () => {
       'http://localhost:8000/api/profile/onboarding',
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer token-123', 'Content-Type': 'application/json' }
+        headers: { Authorization: 'Bearer token-123', 'Content-Type': 'application/json', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -265,7 +334,7 @@ describe('api helpers', () => {
       `http://localhost:8000/api/ingestion/outputs/${demoIngestionOutputs[0].id}/accept`,
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -273,7 +342,7 @@ describe('api helpers', () => {
       `http://localhost:8000/api/ingestion/outputs/${demoIngestionOutputs[1].id}/reject`,
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -356,7 +425,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -367,7 +437,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -376,7 +447,7 @@ describe('api helpers', () => {
       'http://localhost:8000/api/ingestion/outputs/output-2/save-food',
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -434,7 +505,7 @@ describe('api helpers', () => {
       `http://localhost:8000/api/recipes/${demoRecipe.id}/favorite`,
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -442,7 +513,7 @@ describe('api helpers', () => {
       `http://localhost:8000/api/recipes/${demoRecipe.id}/favorite`,
       expect.objectContaining({
         method: 'DELETE',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -557,7 +628,7 @@ describe('api helpers', () => {
       'http://localhost:8000/api/nutrition/favorites/foods/food-blueberries',
       expect.objectContaining({
         method: 'POST',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -577,7 +648,7 @@ describe('api helpers', () => {
       'http://localhost:8000/api/nutrition/favorites/foods/food-blueberries',
       expect.objectContaining({
         method: 'DELETE',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -644,7 +715,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -712,7 +784,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -745,7 +818,8 @@ describe('api helpers', () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         },
         body: JSON.stringify({ completed_at: '2026-04-03T07:10:00.000Z' })
       })
@@ -793,7 +867,8 @@ describe('api helpers', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -802,7 +877,7 @@ describe('api helpers', () => {
       'http://localhost:8000/api/tracker/planned-exercise/planned-1',
       expect.objectContaining({
         method: 'DELETE',
-        headers: { Authorization: 'Bearer token-123' }
+        headers: { Authorization: 'Bearer token-123', 'X-Relish-Request': '1' }
       })
     );
   });
@@ -1085,7 +1160,8 @@ describe('api helpers', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -1126,7 +1202,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -1137,7 +1214,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -1189,7 +1267,8 @@ describe('api helpers', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         },
         body: JSON.stringify({
           display_name: 'Lean Bulk',
@@ -1290,7 +1369,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -1301,7 +1381,8 @@ describe('api helpers', () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -1342,7 +1423,8 @@ describe('api helpers', () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         },
         body: JSON.stringify({ eaten_at: '2026-03-30T07:30:00' })
       })
@@ -1489,7 +1571,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
@@ -1499,7 +1582,8 @@ describe('api helpers', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-123'
+          Authorization: 'Bearer token-123',
+          'X-Relish-Request': '1'
         }
       })
     );
