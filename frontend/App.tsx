@@ -3111,6 +3111,21 @@ export default function App(): ReactElement {
     }
   }
 
+  if (entryMode === null && ownerAccess === 'checking') {
+    // Same screen as profile loading, so an owner who is signed in automatically never sees
+    // the welcome screen flash before their profile opens.
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <View style={styles.bootState}>
+          <ActivityIndicator size="large" color="#17324d" />
+          <Text style={styles.bootStateTitle}>Opening Relish</Text>
+          <Text style={styles.bootStateDetail}>Checking sign-in…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (entryMode === null) {
     return (
       <SafeAreaView style={styles.safeArea}>
