@@ -1,9 +1,11 @@
+import base64
+import binascii
 import json
 from typing import Any
 
 import httpx
 
-from backend.app.config import get_settings
+from backend.app.config import Settings
 from backend.app.models.nutrition import (
     MacroTargets,
     VisionFoodMatchCandidate,
@@ -15,13 +17,71 @@ from backend.app.repositories.sqlite import SQLiteRepository
 
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-VISION_MODEL = "gpt-4.1-mini"
+VISION_TIMEOUT_SECONDS = 45
+
+# Image formats OpenAI vision accepts, detected from the file's leading bytes.
+_IMAGE_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
 
 
-async def analyze_label_image(image_base64: str) -> VisionNutritionExtraction:
-    settings = get_settings()
+class VisionNotConfiguredError(RuntimeError):
+    """Scanning needs OPENAI_API_KEY, and demo results are not allowed (production)."""
 
-    if not settings.openai_api_key:
+
+class VisionImageError(ValueError):
+    """The uploaded image is too large, not base64, or not a supported format."""
+
+
+def prepare_image_data_url(image_base64: str, settings: Settings) -> str:
+    """Validate an uploaded image and return a data URL with its real media type.
+
+    Accepts raw base64 or a data URL. Rejects oversized uploads before any decoding, and
+    formats OpenAI cannot read (for example HEIC straight from an iPhone).
+    """
+    raw = image_base64.strip()
+    if raw.startswith("data:"):
+        _, _, raw = raw.partition(",")
+    raw = "".join(raw.split())
+    if not raw:
+        raise VisionImageError("The image is empty.")
+    if len(raw) > settings.vision_max_image_base64_chars:
+        raise VisionImageError("The image is too large. Retake it or use a smaller photo.")
+    try:
+        data = base64.b64decode(raw, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise VisionImageError("The image could not be read.") from exc
+    media_type = _detect_image_type(data)
+    if media_type is None:
+        raise VisionImageError("Unsupported image format. Use a JPEG, PNG, WEBP, or GIF photo.")
+    return f"data:{media_type};base64,{raw}"
+
+
+def _detect_image_type(data: bytes) -> str | None:
+    for signature, media_type in _IMAGE_SIGNATURES:
+        if data.startswith(signature):
+            return media_type
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _require_vision(settings: Settings) -> bool:
+    """True when a real model call should be made; False for the development demo result."""
+    if settings.openai_api_key:
+        return True
+    if settings.vision_demo_fallback_allowed:
+        return False
+    raise VisionNotConfiguredError("Scanning is not set up on this server.")
+
+
+async def analyze_label_image(image_base64: str, settings: Settings) -> VisionNutritionExtraction:
+    image_url = prepare_image_data_url(image_base64, settings)
+
+    if not _require_vision(settings):
         return VisionNutritionExtraction(
             label_text="Demo OCR output",
             product_name="Scanned food product",
@@ -33,8 +93,8 @@ async def analyze_label_image(image_base64: str) -> VisionNutritionExtraction:
         )
 
     payload = await _request_vision_json(
-        settings.openai_api_key,
-        image_base64,
+        settings,
+        image_url,
         """
 Extract the visible nutrition-label metadata from this food package image.
 Return JSON only with this exact shape:
@@ -91,17 +151,18 @@ Rules:
 async def analyze_package_image(
     image_base64: str,
     repository: SQLiteRepository,
+    settings: Settings,
 ) -> VisionPackageExtraction:
-    settings = get_settings()
-    if not settings.openai_api_key:
+    image_url = prepare_image_data_url(image_base64, settings)
+    if not _require_vision(settings):
         product_name = "Rolled oats"
         brand_name = "Pantry staple"
         package_text = "Demo package-front output"
         confidence = 0.71
     else:
         payload = await _request_vision_json(
-            settings.openai_api_key,
-            image_base64,
+            settings,
+            image_url,
             """
 Extract the visible front-of-package product metadata from this food package image.
 Return JSON only with this exact shape:
@@ -143,32 +204,33 @@ Rules:
     )
 
 
-async def _request_vision_json(api_key: str, image_base64: str, instructions: str) -> dict[str, Any]:
-    image_url = image_base64 if image_base64.startswith("data:") else f"data:image/jpeg;base64,{image_base64}"
-    response = await httpx.AsyncClient(timeout=45).post(
-        OPENAI_RESPONSES_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": VISION_MODEL,
-            "text": {
-                "format": {
-                    "type": "json_object"
-                }
+def build_vision_request(settings: Settings, image_url: str, instructions: str) -> dict[str, Any]:
+    return {
+        "model": settings.vision_model,
+        "reasoning": {"effort": settings.vision_reasoning_effort},
+        "text": {"format": {"type": "json_object"}},
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": instructions},
+                    {"type": "input_image", "image_url": image_url, "detail": "high"},
+                ],
+            }
+        ],
+    }
+
+
+async def _request_vision_json(settings: Settings, image_url: str, instructions: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=VISION_TIMEOUT_SECONDS) as client:
+        response = await client.post(
+            OPENAI_RESPONSES_URL,
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/json",
             },
-            "input": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": instructions},
-                        {"type": "input_image", "image_url": image_url},
-                    ],
-                }
-            ],
-        },
-    )
+            json=build_vision_request(settings, image_url, instructions),
+        )
     response.raise_for_status()
     payload = response.json()
     output_text = _extract_output_text(payload)

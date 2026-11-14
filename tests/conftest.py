@@ -16,7 +16,15 @@ def isolated_test_settings() -> Settings:
         auth_mode="local",
         owner_email="",
         dev_auto_login=False,
+        # Never call the paid vision API from tests, even if a key is exported in the shell.
+        openai_api_key="",
     )
+
+
+# A real 1x1 PNG, so scans pass image validation and reach the demo fallback.
+TINY_PNG_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
 
 
 @pytest.fixture()

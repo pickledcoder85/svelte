@@ -22,14 +22,16 @@ def create_app(
     settings: Settings | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
-    settings.validate_auth()
+    settings.validate_startup()
     origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
     db_path = database_path or resolve_sqlite_path(database_url or settings.database_url)
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        # The interactive API docs describe every route; keep them off the deployed server.
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
 
     app.state.settings = settings

@@ -1,6 +1,7 @@
 import pytest
 
 from backend.app.config import get_settings
+from tests.conftest import TINY_PNG_BASE64
 from backend.app.models.nutrition import FoodItem, MacroTargets
 
 
@@ -28,7 +29,7 @@ async def test_vision_label_returns_demo_extraction(client, auth_headers):
     response = await client.post(
         "/api/vision/label",
         headers=auth_headers,
-        json={"image_base64": "ZmFrZS1pbWFnZQ=="},
+        json={"image_base64": TINY_PNG_BASE64},
     )
 
     assert response.status_code == 200
@@ -49,7 +50,7 @@ async def test_package_scan_creates_ingestion_output_with_candidates(client):
     response = await client.post(
         "/api/vision/package",
         headers=headers,
-        json={"image_base64": "ZmFrZS1wYWNrYWdl"},
+        json={"image_base64": TINY_PNG_BASE64},
     )
 
     assert response.status_code == 200
@@ -72,7 +73,7 @@ async def test_label_ingest_and_save_food_flow(client):
     ingest_response = await client.post(
         "/api/vision/label/ingest",
         headers=headers,
-        json={"image_base64": "ZmFrZS1sYWJlbA=="},
+        json={"image_base64": TINY_PNG_BASE64},
     )
     assert ingest_response.status_code == 200
     output_id = ingest_response.json()["output_id"]
@@ -149,7 +150,7 @@ async def test_package_only_save_food_uses_usda_lookup(client, monkeypatch):
     scan_response = await client.post(
         "/api/vision/package",
         headers=headers,
-        json={"image_base64": "ZmFrZS1wYWNrYWdl"},
+        json={"image_base64": TINY_PNG_BASE64},
     )
     assert scan_response.status_code == 200
     output_id = scan_response.json()["output_id"]
@@ -194,7 +195,7 @@ async def test_multi_variant_label_save_persists_each_variant(client):
     ingest_response = await client.post(
         "/api/vision/label/ingest",
         headers=headers,
-        json={"image_base64": "ZmFrZS1sYWJlbA=="},
+        json={"image_base64": TINY_PNG_BASE64},
     )
     assert ingest_response.status_code == 200
     output_id = ingest_response.json()["output_id"]
