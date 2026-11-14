@@ -43,6 +43,7 @@ def web_client(tmp_path: Path) -> httpx.AsyncClient:
         ("manifest.json", "no-cache"),
         (BUNDLE, "public, max-age=31536000, immutable"),
         (IMAGE, "public, max-age=31536000, immutable"),
+        ("zxing/3.1.6/zxing_reader.wasm", "public, max-age=31536000, immutable"),
         ("favicon.ico", "public, max-age=3600"),
     ],
 )
