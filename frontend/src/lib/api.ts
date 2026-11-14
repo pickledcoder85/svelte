@@ -33,6 +33,7 @@ interface ApiFoodLogEntry {
   entry_type: 'food' | 'meal';
   food_item_id: string | null;
   meal_template_id: string | null;
+  meal_plan_slot_id?: string | null;
   display_name: string | null;
   brand: string | null;
   source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | null;
@@ -184,10 +185,13 @@ function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
       carbs: entry.carbs,
       fat: entry.fat
     },
-    logged_at: entry.created_at
+    logged_at: entry.created_at,
+    servings: entry.servings,
+    meal_plan_slot_id: entry.meal_plan_slot_id ?? null
   }));
 
   return {
+    log_id: log.id,
     date: log.log_date,
     entries,
     totals: {
@@ -938,4 +942,64 @@ export async function updateMealPrepTaskStatus(
       body: JSON.stringify({ status })
     })
   );
+}
+
+
+export type FoodLogEntryUpdatePayload = {
+  grams: number;
+  servings: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
+export async function updateFoodLogEntry(
+  logId: string,
+  entryId: string,
+  payload: FoodLogEntryUpdatePayload,
+  accessToken: string
+): Promise<FoodLogSummary> {
+  const log = await readJson<ApiFoodLog>(
+    await apiFetch(buildApiUrl(`/nutrition/logs/${logId}/entries/${entryId}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+  return summarizeFoodLog(log);
+}
+
+export async function deleteFoodLogEntry(logId: string, entryId: string, accessToken: string): Promise<FoodLogSummary> {
+  const log = await readJson<ApiFoodLog>(
+    await apiFetch(buildApiUrl(`/nutrition/logs/${logId}/entries/${entryId}`), {
+      method: 'DELETE',
+      headers: authHeaders(accessToken)
+    })
+  );
+  return summarizeFoodLog(log);
+}
+
+export async function updateExerciseEntry(
+  entryId: string,
+  payload: ExerciseEntryCreatePayload,
+  accessToken: string
+): Promise<ExerciseEntry> {
+  return readJson<ExerciseEntry>(
+    await apiFetch(buildApiUrl(`/tracker/exercise/${entryId}`), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function deleteExerciseEntry(entryId: string, accessToken: string): Promise<void> {
+  const response = await apiFetch(buildApiUrl(`/tracker/exercise/${entryId}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken)
+  });
+  if (!response.ok) {
+    await readJson<unknown>(response);
+  }
 }

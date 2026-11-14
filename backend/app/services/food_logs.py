@@ -1,7 +1,7 @@
 from datetime import date
 
 from backend.app.models.auth import AuthSession
-from backend.app.models.food_logs import FoodLog, FoodLogCreateRequest, FoodLogEntry, FoodLogEntryCreateRequest
+from backend.app.models.food_logs import FoodLogEntryUpdateRequest, FoodLog, FoodLogCreateRequest, FoodLogEntry, FoodLogEntryCreateRequest
 from backend.app.repositories.sqlite import SQLiteRepository
 
 
@@ -103,3 +103,42 @@ def add_food_log_entry(
     if refreshed is None:
         raise RuntimeError("Failed to reload food log after adding an entry.")
     return _normalize_food_log(refreshed)
+
+
+def update_food_log_entry(
+    repository: SQLiteRepository,
+    user_id: str,
+    food_log_id: str,
+    entry_id: str,
+    payload: FoodLogEntryUpdateRequest,
+) -> FoodLog | None:
+    updated = repository.update_food_log_entry(
+        user_id=user_id,
+        food_log_id=food_log_id,
+        entry_id=entry_id,
+        grams=payload.grams,
+        servings=payload.servings,
+        calories=payload.calories,
+        protein=payload.protein,
+        carbs=payload.carbs,
+        fat=payload.fat,
+    )
+    if not updated:
+        return None
+    return get_food_log(repository, user_id, food_log_id)
+
+
+def delete_food_log_entry(
+    repository: SQLiteRepository,
+    user_id: str,
+    food_log_id: str,
+    entry_id: str,
+) -> FoodLog | None:
+    deleted = repository.delete_food_log_entry(
+        user_id=user_id,
+        food_log_id=food_log_id,
+        entry_id=entry_id,
+    )
+    if not deleted:
+        return None
+    return get_food_log(repository, user_id, food_log_id)

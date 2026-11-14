@@ -19,11 +19,13 @@ from backend.app.models.tracker import (
     MealPrepTaskCreateRequest,
     MealPrepTaskStatusUpdateRequest,
 )
-from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.repositories.sqlite import ExerciseLinkedToPlanError, SQLiteRepository
 from backend.app.services.tracker import (
     create_exercise_entry,
     create_planned_exercise_entry,
     create_planned_workout_session,
+    delete_exercise_entry,
+    update_exercise_entry,
     create_meal_prep_task,
     delete_planned_workout_session,
     list_exercise_entries,
@@ -58,6 +60,35 @@ async def create_exercise(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> ExerciseEntry:
     return create_exercise_entry(repository, session, payload)
+
+
+@router.put("/exercise/{exercise_entry_id}", response_model=ExerciseEntry)
+async def update_exercise(
+    exercise_entry_id: str,
+    payload: ExerciseEntryCreateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> ExerciseEntry:
+    try:
+        entry = update_exercise_entry(repository, session.user_id, exercise_entry_id, payload)
+    except ExerciseLinkedToPlanError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="This exercise came from a planned workout. Edit the planned workout instead.",
+        ) from error
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Exercise entry not found.")
+    return entry
+
+
+@router.delete("/exercise/{exercise_entry_id}", status_code=204)
+async def delete_exercise(
+    exercise_entry_id: str,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> None:
+    if not delete_exercise_entry(repository, session.user_id, exercise_entry_id):
+        raise HTTPException(status_code=404, detail="Exercise entry not found.")
 
 
 @router.get("/planned-exercise", response_model=list[PlannedExerciseEntry])

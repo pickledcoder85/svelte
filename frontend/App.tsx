@@ -26,6 +26,10 @@ import {
   createExerciseEntry,
   createPlannedWorkoutSession,
   createLocalSession,
+  deleteExerciseEntry,
+  deleteFoodLogEntry,
+  updateExerciseEntry,
+  updateFoodLogEntry,
   fetchCurrentSession,
   fetchOwnerSession,
   setUnauthorizedHandler,
@@ -109,6 +113,7 @@ import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
 import { registerServiceWorker } from './src/lib/service-worker';
+import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
 import {
   clearStoredSessionToken,
   loadStoredSessionToken,
@@ -122,6 +127,7 @@ import type {
   DashboardRangeSeries,
   ExerciseEntry,
   FoodItem,
+  FoodLogEntry,
   FoodLogSummary,
   MealInput,
   MealTotals,
@@ -655,6 +661,14 @@ export default function App(): ReactElement {
   const [mealPlanDays, setMealPlanDays] = useState<MealPlanDay[]>([]);
   const [selectedMealPlanDate, setSelectedMealPlanDate] = useState<string | null>(null);
   const [mealPlanEatenSlots, setMealPlanEatenSlots] = useState<Record<string, Record<string, string>>>({});
+  // Inline edit/delete of logged food and exercise. Delete asks for a second tap.
+  const [editingFoodEntryId, setEditingFoodEntryId] = useState<string | null>(null);
+  const [editingFoodGramsDraft, setEditingFoodGramsDraft] = useState('');
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [editingExerciseMinutesDraft, setEditingExerciseMinutesDraft] = useState('');
+  const [editingExerciseCaloriesDraft, setEditingExerciseCaloriesDraft] = useState('');
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
+  const [entryActionBusyKey, setEntryActionBusyKey] = useState<string | null>(null);
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
@@ -2184,6 +2198,149 @@ export default function App(): ReactElement {
       setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
     } finally {
       setIsSavingLogEntry(false);
+    }
+  }
+
+  function unmarkMealPlanSlot(slotId: string) {
+    setMealPlanDays((days) =>
+      days.map((day) => ({
+        ...day,
+        slots: day.slots.map((slot) => (slot.id === slotId ? { ...slot, eaten_at: null } : slot))
+      }))
+    );
+    setMealPlanEatenSlots((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([dayId, slots]) => [
+          dayId,
+          Object.fromEntries(Object.entries(slots).filter(([id]) => id !== slotId))
+        ])
+      )
+    );
+  }
+
+  async function saveFoodEntryEdit(entry: FoodLogEntry) {
+    const grams = Number(editingFoodGramsDraft);
+    const payload = scaleEntryToGrams(entry, grams);
+    if (!foodSessionToken || !foodLog.log_id) {
+      setFoodLogError('Sign in again to edit this entry.');
+      return;
+    }
+    if (!payload) {
+      setFoodLogError('Enter an amount in grams greater than 0.');
+      return;
+    }
+    const key = `food:${entry.id}`;
+    setEntryActionBusyKey(key);
+    setFoodLogError(null);
+    try {
+      const updated = await updateFoodLogEntry(foodLog.log_id, entry.id, payload, foodSessionToken);
+      setFoodLog(updated);
+      setFoodLogTone('live');
+      setFoodLogStatus(`${entry.food_name} updated to ${payload.grams} g`);
+      setEditingFoodEntryId(null);
+    } catch (error) {
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to update this entry.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  async function removeFoodEntry(entry: FoodLogEntry) {
+    const key = `food:${entry.id}`;
+    if (confirmDeleteKey !== key) {
+      setConfirmDeleteKey(key);
+      return;
+    }
+    if (!foodSessionToken || !foodLog.log_id) {
+      return;
+    }
+    setConfirmDeleteKey(null);
+    setEntryActionBusyKey(key);
+    setFoodLogError(null);
+    try {
+      const updated = await deleteFoodLogEntry(foodLog.log_id, entry.id, foodSessionToken);
+      setFoodLog(updated);
+      if (entry.meal_plan_slot_id) {
+        unmarkMealPlanSlot(entry.meal_plan_slot_id);
+      }
+      setFoodLogTone('live');
+      setFoodLogStatus(`${entry.food_name} removed`);
+    } catch (error) {
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to delete this entry.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  async function saveExerciseEdit(entry: ExerciseEntry) {
+    const minutes = parsePositiveInt(editingExerciseMinutesDraft);
+    const calories = parseNonNegativeInt(editingExerciseCaloriesDraft);
+    if (!foodSessionToken) {
+      setTrackerError('Sign in again to edit exercise.');
+      return;
+    }
+    if (minutes === null || calories === null) {
+      setTrackerError('Enter at least 1 minute and 0 or more calories.');
+      return;
+    }
+    const key = `exercise:${entry.id}`;
+    setEntryActionBusyKey(key);
+    setTrackerError(null);
+    try {
+      const updated = await updateExerciseEntry(
+        entry.id,
+        {
+          title: entry.title,
+          duration_minutes: minutes,
+          calories_burned: calories,
+          logged_on: entry.logged_on,
+          logged_at: entry.logged_at,
+          intensity: entry.intensity
+        },
+        foodSessionToken
+      );
+      setExerciseEntries((current) => current.map((item) => (item.id === entry.id ? updated : item)));
+      setTrackerTone('live');
+      setTrackerStatus(`${entry.title} updated`);
+      setEditingExerciseId(null);
+    } catch (error) {
+      setTrackerError(error instanceof Error ? error.message : 'Unable to update this exercise.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  async function removeExerciseEntry(entry: ExerciseEntry) {
+    const key = `exercise:${entry.id}`;
+    if (confirmDeleteKey !== key) {
+      setConfirmDeleteKey(key);
+      return;
+    }
+    if (!foodSessionToken) {
+      return;
+    }
+    setConfirmDeleteKey(null);
+    setEntryActionBusyKey(key);
+    setTrackerError(null);
+    try {
+      await deleteExerciseEntry(entry.id, foodSessionToken);
+      setExerciseEntries((current) => current.filter((item) => item.id !== entry.id));
+      // A workout completed through this entry is back to "planned" on the server.
+      const reopened = (session: PlannedWorkoutSession): PlannedWorkoutSession =>
+        session.completed_exercise_entry_id === entry.id
+          ? { ...session, status: 'planned', completed_at: null, completed_exercise_entry_id: null }
+          : session;
+      setPlannedWorkoutSessions((current) => {
+        const next = current.map(reopened);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(next.map(mapPlannedWorkoutSessionToEntry)));
+        return next;
+      });
+      setTrackerTone('live');
+      setTrackerStatus(`${entry.title} removed`);
+    } catch (error) {
+      setTrackerError(error instanceof Error ? error.message : 'Unable to delete this exercise.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
     }
   }
 
@@ -4857,17 +5014,80 @@ export default function App(): ReactElement {
 
               <View style={styles.foodList}>
                 {exerciseEntries.length > 0 ? (
-                  exerciseEntries.map((entry) => (
-                    <View key={entry.id} style={styles.foodRow}>
-                      <View style={styles.foodRowCopy}>
-                        <Text style={styles.listTitle}>{entry.title}</Text>
-                        <Text style={styles.listCaption}>
-                          {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
-                        </Text>
+                  exerciseEntries.map((entry) => {
+                    const key = `exercise:${entry.id}`;
+                    const editing = editingExerciseId === entry.id;
+                    const busy = entryActionBusyKey !== null;
+                    // Optimistic rows (not saved yet) have client ids; plan-made rows are edited via the plan.
+                    const savedOnServer = !entry.id.startsWith('exercise-');
+                    const fromPlan = plannedWorkoutSessions.some((session) => session.completed_exercise_entry_id === entry.id);
+                    return (
+                      <View key={entry.id} style={styles.logEntryCard}>
+                        <View style={styles.foodRow}>
+                          <View style={styles.foodRowCopy}>
+                            <Text style={styles.listTitle}>{entry.title}</Text>
+                            <Text style={styles.listCaption}>
+                              {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
+                            </Text>
+                          </View>
+                          <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                        </View>
+                        {editing ? (
+                          <View style={styles.entryEditRow}>
+                            <TextInput
+                              value={editingExerciseMinutesDraft}
+                              onChangeText={setEditingExerciseMinutesDraft}
+                              keyboardType="number-pad"
+                              style={styles.entryEditInput}
+                              accessibilityLabel="Minutes"
+                            />
+                            <Text style={styles.listCaption}>min</Text>
+                            <TextInput
+                              value={editingExerciseCaloriesDraft}
+                              onChangeText={setEditingExerciseCaloriesDraft}
+                              keyboardType="number-pad"
+                              style={styles.entryEditInput}
+                              accessibilityLabel="Calories burned"
+                            />
+                            <Text style={styles.listCaption}>kcal</Text>
+                          </View>
+                        ) : null}
+                        {entryMode === 'live' && foodSessionToken && savedOnServer ? (
+                          <View style={styles.entryActionRow}>
+                            {fromPlan ? (
+                              <Text style={styles.listCaption}>From a planned workout</Text>
+                            ) : editing ? (
+                              <>
+                                <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void saveExerciseEdit(entry)}>
+                                  <Text style={styles.inlinePillButtonLabel}>{busy ? 'Saving…' : 'Save'}</Text>
+                                </Pressable>
+                                <Pressable style={styles.inlinePillButton} onPress={() => setEditingExerciseId(null)}>
+                                  <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
+                                </Pressable>
+                              </>
+                            ) : (
+                              <Pressable
+                                style={styles.inlinePillButton}
+                                onPress={() => {
+                                  setEditingExerciseId(entry.id);
+                                  setEditingExerciseMinutesDraft(String(entry.duration_minutes));
+                                  setEditingExerciseCaloriesDraft(String(entry.calories_burned));
+                                  setConfirmDeleteKey(null);
+                                }}
+                              >
+                                <Text style={styles.inlinePillButtonLabel}>Edit</Text>
+                              </Pressable>
+                            )}
+                            <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void removeExerciseEntry(entry)}>
+                              <Text style={[styles.inlinePillButtonLabel, confirmDeleteKey === key && styles.entryDeleteConfirmLabel]}>
+                                {confirmDeleteKey === key ? 'Tap again to delete' : 'Delete'}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        ) : null}
                       </View>
-                      <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
-                    </View>
-                  ))
+                    );
+                  })
                 ) : (
                   <View style={styles.detailCard}>
                     <Text style={styles.detailTitle}>No exercise entries yet</Text>
@@ -4894,17 +5114,66 @@ export default function App(): ReactElement {
                 </View>
               ) : (
                 <View style={styles.foodList}>
-                  {foodLog.entries.map((entry) => (
-                    <View key={entry.id} style={styles.foodRow}>
-                      <View style={styles.foodRowCopy}>
-                        <Text style={styles.listTitle}>{entry.food_name}</Text>
-                        <Text style={styles.listCaption}>
-                          {entry.grams} g · {entry.logged_at} · {(entry.brand ?? 'Unbranded')} · {entry.source}
-                        </Text>
+                  {foodLog.entries.map((entry) => {
+                    const key = `food:${entry.id}`;
+                    const editing = editingFoodEntryId === entry.id;
+                    const busy = entryActionBusyKey !== null;
+                    return (
+                      <View key={entry.id} style={styles.logEntryCard}>
+                        <View style={styles.foodRow}>
+                          <View style={styles.foodRowCopy}>
+                            <Text style={styles.listTitle}>{entry.food_name}</Text>
+                            <Text style={styles.listCaption}>
+                              {Math.round(entry.grams * 10) / 10} g · {entry.logged_at} · {(entry.brand ?? 'Unbranded')} · {entry.source}
+                            </Text>
+                          </View>
+                          <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
+                        </View>
+                        {editing ? (
+                          <View style={styles.entryEditRow}>
+                            <TextInput
+                              value={editingFoodGramsDraft}
+                              onChangeText={setEditingFoodGramsDraft}
+                              keyboardType="decimal-pad"
+                              style={styles.entryEditInput}
+                              accessibilityLabel="Amount in grams"
+                            />
+                            <Text style={styles.listCaption}>grams</Text>
+                          </View>
+                        ) : null}
+                        {entryMode === 'live' && foodSessionToken && foodLog.log_id ? (
+                          <View style={styles.entryActionRow}>
+                            {editing ? (
+                              <>
+                                <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void saveFoodEntryEdit(entry)}>
+                                  <Text style={styles.inlinePillButtonLabel}>{busy ? 'Saving…' : 'Save'}</Text>
+                                </Pressable>
+                                <Pressable style={styles.inlinePillButton} onPress={() => setEditingFoodEntryId(null)}>
+                                  <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
+                                </Pressable>
+                              </>
+                            ) : entry.grams > 0 ? (
+                              <Pressable
+                                style={styles.inlinePillButton}
+                                onPress={() => {
+                                  setEditingFoodEntryId(entry.id);
+                                  setEditingFoodGramsDraft(String(entry.grams));
+                                  setConfirmDeleteKey(null);
+                                }}
+                              >
+                                <Text style={styles.inlinePillButtonLabel}>Edit</Text>
+                              </Pressable>
+                            ) : null}
+                            <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void removeFoodEntry(entry)}>
+                              <Text style={[styles.inlinePillButtonLabel, confirmDeleteKey === key && styles.entryDeleteConfirmLabel]}>
+                                {confirmDeleteKey === key ? 'Tap again to delete' : 'Delete'}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        ) : null}
                       </View>
-                      <Text style={styles.listMetric}>{entry.calories} kcal</Text>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -7525,6 +7794,34 @@ const styles = StyleSheet.create({
   },
   foodList: {
     gap: 8
+  },
+  logEntryCard: {
+    gap: 8
+  },
+  entryEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4
+  },
+  entryEditInput: {
+    minWidth: 72,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#ffffff',
+    color: '#17324d'
+  },
+  entryActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 4
+  },
+  entryDeleteConfirmLabel: {
+    color: '#b42318'
   },
   foodRow: {
     borderRadius: 18,

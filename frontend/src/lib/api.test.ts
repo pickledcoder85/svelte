@@ -17,6 +17,10 @@ import {
   calculateMeal,
   createLocalSession,
   fetchOwnerSession,
+  deleteExerciseEntry,
+  deleteFoodLogEntry,
+  updateExerciseEntry,
+  updateFoodLogEntry,
   fetchCurrentSession,
   setUnauthorizedHandler,
   apiFetch,
@@ -139,6 +143,74 @@ describe('api helpers', () => {
       expect(call[1]).toEqual({ headers: { Authorization: 'Bearer token-123' } });
     }
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('edits and deletes logged entries with the right methods and paths', async () => {
+    const apiLog = {
+      id: 'log-1',
+      user_id: 'user-1',
+      log_date: '2026-04-01',
+      notes: null,
+      entries: [
+        {
+          id: 'entry-1',
+          entry_type: 'food',
+          food_item_id: 'food-oats',
+          meal_template_id: null,
+          meal_plan_slot_id: 'slot-1',
+          display_name: 'Rolled oats',
+          brand: null,
+          source: 'CUSTOM',
+          grams: 40,
+          servings: 0.5,
+          calories: 155.6,
+          protein: 6.8,
+          carbs: 26.5,
+          fat: 2.8,
+          created_at: '2026-04-01T08:00:00Z'
+        }
+      ]
+    };
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) =>
+      init?.method === 'DELETE' && String(_url).includes('/tracker/')
+        ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify(String(_url).includes('/tracker/') ? { id: 'ex-1' } : apiLog), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const body = { grams: 40, servings: 0.5, calories: 155.6, protein: 6.8, carbs: 26.5, fat: 2.8 };
+
+    const updated = await updateFoodLogEntry('log-1', 'entry-1', body, 'token-123');
+    expect(updated.log_id).toBe('log-1');
+    expect(updated.entries[0].meal_plan_slot_id).toBe('slot-1');
+    await deleteFoodLogEntry('log-1', 'entry-1', 'token-123');
+    await updateExerciseEntry(
+      'ex-1',
+      { title: 'Walk', duration_minutes: 30, calories_burned: 120, logged_on: '2026-04-01', logged_at: '07:00', intensity: 'Low' },
+      'token-123'
+    );
+    await deleteExerciseEntry('ex-1', 'token-123');
+
+    const calls = fetchMock.mock.calls.map(([url, init]) => [url, (init as RequestInit).method]);
+    expect(calls).toEqual([
+      ['http://localhost:8000/api/nutrition/logs/log-1/entries/entry-1', 'PATCH'],
+      ['http://localhost:8000/api/nutrition/logs/log-1/entries/entry-1', 'DELETE'],
+      ['http://localhost:8000/api/tracker/exercise/ex-1', 'PUT'],
+      ['http://localhost:8000/api/tracker/exercise/ex-1', 'DELETE']
+    ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token-123', 'X-Relish-Request': '1' });
+    }
+  });
+
+  it('surfaces a failed exercise delete as an error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'Exercise entry not found.' }), { status: 404 }))
+    );
+    await expect(deleteExerciseEntry('missing', 'token-123')).rejects.toThrow('Exercise entry not found.');
   });
 
   it('accepts a relative api base for same-origin production builds', () => {

@@ -23,6 +23,17 @@ class FoodLogEntryCreateRequest(BaseModel):
     fat: float = Field(ge=0)
 
 
+class FoodLogEntryUpdateRequest(BaseModel):
+    """New amount and nutrition for a logged entry (computed by the app, as on create)."""
+
+    grams: float = Field(gt=0)
+    servings: float = Field(gt=0)
+    calories: float = Field(ge=0)
+    protein: float = Field(ge=0)
+    carbs: float = Field(ge=0)
+    fat: float = Field(ge=0)
+
+
 class FoodLogEntry(BaseModel):
     id: str
     food_log_id: str
