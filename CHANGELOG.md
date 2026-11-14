@@ -64,6 +64,7 @@ The format should remain simple:
 
 ### Fixed
 
+- Live mode no longer swaps in demo data when the dashboard, profile progress, tracker, or daily food log fails to load. Those screens now show empty data with a "could not be loaded" error, and demo data appears only in preview mode.
 - Saved profile timezone, units, and display name are no longer reset to `UTC`, `imperial`, and the session name by profile loads, sign-in, onboarding, food logs, exercise and planner writes, goals, or weights. Only `PUT /profile` changes them, and omitting `display_name` there keeps the saved name.
 - Starter meal plans and workouts are now created only once, when onboarding completes. Listing planned workouts or meal plans, loading the profile, and saving the profile no longer regenerate demo plans for the next four days, so deleted starter workouts stay deleted and users who skip onboarding get no demo plans.
 - Deleting a planned workout that came from the legacy flat planner (including auto-generated starter workouts) now removes the structured session too, instead of returning `204` while the workout stayed listed; repeat deletes return `404`.
