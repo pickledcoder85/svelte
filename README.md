@@ -97,6 +97,7 @@ For disposable local testing data, set `DATABASE_URL=sqlite:///./nutrition_os.de
 
 - Process guidance lives in `AGENTS.md`, `SKILLS.md`, and `CONTRIBUTING.md`.
 - Environment and startup guidance lives in `docs/PROJECT_SETUP.md`.
+- Deployment (Google Cloud VM, Tailscale, systemd, backups) lives in `docs/DEPLOY.md`.
 - Architecture planning lives in `docs/ARCHITECTURE_ROADMAP.md`, `docs/FRONTEND_PLAN.md`, `docs/BACKEND_PLAN.md`, and `docs/DATABASE_PLAN.md`.
 - Release history and planned tagging live in `CHANGELOG.md`.
 - Nutrition and exercise target-generation strategy lives in [docs/CALCULATION_STRATEGY.md](/home/brianminer/workspace/svelte/docs/CALCULATION_STRATEGY.md).

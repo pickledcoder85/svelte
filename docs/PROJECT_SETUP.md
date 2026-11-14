@@ -79,6 +79,12 @@ Sign-in:
 - The backend reads `.env` from the repo root regardless of the working directory.
 - The pytest `app` fixture uses fixed local test settings and ignores `.env`, so local auth flags do not change test results.
 
+Serving the web app:
+
+- `npm run build:web` in `frontend/` writes the web build to `frontend/dist` (gitignored).
+- Setting `WEB_DIST_DIR` to that folder makes FastAPI serve the app on the same origin as the API: files from the build, the app shell for any other non-`/api` path, and JSON 404s for unknown `/api` paths. `index.html`, `sw.js`, and the manifest are sent with `Cache-Control: no-cache`; content-hashed build files are cached for a year. API responses are sent with `Cache-Control: no-store`, and every response carries `nosniff`, `no-referrer`, and `DENY` framing headers.
+- Deployment steps, systemd units (`deploy/`), and the server env file are in [DEPLOY.md](DEPLOY.md).
+
 Data safety:
 
 - SQLite runs in WAL mode with `synchronous=NORMAL` and a 5-second busy timeout. WAL creates `*.db-wal` and `*.db-shm` files next to the database; they are part of the database and are gitignored. Never copy a live database with `cp`.

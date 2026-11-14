@@ -19,6 +19,8 @@ The format should remain simple:
 
 ### Added
 
+- FastAPI serves the built web app on the API's origin when `WEB_DIST_DIR` is set: app-shell fallback for deep links, JSON 404s for unknown `/api` paths, `no-cache` for `index.html`/`sw.js`/manifest, year-long caching for content-hashed files, path-traversal protection, and `nosniff`/`no-referrer`/`DENY` headers on every response (`no-store` on API responses).
+- `npm run build:web`, systemd units and a server env template in `deploy/`, and [docs/DEPLOY.md](docs/DEPLOY.md) with the Google Cloud + Tailscale deployment, update, backup, and restore steps.
 - `GET /api/export` downloads all of the owner's data (profile, goals, weights, food logs, exercise, plans, favorites, food bank, recipes, meal templates, scans) as one JSON file.
 - Database snapshots with retention: automatic before each startup when `BACKUP_DIR` is set (required in production), and `python -m backend.app.db.backup` for nightly runs.
 - Label and package scans use the `VISION_MODEL` setting (default `gpt-6-luna`, OpenAI's cheapest current model with image input) with `VISION_REASONING_EFFORT` (default `none`). A real test scan of a synthetic label extracted every field correctly for about $0.0002.
