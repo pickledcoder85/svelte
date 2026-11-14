@@ -1,3 +1,4 @@
+import { pickPhotoFromCamera, prepareScanPhoto, type PreparedPhoto } from '../lib/web-photo';
 import { addDaysToDateKey, localDateKey, localDateKeyForTimestamp } from '../lib/dates';
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -318,7 +319,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
 
     if (Platform.OS === 'web') {
-      setQueueError('Camera scanning is available on phone. Use the browser to review recent scans and saved foods.');
+      await captureWebPhoto('package');
       return;
     }
 
@@ -371,6 +372,46 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
   }
 
+  async function captureWebPhoto(step: 'package' | 'label') {
+    if (captureLoading || !accessToken) {
+      if (!accessToken) {
+        setQueueError('Sign in before scanning.');
+      }
+      return;
+    }
+    setQueueError(null);
+    // Open the camera synchronously inside the tap: iOS only allows it from a user gesture.
+    const file = await pickPhotoFromCamera();
+    if (!file) {
+      return;
+    }
+
+    let prepared: PreparedPhoto;
+    try {
+      setTone('checking');
+      setStatusLabel('Preparing photo');
+      setStatusDetail('Shrinking the photo before upload.');
+      prepared = await prepareScanPhoto(file);
+    } catch (error) {
+      setTone('checking');
+      setStatusLabel('Photo not usable');
+      setStatusDetail('Take the photo again.');
+      setQueueError(error instanceof Error ? error.message : 'This photo could not be prepared.');
+      return;
+    }
+
+    const fileName = `${step}-${Date.now()}.jpg`;
+    if (step === 'package') {
+      setPackageBase64(prepared.base64);
+      setPackageFileName(fileName);
+      await createPackageScanFromBase64(prepared.base64);
+    } else {
+      setLabelBase64(prepared.base64);
+      setLabelFileName(fileName);
+      await createLabelScanFromBase64(prepared.base64);
+    }
+  }
+
   function skipLabelCapture() {
     setCameraStep(null);
     setTone('live');
@@ -408,8 +449,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       <Text style={styles.eyebrow}>Ingestion</Text>
       <Text style={styles.title}>Camera food bank</Text>
       <Text style={styles.detail}>
-        Capture a package or label frame directly from the live camera on phone, or choose an image in the browser,
-        then review and save the extracted food data.
+        Photograph a package front or a nutrition label, then review and save the extracted food data.
       </Text>
 
       <View style={[styles.statusBanner, { borderColor: toneColor(tone) }]}>
@@ -427,18 +467,43 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         <Text style={styles.cardLabel}>Capture</Text>
         <Text style={styles.detailText}>
           {browserViewingMode
-            ? 'Use the phone app to capture scans. The browser view is for reviewing recent scans and saved results.'
+            ? 'Photograph the package front, then the nutrition label. Either one works on its own.'
             : 'Open the camera once, scan the package front, then scan the nutrition label or skip it if the product does not show one.'}
         </Text>
 
         <View style={styles.detailBlock}>
           {browserViewingMode ? (
-            <View style={styles.uploadSummaryCard}>
-              <Text style={styles.uploadSummaryTitle}>Phone camera only</Text>
-              <Text style={styles.uploadSummaryDetail}>
-                Capture happens from the phone app. The browser is for reviewing recent scans and saved results.
-              </Text>
-            </View>
+            <>
+              <View style={styles.uploadSummaryCard}>
+                <Text style={styles.uploadSummaryTitle}>Camera</Text>
+                <Text style={styles.uploadSummaryDetail}>
+                  Package front: {packageFileName ? 'photographed' : 'not yet'}
+                </Text>
+                <Text style={styles.uploadSummaryDetail}>
+                  Nutrition label: {labelFileName ? 'photographed' : 'not yet'}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={() => void captureWebPhoto('package')}
+                disabled={captureLoading !== null}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                  {captureLoading === 'package' ? 'Scanning package…' : 'Photograph package front'}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionButton, styles.secondaryButton]}
+                onPress={() => void captureWebPhoto('label')}
+                disabled={captureLoading !== null}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                  {captureLoading === 'label' ? 'Scanning label…' : 'Photograph nutrition label'}
+                </Text>
+              </Pressable>
+            </>
           ) : (
             <>
               <View style={styles.uploadSummaryCard}>
