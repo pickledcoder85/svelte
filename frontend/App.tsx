@@ -6475,7 +6475,11 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch'
   },
   launchSplash: {
-    flex: 1,
+    // On web this matches `.launch-splash` in public/index.html (fixed to the viewport), so
+    // the HTML splash and this one put the image on the same pixels.
+    ...(Platform.OS === 'web'
+      ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0 } as unknown as object)
+      : { flex: 1 }),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f4efe4'

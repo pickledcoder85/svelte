@@ -42,7 +42,10 @@
       /* Launch splash shown until React replaces #root's contents. LaunchSplash in App.tsx
          renders the same image at the same size, so the hand-off does not move. */
       .launch-splash {
-        flex: 1;
+        /* Fixed to the viewport, exactly like LaunchSplash in App.tsx, so the hand-off from
+           this HTML copy to the app's copy does not move the image. */
+        position: fixed;
+        inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;

@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.app.config import Settings, get_settings
 from backend.app.dependencies import get_required_session
@@ -43,6 +44,10 @@ def create_app(
     if settings.backup_dir.strip():
         backup_database(db_path, settings.backup_dir, keep=settings.backup_keep, label="startup")
     app.state.repository = SQLiteRepository(db_path)
+
+    # Compress responses (the web bundle shrinks from ~890 KB to ~240 KB); Tailscale Serve
+    # passes responses through without compressing them.
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
     app.add_middleware(
         CORSMiddleware,
