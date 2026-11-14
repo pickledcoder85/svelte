@@ -102,6 +102,7 @@ The service worker belongs to the live app, not development. It caches the app s
 - [ ] Manual custom-food create, edit, and delete.
 - [ ] `GET /nutrition/logs?date=` instead of downloading every log.
 - [ ] Server-side calorie calculation from food and grams.
+- [ ] Show weights and heights in the profile's units everywhere (Profile editor, weight history, progress), not just during setup.
 - [ ] Normalize food units to per 100 g plus serving grams.
 
 ### Phase 5: scan pipeline
