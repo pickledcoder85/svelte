@@ -317,8 +317,10 @@ export interface FoodItem {
   serving_size: number;
   serving_unit: string;
   macros: MacroTargets;
-  source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM';
+  source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | 'OPEN_FOOD_FACTS';
   favorite: boolean;
+  /** 14-digit GTIN for packaged foods saved from a barcode scan. */
+  barcode?: string | null;
 }
 
 export interface MealPlanSlot {
@@ -459,6 +461,18 @@ export interface VisionLabelScanResult {
   source_name: string;
   confidence: number;
   extraction: VisionNutritionExtraction;
+}
+
+export interface BarcodeLookupResult {
+  /** The scanned code normalised to a 14-digit GTIN. */
+  barcode: string;
+  found: boolean;
+  source: 'food_bank' | 'open_food_facts' | 'usda' | null;
+  /** Set when the barcode is already in the food bank. */
+  food: FoodItem | null;
+  /** A pending scan to review and save, when a food database knew the barcode. */
+  output: IngestionOutput | null;
+  message: string | null;
 }
 
 export interface SaveFoodsResult {
