@@ -19,6 +19,8 @@ The format should remain simple:
 
 ### Added
 
+- `GET /api/export` downloads all of the owner's data (profile, goals, weights, food logs, exercise, plans, favorites, food bank, recipes, meal templates, scans) as one JSON file.
+- Database snapshots with retention: automatic before each startup when `BACKUP_DIR` is set (required in production), and `python -m backend.app.db.backup` for nightly runs.
 - Label and package scans use the `VISION_MODEL` setting (default `gpt-6-luna`, OpenAI's cheapest current model with image input) with `VISION_REASONING_EFFORT` (default `none`). A real test scan of a synthetic label extracted every field correctly for about $0.0002.
 - Scan uploads are validated before any model call: size limit (`VISION_MAX_IMAGE_BASE64_CHARS`), real base64, and JPEG/PNG/WEBP/GIF detected from the file bytes (HEIC and other formats get a readable `400`).
 - Single-owner sign-in. With `AUTH_MODE=tailscale` (required when `APP_ENV=production`), the server identifies the owner from the Tailscale Serve `Tailscale-User-Login` header, only on loopback connections and only when it matches `OWNER_EMAIL`; the app opens straight to Home with no sign-in screen. Local development keeps email sessions and gains an opt-in `DEV_AUTO_LOGIN`. The server refuses to start with unsafe auth settings.
@@ -79,6 +81,8 @@ The format should remain simple:
 
 ### Changed
 
+- SQLite now uses WAL mode, `synchronous=NORMAL`, and a 5-second busy timeout. Every repository read now holds the connection lock (now re-entrant), fixing races a concurrency test reproduced; service code no longer queries the connection directly.
+- `.gitignore` covers SQLite WAL, shared-memory, and journal files and a `backups/` folder.
 - In production, scans without `OPENAI_API_KEY` return `503` instead of saving fixed demo nutrition; the demo fallback remains for development and tests. Scan failures return a generic `502` message, with details only in the server log. The OpenAI HTTP client is now closed after each call.
 - Production turns off `/docs`, `/redoc`, and `/openapi.json`, requires an absolute `DATABASE_URL`, and `/api/health` no longer reports the database path.
 - Removed the unused `SUPABASE_URL` and `SUPABASE_ANON_KEY` settings.
