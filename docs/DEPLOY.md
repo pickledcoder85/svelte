@@ -35,7 +35,7 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up --ssh          # approve the login in your browser
 ```
 
-Run these in the VM's browser SSH window (Compute Engine → VM instances → SSH) and open the printed login link in your normal browser. In the Tailscale admin console: enable MagicDNS and HTTPS certificates, and rename the machine `relish` (the Tailscale name sets the app address; the Google Cloud VM name, for example `instance-20261114-205742`, does not matter). After this you can SSH with `ssh <user>@relish` from any tailnet device and close port 22 in the Google Cloud firewall.
+Run these in the VM's browser SSH window (Compute Engine → VM instances → SSH) and open the printed login link in your normal browser. In the Tailscale admin console: enable MagicDNS and HTTPS certificates, and rename the machine `relish` (the Tailscale name sets the app address; the Google Cloud VM name, for example the default `instance-<date>-<time>`, does not matter). After this you can SSH with `ssh <user>@relish` from any tailnet device and close port 22 in the Google Cloud firewall.
 
 Google grants `sudo` only to its own browser SSH sessions. For deployment over Tailscale SSH, run once in the browser SSH window:
 
@@ -126,7 +126,18 @@ Never use `tailscale funnel` for Relish: Funnel is public and carries no identit
 
 ## Updating
 
-Repeat step 4, then `sudo systemctl restart relish.service`. A snapshot is taken automatically before each start. `index.html` and `sw.js` are served with `Cache-Control: no-cache`, so the phone picks up the new build on its next launch.
+From a tailnet machine with the repo, on `main` with everything committed:
+
+```bash
+conda activate svelte
+RELISH_DEPLOY_TARGET=<user>@relish scripts/deploy.sh
+```
+
+[`scripts/deploy.sh`](../scripts/deploy.sh) runs the backend and frontend tests, builds the web app, copies the release over Tailscale, keeps the previous release in `/opt/relish/app.previous`, installs, restarts the service (which snapshots the database first), and checks `/api/health`. If the health check fails it restores the previous release and restarts it. The deployed commit is written to `/opt/relish/app/DEPLOYED_COMMIT`. Rollback restores code only; migrations are forward-only, so recover from a bad migration with the startup snapshot in `/var/lib/relish/backups`. `--skip-tests` skips the test step.
+
+`index.html` and `sw.js` are served with `Cache-Control: no-cache`, so the phone picks up the new build on its next launch.
+
+Continuous integration (`.github/workflows/ci.yml`) runs the same tests and a production web build on every push and pull request. It holds no secrets and never deploys: the server is only reachable from your tailnet.
 
 ## Backups and restore
 
@@ -152,4 +163,4 @@ sudo systemctl start relish.service
 
 ## Deployment log
 
-- 2026-11-14: first deploy to `relish` (GCE `e2-micro`, us-central1-f, Ubuntu 24.04.5). Service `relish.service` active, nightly `relish-backup.timer` scheduled, `tailscale serve` publishing https://relish.taile5f6df.ts.net (tailnet only). Off-machine backups not set up yet.
+- 2026-11-14: first deploy to `relish` (GCE `e2-micro`, us-central1-f, Ubuntu 24.04.5). Service `relish.service` active, nightly `relish-backup.timer` scheduled, `tailscale serve` publishing https://relish.<tailnet>.ts.net (tailnet only). Off-machine backups not set up yet.
