@@ -81,7 +81,7 @@ Each slice is its own `feature/` or `fix/` branch from `main`, per AGENTS.md.
 
 ### Phase 2: installable PWA
 
-- [x] 2.1 SDK 54 pins for `expo-camera`, `expo-image-picker`, `expo-font`; `engines.node >= 20.19`; `build:web` (added in 1.4). Still mismatched and awaiting approval: `expo` ~54.0.37, `react-native` 0.81.5, `react-native-svg` 15.12.1, `@types/react` ~19.1.10.
+- [x] 2.1 SDK 54 pins for `expo-camera`, `expo-image-picker`, `expo-font`; `engines.node >= 20.19`; `build:web` (added in 1.4). Then Node 22 LTS in the conda env and `expo install --fix` for `expo`, `react-native`, `react-native-svg`, `@types/react` (no mismatches left). Deferred: review the 29 `npm audit` findings for anything that ships in the web bundle, after go-live.
 - [ ] 2.2 Relative `/api` base URL, persisted session, sign-in copy cleanup, `localDateKey()` replacing UTC "today".
 - [ ] 2.3 Web camera capture via file input (`capture=environment`), downscaled to about 1600 px JPEG before upload.
 - [ ] 2.4 Manifest, apple-touch-icon, square icons, iOS meta tags, `viewport-fit=cover` and safe areas, service worker (app shell only, never `/api`), compressed images.
