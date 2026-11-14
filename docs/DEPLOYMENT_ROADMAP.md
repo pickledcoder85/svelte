@@ -107,7 +107,11 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ### Phase 5: scan pipeline
 
-- [ ] Barcode first: local food bank, then Open Food Facts, then USDA branded foods by GTIN/UPC. Cache results with source and attribution.
+- [x] Barcode first: local food bank, then Open Food Facts, then USDA branded foods by GTIN/UPC. Cache results with source and attribution. (5.1, `POST /api/nutrition/barcode-lookups`.)
+- [ ] 5.2 Live barcode scanner in the web app (`barcode-detector@3.2.3`, approved) with the zxing WASM file self-hosted, two matching reads before lookup, and "Take photo instead".
+- [ ] 5.3 Label auto-capture: take the photo when the frame is sharp and still.
+- [ ] 5.4 Tune both on the iPhone.
+- [ ] Show the Open Food Facts attribution on barcode results in the review screen.
 - [ ] Barcode decoding on iOS Safari needs its own library: the SDK 54 `expo-camera` web scanner only reads QR codes (jsQR) and loads jsQR from the jsDelivr CDN. Plan: a zxing-wasm based decoder (for example the `barcode-detector` polyfill) with the WASM file self-hosted. New package, needs approval.
 - [ ] AI label reading only when a barcode misses or for a photographed panel, always reviewed before saving.
 - [ ] Free fallback: paste label text from iOS Live Text, parsed on the server.

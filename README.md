@@ -26,6 +26,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Mobile runtime: Expo Go during development, with native build/export options later.
 - Auth: single owner. In production, Tailscale identifies the owner (`AUTH_MODE=tailscale`, `OWNER_EMAIL`); local development keeps email sessions or `DEV_AUTO_LOGIN`. See [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md#environment-variables).
 - Nutrition source: USDA FoodData Central API.
+- Barcode lookup: Open Food Facts (public, no key; ODbL data, attributed in the app), then USDA Branded foods when `USDA_API_KEY` is set. Only the barcode number is sent.
 - AI backend: multimodal model for package-front and nutrition-label extraction, plus OCR-style recipe ingestion.
 
 ## Development commands
@@ -67,7 +68,7 @@ Core tables now in use:
 
 Relational notes:
 
-- `food_catalog` stores USDA and label-scan foods with source metadata and confidence.
+- `food_catalog` stores USDA, label-scan, and Open Food Facts foods with source metadata, confidence, and an optional unique `barcode` (14-digit GTIN, migration `002_food_barcodes.sql`).
 - `meal_templates` and `meal_template_ingredients` support reusable meals and computed serving nutrition.
 - `recipes` stays normalized through `recipe_steps`, `recipe_ingredients`, and `recipe_assets`.
 - `saved_favorites` provides the user-scoped favorite state for foods, meals, and recipes.

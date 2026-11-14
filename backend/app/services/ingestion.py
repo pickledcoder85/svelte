@@ -214,16 +214,24 @@ async def save_food_from_output(
     except (KeyError, TypeError, ValueError) as exc:
         raise IngestionSaveError("Accepted ingestion output has invalid macro data.") from exc
 
+    # Barcode results keep their barcode and data source; rescanning the same product updates
+    # the one food instead of creating a duplicate.
+    barcode = structured_json.get("barcode") if isinstance(structured_json.get("barcode"), str) else None
+    existing = repository.get_food_by_barcode(barcode) if barcode else None
+    source = {"open_food_facts": "OPEN_FOOD_FACTS", "usda": "USDA"}.get(
+        str(structured_json.get("data_source") or ""), "LABEL_SCAN"
+    )
     food = FoodItem(
-        id=f"food-label-{uuid4().hex[:12]}",
+        id=existing.id if existing else f"food-label-{uuid4().hex[:12]}",
         name=product_name.strip(),
         brand=structured_json.get("brand_name"),
         calories=float(calories),
         serving_size=serving_quantity,
         serving_unit=serving_unit,
         macros=MacroTargets(protein=protein, carbs=carbs, fat=fat),
-        source="LABEL_SCAN",
+        source=source,
         favorite=False,
+        barcode=barcode,
     )
     return SavedFoodsResult(saved_foods=[repository.save_food_item(food)])
 
