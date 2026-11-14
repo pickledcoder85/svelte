@@ -20,6 +20,7 @@ import {
   acceptIngestionOutput,
   fetchIngestionQueue,
   ingestNutritionLabel,
+  lookupBarcode,
   rejectIngestionOutput,
   saveFoodFromIngestionOutput,
   scanFoodPackage
@@ -35,6 +36,7 @@ import {
   pendingOutputs,
   type EditableNutritionDraft
 } from './ingestionReviewHelpers';
+import { WebBarcodeScanner } from './WebBarcodeScanner';
 
 interface IngestionReviewPanelProps {
   accessToken: string | null;
@@ -59,7 +61,8 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   const [labelBase64, setLabelBase64] = useState('');
   const [packageFileName, setPackageFileName] = useState<string | null>(null);
   const [labelFileName, setLabelFileName] = useState<string | null>(null);
-  const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | null>(null);
+  const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | 'barcode' | null>(null);
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
   const [cameraStep, setCameraStep] = useState<'package' | 'label' | null>(null);
   const [lastPackageScan, setLastPackageScan] = useState<VisionPackageScanResult | null>(null);
   const [savedFoods, setSavedFoods] = useState<FoodItem[]>([]);
@@ -412,6 +415,62 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
   }
 
+  function openBarcodeScanner() {
+    if (captureLoading) {
+      return;
+    }
+    if (!accessToken) {
+      setQueueError('Sign in before scanning.');
+      return;
+    }
+    setQueueError(null);
+    setBarcodeScannerOpen(true);
+  }
+
+  async function lookUpScannedBarcode(code: string) {
+    setBarcodeScannerOpen(false);
+    if (!accessToken) {
+      return;
+    }
+    setCaptureLoading('barcode');
+    setQueueError(null);
+    setSavedFoods([]);
+    setTone('checking');
+    setStatusLabel('Looking up barcode');
+    setStatusDetail(`Checking ${code} in your food bank and Open Food Facts.`);
+
+    try {
+      const result = await lookupBarcode(code, accessToken);
+      if (result.food) {
+        setSavedFoods([result.food]);
+        setTone('live');
+        setStatusLabel('Already in your food bank');
+        setStatusDetail(`${result.food.name} is saved. Find it in Foods to log it.`);
+      } else if (result.output) {
+        const output = result.output;
+        setSelectedOutputId(output.id);
+        setSelectedOutput(output);
+        await refreshQueue();
+        setTone('live');
+        setStatusLabel('Barcode found');
+        setStatusDetail(
+          `${describeOutput(output)} from ${result.source === 'usda' ? 'USDA' : 'Open Food Facts'}. Check the numbers, then accept and save.`
+        );
+      } else {
+        setTone('checking');
+        setStatusLabel('Barcode not found');
+        setStatusDetail(result.message ?? "We couldn't find this barcode. Photograph the nutrition label instead.");
+      }
+    } catch (error) {
+      setTone('checking');
+      setStatusLabel('Barcode lookup failed');
+      setStatusDetail('Try again, or photograph the nutrition label instead.');
+      setQueueError(error instanceof Error ? error.message : 'Barcode lookup failed.');
+    } finally {
+      setCaptureLoading(null);
+    }
+  }
+
   function skipLabelCapture() {
     setCameraStep(null);
     setTone('live');
@@ -467,7 +526,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         <Text style={styles.cardLabel}>Capture</Text>
         <Text style={styles.detailText}>
           {browserViewingMode
-            ? 'Photograph the package front, then the nutrition label. Either one works on its own.'
+            ? 'Scan the barcode first. If it is not found, photograph the nutrition label or package front.'
             : 'Open the camera once, scan the package front, then scan the nutrition label or skip it if the product does not show one.'}
         </Text>
 
@@ -483,6 +542,16 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                   Nutrition label: {labelFileName ? 'photographed' : 'not yet'}
                 </Text>
               </View>
+              <Pressable
+                style={[styles.actionButton, styles.acceptButton]}
+                onPress={openBarcodeScanner}
+                disabled={captureLoading !== null}
+                accessibilityRole="button"
+              >
+                <Text style={styles.actionButtonLabel}>
+                  {captureLoading === 'barcode' ? 'Looking up barcode…' : 'Scan barcode'}
+                </Text>
+              </Pressable>
               <Pressable
                 style={[styles.actionButton, styles.secondaryButton]}
                 onPress={() => void captureWebPhoto('package')}
@@ -654,6 +723,9 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                     <Text style={styles.listCaption}>
                       Protein {nutritionDraft.protein || '0'}g · Carbs {nutritionDraft.carbs || '0'}g · Fat {nutritionDraft.fat || '0'}g · Fiber —
                     </Text>
+                    {attributionFor(displayOutput.structured_json) ? (
+                      <Text style={styles.listCaption}>{attributionFor(displayOutput.structured_json)}</Text>
+                    ) : null}
                   </View>
                 </View>
               </View>
@@ -794,6 +866,18 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         )}
       </View>
 
+      {browserViewingMode ? (
+        <WebBarcodeScanner
+          visible={barcodeScannerOpen}
+          onCode={(code) => void lookUpScannedBarcode(code)}
+          onClose={() => setBarcodeScannerOpen(false)}
+          onTakePhoto={() => {
+            setBarcodeScannerOpen(false);
+            void captureWebPhoto('label');
+          }}
+        />
+      ) : null}
+
       <Modal visible={cameraStep !== null} animationType="slide" onRequestClose={() => setCameraStep(null)}>
         <View style={styles.cameraModal}>
           <View style={styles.cameraHeader}>
@@ -864,6 +948,15 @@ function buildPendingOutput(outputId: string, ingestionJobId: string, confidence
     created_at: new Date().toISOString(),
     review_state: 'pending'
   };
+}
+
+/** "Data from Open Food Facts (ODbL)" and similar, for results that came from a food database. */
+function attributionFor(structuredJson: unknown): string | null {
+  if (typeof structuredJson !== 'object' || structuredJson === null) {
+    return null;
+  }
+  const attribution = (structuredJson as { attribution?: unknown }).attribution;
+  return typeof attribution === 'string' && attribution.trim() ? attribution : null;
 }
 
 function hasValidNutritionDraft(draft: EditableNutritionDraft): boolean {
