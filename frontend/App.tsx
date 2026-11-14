@@ -108,6 +108,7 @@ import {
 import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
+import { registerServiceWorker } from './src/lib/service-worker';
 import {
   clearStoredSessionToken,
   loadStoredSessionToken,
@@ -853,6 +854,10 @@ export default function App(): ReactElement {
   useEffect(() => {
     entryModeRef.current = entryMode;
   }, [entryMode]);
+
+  useEffect(() => {
+    registerServiceWorker(Platform.OS, IS_DEVELOPMENT_BUILD);
+  }, []);
 
   useEffect(() => {
     // A home-screen app can stay open across midnight; refresh "today" when it comes back.
