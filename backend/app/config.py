@@ -41,8 +41,13 @@ class Settings(BaseSettings):
     )
     usda_api_key: str = ""
     openai_api_key: str = ""
-    supabase_url: str = ""
-    supabase_anon_key: str = ""
+    # Cheapest current, non-deprecated OpenAI model with image input (decided 2026-11-14).
+    # Change it here or with VISION_MODEL when OpenAI retires it.
+    vision_model: str = "gpt-6-luna"
+    # Label extraction is transcription, not reasoning; "none" keeps scans cheap and fast.
+    vision_reasoning_effort: Literal["none", "low", "medium", "high"] = "none"
+    # Base64 characters accepted per image (about 6 MB of image data).
+    vision_max_image_base64_chars: int = 8_000_000
 
     @property
     def database_path(self) -> str:
@@ -52,8 +57,13 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.app_env == "production"
 
-    def validate_auth(self) -> None:
-        """Fail fast on auth settings that would leave a deployed app open."""
+    @property
+    def vision_demo_fallback_allowed(self) -> bool:
+        """Demo scan results only outside production, so fake nutrition is never saved for real."""
+        return not self.is_production
+
+    def validate_startup(self) -> None:
+        """Fail fast on settings that would leave a deployed app open or lose data."""
         if self.auth_mode == "tailscale" and not self.owner_email.strip():
             raise RuntimeError("AUTH_MODE=tailscale requires OWNER_EMAIL.")
         if self.is_production:
@@ -61,8 +71,18 @@ class Settings(BaseSettings):
                 raise RuntimeError("APP_ENV=production requires AUTH_MODE=tailscale.")
             if self.dev_auto_login:
                 raise RuntimeError("DEV_AUTO_LOGIN must be off when APP_ENV=production.")
+            if not _is_absolute_sqlite_url(self.database_url):
+                raise RuntimeError(
+                    "APP_ENV=production requires an absolute DATABASE_URL, "
+                    "for example sqlite:////var/lib/relish/relish.db."
+                )
         if self.dev_auto_login and not self.owner_email.strip():
             raise RuntimeError("DEV_AUTO_LOGIN requires OWNER_EMAIL.")
+
+
+def _is_absolute_sqlite_url(database_url: str) -> bool:
+    prefix = "sqlite:///"
+    return database_url.startswith(prefix) and Path(database_url.removeprefix(prefix)).is_absolute()
 
 
 @lru_cache(maxsize=1)

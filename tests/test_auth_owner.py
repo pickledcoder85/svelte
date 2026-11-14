@@ -154,7 +154,12 @@ def test_unsafe_auth_settings_fail_at_startup(tmp_path, overrides, message):
 def test_production_tailscale_settings_start(tmp_path):
     app = create_app(
         database_path=str(tmp_path / "prod.db"),
-        settings=build_settings(app_env="production", auth_mode="tailscale", owner_email=OWNER),
+        settings=build_settings(
+            app_env="production",
+            auth_mode="tailscale",
+            owner_email=OWNER,
+            database_url=f"sqlite:///{tmp_path / 'prod.db'}",
+        ),
     )
     assert app.state.settings.is_production
 

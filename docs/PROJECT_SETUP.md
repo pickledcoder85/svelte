@@ -64,8 +64,7 @@ Create `.env` from `.env.example` and define:
 
 - `USDA_API_KEY`
 - `OPENAI_API_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
+- `VISION_MODEL` (default `gpt-6-luna`, the cheapest current OpenAI model with image input) and `VISION_REASONING_EFFORT` (default `none`)
 - `AUTH_MODE`, `OWNER_EMAIL`, `DEV_AUTO_LOGIN` (sign-in, see below)
 
 Sign-in:
@@ -82,7 +81,8 @@ Sign-in:
 
 For the phone and browser camera-food flow:
 
-- set `OPENAI_API_KEY` in the backend `.env` if you want real package and label extraction instead of the demo fallback
+- set `OPENAI_API_KEY` in the backend `.env` if you want real package and label extraction instead of the demo fallback. The demo fallback (fixed fake nutrition) only exists outside production; with `APP_ENV=production` and no key, scans return `503` instead of saving made-up foods
+- scans accept JPEG, PNG, WEBP, or GIF up to about 6 MB (`VISION_MAX_IMAGE_BASE64_CHARS`); other formats, including HEIC straight from an iPhone, return `400` with a readable message
 - run `scripts/dev-backend.sh` so Expo Go on your phone can reach the backend on the local network and so failures are captured in `tmp/backend.log`
 - use `tail -f tmp/backend.log` if you want to watch backend scan failures live while testing from the phone
 
