@@ -123,6 +123,7 @@ import {
   splashHoldRemaining
 } from './src/lib/launch-splash';
 import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
+import { dismissLaunchSplash } from './src/lib/launch-splash-dom';
 import {
   bodyMeasurementsFromDrafts,
   convertBodyDrafts,
@@ -6018,14 +6019,21 @@ export default function App(): ReactElement {
   );
 }
 
-// Web serves the splash from public/ (already shown by index.html and cached by the service
-// worker); native builds bundle the same file.
-const launchSplashSource: ImageSourcePropType =
-  Platform.OS === 'web' ? { uri: '/splash.jpg' } : require('./public/splash.jpg');
+// Native builds draw the splash image here; on web the HTML layer in public/index.html shows it.
+const launchSplashSource: ImageSourcePropType = require('./public/splash.jpg');
 
 function LaunchSplash(): ReactElement {
   const { width } = useWindowDimensions();
   const size = launchSplashSize(width);
+  // On web the HTML splash layer (public/index.html) stays on top the whole time; this only
+  // keeps the background behind it. When the app stops rendering LaunchSplash (its first real
+  // screen is ready), the layer fades out.
+  useEffect(() => () => {
+    dismissLaunchSplash();
+  }, []);
+  if (Platform.OS === 'web') {
+    return <View style={styles.launchSplash} />;
+  }
   return (
     <View style={styles.launchSplash} accessibilityLabel="Relish is loading">
       <StatusBar style="dark" />
@@ -6475,11 +6483,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch'
   },
   launchSplash: {
-    // On web this matches `.launch-splash` in public/index.html (fixed to the viewport), so
-    // the HTML splash and this one put the image on the same pixels.
-    ...(Platform.OS === 'web'
-      ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0 } as unknown as object)
-      : { flex: 1 }),
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f4efe4'

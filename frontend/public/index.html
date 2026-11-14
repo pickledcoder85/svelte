@@ -39,17 +39,23 @@
         height: 100%;
         flex: 1;
       }
-      /* Launch splash shown until React replaces #root's contents. LaunchSplash in App.tsx
-         renders the same image at the same size, so the hand-off does not move. */
+      /* The only launch splash on web: a layer above the app that stays until the first real
+         screen is ready, then fades out (dismissLaunchSplash in src/lib/launch-splash-dom.ts).
+         The image never changes hands, so nothing can blink. */
       .launch-splash {
-        /* Fixed to the viewport, exactly like LaunchSplash in App.tsx, so the hand-off from
-           this HTML copy to the app's copy does not move the image. */
         position: fixed;
         inset: 0;
+        z-index: 1000;
         display: flex;
         align-items: center;
         justify-content: center;
         background-color: #f4efe4;
+        opacity: 1;
+        transition: opacity 200ms ease-out;
+      }
+      .launch-splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
       }
       .launch-splash img {
         width: min(70vw, 300px);
@@ -63,8 +69,14 @@
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
-    <div id="root">
-      <div class="launch-splash"><img src="/splash.jpg" alt="Relish" /></div>
-    </div>
+    <div id="root"></div>
+    <div id="launch-splash" class="launch-splash" aria-hidden="true"><img src="/splash.jpg" alt="" /></div>
+    <script>
+      // Failsafe: never leave the splash over the app if the app fails to dismiss it.
+      setTimeout(function () {
+        var splash = document.getElementById('launch-splash');
+        if (splash) { splash.classList.add('is-hidden'); setTimeout(function () { splash.remove(); }, 250); }
+      }, 15000);
+    </script>
   </body>
 </html>

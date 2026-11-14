@@ -81,6 +81,7 @@ The format should remain simple:
 
 ### Fixed
 
+- No blink when launch finishes: on web the splash is a single HTML layer above the app that fades out over 0.2 s once the first real screen is ready, instead of being swapped for the app's own copy of the image (React Native Web's `Image` starts empty while it loads). A 15-second failsafe removes the layer if the app never dismisses it.
 - Responses are gzip-compressed (FastAPI `GZipMiddleware`, over 1 KB), so the web bundle downloads as about 240 KB instead of about 890 KB, which mostly affects the first launch after each deploy.
 - The launch splash no longer jumps when the app's copy replaces the HTML copy: both are now fixed to the viewport and centred the same way.
 - Production was missing the Ribeye display font: the deploy script excluded every `node_modules` folder, including the web build's `assets/node_modules/` where Expo puts fonts, so the server returned 404 and screens fell back to a system font. Excludes are now anchored to the repo root, and a deploy stops if the server's copy of the web build has a different number of files.
