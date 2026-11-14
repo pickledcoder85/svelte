@@ -81,6 +81,8 @@ The format should remain simple:
 
 ### Fixed
 
+- Responses are gzip-compressed (FastAPI `GZipMiddleware`, over 1 KB), so the web bundle downloads as about 240 KB instead of about 890 KB, which mostly affects the first launch after each deploy.
+- The launch splash no longer jumps when the app's copy replaces the HTML copy: both are now fixed to the viewport and centred the same way.
 - Production was missing the Ribeye display font: the deploy script excluded every `node_modules` folder, including the web build's `assets/node_modules/` where Expo puts fonts, so the server returned 404 and screens fell back to a system font. Excludes are now anchored to the repo root, and a deploy stops if the server's copy of the web build has a different number of files.
 - Headings in the Ribeye display font (such as "Welcome to Relish!") no longer pop in after the rest of the screen: launch keeps the splash up until the font has loaded, capped at 2 seconds (or a font error) so it never hangs.
 - Food Search's add buttons and status now describe the amount in the food's own unit ("Add 1 × can (355mL) to today"), not always in grams; scanned foods are measured per serving.
