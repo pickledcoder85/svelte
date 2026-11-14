@@ -19,6 +19,9 @@ The format should remain simple:
 
 ### Added
 
+- Setup reordered to About you → Activity → Your goal → How fast? / Your focus → Diet → Nutrition style → Allergies → Review, still 8 steps for everyone. Activity shows an energy card with BMR ("at rest") and maintenance ("with your activity") and a "What's BMR?" explainer; goal cards use plain language ("Lose weight", "Stay where I am", "Gain weight") with a daily calorie figure; How fast? shows each pace's calories and weekly change in the chosen units, warns when the 1,200 kcal floor limits a pace, and takes an optional goal weight with an estimated date; maintenance gets Your focus (Stay steady, Build muscle, Fuel training).
+- `POST /api/profile/targets/preview` returns BMR, maintenance, and every goal/pace option from the same engine as onboarding, without saving.
+- Maintenance focus in the calculation engine: `build_muscle` raises protein to 2.0 g/kg and `fuel_training` lowers fat for more carbohydrate, at the same calories (documented in docs/CALCULATION_STRATEGY.md). Setup now saves the goal weight.
 - First-run setup opens with a welcome card ("Welcome to Relish!") from Gherkin that previews the three parts of setup (about you, your goal, how you eat) before the first form; Back on Basics returns to it. The step counter still counts only the eight setup steps.
 - Off-machine backups: with `BACKUP_GCS_BUCKET` set, the nightly backup also uploads the snapshot to a private Google Cloud Storage bucket and prunes copies older than 30 days (`backend/app/db/offsite.py`), authenticating as the VM service account through the metadata server with no key files.
 - `scripts/deploy.sh`: one-command deploy over Tailscale that runs both test suites, builds the web app, keeps the previous release, restarts, health-checks, and rolls back automatically on failure. GitHub Actions CI (`.github/workflows/ci.yml`) runs backend tests, the frontend type check and tests, and a production web build on every push and pull request, with no secrets and no deploy step.
@@ -81,6 +84,9 @@ The format should remain simple:
 
 ### Fixed
 
+- Saving profile settings no longer replaces a maintenance user's custom goal: a stored empty pace and the default pace are treated as the same when deciding whether targets need recalculating. Changing only the goal through the API drops a pace that belonged to the old goal instead of failing.
+- Setup no longer says a pace will lose weight when the 1,200 kcal minimum makes it a surplus; it explains the pace will not lower weight. A goal weight typed under Lose or Gain is not saved after switching to Stay where I am, preview numbers never show for previous inputs, and the Profile editor can now change the pace or focus.
+- A goal and pace that do not belong together (for example lose with lean) returned a server error; they are now rejected with `422`.
 - Tapping a text field on iPhone no longer zooms the page and pushes the form off screen: every input now uses 16 px text (iOS Safari zooms into smaller fields), and `index.html` keeps all text fields at 16 px or more on touch screens. Pinch zoom stays available.
 - No blink when launch finishes: on web the splash is a single HTML layer above the app that fades out over 0.2 s once the first real screen is ready, instead of being swapped for the app's own copy of the image (React Native Web's `Image` starts empty while it loads). A 15-second failsafe removes the layer if the app never dismisses it.
 - Responses are gzip-compressed (FastAPI `GZipMiddleware`, over 1 KB), so the web bundle downloads as about 240 KB instead of about 890 KB, which mostly affects the first launch after each deploy.
