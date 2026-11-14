@@ -70,6 +70,12 @@ ssh "$TARGET" "COMMIT=$COMMIT bash -s" <<'REMOTE'
 set -euo pipefail
 APP=/opt/relish/app
 PREVIOUS=/opt/relish/app.previous
+# pip runs as the relish user; start from a directory it can read (not the SSH user's home).
+cd /opt/relish
+
+install_app() {
+  sudo -u relish /opt/relish/venv/bin/pip install --quiet --disable-pip-version-check -e "$APP" >/tmp/relish-pip.log 2>&1
+}
 
 health() {
   for _ in $(seq 1 30); do
@@ -85,19 +91,22 @@ sudo rsync -a --delete "$APP/" "$PREVIOUS/"
 sudo rsync -a --delete /tmp/relish-release/ "$APP/"
 echo "$COMMIT" | sudo tee "$APP/DEPLOYED_COMMIT" >/dev/null
 sudo chown -R relish:relish "$APP" "$PREVIOUS"
-sudo -u relish /opt/relish/venv/bin/pip install --quiet -e "$APP" 2>&1 | grep -v -i "warning\|deprecat\|^\s*$\|\*\*\*\|!!" || true
-sudo systemctl restart relish.service
-
-if health; then
-  echo "Healthy: $(curl -fsS http://127.0.0.1:8000/api/health)"
-  exit 0
+if install_app; then
+  sudo systemctl restart relish.service
+  if health; then
+    echo "Healthy: $(curl -fsS http://127.0.0.1:8000/api/health)"
+    exit 0
+  fi
+  echo "Health check failed; rolling back to the previous release." >&2
+  sudo journalctl -u relish.service --no-pager -n 30 >&2 || true
+else
+  echo "Dependency install failed; rolling back to the previous release." >&2
+  tail -20 /tmp/relish-pip.log >&2 || true
 fi
 
-echo "Health check failed; rolling back to the previous release." >&2
-sudo journalctl -u relish.service --no-pager -n 30 >&2 || true
 sudo rsync -a --delete "$PREVIOUS/" "$APP/"
 sudo chown -R relish:relish "$APP"
-sudo -u relish /opt/relish/venv/bin/pip install --quiet -e "$APP" >/dev/null 2>&1 || true
+install_app || echo "Reinstalling the previous release's dependencies failed; see /tmp/relish-pip.log" >&2
 sudo systemctl restart relish.service
 if health; then
   echo "Rolled back to $(cat "$APP/DEPLOYED_COMMIT" 2>/dev/null || echo 'the previous release')." >&2
