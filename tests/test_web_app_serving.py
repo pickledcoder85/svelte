@@ -102,3 +102,21 @@ def test_misconfigured_web_dist_fails_at_startup(tmp_path):
             database_path=str(tmp_path / "web.db"),
             settings=Settings(_env_file=None, app_env="test", web_dist_dir=str(tmp_path / "empty")),
         )
+
+
+@pytest.mark.asyncio
+async def test_large_responses_are_gzip_compressed(tmp_path):
+    dist = build_dist(tmp_path / "dist")
+    (dist / BUNDLE).write_text("console.log('relish');\n" * 400)
+    app = create_app(
+        database_path=str(tmp_path / "gzip.db"),
+        settings=Settings(_env_file=None, app_env="test", web_dist_dir=str(dist)),
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
+        compressed = await client.get(f"/{BUNDLE}", headers={"Accept-Encoding": "gzip"})
+        assert compressed.headers.get("content-encoding") == "gzip"
+        assert compressed.text.startswith("console.log('relish');")
+        assert compressed.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+        small = await client.get("/api/health", headers={"Accept-Encoding": "gzip"})
+        assert "content-encoding" not in small.headers
