@@ -1,0 +1,33 @@
+# systemd unit for the Relish API + web app. Install as /etc/systemd/system/relish.service.
+# See docs/DEPLOY.md. Secrets live in /etc/relish/relish.env (root:root, mode 0600); systemd
+# reads that file as root and passes the values to the unprivileged relish user.
+[Unit]
+Description=Relish nutrition app (FastAPI + web build)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=relish
+Group=relish
+WorkingDirectory=/opt/relish/app
+EnvironmentFile=/etc/relish/relish.env
+Environment=PATH=/opt/relish/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/relish/app/scripts/prod-backend.sh
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the app may only write its data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/relish
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
