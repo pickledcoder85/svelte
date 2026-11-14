@@ -11,6 +11,8 @@ This project assumes all local work happens after activating the dedicated conda
 4. Keep Python dependencies in `pyproject.toml`.
 5. Use `DATABASE_URL=sqlite:///./nutrition_os.dev.db` for disposable local development unless you intentionally want a different database file.
 
+
+Node: the frontend needs Node 20.19 or newer (`engines` in `frontend/package.json`). The `svelte` conda environment provides Node 20; the system Node 18 fails Expo web builds with `configs.toReversed is not a function`.
 ## Backend setup
 
 1. `conda activate svelte`
