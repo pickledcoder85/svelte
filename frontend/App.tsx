@@ -23,16 +23,16 @@ import {
   addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
-  createPlannedExerciseEntry,
+  createPlannedWorkoutSession,
   createLocalSession,
   createWeightEntry,
-  deletePlannedExerciseEntry,
+  deletePlannedWorkoutSession,
   completeOnboarding,
   createUserGoal,
   fetchBackendHealth,
   getApiBaseUrl,
   fetchExerciseEntries,
-  fetchPlannedExerciseEntries,
+  fetchPlannedWorkoutSessions,
   fetchFavoriteFoods,
   fetchFavoriteRecipes,
   fetchFoodLogForDate,
@@ -52,8 +52,8 @@ import {
   updateProfile,
   updateMealPlanSlotEatenAt,
   updateMealPrepTaskStatus,
-  updatePlannedExerciseEntry,
-  updatePlannedExerciseCompletion,
+  updatePlannedWorkoutSession,
+  updatePlannedWorkoutSessionCompletion,
   unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
@@ -90,6 +90,16 @@ import {
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
+import {
+  buildDemoPlannedWorkoutSessions,
+  buildPlannedWorkoutPayload,
+  buildOptimisticPlannedWorkoutSession,
+  mapPlannedWorkoutSessionToEntry,
+  sortPlannedWorkoutSessions,
+  defaultWarmupTitle,
+  defaultCooldownTitle,
+  buildPlannedWorkoutEditDraft
+} from './src/lib/planned-workouts';
 import type {
   AppSection,
   DashboardRange,
@@ -104,6 +114,7 @@ import type {
   MealPlanDay,
   MealPrepTask,
   PlannedExerciseEntry,
+  PlannedWorkoutSession,
   ProfileProgress,
   RecipeDefinition,
   UserGoal,
@@ -593,11 +604,16 @@ export default function App(): ReactElement {
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [plannedExerciseEntries, setPlannedExerciseEntries] = useState<PlannedExerciseEntry[]>([]);
+  const [plannedWorkoutSessions, setPlannedWorkoutSessions] = useState<PlannedWorkoutSession[]>([]);
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
   const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
   const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
   const [plannedExerciseTitleDraft, setPlannedExerciseTitleDraft] = useState('Swim');
   const [plannedExerciseMinutesDraft, setPlannedExerciseMinutesDraft] = useState('55');
+  const [plannedExerciseWarmupEnabled, setPlannedExerciseWarmupEnabled] = useState(false);
+  const [plannedExerciseWarmupMinutesDraft, setPlannedExerciseWarmupMinutesDraft] = useState('10');
+  const [plannedExerciseCooldownEnabled, setPlannedExerciseCooldownEnabled] = useState(false);
+  const [plannedExerciseCooldownMinutesDraft, setPlannedExerciseCooldownMinutesDraft] = useState('8');
   const [trackerTone, setTrackerTone] = useState<'checking' | 'live'>('checking');
   const [trackerStatus, setTrackerStatus] = useState('Loading tracker data');
   const [trackerError, setTrackerError] = useState<string | null>(null);
@@ -992,11 +1008,13 @@ export default function App(): ReactElement {
 
     async function loadTrackerSections() {
       if (!foodSessionToken) {
+        const demoSessions = buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries);
         setTrackerTone('checking');
         setTrackerStatus('Preview tracker loaded');
         setTrackerError('No active tracker session. Showing preview tracker data.');
         setExerciseEntries(demoExerciseEntries);
-        setPlannedExerciseEntries(demoPlannedExerciseEntries);
+        setPlannedWorkoutSessions(demoSessions);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(demoSessions.map(mapPlannedWorkoutSessionToEntry)));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable until a backend session is ready');
         setMealPlanError('No active tracker session.');
@@ -1021,9 +1039,9 @@ export default function App(): ReactElement {
       setMealPrepError(null);
 
       try {
-        const [exercise, plannedExercise, mealPlan, mealPrep] = await Promise.all([
+        const [exercise, plannedWorkoutSessionItems, mealPlan, mealPrep] = await Promise.all([
           fetchExerciseEntries(foodSessionToken),
-          fetchPlannedExerciseEntries(foodSessionToken),
+          fetchPlannedWorkoutSessions(foodSessionToken),
           fetchMealPlanDays(foodSessionToken),
           fetchMealPrepTasks(foodSessionToken)
         ]);
@@ -1033,7 +1051,8 @@ export default function App(): ReactElement {
         }
 
         setExerciseEntries(exercise);
-        setPlannedExerciseEntries(plannedExercise);
+        setPlannedWorkoutSessions(plannedWorkoutSessionItems);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(plannedWorkoutSessionItems.map(mapPlannedWorkoutSessionToEntry)));
         setTrackerTone('live');
         setTrackerStatus(
           exercise.length > 0
@@ -1078,6 +1097,7 @@ export default function App(): ReactElement {
 
         setExerciseEntries([]);
         setPlannedExerciseEntries([]);
+        setPlannedWorkoutSessions([]);
         setMealPlanDays([]);
         setSelectedMealPlanDate(null);
         setMealPlanEatenSlots({});
@@ -1086,7 +1106,9 @@ export default function App(): ReactElement {
         setTrackerStatus('Preview tracker loaded');
         setTrackerError(error instanceof Error ? `${error.message} Showing preview tracker data.` : 'Tracker data unavailable. Showing preview tracker data.');
         setExerciseEntries(demoExerciseEntries);
-        setPlannedExerciseEntries(demoPlannedExerciseEntries);
+        const demoSessions = buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries);
+        setPlannedWorkoutSessions(demoSessions);
+        setPlannedExerciseEntries(sortPlannedExerciseEntries(demoSessions.map(mapPlannedWorkoutSessionToEntry)));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable');
         setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
@@ -2054,6 +2076,8 @@ export default function App(): ReactElement {
 
   async function addPlannedExerciseEntry() {
     const duration_minutes = Number(plannedExerciseMinutesDraft);
+    const warmup_minutes = Number(plannedExerciseWarmupMinutesDraft);
+    const cooldown_minutes = Number(plannedExerciseCooldownMinutesDraft);
     const title = plannedExerciseTitleDraft.trim();
 
     if (!title || !Number.isFinite(duration_minutes) || duration_minutes <= 0) {
@@ -2071,42 +2095,56 @@ export default function App(): ReactElement {
       return;
     }
 
-    const payload = {
+    if (plannedExerciseWarmupEnabled && (!Number.isFinite(warmup_minutes) || warmup_minutes <= 0)) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
+      setTrackerError('Enter valid warmup minutes or turn warmup off.');
+      return;
+    }
+
+    if (plannedExerciseCooldownEnabled && (!Number.isFinite(cooldown_minutes) || cooldown_minutes <= 0)) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
+      setTrackerError('Enter valid cooldown minutes or turn cooldown off.');
+      return;
+    }
+
+    const payload = buildPlannedWorkoutPayload({
       title,
-      duration_minutes: Math.round(duration_minutes),
-      calories_burned: Math.round(estimatedCaloriesBurned),
-      planned_on: selectedHomeDate,
-      planned_at: '06:30',
+      workoutType: activePlannedExercisePreset.id,
+      mainMinutes: Math.round(duration_minutes),
+      warmupMinutes: plannedExerciseWarmupEnabled ? Math.round(warmup_minutes) : 0,
+      cooldownMinutes: plannedExerciseCooldownEnabled ? Math.round(cooldown_minutes) : 0,
+      plannedOn: selectedHomeDate,
+      plannedAt: '06:30',
+      estimatedCaloriesBurned: Math.round(estimatedCaloriesBurned),
       intensity: deriveExerciseIntensity(Math.round(duration_minutes), Math.round(estimatedCaloriesBurned))
-    } as const;
+    });
 
     setPlannedExerciseSaving(true);
     setTrackerTone('checking');
     setTrackerStatus(`${plannedExerciseEditingId ? 'Updating' : 'Planning'} ${title}`);
     setTrackerError(null);
-    let previousEntries: PlannedExerciseEntry[] = [];
-    let optimisticEntryId: string | null = null;
+    let previousSessions: PlannedWorkoutSession[] = [];
+    const optimisticSessionId = plannedExerciseEditingId ?? `planned-workout-${Date.now()}`;
+    const optimisticSession = buildOptimisticPlannedWorkoutSession(optimisticSessionId, payload);
 
-    setPlannedExerciseEntries((current) => {
-      previousEntries = current;
+    setPlannedWorkoutSessions((current) => {
+      previousSessions = current;
       if (plannedExerciseEditingId) {
-        return sortPlannedExerciseEntries(
-          current.map((entry) =>
-            entry.id === plannedExerciseEditingId
-              ? {
-                  ...entry,
-                  ...payload
-                }
-              : entry
-          )
+        return sortPlannedWorkoutSessions(
+          current.map((session) => (session.id === plannedExerciseEditingId ? optimisticSession : session))
         );
       }
-
-      const optimisticEntry: PlannedExerciseEntry = {
-        id: `planned-exercise-${Date.now()}`,
-        ...payload
-      };
-      optimisticEntryId = optimisticEntry.id;
+      return sortPlannedWorkoutSessions([...current, optimisticSession]);
+    });
+    setPlannedExerciseEntries((current) => {
+      const optimisticEntry = mapPlannedWorkoutSessionToEntry(optimisticSession);
+      if (plannedExerciseEditingId) {
+        return sortPlannedExerciseEntries(
+          current.map((entry) => (entry.id === plannedExerciseEditingId ? optimisticEntry : entry))
+        );
+      }
       return sortPlannedExerciseEntries([...current, optimisticEntry]);
     });
 
@@ -2116,12 +2154,18 @@ export default function App(): ReactElement {
       }
 
       const saved = plannedExerciseEditingId
-        ? await updatePlannedExerciseEntry(plannedExerciseEditingId, payload, foodSessionToken)
-        : await createPlannedExerciseEntry(payload, foodSessionToken);
+        ? await updatePlannedWorkoutSession(plannedExerciseEditingId, payload, foodSessionToken)
+        : await createPlannedWorkoutSession(payload, foodSessionToken);
+      setPlannedWorkoutSessions((current) =>
+        sortPlannedWorkoutSessions([
+          ...current.filter((session) => session.id !== optimisticSessionId),
+          saved
+        ])
+      );
       setPlannedExerciseEntries((current) =>
         sortPlannedExerciseEntries([
-          ...current.filter((entry) => entry.id !== (plannedExerciseEditingId ?? optimisticEntryId)),
-          saved
+          ...current.filter((entry) => entry.id !== optimisticSessionId),
+          mapPlannedWorkoutSessionToEntry(saved)
         ])
       );
       setTrackerTone('live');
@@ -2130,7 +2174,8 @@ export default function App(): ReactElement {
       );
       resetPlannedExerciseDrafts();
     } catch (error) {
-      setPlannedExerciseEntries(previousEntries);
+      setPlannedWorkoutSessions(previousSessions);
+      setPlannedExerciseEntries(sortPlannedExerciseEntries(previousSessions.map(mapPlannedWorkoutSessionToEntry)));
       setTrackerTone('checking');
       setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
       setTrackerError(error instanceof Error ? error.message : `Unable to ${plannedExerciseEditingId ? 'update' : 'save'} planned exercise.`);
@@ -2140,10 +2185,16 @@ export default function App(): ReactElement {
   }
 
   function beginPlannedExerciseEdit(entry: PlannedExerciseEntry) {
+    const session = plannedWorkoutSessions.find((item) => item.id === entry.id);
+    const draft = buildPlannedWorkoutEditDraft(entry, session);
     setPlannedExerciseEditingId(entry.id);
     setSelectedHomeDate(entry.planned_on);
-    setPlannedExerciseTitleDraft(entry.title);
-    setPlannedExerciseMinutesDraft(String(entry.duration_minutes));
+    setPlannedExerciseTitleDraft(draft.title);
+    setPlannedExerciseMinutesDraft(String(draft.mainMinutes));
+    setPlannedExerciseWarmupEnabled(draft.warmupEnabled);
+    setPlannedExerciseWarmupMinutesDraft(String(draft.warmupMinutes));
+    setPlannedExerciseCooldownEnabled(draft.cooldownEnabled);
+    setPlannedExerciseCooldownMinutesDraft(String(draft.cooldownMinutes));
     setTrackerTone('live');
     setTrackerStatus(`Editing ${entry.title}`);
     setTrackerError(null);
@@ -2153,24 +2204,29 @@ export default function App(): ReactElement {
     setPlannedExerciseEditingId(null);
     setPlannedExerciseTitleDraft('Walk');
     setPlannedExerciseMinutesDraft('25');
+    setPlannedExerciseWarmupEnabled(false);
+    setPlannedExerciseWarmupMinutesDraft('10');
+    setPlannedExerciseCooldownEnabled(false);
+    setPlannedExerciseCooldownMinutesDraft('8');
   }
 
   async function removePlannedExerciseEntry(entry: PlannedExerciseEntry) {
-    let previousEntries: PlannedExerciseEntry[] = [];
+    let previousSessions: PlannedWorkoutSession[] = [];
     setPlannedExerciseDeletingId(entry.id);
     setTrackerTone('checking');
     setTrackerStatus(`Deleting ${entry.title}`);
     setTrackerError(null);
-    setPlannedExerciseEntries((current) => {
-      previousEntries = current;
+    setPlannedWorkoutSessions((current) => {
+      previousSessions = current;
       return current.filter((item) => item.id !== entry.id);
     });
+    setPlannedExerciseEntries((current) => current.filter((item) => item.id !== entry.id));
 
     try {
       if (!foodSessionToken) {
         throw new Error('Create a live local session before deleting planned exercise.');
       }
-      await deletePlannedExerciseEntry(entry.id, foodSessionToken);
+      await deletePlannedWorkoutSession(entry.id, foodSessionToken);
       if (entry.completed_exercise_entry_id) {
         setExerciseEntries(await fetchExerciseEntries(foodSessionToken));
       }
@@ -2180,7 +2236,8 @@ export default function App(): ReactElement {
       setTrackerTone('live');
       setTrackerStatus(`${entry.title} deleted`);
     } catch (error) {
-      setPlannedExerciseEntries(previousEntries);
+      setPlannedWorkoutSessions(previousSessions);
+      setPlannedExerciseEntries(sortPlannedExerciseEntries(previousSessions.map(mapPlannedWorkoutSessionToEntry)));
       setTrackerTone('checking');
       setTrackerStatus(`Could not delete ${entry.title}`);
       setTrackerError(error instanceof Error ? error.message : 'Unable to delete planned exercise.');
@@ -2191,11 +2248,20 @@ export default function App(): ReactElement {
 
   async function togglePlannedExerciseCompletion(entry: PlannedExerciseEntry) {
     const nextCompletedAt = entry.completed_at ? null : new Date().toISOString();
-    const optimisticEntry: PlannedExerciseEntry = {
-      ...entry,
+    const session = plannedWorkoutSessions.find((item) => item.id === entry.id);
+    if (!session) {
+      setTrackerTone('checking');
+      setTrackerStatus(`Could not update ${entry.title}`);
+      setTrackerError('Planned workout session is missing from local state.');
+      return;
+    }
+    const optimisticSession: PlannedWorkoutSession = {
+      ...session,
+      status: nextCompletedAt ? 'completed' : 'planned',
       completed_at: nextCompletedAt,
-      completed_exercise_entry_id: nextCompletedAt ? entry.completed_exercise_entry_id ?? `exercise-${Date.now()}` : null
+      completed_exercise_entry_id: nextCompletedAt ? session.completed_exercise_entry_id ?? `exercise-${Date.now()}` : null
     };
+    const optimisticEntry = mapPlannedWorkoutSessionToEntry(optimisticSession);
 
     setPlannedExerciseUpdatingId(entry.id);
     setTrackerTone('checking');
@@ -2203,20 +2269,23 @@ export default function App(): ReactElement {
       `${entry.title} ${nextCompletedAt ? 'completed' : 'marked incomplete'}`
     );
     setTrackerError(null);
+    setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? optimisticSession : item)));
     setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? optimisticEntry : item)));
 
     try {
       if (!foodSessionToken) {
         throw new Error('Create a live local session before updating planned exercise.');
       }
-      const saved = await updatePlannedExerciseCompletion(entry.id, nextCompletedAt, foodSessionToken);
-      setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? saved : item)));
+      const saved = await updatePlannedWorkoutSessionCompletion(entry.id, nextCompletedAt, foodSessionToken);
+      setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? saved : item)));
+      setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? mapPlannedWorkoutSessionToEntry(saved) : item)));
       setExerciseEntries(await fetchExerciseEntries(foodSessionToken));
       setTrackerTone('live');
       setTrackerStatus(
         `${entry.title} ${nextCompletedAt ? 'completed' : 'marked incomplete'}`
       );
     } catch (error) {
+      setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? session : item)));
       setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? entry : item)));
       setTrackerTone('checking');
       setTrackerStatus(`Could not update ${entry.title}`);
@@ -4394,7 +4463,7 @@ export default function App(): ReactElement {
                 <TextInput
                   value={plannedExerciseMinutesDraft}
                   onChangeText={setPlannedExerciseMinutesDraft}
-                  placeholder="Minutes"
+                  placeholder="Main set minutes"
                   placeholderTextColor="#7c8aa5"
                   style={styles.searchInput}
                   keyboardType="numeric"
@@ -4405,6 +4474,59 @@ export default function App(): ReactElement {
                   <Text style={styles.metricValue}>{estimatedPlannedExerciseCalories} kcal</Text>
                 </View>
               </View>
+
+              <View style={styles.listActionRow}>
+                <Pressable
+                  style={[styles.inlinePillButton, plannedExerciseWarmupEnabled ? styles.inlinePillButtonComplete : null]}
+                  onPress={() => setPlannedExerciseWarmupEnabled((current) => !current)}
+                >
+                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseWarmupEnabled ? styles.inlinePillButtonLabelComplete : null]}>
+                    {plannedExerciseWarmupEnabled ? 'Remove warmup' : 'Add warmup'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.inlinePillButton, plannedExerciseCooldownEnabled ? styles.inlinePillButtonComplete : null]}
+                  onPress={() => setPlannedExerciseCooldownEnabled((current) => !current)}
+                >
+                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseCooldownEnabled ? styles.inlinePillButtonLabelComplete : null]}>
+                    {plannedExerciseCooldownEnabled ? 'Remove cooldown' : 'Add cooldown'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {plannedExerciseWarmupEnabled ? (
+                <View style={styles.searchRow}>
+                  <TextInput
+                    value={plannedExerciseWarmupMinutesDraft}
+                    onChangeText={setPlannedExerciseWarmupMinutesDraft}
+                    placeholder="Warmup minutes"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.searchInput}
+                    keyboardType="numeric"
+                    autoCorrect={false}
+                  />
+                  <View style={styles.inlinePillRow}>
+                    <Text style={styles.inlinePillText}>{defaultWarmupTitle(activePlannedExercisePreset.id)}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {plannedExerciseCooldownEnabled ? (
+                <View style={styles.searchRow}>
+                  <TextInput
+                    value={plannedExerciseCooldownMinutesDraft}
+                    onChangeText={setPlannedExerciseCooldownMinutesDraft}
+                    placeholder="Cooldown minutes"
+                    placeholderTextColor="#7c8aa5"
+                    style={styles.searchInput}
+                    keyboardType="numeric"
+                    autoCorrect={false}
+                  />
+                  <View style={styles.inlinePillRow}>
+                    <Text style={styles.inlinePillText}>{defaultCooldownTitle(activePlannedExercisePreset.id)}</Text>
+                  </View>
+                </View>
+              ) : null}
 
               <View style={styles.metricRow}>
                 <MetricTile label="Minutes" value={`${plannedExerciseMinutesDraft} min`} compact />
@@ -4420,6 +4542,14 @@ export default function App(): ReactElement {
                         <Text style={styles.listCaption}>
                           {formatHomeDateLabel(entry.planned_on, todayKey)} · {entry.duration_minutes} min · {entry.intensity} · {entry.completed_at ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}` : entry.planned_at}
                         </Text>
+                        {plannedWorkoutSessions.find((session) => session.id === entry.id)?.blocks.length ? (
+                          <Text style={styles.listCaption}>
+                            {plannedWorkoutSessions
+                              .find((session) => session.id === entry.id)
+                              ?.blocks.map((block) => `${block.title}: ${block.segments.map((segment) => segment.title).join(', ')}`)
+                              .join(' · ')}
+                          </Text>
+                        ) : null}
                       </View>
                       <View style={styles.listRowActions}>
                         <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>

@@ -205,6 +205,54 @@ export interface PlannedExerciseEntry {
   updated_at?: string;
 }
 
+export interface PlannedWorkoutSegment {
+  id: string;
+  block_id: string;
+  position: number;
+  segment_type: 'time' | 'distance' | 'activity' | 'reps';
+  title: string;
+  activity_type?: 'weights' | 'swim' | 'bike' | 'run' | 'custom' | null;
+  duration_minutes?: number | null;
+  distance_value?: number | null;
+  distance_unit?: 'm' | 'km' | 'mi' | 'yd' | null;
+  reps?: number | null;
+  intensity?: 'Low' | 'Moderate' | 'High' | null;
+  notes?: string | null;
+  calories_estimate?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PlannedWorkoutBlock {
+  id: string;
+  session_id: string;
+  block_kind: 'warmup' | 'activity' | 'cooldown';
+  position: number;
+  title: string;
+  notes?: string | null;
+  segments: PlannedWorkoutSegment[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PlannedWorkoutSession {
+  id: string;
+  user_id: string;
+  legacy_planned_exercise_entry_id?: string | null;
+  title: string;
+  workout_type: 'weights' | 'swim' | 'bike' | 'run' | 'custom';
+  planned_on: string;
+  planned_at: string;
+  notes?: string | null;
+  estimated_calories_burned: number;
+  status: 'planned' | 'completed' | 'skipped';
+  completed_at?: string | null;
+  completed_exercise_entry_id?: string | null;
+  blocks: PlannedWorkoutBlock[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface RecipeDefinition {
   id: string;
   title: string;

@@ -6,7 +6,9 @@ import {
   addFavoriteFood,
   createExerciseEntry,
   createPlannedExerciseEntry,
+  createPlannedWorkoutSession,
   deletePlannedExerciseEntry,
+  deletePlannedWorkoutSession,
   ingestNutritionLabel,
   createMealPlanDay,
   createMealPrepTask,
@@ -24,6 +26,7 @@ import {
   fetchFoodLogForDate,
   fetchMealPlanDays,
   fetchPlannedExerciseEntries,
+  fetchPlannedWorkoutSessions,
   updateMealPlanSlotEatenAt,
   fetchMealPrepTasks,
   fetchProfile,
@@ -44,6 +47,8 @@ import {
   updateMealPrepTaskStatus,
   updatePlannedExerciseEntry,
   updatePlannedExerciseCompletion,
+  updatePlannedWorkoutSession,
+  updatePlannedWorkoutSessionCompletion,
   unfavoriteFood,
   unfavoriteRecipe
 } from './api';
@@ -798,6 +803,131 @@ describe('api helpers', () => {
       expect.objectContaining({
         method: 'DELETE',
         headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+  });
+
+  it('fetches and mutates structured planned workout sessions with auth headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'session-1',
+              user_id: 'user-1',
+              title: 'Run workout',
+              workout_type: 'run',
+              planned_on: '2026-04-07',
+              planned_at: '06:00',
+              estimated_calories_burned: 430,
+              status: 'planned',
+              blocks: []
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'session-2',
+            user_id: 'user-1',
+            title: 'Run workout',
+            workout_type: 'run',
+            planned_on: '2026-04-07',
+            planned_at: '06:00',
+            estimated_calories_burned: 430,
+            status: 'planned',
+            blocks: []
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'session-2',
+            user_id: 'user-1',
+            title: 'Run workout updated',
+            workout_type: 'run',
+            planned_on: '2026-04-07',
+            planned_at: '06:15',
+            estimated_calories_burned: 460,
+            status: 'planned',
+            blocks: []
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'session-2',
+            user_id: 'user-1',
+            title: 'Run workout updated',
+            workout_type: 'run',
+            planned_on: '2026-04-07',
+            planned_at: '06:15',
+            estimated_calories_burned: 460,
+            status: 'completed',
+            completed_at: '2026-04-07T11:45:00.000Z',
+            blocks: []
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const payload = {
+      title: 'Run workout',
+      workout_type: 'run' as const,
+      planned_on: '2026-04-07',
+      planned_at: '06:00',
+      estimated_calories_burned: 430,
+      blocks: []
+    };
+
+    await fetchPlannedWorkoutSessions('token-123');
+    await createPlannedWorkoutSession(payload, 'token-123');
+    await updatePlannedWorkoutSession('session-2', { ...payload, title: 'Run workout updated', planned_at: '06:15', estimated_calories_burned: 460 }, 'token-123');
+    await updatePlannedWorkoutSessionCompletion('session-2', '2026-04-07T11:45:00.000Z', 'token-123');
+    await deletePlannedWorkoutSession('session-2', 'token-123');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/tracker/planned-workout-sessions',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token-123' }
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/tracker/planned-workout-sessions',
+      expect.objectContaining({
+        method: 'POST'
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://localhost:8000/api/tracker/planned-workout-sessions/session-2',
+      expect.objectContaining({
+        method: 'PUT'
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      'http://localhost:8000/api/tracker/planned-workout-sessions/session-2/completion',
+      expect.objectContaining({
+        method: 'PATCH'
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      'http://localhost:8000/api/tracker/planned-workout-sessions/session-2',
+      expect.objectContaining({
+        method: 'DELETE'
       })
     );
   });
