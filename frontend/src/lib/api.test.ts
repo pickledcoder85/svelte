@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { localDateKey } from './dates';
 import {
   buildApiUrl,
   acceptIngestionOutput,
@@ -16,6 +17,8 @@ import {
   calculateMeal,
   createLocalSession,
   fetchOwnerSession,
+  fetchCurrentSession,
+  setUnauthorizedHandler,
   apiFetch,
   fetchWeeklyMetrics,
   completeOnboarding,
@@ -136,6 +139,46 @@ describe('api helpers', () => {
       expect(call[1]).toEqual({ headers: { Authorization: 'Bearer token-123' } });
     }
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('accepts a relative api base for same-origin production builds', () => {
+    expect(normalizeApiBaseUrl('/api')).toBe('/api');
+    expect(normalizeApiBaseUrl(' /api/ ')).toBe('/api');
+    expect(normalizeApiBaseUrl('   ')).toBe('http://localhost:8000/api');
+  });
+
+  it('notifies the app once when a data request is rejected with 401', async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'No active session.' }), { status: 401 }))
+    );
+
+    await expect(fetchProfile('expired-token')).rejects.toThrow('401');
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // A 401 from the session check is an answer, not an expired session.
+    await expect(fetchCurrentSession('expired-token')).resolves.toBeNull();
+    expect(handler).toHaveBeenCalledTimes(1);
+    setUnauthorizedHandler(null);
+  });
+
+  it('checks a remembered local session with its token', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ session: { access_token: 'session-abc', provider: 'local' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await fetchCurrentSession('session-abc');
+
+    expect(session?.access_token).toBe('session-abc');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/auth/session', {
+      headers: { Authorization: 'Bearer session-abc' }
+    });
   });
 
   it('returns the owner session when the server already knows the user', async () => {
@@ -1496,7 +1539,7 @@ describe('api helpers', () => {
           JSON.stringify({
             id: 'log-today',
             user_id: 'user-123',
-            log_date: new Date().toISOString().slice(0, 10),
+            log_date: localDateKey(),
             notes: null,
             entries: []
           }),
@@ -1511,7 +1554,7 @@ describe('api helpers', () => {
           JSON.stringify({
             id: 'log-today',
             user_id: 'user-123',
-            log_date: new Date().toISOString().slice(0, 10),
+            log_date: localDateKey(),
             notes: null,
             entries: [
               {

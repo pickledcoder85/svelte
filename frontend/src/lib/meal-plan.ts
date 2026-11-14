@@ -1,3 +1,4 @@
+import { localDateKey } from './dates';
 import type { MealPlanDay } from '../types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -30,7 +31,7 @@ export function sortMealPlanDaysByDate(days: MealPlanDay[]): MealPlanDay[] {
 export function resolveSelectedMealPlanDate(
   days: MealPlanDay[],
   preferredDate: string | null,
-  todayKey: string = new Date().toISOString().slice(0, 10)
+  todayKey: string = localDateKey()
 ): string | null {
   if (preferredDate && days.some((day) => day.plan_date === preferredDate)) {
     return preferredDate;

@@ -1,3 +1,4 @@
+import { localDateKey } from './dates';
 import type {
   ExerciseEntry,
   PlannedExerciseEntry,
@@ -101,8 +102,9 @@ export interface ApiError extends Error {
 const DEFAULT_API_BASE_URL = 'http://localhost:8000/api';
 
 function readExpoPublicApiBaseUrl(): string | undefined {
-  const processRef = globalThis as { process?: { env?: Record<string, string | undefined> } };
-  return processRef.process?.env?.EXPO_PUBLIC_API_BASE_URL;
+  // Must stay a literal `process.env.EXPO_PUBLIC_...` expression: Expo replaces it with the
+  // value at build time. Reading it any other way leaves production builds on the default.
+  return process.env.EXPO_PUBLIC_API_BASE_URL;
 }
 
 export function normalizeApiBaseUrl(value: string | undefined): string {
@@ -110,7 +112,9 @@ export function normalizeApiBaseUrl(value: string | undefined): string {
     return DEFAULT_API_BASE_URL;
   }
 
-  return value.replace(/\/+$/, '');
+  const trimmed = value.trim().replace(/\/+$/, '');
+  // A relative base such as "/api" targets the origin that served the app (production).
+  return trimmed.length > 0 ? trimmed : DEFAULT_API_BASE_URL;
 }
 
 export function getApiBaseUrl(): string {
@@ -122,8 +126,18 @@ export function buildApiUrl(path: string): string {
   return `${getApiBaseUrl()}${normalizedPath}`;
 }
 
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Called once per 401 from a data request, so the app can return to sign-in. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
     let detail = '';
     try {
       const payload = (await response.json()) as { detail?: unknown };
@@ -297,7 +311,18 @@ function optionalAuthInit(accessToken?: string | null): RequestInit | undefined 
  * auto-login). Resolves to null when the server needs an explicit local sign-in.
  */
 export async function fetchOwnerSession(): Promise<AuthSession | null> {
-  const response = await apiFetch(buildApiUrl('/auth/session'));
+  return fetchCurrentSession();
+}
+
+/**
+ * Returns the session the server sees for this request (owner identity, or the given local
+ * token), or null when it sees none. A 401 here is an answer, not an expired session.
+ */
+export async function fetchCurrentSession(accessToken?: string | null): Promise<AuthSession | null> {
+  const url = buildApiUrl('/auth/session');
+  const response = accessToken
+    ? await apiFetch(url, { headers: authHeaders(accessToken) })
+    : await apiFetch(url);
   if (response.status === 401) {
     return null;
   }
@@ -397,8 +422,7 @@ async function createFoodLogForDate(logDate: string, accessToken: string): Promi
 }
 
 export async function fetchTodaysFoodLog(accessToken: string): Promise<FoodLogSummary> {
-  const today = new Date().toISOString().slice(0, 10);
-  return fetchFoodLogForDate(today, accessToken);
+  return fetchFoodLogForDate(localDateKey(), accessToken);
 }
 
 export async function fetchFoodLogForDate(logDate: string, accessToken: string): Promise<FoodLogSummary> {
@@ -424,9 +448,10 @@ export async function addFoodLogEntry(
     carbs: number;
     fat: number;
   },
-  accessToken: string
+  accessToken: string,
+  logDate: string = localDateKey()
 ): Promise<FoodLogSummary> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = logDate;
   const logs = await fetchFoodLogs(accessToken);
   const todaysLog = logs.find((log) => log.log_date === today) ?? (await createFoodLogForDate(today, accessToken));
 

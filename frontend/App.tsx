@@ -26,7 +26,9 @@ import {
   createExerciseEntry,
   createPlannedWorkoutSession,
   createLocalSession,
+  fetchCurrentSession,
   fetchOwnerSession,
+  setUnauthorizedHandler,
   OWNER_SESSION_TOKEN,
   createWeightEntry,
   deletePlannedWorkoutSession,
@@ -105,6 +107,12 @@ import {
 } from './src/lib/planned-workouts';
 import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
+import { addDaysToDateKey, localDateKey } from './src/lib/dates';
+import {
+  clearStoredSessionToken,
+  loadStoredSessionToken,
+  storeSessionToken
+} from './src/lib/session-store';
 import type {
   AppSection,
   DashboardRange,
@@ -467,7 +475,7 @@ export default function App(): ReactElement {
   const [entryMode, setEntryMode] = useState<EntryMode | null>(null);
   const entryModeRef = useRef<EntryMode | null>(null);
   const [entryIntent, setEntryIntent] = useState<'signup' | 'signin' | null>(null);
-  const [entryEmailDraft, setEntryEmailDraft] = useState('dev@example.com');
+  const [entryEmailDraft, setEntryEmailDraft] = useState('');
   const [entryDisplayNameDraft, setEntryDisplayNameDraft] = useState('Local Dev User');
   const [entryLoading, setEntryLoading] = useState(false);
   const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
@@ -513,13 +521,13 @@ export default function App(): ReactElement {
   const [goalSaving, setGoalSaving] = useState(false);
   const [profileProgress, setProfileProgress] = useState<ProfileProgress | null>(null);
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
-  const [weightRecordedAtDraft, setWeightRecordedAtDraft] = useState(() => new Date().toISOString().slice(0, 10));
+  const [weightRecordedAtDraft, setWeightRecordedAtDraft] = useState(() => localDateKey());
   const [weightValueDraft, setWeightValueDraft] = useState('');
   const [weightSaving, setWeightSaving] = useState(false);
   const [profileDisplayNameDraft, setProfileDisplayNameDraft] = useState('');
   const [profileTimezoneDraft, setProfileTimezoneDraft] = useState('UTC');
   const [profileUnitsDraft, setProfileUnitsDraft] = useState<'imperial' | 'metric'>('imperial');
-  const [goalEffectiveAtDraft, setGoalEffectiveAtDraft] = useState(() => new Date().toISOString().slice(0, 10));
+  const [goalEffectiveAtDraft, setGoalEffectiveAtDraft] = useState(() => localDateKey());
   const [goalCaloriesDraft, setGoalCaloriesDraft] = useState('2100');
   const [goalProteinDraft, setGoalProteinDraft] = useState('180');
   const [goalCarbsDraft, setGoalCarbsDraft] = useState('190');
@@ -601,7 +609,8 @@ export default function App(): ReactElement {
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
   const [selectedLogFoodId, setSelectedLogFoodId] = useState('');
   const [logGrams, setLogGrams] = useState('100');
-  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Re-read when the app returns to the foreground so an app left open overnight rolls over.
+  const [todayKey, setTodayKey] = useState(() => localDateKey());
   const [selectedHomeDate, setSelectedHomeDate] = useState(todayKey);
   const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
   const [homeFoodLog, setHomeFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog(todayKey));
@@ -775,13 +784,40 @@ export default function App(): ReactElement {
         if (cancelled) {
           return;
         }
+
+        // Local development sign-in: reuse a remembered session if the server still accepts it.
+        const storedToken = !ownerSessionFound && health.auth_mode !== 'tailscale' ? loadStoredSessionToken() : null;
+        if (storedToken) {
+          let restored = false;
+          try {
+            restored = (await fetchCurrentSession(storedToken)) !== null;
+          } catch {
+            restored = false;
+          }
+          if (cancelled) {
+            return;
+          }
+          if (restored && entryModeRef.current === null) {
+            setOwnerAccess('signin');
+            setOwnerAccessMessage(null);
+            setProfileLoaded(false);
+            setFoodSessionToken(storedToken);
+            setEntryMode('live');
+            return;
+          }
+          if (!restored) {
+            clearStoredSessionToken();
+          }
+        }
       } else {
         setEntryBackendTone('checking');
         setEntryBackendStatus(tailnetHint ? 'Relish unreachable' : 'Backend unavailable for live profile mode');
         setEntryBackendDetail(
           tailnetHint
             ? `Could not reach ${getApiBaseUrl()}.`
-            : `Could not reach ${getApiBaseUrl()}. Start the backend on port 8000 or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`
+            : IS_DEVELOPMENT_BUILD
+              ? `Could not reach ${getApiBaseUrl()}. Start the backend on port 8000 or set EXPO_PUBLIC_API_BASE_URL in frontend/.env.`
+              : `Could not reach ${getApiBaseUrl()}.`
         );
       }
 
@@ -817,6 +853,45 @@ export default function App(): ReactElement {
   useEffect(() => {
     entryModeRef.current = entryMode;
   }, [entryMode]);
+
+  useEffect(() => {
+    // A home-screen app can stay open across midnight; refresh "today" when it comes back.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        setTodayKey(localDateKey());
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const [sessionRejected, setSessionRejected] = useState(false);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setSessionRejected(true));
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionRejected) {
+      return;
+    }
+    setSessionRejected(false);
+    // Preview mode has no session; its 401s are expected and must not end preview.
+    if (entryModeRef.current !== 'live') {
+      return;
+    }
+    if (isOwnerSession) {
+      // The server stopped recognizing this device (for example Tailscale went off):
+      // go back to the launch check, which shows the Connect Tailscale card.
+      setFoodSessionToken(null);
+      setProfileLoaded(false);
+      setEntryMode(null);
+      setOwnerCheckNonce((nonce) => nonce + 1);
+      return;
+    }
+    logoutToEntryScreen();
+    setEntryError('Your session expired. Sign in again.');
+  }, [sessionRejected, isOwnerSession]);
 
   useEffect(() => {
     if (ownerAccess !== 'blocked') {
@@ -1489,6 +1564,7 @@ export default function App(): ReactElement {
     try {
       const session = await createLocalSession(email, displayName, entryIntent ?? 'signup');
       setFoodSessionToken(session.access_token);
+      storeSessionToken(session.access_token);
       setEntryMode('live');
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
@@ -1518,6 +1594,7 @@ export default function App(): ReactElement {
   }
 
   function returnToEntryScreen() {
+    clearStoredSessionToken();
     setFoodSessionToken(null);
     setEntryEmailError(null);
     setEntryError(null);
@@ -1528,6 +1605,7 @@ export default function App(): ReactElement {
   }
 
   function logoutToEntryScreen() {
+    clearStoredSessionToken();
     setFoodSessionToken(null);
     setEntryEmailError(null);
     setEntryError(null);
@@ -2117,7 +2195,7 @@ export default function App(): ReactElement {
       title,
       duration_minutes: Math.round(duration_minutes),
       calories_burned: Math.round(calories_burned),
-      logged_on: new Date().toISOString().slice(0, 10),
+      logged_on: todayKey,
       logged_at: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
       intensity: calories_burned >= 300 ? 'High' : duration_minutes >= 30 ? 'Moderate' : 'Low'
     } as const;
@@ -2565,7 +2643,7 @@ export default function App(): ReactElement {
       }
       setProfileTone('live');
       setProfileStatus('Goal saved');
-      setGoalEffectiveAtDraft(new Date().toISOString().slice(0, 10));
+      setGoalEffectiveAtDraft(localDateKey());
       setGoalCaloriesDraft('2100');
       setGoalProteinDraft('180');
       setGoalCarbsDraft('190');
@@ -5041,7 +5119,7 @@ export default function App(): ReactElement {
             >
               {sortedMealPlanDays.map((day) => {
                 const active = day.plan_date === selectedMealPlanDate;
-                const isToday = day.plan_date === new Date().toISOString().slice(0, 10);
+                const isToday = day.plan_date === todayKey;
 
                 return (
                   <Pressable
@@ -5476,15 +5554,13 @@ export default function App(): ReactElement {
 
         {section === 'ingestion' && <IngestionReviewPanel accessToken={foodSessionToken} />}
 
-        {Platform.OS === 'web' ? (
+        {IS_DEVELOPMENT_BUILD ? (
           <Text style={styles.footer}>
-            Browser preview runs with Expo web. For iPhone preview, run `npm start` in `frontend/` and scan the QR code with Expo Go.
+            {Platform.OS === 'web'
+              ? 'Browser preview runs with Expo web. For iPhone preview, run `npm start` in `frontend/` and scan the QR code with Expo Go.'
+              : 'Running inside Expo. Use the same backend and switch devices without changing the frontend architecture.'}
           </Text>
-        ) : (
-          <Text style={styles.footer}>
-            Running inside Expo. Use the same backend and switch devices without changing the frontend architecture.
-          </Text>
-        )}
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -5694,12 +5770,7 @@ function formatLogDate(value: string): string {
 }
 
 function addDaysToIsoDate(value: string, days: number): string {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return addDaysToDateKey(value, days);
 }
 
 function formatHomeDateLabel(value: string, todayKey: string): string {
@@ -5766,7 +5837,10 @@ function sortPlannedExerciseEntries(entries: PlannedExerciseEntry[]): PlannedExe
   );
 }
 
-function createEmptyFoodLog(date = new Date().toISOString().slice(0, 10)): FoodLogSummary {
+// Expo replaces process.env.NODE_ENV at build time; production web builds hide developer hints.
+const IS_DEVELOPMENT_BUILD = process.env.NODE_ENV !== 'production';
+
+function createEmptyFoodLog(date = localDateKey()): FoodLogSummary {
   return {
     date,
     entries: [],
