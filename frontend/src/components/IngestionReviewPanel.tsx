@@ -1,3 +1,4 @@
+import { addDaysToDateKey, localDateKey, localDateKeyForTimestamp } from '../lib/dates';
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -833,8 +834,7 @@ function groupOutputsByDate(outputs: IngestionOutput[]): Array<{
 }> {
   const groups = new Map<string, IngestionOutput[]>();
   for (const output of outputs) {
-    const date = new Date(output.created_at);
-    const dateKey = Number.isNaN(date.getTime()) ? output.created_at.slice(0, 10) : date.toISOString().slice(0, 10);
+    const dateKey = localDateKeyForTimestamp(output.created_at);
     const items = groups.get(dateKey) ?? [];
     items.push(output);
     groups.set(dateKey, items);
@@ -855,15 +855,12 @@ function formatScanGroupLabel(dateKey: string): string {
     return dateKey;
   }
 
-  const today = new Date();
-  const todayKey = today.toISOString().slice(0, 10);
+  const todayKey = localDateKey();
   if (dateKey === todayKey) {
     return 'Today';
   }
 
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (dateKey === yesterday.toISOString().slice(0, 10)) {
+  if (dateKey === addDaysToDateKey(todayKey, -1)) {
     return 'Yesterday';
   }
 
