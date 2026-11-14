@@ -5,7 +5,7 @@ const SHELL_CACHE = 'relish-shell-v2';
 const ASSET_CACHE = 'relish-assets-v1';
 const KNOWN_CACHES = [SHELL_CACHE, ASSET_CACHE];
 // Content-hashed build output: safe to serve from cache forever.
-const IMMUTABLE_PATHS = ['/_expo/static/', '/assets/'];
+const IMMUTABLE_PATHS = ['/_expo/static/', '/assets/', '/zxing/'];
 // Old hashed bundles pile up across deploys; keep only the newest entries.
 const MAX_ASSET_ENTRIES = 60;
 

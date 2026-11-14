@@ -13,7 +13,8 @@ from fastapi.responses import FileResponse, Response
 # Files the browser must re-check on every load so a new deploy reaches the phone.
 NO_CACHE_FILES = frozenset({"index.html", "sw.js", "manifest.json", "manifest.webmanifest", "metadata.json"})
 # Content-hashed build output never changes under the same name.
-IMMUTABLE_PREFIXES = ("_expo/static/",)
+# zxing/<version>/ holds the barcode-reader WASM; a new version gets a new folder.
+IMMUTABLE_PREFIXES = ("_expo/static/", "zxing/")
 HASHED_NAME = re.compile(r"[.-][0-9a-f]{16,}\.[A-Za-z0-9]+$")
 
 NO_CACHE = "no-cache"
