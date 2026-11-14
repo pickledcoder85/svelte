@@ -81,6 +81,7 @@ The format should remain simple:
 
 ### Fixed
 
+- Tapping a text field on iPhone no longer zooms the page and pushes the form off screen: every input now uses 16 px text (iOS Safari zooms into smaller fields), and `index.html` keeps all text fields at 16 px or more on touch screens. Pinch zoom stays available.
 - No blink when launch finishes: on web the splash is a single HTML layer above the app that fades out over 0.2 s once the first real screen is ready, instead of being swapped for the app's own copy of the image (React Native Web's `Image` starts empty while it loads). A 15-second failsafe removes the layer if the app never dismisses it.
 - Responses are gzip-compressed (FastAPI `GZipMiddleware`, over 1 KB), so the web bundle downloads as about 240 KB instead of about 890 KB, which mostly affects the first launch after each deploy.
 - The launch splash no longer jumps when the app's copy replaces the HTML copy: both are now fixed to the viewport and centred the same way.
