@@ -34,6 +34,7 @@ import {
   fetchCurrentSession,
   fetchOwnerSession,
   setUnauthorizedHandler,
+  previewTargets,
   OWNER_SESSION_TOKEN,
   createWeightEntry,
   deletePlannedWorkoutSession,
@@ -123,6 +124,22 @@ import {
   splashHoldRemaining
 } from './src/lib/launch-splash';
 import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
+import {
+  DEFAULT_PACE,
+  GOAL_OPTIONS,
+  PACE_OPTIONS,
+  energyBarWidths,
+  estimateGoalDate,
+  findPreviewOption,
+  formatApproximateDate,
+  formatCalories,
+  formatWeeklyRate,
+  goalLabel,
+  isPaceForGoal,
+  paceLabel,
+  type GoalPace,
+  type TargetPreview
+} from './src/lib/setup-goals';
 import { dismissLaunchSplash } from './src/lib/launch-splash-dom';
 import {
   bodyMeasurementsFromDrafts,
@@ -130,6 +147,7 @@ import {
   defaultUnitSystemForLocale,
   deviceLocale,
   deviceTimeZone,
+  LB_PER_KG,
   type BodyDrafts,
   type UnitSystem
 } from './src/lib/body-units';
@@ -233,18 +251,18 @@ const exercisePresets: Array<{
     image: mascotSwimImage
   }
 ];
-type GoalPace = 'light' | 'recommended' | 'extreme' | 'lean' | 'aggressive';
 type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
 type NutritionStyle = 'balanced' | 'keto' | 'mediterranean';
 type AllergyChoice = 'none' | 'milk' | 'egg' | 'peanut' | 'tree_nuts' | 'wheat' | 'shellfish' | 'other';
 // 'welcome' is the intro card before the numbered steps; it is not in onboardingSteps.
 type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
 
+// Activity comes before the goal so the goal screens can show real calorie numbers.
 const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
-  { id: 'basics', label: 'Basics' },
-  { id: 'goal', label: 'Goal' },
-  { id: 'pace', label: 'Style' },
+  { id: 'basics', label: 'About you' },
   { id: 'activity', label: 'Activity' },
+  { id: 'goal', label: 'Your goal' },
+  { id: 'pace', label: 'Pace or focus' },
   { id: 'diet', label: 'Diet' },
   { id: 'style', label: 'Nutrition style' },
   { id: 'allergies', label: 'Allergies' },
@@ -329,16 +347,7 @@ function toneColor(tone: 'checking' | 'live'): string {
 }
 
 function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | undefined): string {
-  if (goalType === 'lose') {
-    return 'Weight Loss';
-  }
-  if (goalType === 'gain') {
-    return 'Weight Gain';
-  }
-  if (goalType === 'maintain') {
-    return 'Maintenance';
-  }
-  return '—';
+  return goalLabel(goalType);
 }
 
 function parseAllergySelection(notes: string | null | undefined): {
@@ -391,22 +400,7 @@ function formatAllergySelection(selected: AllergyChoice[], otherText: string): s
 }
 
 function formatGoalPaceLabel(goalType: 'lose' | 'maintain' | 'gain', goalPace: GoalPace | null): string {
-  if (goalType === 'maintain') {
-    return 'Steady maintenance';
-  }
-  if (goalType === 'lose') {
-    if (goalPace === 'light') {
-      return 'Light cut · -350 kcal';
-    }
-    if (goalPace === 'extreme') {
-      return 'Extreme cut · -1000 kcal';
-    }
-    return 'Recommended cut · -500 kcal';
-  }
-  if (goalPace === 'aggressive') {
-    return 'Aggressive gain · +500 kcal';
-  }
-  return 'Lean gain · +200 kcal';
+  return paceLabel(goalType, goalPace);
 }
 
 function splitHeightCm(heightCm: number | null | undefined): { feet: string; inches: string } {
@@ -601,16 +595,78 @@ export default function App(): ReactElement {
   }, [section, entryMode]);
 
   useEffect(() => {
-    if (onboardingGoalTypeDraft === 'maintain') {
-      return;
-    }
-    if (onboardingGoalTypeDraft === 'lose' && !['light', 'recommended', 'extreme'].includes(onboardingGoalPaceDraft)) {
-      setOnboardingGoalPaceDraft('recommended');
-    }
-    if (onboardingGoalTypeDraft === 'gain' && !['lean', 'aggressive'].includes(onboardingGoalPaceDraft)) {
-      setOnboardingGoalPaceDraft('lean');
+    // A pace (lose/gain) or focus (maintain) always belongs to the chosen goal.
+    if (!isPaceForGoal(onboardingGoalTypeDraft, onboardingGoalPaceDraft)) {
+      setOnboardingGoalPaceDraft(DEFAULT_PACE[onboardingGoalTypeDraft]);
     }
   }, [onboardingGoalTypeDraft, onboardingGoalPaceDraft]);
+
+  // Calorie preview for the activity, goal, and pace screens (server engine, nothing saved).
+  const [targetPreviewState, setTargetPreviewState] = useState<{ key: string; preview: TargetPreview } | null>(null);
+  // Only show numbers computed from the current inputs, never a previous answer.
+  const targetPreviewKey = [
+    onboardingSexDraft,
+    onboardingAgeDraft,
+    onboardingUnitsDraft,
+    onboardingHeightFeetDraft,
+    onboardingHeightInchesDraft,
+    onboardingHeightCmDraft,
+    onboardingCurrentWeightDraft,
+    onboardingActivityLevelDraft
+  ].join('|');
+  const targetPreview = targetPreviewState?.key === targetPreviewKey ? targetPreviewState.preview : null;
+  const [showBmrExplainer, setShowBmrExplainer] = useState(false);
+  const previewStepActive = onboardingStep === 'activity' || onboardingStep === 'goal' || onboardingStep === 'pace';
+  useEffect(() => {
+    if (!previewStepActive || !foodSessionToken) {
+      return;
+    }
+    const age_years = Number(onboardingAgeDraft);
+    const measurements = bodyMeasurementsFromDrafts(onboardingUnitsDraft, {
+      heightFeet: onboardingHeightFeetDraft,
+      heightInches: onboardingHeightInchesDraft,
+      heightCm: onboardingHeightCmDraft,
+      weight: onboardingCurrentWeightDraft
+    });
+    if (!measurements || !Number.isFinite(age_years) || age_years <= 0 || age_years >= 120) {
+      return;
+    }
+    let cancelled = false;
+    const requestKey = targetPreviewKey;
+    previewTargets(
+      {
+        sex: onboardingSexDraft,
+        age_years: Math.round(age_years),
+        height_cm: measurements.height_cm,
+        current_weight_lbs: measurements.weight_lbs,
+        activity_level: onboardingActivityLevelDraft
+      },
+      foodSessionToken
+    )
+      .then((preview) => {
+        if (!cancelled) {
+          setTargetPreviewState({ key: requestKey, preview });
+        }
+      })
+      .catch(() => {
+        // Previews are a nicety: the choices still work without numbers.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    previewStepActive,
+    foodSessionToken,
+    onboardingSexDraft,
+    onboardingAgeDraft,
+    onboardingUnitsDraft,
+    onboardingHeightFeetDraft,
+    onboardingHeightInchesDraft,
+    onboardingHeightCmDraft,
+    onboardingCurrentWeightDraft,
+    onboardingActivityLevelDraft,
+    targetPreviewKey
+  ]);
 
   function toggleOnboardingAllergy(choice: AllergyChoice) {
     setOnboardingAllergySelectionsDraft((current) => {
@@ -779,9 +835,7 @@ export default function App(): ReactElement {
       }
     }
     setOnboardingGoalTypeDraft(loadedProfile.goal_type ?? 'lose');
-    setOnboardingGoalPaceDraft(
-      loadedProfile.goal_pace ?? (loadedProfile.goal_type === 'gain' ? 'lean' : 'recommended')
-    );
+    setOnboardingGoalPaceDraft(loadedProfile.goal_pace ?? DEFAULT_PACE[loadedProfile.goal_type ?? 'lose']);
     setOnboardingTargetWeightDraft(
       loadedProfile.target_weight_lbs !== null && loadedProfile.target_weight_lbs !== undefined
         ? String(loadedProfile.target_weight_lbs)
@@ -2169,8 +2223,8 @@ export default function App(): ReactElement {
           height_cm: measurements.height_cm,
           current_weight_lbs: measurements.weight_lbs,
           goal_type: onboardingGoalTypeDraft,
-          goal_pace: onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft,
-          target_weight_lbs: null,
+          goal_pace: onboardingGoalPaceDraft,
+          target_weight_lbs: onboardingGoalTypeDraft === 'maintain' ? null : onboardingTargetWeightLbs(),
           units: onboardingUnitsDraft,
           ...(deviceTimeZone() ? { timezone: deviceTimeZone() as string } : {}),
           activity_level: onboardingActivityLevelDraft,
@@ -2704,7 +2758,7 @@ export default function App(): ReactElement {
       height_cm,
       current_weight_lbs: round1(current_weight_lbs),
       goal_type: onboardingGoalTypeDraft,
-      goal_pace: onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft,
+      goal_pace: onboardingGoalPaceDraft,
       target_weight_lbs: target_weight_lbs === null ? null : round1(target_weight_lbs),
       activity_level: onboardingActivityLevelDraft,
       dietary_pattern: onboardingDietaryPatternDraft,
@@ -2751,9 +2805,23 @@ export default function App(): ReactElement {
     };
   }
 
+  /** The optional goal weight in lb (typed in the setup units), or null when empty or invalid. */
+  function onboardingTargetWeightLbs(): number | null {
+    const value = Number(onboardingTargetWeightDraft.trim());
+    if (onboardingTargetWeightDraft.trim() === '' || !Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+    return Math.round((onboardingUnitsDraft === 'metric' ? value * LB_PER_KG : value) * 10) / 10;
+  }
+
   function switchOnboardingUnits(next: UnitSystem) {
     if (next === onboardingUnitsDraft) {
       return;
+    }
+    const target = Number(onboardingTargetWeightDraft.trim());
+    if (onboardingTargetWeightDraft.trim() !== '' && Number.isFinite(target) && target > 0) {
+      const converted = next === 'metric' ? target / LB_PER_KG : target * LB_PER_KG;
+      setOnboardingTargetWeightDraft(String(Math.round(converted * 10) / 10));
     }
     const converted = convertBodyDrafts(onboardingBodyDrafts(), onboardingUnitsDraft, next);
     setOnboardingHeightFeetDraft(converted.heightFeet);
@@ -2778,6 +2846,20 @@ export default function App(): ReactElement {
 
     if (step === 'goal') {
       return null;
+    }
+
+    if (step === 'pace' && onboardingGoalTypeDraft !== 'maintain' && onboardingTargetWeightDraft.trim() !== '') {
+      const goalLbs = onboardingTargetWeightLbs();
+      const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
+      if (goalLbs === null) {
+        return 'Enter a goal weight as a number, or leave it empty.';
+      }
+      if (current && onboardingGoalTypeDraft === 'lose' && goalLbs >= current.weight_lbs) {
+        return 'Goal weight should be below your current weight, or leave it empty.';
+      }
+      if (current && onboardingGoalTypeDraft === 'gain' && goalLbs <= current.weight_lbs) {
+        return 'Goal weight should be above your current weight, or leave it empty.';
+      }
     }
 
     if (step === 'diet' && !onboardingDietaryPatternDraft) {
@@ -3400,49 +3482,6 @@ export default function App(): ReactElement {
     const activeStepIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
     const currentStepLabel = onboardingSteps[activeStepIndex]?.label ?? 'Basics';
     const showOnboardingStatus = onboardingSaving || Boolean(onboardingError);
-    const selectedGoalPaceCards =
-      onboardingGoalTypeDraft === 'lose'
-        ? [
-            {
-              id: 'light' as GoalPace,
-              title: 'Light cut',
-              detail: 'About 350 calories below maintenance',
-              image: mascotDefaultImage,
-              note: 'Casual pace'
-            },
-            {
-              id: 'recommended' as GoalPace,
-              title: 'Recommended cut',
-              detail: 'About 500 calories below maintenance',
-              image: mascotRunImage,
-              note: 'Best default'
-            },
-            {
-              id: 'extreme' as GoalPace,
-              title: 'Extreme cut',
-              detail: 'About 1000 calories below maintenance',
-              image: mascotSwimImage,
-              note: 'Warning: hardest option'
-            }
-          ]
-        : onboardingGoalTypeDraft === 'gain'
-          ? [
-              {
-                id: 'lean' as GoalPace,
-                title: 'Lean gain',
-                detail: 'About 200 calories above maintenance',
-                image: mascotWeightsImage,
-                note: 'Slow steady surplus'
-              },
-              {
-                id: 'aggressive' as GoalPace,
-                title: 'Aggressive gain',
-                detail: 'About 500 calories above maintenance',
-                image: mascotBikeImage,
-                note: 'Faster scale movement'
-              }
-            ]
-          : [];
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="dark" />
@@ -3616,75 +3655,11 @@ export default function App(): ReactElement {
                 </View>
               ) : null}
 
-              {onboardingStep === 'goal' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Choose your goal</Text>
-
-                  <View style={styles.setupGoalGrid}>
-                    {([
-                      { id: 'lose' as const, title: 'Weight Loss', detail: 'Cut body weight with a defined deficit', image: mascotRunImage },
-                      { id: 'maintain' as const, title: 'Maintenance', detail: 'Hold steady around maintenance calories', image: mascotDefaultImage },
-                      { id: 'gain' as const, title: 'Weight Gain', detail: 'Add weight with a controlled surplus', image: mascotWeightsImage }
-                    ]).map((option) => {
-                      const active = onboardingGoalTypeDraft === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupGoalCard, active && styles.setupGoalCardActive]}
-                          onPress={() => setOnboardingGoalTypeDraft(option.id)}
-                        >
-                          <Image source={option.image} style={styles.setupGoalImage} resizeMode="contain" />
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                            {option.title}
-                          </Text>
-                          <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              {onboardingStep === 'pace' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Choose the style of your goal</Text>
-
-                  {onboardingGoalTypeDraft === 'maintain' ? (
-                    <View style={styles.detailCard}>
-                      <Text style={styles.detailTitle}>Maintenance stays steady</Text>
-                      <Text style={styles.detailSubtitle}>
-                        No extra pace choice is needed. We will use your estimated maintenance calories directly.
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.setupGoalGrid}>
-                      {selectedGoalPaceCards.map((option) => {
-                        const active = onboardingGoalPaceDraft === option.id;
-                        return (
-                          <Pressable
-                            key={option.id}
-                            style={[styles.setupGoalCard, active && styles.setupGoalCardActive]}
-                            onPress={() => setOnboardingGoalPaceDraft(option.id)}
-                          >
-                            <Image source={option.image} style={styles.setupGoalImage} resizeMode="contain" />
-                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                              {option.title}
-                            </Text>
-                            <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
-                            <Text style={styles.setupGoalNote}>{option.note}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  )}
-                </View>
-              ) : null}
-
               {onboardingStep === 'activity' ? (
                 <View style={styles.setupPanel}>
                   <Text style={styles.panelTitle}>How active are you most days?</Text>
-                  <Text style={styles.panelDetail}>
-                    This should reflect non-exercise lifestyle movement. Planned workouts are a separate layer later.
+                  <Text style={styles.setupIntroText}>
+                    Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
                   </Text>
 
                   <View style={styles.setupOptionStack}>
@@ -3695,6 +3670,8 @@ export default function App(): ReactElement {
                           key={option.id}
                           style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
                           onPress={() => setOnboardingActivityLevelDraft(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
                         >
                           <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
                             {option.title}
@@ -3704,6 +3681,209 @@ export default function App(): ReactElement {
                       );
                     })}
                   </View>
+
+                  {targetPreview ? (
+                    <View style={styles.energyCard}>
+                      <Text style={styles.energyCardTitle}>Your energy</Text>
+                      {(() => {
+                        const bars = energyBarWidths(targetPreview.bmr_calories, targetPreview.maintenance_calories);
+                        return (
+                          <View style={styles.energyBars}>
+                            <View>
+                              <View style={styles.energyBarLabelRow}>
+                                <Text style={styles.energyBarLabel}>At rest</Text>
+                                <Text style={styles.energyBarValue}>{formatCalories(targetPreview.bmr_calories)}</Text>
+                              </View>
+                              <View style={styles.energyBarTrack}>
+                                <View style={[styles.energyBarFill, styles.energyBarFillRest, { width: `${bars.rest}%` }]} />
+                              </View>
+                            </View>
+                            <View>
+                              <View style={styles.energyBarLabelRow}>
+                                <Text style={styles.energyBarLabel}>With your activity</Text>
+                                <Text style={styles.energyBarValue}>{formatCalories(targetPreview.maintenance_calories)}</Text>
+                              </View>
+                              <View style={styles.energyBarTrack}>
+                                <View style={[styles.energyBarFill, { width: `${bars.active}%` }]} />
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })()}
+                      <Text style={styles.energyCardBody}>
+                        Your body uses about {Math.round(targetPreview.bmr_calories).toLocaleString('en-US')} kcal a day just to keep
+                        you running (your BMR). With your activity, about{' '}
+                        {Math.round(targetPreview.maintenance_calories).toLocaleString('en-US')} kcal. Eat that much and your weight
+                        stays put.
+                      </Text>
+                      <Pressable
+                        onPress={() => setShowBmrExplainer((current) => !current)}
+                        accessibilityRole="button"
+                        accessibilityLabel="What's BMR?"
+                        accessibilityState={{ expanded: showBmrExplainer }}
+                        hitSlop={12}
+                        style={styles.energyCardLinkButton}
+                      >
+                        <Text style={styles.energyCardLink}>{showBmrExplainer ? 'Hide BMR info' : "What's BMR?"}</Text>
+                      </Pressable>
+                      {showBmrExplainer ? (
+                        <Text style={styles.energyCardExplainer}>
+                          BMR (basal metabolic rate) is the energy your body needs at complete rest: breathing, circulation,
+                          staying warm. Relish estimates it from your height, weight, age, and sex with the Mifflin-St Jeor
+                          formula.
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {onboardingStep === 'goal' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>Your goal</Text>
+                  {targetPreview ? (
+                    <Text style={styles.setupIntroText}>
+                      You burn about {formatCalories(targetPreview.maintenance_calories)}.
+                    </Text>
+                  ) : null}
+
+                  <View style={styles.setupGoalGrid}>
+                    {GOAL_OPTIONS.map((option) => {
+                      const active = onboardingGoalTypeDraft === option.id;
+                      const preview = findPreviewOption(targetPreview, option.id, DEFAULT_PACE[option.id]);
+                      const image =
+                        option.id === 'lose' ? mascotRunImage : option.id === 'gain' ? mascotWeightsImage : mascotDefaultImage;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.setupGoalCard, active && styles.setupGoalCardActive]}
+                          onPress={() => setOnboardingGoalTypeDraft(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                        >
+                          <Image source={image} style={styles.setupGoalImage} resizeMode="contain" />
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                          <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
+                          {preview ? (
+                            <Text style={styles.setupGoalCalories}>About {formatCalories(preview.calorie_target)}</Text>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {onboardingStep === 'pace' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>
+                    {onboardingGoalTypeDraft === 'maintain' ? 'Your focus' : 'How fast?'}
+                  </Text>
+                  <Text style={styles.setupIntroText}>
+                    {onboardingGoalTypeDraft === 'maintain'
+                      ? 'Same calories either way. Your focus changes how they split between protein, carbs, and fat.'
+                      : 'A slower pace is easier to keep up. You can change it any time.'}
+                  </Text>
+
+                  <View style={styles.setupOptionStack}>
+                    {PACE_OPTIONS[onboardingGoalTypeDraft].map((option) => {
+                      const active = onboardingGoalPaceDraft === option.id;
+                      const preview = findPreviewOption(targetPreview, onboardingGoalTypeDraft, option.id);
+                      const rate =
+                        preview && onboardingGoalTypeDraft !== 'maintain'
+                          ? formatWeeklyRate(preview.weekly_change_lbs, onboardingUnitsDraft)
+                          : '';
+                      // The 1,200 kcal floor can turn a loss pace into a small surplus.
+                      const wrongDirection =
+                        preview !== null &&
+                        ((onboardingGoalTypeDraft === 'lose' && preview.weekly_change_lbs >= 0) ||
+                          (onboardingGoalTypeDraft === 'gain' && preview.weekly_change_lbs <= 0));
+                      const steady = findPreviewOption(targetPreview, 'maintain', 'steady');
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
+                          onPress={() => setOnboardingGoalPaceDraft(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                        >
+                          <View style={styles.paceRowHeader}>
+                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                              {option.title}
+                            </Text>
+                            {preview ? <Text style={styles.paceRowCalories}>{formatCalories(preview.calorie_target)}</Text> : null}
+                          </View>
+                          {rate && !wrongDirection ? (
+                            <Text style={styles.setupChoiceDetail}>
+                              {preview && preview.weekly_change_lbs < 0 ? 'Lose ' : 'Gain '}
+                              {rate}
+                            </Text>
+                          ) : null}
+                          {onboardingGoalTypeDraft === 'maintain' && preview && steady && option.id !== 'steady' ? (
+                            <Text style={styles.setupChoiceDetail}>
+                              {option.id === 'build_muscle'
+                                ? `${Math.round(preview.protein_target_g)} g protein a day (vs ${Math.round(steady.protein_target_g)} g)`
+                                : `${Math.round(preview.carbs_target_g)} g carbs a day (vs ${Math.round(steady.carbs_target_g)} g)`}
+                            </Text>
+                          ) : null}
+                          {option.note ? <Text style={styles.setupGoalNote}>{option.note}</Text> : null}
+                          {wrongDirection ? (
+                            <Text style={styles.paceRowWarning}>
+                              Relish never sets less than {formatCalories(targetPreview?.minimum_calorie_target ?? 1200)}. That is
+                              above what you burn, so this pace will not lower your weight. Talk to a doctor or dietitian about a
+                              plan.
+                            </Text>
+                          ) : preview?.limited_by_minimum ? (
+                            <Text style={styles.paceRowWarning}>
+                              Limited to {formatCalories(targetPreview?.minimum_calorie_target ?? 1200)}, so progress is slower
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {onboardingGoalTypeDraft !== 'maintain' ? (
+                    <View style={styles.goalWeightBlock}>
+                      <Text style={styles.profileFieldLabel}>Goal weight (optional)</Text>
+                      <TextInput
+                        value={onboardingTargetWeightDraft}
+                        onChangeText={setOnboardingTargetWeightDraft}
+                        keyboardType="decimal-pad"
+                        placeholder={onboardingUnitsDraft === 'metric' ? 'e.g. 70' : 'e.g. 155'}
+                        placeholderTextColor="#9aa6b8"
+                        style={styles.profileFieldInput}
+                        accessibilityLabel={onboardingUnitsDraft === 'metric' ? 'Goal weight, kilograms' : 'Goal weight, pounds'}
+                      />
+                      <Text style={styles.unitSuffix}>{onboardingUnitsDraft === 'metric' ? 'kg' : 'lb'}</Text>
+                      {(() => {
+                        const goalLbs = onboardingTargetWeightLbs();
+                        const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
+                        const preview = findPreviewOption(targetPreview, onboardingGoalTypeDraft, onboardingGoalPaceDraft);
+                        if (goalLbs === null || !current || !preview) {
+                          return null;
+                        }
+                        const goalOnRightSide =
+                          onboardingGoalTypeDraft === 'lose' ? goalLbs < current.weight_lbs : goalLbs > current.weight_lbs;
+                        const estimate = estimateGoalDate(current.weight_lbs, goalLbs, preview.weekly_change_lbs);
+                        if (goalOnRightSide && !estimate) {
+                          return null;
+                        }
+                        return estimate ? (
+                          <Text style={styles.goalWeightEstimate}>
+                            At this pace: about {estimate.weeks} {estimate.weeks === 1 ? 'week' : 'weeks'}, around{' '}
+                            {formatApproximateDate(estimate.date)}.
+                          </Text>
+                        ) : (
+                          <Text style={styles.paceRowWarning}>
+                            {onboardingGoalTypeDraft === 'lose'
+                              ? 'Goal weight should be below your current weight.'
+                              : 'Goal weight should be above your current weight.'}
+                          </Text>
+                        );
+                      })()}
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -3860,10 +4040,7 @@ export default function App(): ReactElement {
                         <Text style={styles.setupReviewLabel}>Goal</Text>
                         <Text style={styles.setupReviewValue}>
                           {formatGoalTypeLabel(onboardingGoalTypeDraft)} ·{' '}
-                          {formatGoalPaceLabel(
-                            onboardingGoalTypeDraft,
-                            onboardingGoalTypeDraft === 'maintain' ? null : onboardingGoalPaceDraft
-                          )}
+                          {formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft)}
                         </Text>
                       </View>
                       <View style={styles.setupReviewTile}>
@@ -4580,7 +4757,29 @@ export default function App(): ReactElement {
                               onPress={() => setOnboardingGoalTypeDraft(option)}
                             >
                               <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {option === 'lose' ? 'Weight Loss' : option === 'maintain' ? 'Maintenance' : 'Weight Gain'}
+                                {goalLabel(option)}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>{onboardingGoalTypeDraft === 'maintain' ? 'Focus' : 'Pace'}</Text>
+                      <View style={styles.profileToggleRow}>
+                        {PACE_OPTIONS[onboardingGoalTypeDraft].map((option) => {
+                          const active = onboardingGoalPaceDraft === option.id;
+                          return (
+                            <Pressable
+                              key={option.id}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setOnboardingGoalPaceDraft(option.id)}
+                              accessibilityRole="radio"
+                              accessibilityState={{ checked: active }}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                                {option.title}
                               </Text>
                             </Pressable>
                           );
@@ -6536,6 +6735,103 @@ const styles = StyleSheet.create({
   setupMascotImage: {
     width: '100%',
     height: '100%'
+  },
+  energyCard: {
+    gap: 10,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e7e0cf'
+  },
+  energyCardTitle: {
+    color: RELISH_COLORS.text,
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  energyBars: {
+    gap: 10
+  },
+  energyBarLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4
+  },
+  energyBarLabel: {
+    color: '#5b6b62',
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  energyBarValue: {
+    color: RELISH_COLORS.text,
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  energyBarTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#efe9da',
+    overflow: 'hidden'
+  },
+  energyBarFill: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: RELISH_COLORS.text
+  },
+  energyBarFillRest: {
+    backgroundColor: '#7fa38c'
+  },
+  energyCardBody: {
+    color: RELISH_COLORS.text,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  energyCardLink: {
+    color: '#2f6b4f',
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline'
+  },
+  energyCardLinkButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8
+  },
+  energyCardExplainer: {
+    color: '#5b6b62',
+    fontSize: 13,
+    lineHeight: 19
+  },
+  setupGoalCalories: {
+    color: RELISH_COLORS.text,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 4
+  },
+  paceRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8
+  },
+  paceRowCalories: {
+    color: RELISH_COLORS.text,
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  paceRowWarning: {
+    color: '#b45309',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2
+  },
+  goalWeightBlock: {
+    gap: 4,
+    marginTop: 4
+  },
+  goalWeightEstimate: {
+    color: RELISH_COLORS.text,
+    fontSize: 13,
+    marginTop: 4
   },
   setupProgress: {
     flexDirection: 'row',
