@@ -95,7 +95,8 @@ import {
   formatFoodReference,
   mergeFoodsById,
   selectFoodById,
-  sortFoodsForPicker
+  sortFoodsForPicker,
+  formatFoodAmount
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
@@ -2069,7 +2070,7 @@ export default function App(): ReactElement {
       );
       setFoodLog(updatedLog);
       setFoodLogTone('live');
-      setFoodLogStatus(`Added ${food.name} to today at ${grams.toLocaleString()} g`);
+      setFoodLogStatus(`Added ${formatFoodAmount(food, quantity)} of ${food.name} to today`);
     } catch (error) {
       setFoodLogTone('checking');
       setFoodLogStatus(`Could not save ${food.name}`);
@@ -5282,7 +5283,7 @@ export default function App(): ReactElement {
                           disabled={isSavingLogEntry}
                         >
                           <Text style={styles.inlinePillButtonLabel}>
-                            {isSavingLogEntry ? 'Saving...' : `Add ${grams.toLocaleString()} g to today`}
+                            {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(food, foodQuantityForId(food.id))} to today`}
                           </Text>
                         </Pressable>
 
@@ -5356,7 +5357,7 @@ export default function App(): ReactElement {
                     disabled={isSavingLogEntry}
                   >
                     <Text style={styles.inlinePillButtonLabel}>
-                      {isSavingLogEntry ? 'Saving...' : `Add ${calculateFoodGrams(selectedFood, foodQuantityForId(selectedFood.id)).toLocaleString()} g to today`}
+                      {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(selectedFood, foodQuantityForId(selectedFood.id))} to today`}
                     </Text>
                   </Pressable>
 

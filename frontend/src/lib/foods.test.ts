@@ -10,7 +10,8 @@ import {
   mergeFoodsById,
   selectFoodById,
   sortFoodsAlphabetically,
-  sortFoodsForPicker
+  sortFoodsForPicker,
+  formatFoodAmount
 } from './foods';
 
 describe('food helpers', () => {
@@ -99,5 +100,15 @@ describe('food helpers', () => {
     );
     expect(merged).toHaveLength(1);
     expect(merged[0]?.favorite).toBe(true);
+  });
+});
+
+describe('formatFoodAmount', () => {
+  it('labels gram foods in grams and serving foods in their own unit', () => {
+    expect(formatFoodAmount({ serving_size: 100, serving_unit: 'g' }, 1.5)).toBe('150 g');
+    expect(formatFoodAmount({ serving_size: 250, serving_unit: 'ml' }, 1)).toBe('250 ml');
+    expect(formatFoodAmount({ serving_size: 1, serving_unit: 'can (355mL)' }, 1)).toBe('1 × can (355mL)');
+    expect(formatFoodAmount({ serving_size: 1, serving_unit: 'can (355mL)' }, 2)).toBe('2 × can (355mL)');
+    expect(formatFoodAmount({ serving_size: 30, serving_unit: '' }, 1)).toBe('30 g');
   });
 });

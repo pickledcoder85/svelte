@@ -124,3 +124,27 @@ function fuzzyScore(name: string, query: string): number {
 
   return -1;
 }
+
+const GRAM_UNITS = new Set(['g', 'gram', 'grams']);
+const MILLILITRE_UNITS = new Set(['ml', 'milliliter', 'milliliters', 'millilitre', 'millilitres']);
+
+/**
+ * Describes how much of a food a quantity means, in the food's own unit.
+ *
+ * USDA and seeded foods are measured in grams ("150 g"); label scans are measured in their
+ * serving unit ("1 × can (355mL)"). The logged entry's `grams` field holds the serving
+ * amount, so it is only a weight when the unit is grams.
+ */
+export function formatFoodAmount(food: Pick<FoodItem, 'serving_size' | 'serving_unit'>, quantity: number): string {
+  const unit = (food.serving_unit ?? '').trim();
+  const amount = Math.round(food.serving_size * clampFoodQuantity(quantity) * 10) / 10;
+  const normalized = unit.toLowerCase();
+  if (!unit || GRAM_UNITS.has(normalized)) {
+    return `${amount.toLocaleString()} g`;
+  }
+  if (MILLILITRE_UNITS.has(normalized)) {
+    return `${amount.toLocaleString()} ml`;
+  }
+  const servings = Math.round(clampFoodQuantity(quantity) * 10) / 10;
+  return `${servings.toLocaleString()} × ${unit}`;
+}
