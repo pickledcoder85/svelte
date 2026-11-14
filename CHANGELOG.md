@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Local-mode sessions are remembered across reloads on web and restored when still valid; a rejected session (401) returns to sign-in with "Your session expired", or re-runs the Tailscale check for owner sessions. The sign-in email is no longer prefilled, and developer hints are hidden in production builds.
 - FastAPI serves the built web app on the API's origin when `WEB_DIST_DIR` is set: app-shell fallback for deep links, JSON 404s for unknown `/api` paths, `no-cache` for `index.html`/`sw.js`/manifest, year-long caching for content-hashed files, path-traversal protection, and `nosniff`/`no-referrer`/`DENY` headers on every response (`no-store` on API responses).
 - `npm run build:web`, systemd units and a server env template in `deploy/`, and [docs/DEPLOY.md](docs/DEPLOY.md) with the Google Cloud + Tailscale deployment, update, backup, and restore steps.
 - `GET /api/export` downloads all of the owner's data (profile, goals, weights, food logs, exercise, plans, favorites, food bank, recipes, meal templates, scans) as one JSON file.
@@ -74,6 +75,8 @@ The format should remain simple:
 
 ### Fixed
 
+- Production web builds now call the API at `/api` on their own origin: the base URL is read as a literal `process.env.EXPO_PUBLIC_API_BASE_URL` (which Expo inlines) and `npm run build:web` sets it to `/api`. Previously builds always called `http://localhost:8000/api`.
+- "Today" and every other day key now use the device's local date instead of the UTC date, so food, exercise, weights, goals, plans, and scan groups no longer jump to tomorrow in the evening in US time zones. "Today" refreshes when the app returns to the foreground.
 - `expo-camera`, `expo-image-picker`, and `expo-font` are now the Expo SDK 54 versions (`~17.0.10`, `~17.0.11`, `~14.0.12`) instead of SDK 55 majors; `expo install` also registered the `expo-font` config plugin in `app.json`. `frontend/package.json` declares `node >= 20.19`.
 - The seeded development user's profile and goals no longer fail to load with a 500: `dev_seed` wrote `target_source='generated_onboarding'`, which the profile model rejects; it now writes `system_default`.
 - Live mode no longer swaps in demo data when the dashboard, profile progress, tracker, or daily food log fails to load. Those screens now show empty data with a "could not be loaded" error, and demo data appears only in preview mode.

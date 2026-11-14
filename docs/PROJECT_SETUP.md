@@ -83,7 +83,9 @@ Sign-in:
 
 Serving the web app:
 
-- `npm run build:web` in `frontend/` writes the web build to `frontend/dist` (gitignored).
+- `npm run build:web` in `frontend/` writes the web build to `frontend/dist` (gitignored) with `EXPO_PUBLIC_API_BASE_URL=/api`, so the app calls the API on the origin that served it. The shell value wins over `frontend/.env`, so your LAN development address never ends up in a production build. Developer hints (Expo Go footer, "start the backend on port 8000") only appear in development builds.
+- Day keys ("today", log dates, plan dates) use the device's local calendar day (`frontend/src/lib/dates.ts`), never the UTC date, and "today" refreshes when the app returns to the foreground.
+- In local mode the web app remembers the email-session token in `localStorage` and restores it on launch if the server still accepts it; owner sessions are never stored. Any 401 from a data request returns local sessions to sign-in, and owner sessions to the Tailscale check.
 - Setting `WEB_DIST_DIR` to that folder makes FastAPI serve the app on the same origin as the API: files from the build, the app shell for any other non-`/api` path, and JSON 404s for unknown `/api` paths. `index.html`, `sw.js`, and the manifest are sent with `Cache-Control: no-cache`; content-hashed build files are cached for a year. API responses are sent with `Cache-Control: no-store`, and every response carries `nosniff`, `no-referrer`, and `DENY` framing headers.
 - Deployment steps, systemd units (`deploy/`), and the server env file are in [DEPLOY.md](DEPLOY.md).
 

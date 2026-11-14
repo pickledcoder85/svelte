@@ -14,7 +14,7 @@ iPhone (Tailscale on) ──HTTPS──► relish.<tailnet>.ts.net  (tailscale s
                                /var/lib/relish/backups/   (startup + nightly snapshots)
 ```
 
-Status: these steps are written ahead of Phase 3 (go live) in [DEPLOYMENT_ROADMAP.md](DEPLOYMENT_ROADMAP.md). Until Phase 2.2 lands, the web build still points at `http://localhost:8000/api`, so build the web app for the server only after 2.2.
+Status: these steps are written ahead of Phase 3 (go live) in [DEPLOYMENT_ROADMAP.md](DEPLOYMENT_ROADMAP.md). `npm run build:web` produces a build that calls `/api` on the server's own address.
 
 ## 1. Create the VM (Google Cloud Always Free)
 
