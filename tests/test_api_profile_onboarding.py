@@ -220,3 +220,17 @@ async def test_onboarding_rejects_unknown_units_but_ignores_unknown_timezones(cl
     )
     assert odd_zone.status_code == 200
     assert (odd_zone.json()["units"], odd_zone.json()["timezone"]) == ("metric", "UTC")
+
+
+@pytest.mark.asyncio
+async def test_onboarding_saves_the_name_from_setup(client):
+    headers = await _headers(client, "named@example.com")
+    response = await client.post(
+        "/api/profile/onboarding", headers=headers, json={**ONBOARDING_BODY, "display_name": "  Brian  "}
+    )
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Brian"
+    # Blank keeps the signed-in name.
+    other = await _headers(client, "blank@example.com")
+    kept = await client.post("/api/profile/onboarding", headers=other, json={**ONBOARDING_BODY, "display_name": " "})
+    assert kept.json()["display_name"] == "Setup"

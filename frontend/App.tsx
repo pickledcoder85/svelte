@@ -356,6 +356,11 @@ function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | und
   return goalLabel(goalType);
 }
 
+/** The first word of a name, for greetings ("Brian Miner" → "Brian"). */
+function firstName(name: string | null | undefined): string {
+  return (name ?? '').trim().split(/\s+/)[0] ?? '';
+}
+
 function formatGoalPaceLabel(goalType: 'lose' | 'maintain' | 'gain', goalPace: GoalPace | null): string {
   return paceLabel(goalType, goalPace);
 }
@@ -808,6 +813,9 @@ export default function App(): ReactElement {
     );
     if (!loadedProfile.setup_complete) {
       // First-time setup starts empty, with "e.g." hints, not sample values that look filled in.
+      // That includes the name: never prefill it from the sign-in (Tailscale today, maybe an
+      // App Store sign-in later); the user types what they want to be called.
+      setProfileDisplayNameDraft('');
       const unitsForSetup = defaultUnitSystemForLocale(deviceLocale());
       setOnboardingUnitsDraft(unitsForSetup);
       setOnboardingHeightCmDraft('');
@@ -2225,7 +2233,8 @@ export default function App(): ReactElement {
           dietary_pattern: onboardingDietaryPatternDraft,
           nutrition_style: onboardingNutritionStyleDraft,
           allergy_notes,
-          calorie_floor: onboardingCalorieFloorDraft
+          calorie_floor: onboardingCalorieFloorDraft,
+          display_name: profileDisplayNameDraft.trim() || null
         },
         foodSessionToken
       );
@@ -3897,6 +3906,21 @@ export default function App(): ReactElement {
                     })}
                   </View>
 
+                  <FieldGroup label="Your name">
+                    <TextInput
+                      value={profileDisplayNameDraft}
+                      onChangeText={setProfileDisplayNameDraft}
+                      placeholder="What should I call you?"
+                      placeholderTextColor={tc.fg_9aa6b8}
+                      style={styles.settingsInput}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      autoComplete="name"
+                      maxLength={60}
+                      accessibilityLabel="Your name"
+                    />
+                  </FieldGroup>
+
                   <FieldGroup label="Sex">
                     <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
                       {(['female', 'male'] as const).map((option) => {
@@ -4243,7 +4267,9 @@ export default function App(): ReactElement {
 
               {onboardingStep === 'review' ? (
                 <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Review</Text>
+                  <Text style={styles.panelTitle}>
+                    {firstName(profileDisplayNameDraft) ? `Looking good, ${firstName(profileDisplayNameDraft)}!` : 'Looking good!'}
+                  </Text>
                   <Text style={styles.setupIntroText}>
                     Check everything, then create your profile. You can change any of this later.
                   </Text>
@@ -4275,6 +4301,7 @@ export default function App(): ReactElement {
                           step: 'basics' as const,
                           label: 'About you',
                           value: [
+                            profileDisplayNameDraft.trim(),
                             onboardingSexDraft === 'male' ? 'Male' : 'Female',
                             formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts()),
                             formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts()),

@@ -614,6 +614,13 @@ class SQLiteRepository:
                 (timezone, units, workout_calories_share, user_id),
             )
 
+    def update_display_name(self, *, user_id: str, display_name: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE user_profiles SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+                (display_name, user_id),
+            )
+
     def update_eating_preferences(
         self,
         *,
