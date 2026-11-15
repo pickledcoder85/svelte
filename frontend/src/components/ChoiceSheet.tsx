@@ -5,7 +5,7 @@
  */
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { tc } from '../theme/palette';
 
@@ -14,14 +14,19 @@ export function ChoiceSheet({
   children,
   primaryLabel,
   secondaryLabel,
+  primaryDetail,
+  secondaryDetail,
   onPrimary,
   onSecondary,
   onDismiss
 }: {
   title: string;
   children: ReactNode;
+  /** Short labels (one line on a phone); put the explanation in the details below them. */
   primaryLabel: string;
   secondaryLabel: string;
+  primaryDetail?: string;
+  secondaryDetail?: string;
   onPrimary(): void;
   onSecondary(): void;
   onDismiss(): void;
@@ -57,13 +62,24 @@ export function ChoiceSheet({
           <Text style={styles.title} accessibilityRole="header">
             {title}
           </Text>
-          <View style={styles.body}>{children}</View>
-          <Pressable style={[styles.button, styles.primary]} onPress={() => close(onPrimary)} accessibilityRole="button">
-            <Text style={styles.primaryLabel}>{primaryLabel}</Text>
-          </Pressable>
-          <Pressable style={[styles.button, styles.secondary]} onPress={() => close(onSecondary)} accessibilityRole="button">
-            <Text style={styles.secondaryLabel}>{secondaryLabel}</Text>
-          </Pressable>
+          {/* Scrolls when a small phone can't fit everything; the buttons stay below it. */}
+          <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.55 }} contentContainerStyle={styles.body}>
+            {children}
+          </ScrollView>
+          <View style={styles.buttons}>
+            <Pressable style={[styles.button, styles.primary]} onPress={() => close(onPrimary)} accessibilityRole="button">
+              <Text style={styles.primaryLabel} numberOfLines={1}>
+                {primaryLabel}
+              </Text>
+              {primaryDetail ? <Text style={styles.primaryDetail}>{primaryDetail}</Text> : null}
+            </Pressable>
+            <Pressable style={[styles.button, styles.secondary]} onPress={() => close(onSecondary)} accessibilityRole="button">
+              <Text style={styles.secondaryLabel} numberOfLines={1}>
+                {secondaryLabel}
+              </Text>
+              {secondaryDetail ? <Text style={styles.secondaryDetail}>{secondaryDetail}</Text> : null}
+            </Pressable>
+          </View>
           {/* Clear of the iPhone home indicator. */}
           <div style={{ height: 'max(20px, env(safe-area-inset-bottom))' }} />
         </Animated.View>
@@ -88,9 +104,9 @@ const styles = StyleSheet.create({
     backgroundColor: tc.bg_ffffff,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingTop: 10,
-    gap: 12,
+    gap: 16,
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center'
@@ -109,13 +125,18 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   body: {
-    gap: 8
+    gap: 14
+  },
+  buttons: {
+    gap: 10
   },
   button: {
     borderRadius: 18,
     borderWidth: 1,
-    paddingVertical: 15,
-    alignItems: 'center'
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 2
   },
   primary: {
     backgroundColor: tc.bg_17324d,
@@ -123,8 +144,16 @@ const styles = StyleSheet.create({
   },
   primaryLabel: {
     color: tc.fg_ffffff,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800'
+  },
+  primaryDetail: {
+    color: tc.fg_dbe7f2,
+    fontSize: 13
+  },
+  secondaryDetail: {
+    color: tc.fg_5c6d80,
+    fontSize: 13
   },
   secondary: {
     backgroundColor: tc.bg_ffffff,
@@ -132,7 +161,7 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: {
     color: tc.fg_132536,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700'
   }
 });

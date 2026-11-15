@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- The below-the-minimum warning is roomier: two tiles compare this pace's calories with the recommended minimum, one short sentence covers the risks, a tinted tip suggests eating the minimum and burning the difference by moving more, and the buttons are short ("Use 1,500 kcal" / "Keep 1,180 kcal") with a caption underneath, so nothing wraps. The sheet scrolls on small phones.
 - Haptic ticks (experiment): the setup wheel pickers tick as each row passes the centre, and the Daily activity slider ticks at each stop. It uses iOS 18's system haptic for switch controls (a hidden `<input type="checkbox" switch>`, `src/lib/haptics.ts`), limited to one tick per 35 ms; elsewhere it does nothing.
 - Setup choices start unselected: Sex, Your goal, How you eat, and Nutrition style highlight nothing until you pick, and Next asks you to choose (calorie numbers appear once sex is chosen). Allergies is a compact two-column grid that fits on a phone screen, and the Maintain focus cards drop the grey protein and carb lines, keeping the short hints.
 - Three more nutrition styles in setup and Profile: High protein 🍳, Low carb 🥬 (about 50–130 g carbs a day), and Paleo 🍖, alongside Balanced, Keto (now described as under about 50 g carbs a day), and Mediterranean. Styles don't change targets yet.
