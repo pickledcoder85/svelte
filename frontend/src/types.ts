@@ -508,8 +508,16 @@ export interface VisionLabelScanResult {
   extraction: VisionNutritionExtraction;
 }
 
+export interface PlateItem {
+  name: string;
+  estimated_grams: number;
+  /** A USDA food to log by weight; null when none matched (the estimate is used). */
+  food: FoodItem | null;
+  estimate: { calories: number; protein: number; carbs: number; fat: number };
+}
+
 export interface SmartScanResult {
-  kind: 'nutrition_label' | 'package_front' | 'unreadable';
+  kind: 'nutrition_label' | 'package_front' | 'meal_plate' | 'unreadable';
   ingestion_job_id: string | null;
   output_id: string | null;
   label: VisionNutritionExtraction | null;
@@ -517,6 +525,8 @@ export interface SmartScanResult {
   message: string | null;
   /** This label replaced a package scan's matched nutrition. */
   replaced: boolean;
+  /** meal_plate: the foods seen. */
+  items: PlateItem[];
 }
 
 export interface BarcodeFoodResult {

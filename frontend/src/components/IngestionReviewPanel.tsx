@@ -547,6 +547,12 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   }
 
   async function showSmartResult(result: SmartScanResult) {
+    if (result.kind === 'meal_plate') {
+      setTone('checking');
+      setStatusLabel('That looks like a plate of food');
+      setStatusDetail('To log a meal, use the camera button in the tab bar: it adds each item with its portion.');
+      return;
+    }
     if (result.kind === 'unreadable' || !result.output_id || !result.ingestion_job_id) {
       setTone('checking');
       setStatusLabel("Couldn't read that");

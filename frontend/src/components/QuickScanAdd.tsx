@@ -3,6 +3,8 @@
  *
  * - Barcode: your food bank first (instant, free), else Open Food Facts / USDA, saved to the bank.
  * - Package front or label: one AI read. Nothing is saved until you Add or Save on the sheet.
+ * - A plate, bowl, or whole foods: the items and portions it sees, with USDA nutrition, all
+ *   added with one tap (each item logged on its own).
  *   A matched package says so and offers "Scan the nutrition label" for the exact numbers (the
  *   label replaces the match; the name and brand from the front are kept).
  *
@@ -20,8 +22,9 @@ import {
 } from '../lib/api';
 import { pickPhotoFromCamera, prepareScanPhoto } from '../lib/web-photo';
 import { tc } from '../theme/palette';
-import type { FoodItem, SmartScanResult } from '../types';
+import type { FoodItem, PlateItem, SmartScanResult } from '../types';
 import { AddFoodSheet } from './AddFoodSheet';
+import { PlateSheet } from './PlateSheet';
 import {
   buildAcceptedNutritionPayload,
   buildNutritionDraft,
@@ -36,6 +39,7 @@ type Phase =
   | { kind: 'scanning'; labelFor?: string }
   | { kind: 'looking'; text: string }
   | { kind: 'confirm'; foods: FoodItem[]; fromBank: boolean; pending?: Pending; note?: string | null }
+  | { kind: 'plate'; items: PlateItem[] }
   | { kind: 'missing'; message: string; packageOutputId?: string };
 
 export function QuickScanAdd({
@@ -51,7 +55,7 @@ export function QuickScanAdd({
   logDate: string;
   /** "today", or the day's name when another day is chosen. */
   dayName: string;
-  onAdded(food: FoodItem): void;
+  onAdded(food?: FoodItem): void;
   onClose(): void;
   /** Nothing to photograph: search instead, or just enter calories. */
   onSearch?(): void;
@@ -86,6 +90,10 @@ export function QuickScanAdd({
   }
 
   async function showResult(result: SmartScanResult, labelFor?: string) {
+    if (result.kind === 'meal_plate' && result.items.length > 0) {
+      setPhase({ kind: 'plate', items: result.items });
+      return;
+    }
     if (result.kind === 'unreadable' || !result.output_id) {
       setPhase({ kind: 'missing', message: result.message ?? "Couldn't read that.", packageOutputId: labelFor });
       return;
@@ -178,6 +186,20 @@ export function QuickScanAdd({
         onCapture={(frame) => void read(frame, phase.labelFor)}
         onClose={onClose}
         onTakePhoto={() => void takeFullPhoto(phase.labelFor)}
+      />
+    );
+  }
+
+  if (phase.kind === 'plate') {
+    return (
+      <PlateSheet
+        items={phase.items}
+        accessToken={accessToken}
+        logDate={logDate}
+        dayName={dayName}
+        onAdded={() => onAdded()}
+        onClose={onClose}
+        onScanAgain={() => setPhase({ kind: 'scanning' })}
       />
     );
   }

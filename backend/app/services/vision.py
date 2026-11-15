@@ -123,6 +123,7 @@ SCAN_PROMPT = """
 This photo was captured automatically from a phone camera pointed at a food. First decide what it shows:
 - "nutrition_label": a Nutrition Facts / nutrition information panel whose numbers you can read
 - "package_front": a food package (product name, brand) without a readable nutrition panel
+- "meal_plate": food itself, not a package: a plate, bowl or takeaway box of food, or whole foods such as fruit or vegetables
 - "unreadable": too blurry, too far away, cut off, too dark, or not a food
 If a nutrition panel is visible but its numbers are too small or blurry to read, use "unreadable".
 Return JSON only with this exact shape:
@@ -169,6 +170,11 @@ Extra rules:
 - for nutrition_label, read only what the nutrition panel shows: product_name and brand_name only if the product's own name is printed on it; never use a "distributed by" or "manufactured by" line as the brand, and never guess a name; otherwise use null for both
 - for package_front, fill package_text, product_name, brand_name and confidence; nutrition fields may be null
 - for unreadable, the other fields may be null
+- for meal_plate, also return "items": one entry per separate food you can see, at most 8, each
+  {"name": "what it is, e.g. grilled chicken breast", "usda_query": "a short generic USDA search, e.g. chicken breast roasted",
+   "estimated_grams": number, "calories": number, "protein": number, "carbs": number, "fat": number}
+  where estimated_grams is your best estimate of the portion in the photo (use the plate, cutlery or hand for scale)
+  and calories/protein/carbs/fat are for that portion; nutrition-label fields may be null
 """.strip()
 
 
@@ -290,13 +296,41 @@ def build_vision_request(settings: Settings, image_url: str, instructions: str) 
     }
 
 
-SCAN_KINDS = ("nutrition_label", "package_front", "unreadable")
+SCAN_KINDS = ("nutrition_label", "package_front", "meal_plate", "unreadable")
+MAX_PLATE_ITEMS = 8
 UNREADABLE_MESSAGE = "Couldn't read that clearly. Hold the phone a little closer and steady, or take a full photo."
+
+
+def _plate_items(value: Any) -> list[dict[str, Any]]:
+    """The foods seen on a plate, each with a portion estimate and the AI's own nutrition guess
+    (used only if no USDA match is found)."""
+    if not isinstance(value, list):
+        return []
+    items = []
+    for raw in value[:MAX_PLATE_ITEMS]:
+        if not isinstance(raw, dict):
+            continue
+        name = _as_optional_string(raw.get("name"))
+        grams = _as_positive_or_none(raw.get("estimated_grams"))
+        if not name or not grams:
+            continue
+        items.append({
+            "name": name,
+            "usda_query": _as_optional_string(raw.get("usda_query")) or name,
+            "estimated_grams": round(min(grams, 2000)),
+            "estimate": {
+                "calories": max(0.0, _as_number(raw.get("calories"), 0)),
+                "protein": max(0.0, _as_number(raw.get("protein"), 0)),
+                "carbs": max(0.0, _as_number(raw.get("carbs"), 0)),
+                "fat": max(0.0, _as_number(raw.get("fat"), 0)),
+            },
+        })
+    return items
 
 
 async def analyze_scan_image(
     image_base64: str, repository: SQLiteRepository, settings: Settings
-) -> tuple[str, VisionNutritionExtraction | VisionPackageExtraction | None, str | None]:
+) -> tuple[str, Any, str | None]:
     """One call for the auto-capture scanner: (kind, what was read, a message when unreadable).
     A label that names a panel but has no calories counts as unreadable, never as a guess."""
     image_url = prepare_image_data_url(image_base64, settings)
@@ -316,6 +350,11 @@ async def analyze_scan_image(
         if not _as_optional_string(payload.get("product_name")):
             label = label.model_copy(update={"product_name": ""})
         return kind, label, None
+    if kind == "meal_plate":
+        items = _plate_items(payload.get("items"))
+        if not items:
+            return "unreadable", None, UNREADABLE_MESSAGE
+        return kind, items, None
     if kind == "package_front":
         product_name = _as_string(payload.get("product_name"), "")
         if not product_name.strip():
