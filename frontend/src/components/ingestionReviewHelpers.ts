@@ -191,3 +191,85 @@ function formatDraftNumber(value: unknown): string {
 
   return Number.isInteger(value) ? String(value) : String(value);
 }
+
+/** How a scan got its nutrition, for the review screen. */
+export interface MatchInfo {
+  /** 'match': guessed from the package name; 'missing': a package front with no match found. */
+  kind: 'match' | 'missing' | null;
+  note: string | null;
+  alternatives: Array<Record<string, unknown>>;
+}
+
+const MATCH_FIELDS = [
+  'product_name',
+  'brand_name',
+  'serving_size',
+  'calories',
+  'macros',
+  'serving_grams',
+  'serving_basis',
+  'data_source',
+  'attribution',
+  'food_id'
+] as const;
+
+const SOURCE_NAMES: Record<string, string> = {
+  food_bank: 'your food bank',
+  open_food_facts: 'Open Food Facts',
+  usda: 'USDA'
+};
+
+export function matchInfo(value: unknown): MatchInfo {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { kind: null, note: null, alternatives: [] };
+  }
+  const payload = value as Record<string, unknown>;
+  const alternatives = Array.isArray(payload.alternatives)
+    ? (payload.alternatives.filter((item) => typeof item === 'object' && item !== null) as Array<Record<string, unknown>>)
+    : [];
+  if (payload.nutrition_from === 'match') {
+    return { kind: 'match', note: typeof payload.match_note === 'string' ? payload.match_note : null, alternatives };
+  }
+  if (payload.nutrition_found === false) {
+    return { kind: 'missing', note: null, alternatives: [] };
+  }
+  return { kind: null, note: null, alternatives: [] };
+}
+
+/** Switch a matched scan to one of its alternatives; the previous match becomes an alternative. */
+export function applyAlternative(value: unknown, index: number): unknown {
+  if (typeof value !== 'object' || value === null) {
+    return value;
+  }
+  const payload = value as Record<string, unknown>;
+  const { alternatives } = matchInfo(payload);
+  const chosen = alternatives[index];
+  if (!chosen) {
+    return value;
+  }
+  const previous: Record<string, unknown> = {};
+  for (const field of MATCH_FIELDS) {
+    if (field === 'food_id') {
+      previous.food_id = payload.matched_food_id ?? null;
+    } else if (field in payload) {
+      previous[field] = payload[field];
+    }
+  }
+  const next: Record<string, unknown> = { ...payload };
+  for (const field of MATCH_FIELDS) {
+    if (field !== 'food_id') {
+      next[field] = chosen[field] ?? null;
+    }
+  }
+  next.matched_food_id = chosen.food_id ?? null;
+  const source = SOURCE_NAMES[String(chosen.data_source ?? '')] ?? 'a food database';
+  next.match_note = `Matched to ${String(chosen.product_name ?? 'this food')} from ${source}. Check it against the label, or scan the nutrition label for the exact numbers.`;
+  next.alternatives = [previous, ...alternatives.filter((_, position) => position !== index)];
+  return next;
+}
+
+export function describeAlternative(alternative: Record<string, unknown>): string {
+  const name = [alternative.brand_name, alternative.product_name].filter((part) => typeof part === 'string' && part).join(' ');
+  const calories = typeof alternative.calories === 'number' ? ` · ${Math.round(alternative.calories)} kcal` : '';
+  return `${name || 'Food'}${calories}`;
+}
