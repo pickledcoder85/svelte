@@ -40,9 +40,9 @@ export type TargetPreview = {
 };
 
 export const GOAL_OPTIONS: Array<{ id: GoalType; title: string; detail: string }> = [
-  { id: 'lose', title: 'Lose weight', detail: 'Eat a little less than you burn' },
-  { id: 'maintain', title: 'Stay where I am', detail: 'Eat about what you burn' },
-  { id: 'gain', title: 'Gain weight', detail: 'Eat a little more than you burn' }
+  { id: 'lose', title: 'Lose Weight', detail: 'Eat a little less than you burn' },
+  { id: 'maintain', title: 'Maintain Weight', detail: 'Eat about what you burn' },
+  { id: 'gain', title: 'Gain Weight', detail: 'Eat a little more than you burn' }
 ];
 
 export const PACE_OPTIONS: Record<GoalType, Array<{ id: GoalPace; title: string; note?: string }>> = {

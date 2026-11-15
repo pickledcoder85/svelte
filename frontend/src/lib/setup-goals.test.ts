@@ -26,8 +26,8 @@ const preview: TargetPreview = {
 
 describe('setup goals', () => {
   it('uses plain-language labels', () => {
-    expect(goalLabel('lose')).toBe('Lose weight');
-    expect(goalLabel('maintain')).toBe('Stay where I am');
+    expect(goalLabel('lose')).toBe('Lose Weight');
+    expect(goalLabel('maintain')).toBe('Maintain Weight');
     expect(paceLabel('lose', 'extreme')).toBe('Fast');
     expect(paceLabel('maintain', 'build_muscle')).toBe('Build muscle');
     expect(paceLabel('gain', null)).toBe('Lean');
