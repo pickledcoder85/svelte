@@ -534,7 +534,7 @@ export default function App(): ReactElement {
   const [goalCarbsDraft, setGoalCarbsDraft] = useState('190');
   const [goalFatDraft, setGoalFatDraft] = useState('60');
   const [goalWeightDraft, setGoalWeightDraft] = useState('178.5');
-  const [onboardingSexDraft, setOnboardingSexDraft] = useState<'male' | 'female'>('female');
+  const [onboardingSexDraft, setOnboardingSexDraft] = useState<'male' | 'female' | null>(null);
   const [onboardingAgeDraft, setOnboardingAgeDraft] = useState('34');
   const [onboardingHeightFeetDraft, setOnboardingHeightFeetDraft] = useState('5');
   const [onboardingHeightInchesDraft, setOnboardingHeightInchesDraft] = useState('10');
@@ -556,14 +556,14 @@ export default function App(): ReactElement {
   // Explainer cards before Daily activity and Your goal: the one showing, and those seen.
   const [activeExplainer, setActiveExplainer] = useState<ExplainerStep | null>(null);
   const [explainersSeen, setExplainersSeen] = useState<ExplainerStep[]>([]);
-  const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
+  const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain' | null>(null);
   const [onboardingGoalPaceDraft, setOnboardingGoalPaceDraft] = useState<GoalPace>('recommended');
   const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('');
   const [onboardingActivityLevelDraft, setOnboardingActivityLevelDraft] = useState<
     'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active'
   >('sedentary');
-  const [onboardingDietaryPatternDraft, setOnboardingDietaryPatternDraft] = useState<DietaryPattern>('omnivore');
-  const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle>('balanced');
+  const [onboardingDietaryPatternDraft, setOnboardingDietaryPatternDraft] = useState<DietaryPattern | null>(null);
+  const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle | null>(null);
   const [onboardingAllergySelectionsDraft, setOnboardingAllergySelectionsDraft] = useState<AllergyChoice[]>(['none']);
   const [onboardingAllergyOtherDraft, setOnboardingAllergyOtherDraft] = useState('');
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('welcome');
@@ -591,7 +591,7 @@ export default function App(): ReactElement {
 
   useEffect(() => {
     // A pace (lose/gain) or focus (maintain) always belongs to the chosen goal.
-    if (!isPaceForGoal(onboardingGoalTypeDraft, onboardingGoalPaceDraft)) {
+    if (onboardingGoalTypeDraft && !isPaceForGoal(onboardingGoalTypeDraft, onboardingGoalPaceDraft)) {
       setOnboardingGoalPaceDraft(DEFAULT_PACE[onboardingGoalTypeDraft]);
     }
   }, [onboardingGoalTypeDraft, onboardingGoalPaceDraft]);
@@ -630,6 +630,9 @@ export default function App(): ReactElement {
     });
     if (!measurements || !Number.isFinite(age_years) || age_years <= 0 || age_years >= 120) {
       return;
+    }
+    if (!onboardingSexDraft) {
+      return; // BMR depends on sex; no numbers until it's chosen.
     }
     let cancelled = false;
     const requestKey = targetPreviewKey;
@@ -778,17 +781,17 @@ export default function App(): ReactElement {
     setProfileDisplayNameDraft('');
     setProfileTimezoneDraft('UTC');
     setProfileUnitsDraft('imperial');
-    setOnboardingSexDraft('female');
+    setOnboardingSexDraft(null);
     setOnboardingAgeDraft('34');
     setOnboardingHeightFeetDraft('5');
     setOnboardingHeightInchesDraft('10');
     setOnboardingCurrentWeightDraft('180');
-    setOnboardingGoalTypeDraft('lose');
+    setOnboardingGoalTypeDraft(null);
     setOnboardingGoalPaceDraft('recommended');
     setOnboardingTargetWeightDraft('');
     setOnboardingActivityLevelDraft('sedentary');
-    setOnboardingDietaryPatternDraft('omnivore');
-    setOnboardingNutritionStyleDraft('balanced');
+    setOnboardingDietaryPatternDraft(null);
+    setOnboardingNutritionStyleDraft(null);
     setOnboardingAllergySelectionsDraft(['none']);
     setOnboardingAllergyOtherDraft('');
     setOnboardingCalorieFloorDraft('recommended');
@@ -803,7 +806,8 @@ export default function App(): ReactElement {
     setProfileDisplayNameDraft(loadedProfile.display_name ?? '');
     setProfileTimezoneDraft(loadedProfile.timezone);
     setProfileUnitsDraft(loadedProfile.units);
-    setOnboardingSexDraft(loadedProfile.sex ?? 'female');
+    // Setup leaves choices unselected until the user picks; saved answers fill in.
+    setOnboardingSexDraft(loadedProfile.sex ?? null);
     setOnboardingAgeDraft(
       loadedProfile.age_years !== null && loadedProfile.age_years !== undefined
         ? String(loadedProfile.age_years)
@@ -835,7 +839,7 @@ export default function App(): ReactElement {
         setOnboardingCurrentWeightDraft('');
       }
     }
-    setOnboardingGoalTypeDraft(loadedProfile.goal_type ?? 'lose');
+    setOnboardingGoalTypeDraft(loadedProfile.goal_type ?? null);
     setOnboardingGoalPaceDraft(loadedProfile.goal_pace ?? DEFAULT_PACE[loadedProfile.goal_type ?? 'lose']);
     setOnboardingTargetWeightDraft(
       loadedProfile.target_weight_lbs !== null && loadedProfile.target_weight_lbs !== undefined
@@ -844,8 +848,8 @@ export default function App(): ReactElement {
     );
     // New setups start at Sedentary, so the activity bar starts short and grows with the slider.
     setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'sedentary');
-    setOnboardingDietaryPatternDraft(loadedProfile.dietary_pattern ?? 'omnivore');
-    setOnboardingNutritionStyleDraft(loadedProfile.nutrition_style ?? 'balanced');
+    setOnboardingDietaryPatternDraft(loadedProfile.dietary_pattern ?? null);
+    setOnboardingNutritionStyleDraft(loadedProfile.nutrition_style ?? null);
     const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
     setOnboardingAllergySelectionsDraft(parsedAllergies.selected);
     setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
@@ -2214,6 +2218,13 @@ export default function App(): ReactElement {
     setOnboardingStatus('Saving your first-run setup');
     setOnboardingError(null);
 
+    if (!onboardingSexDraft || !onboardingGoalTypeDraft || !onboardingDietaryPatternDraft || !onboardingNutritionStyleDraft) {
+      setOnboardingSaving(false);
+      setOnboardingStatus('Finish setup before saving');
+      setOnboardingError('Choose your sex, goal, how you eat, and nutrition style before creating your profile.');
+      return;
+    }
+
     try {
       const completed = await completeOnboarding(
         {
@@ -2958,6 +2969,9 @@ export default function App(): ReactElement {
   }
 
   function validateOnboardingStep(step: OnboardingStep): string | null {
+    if (step === 'basics' && !onboardingSexDraft) {
+      return 'Choose your sex. It changes how your calories are estimated.';
+    }
     if (step === 'basics') {
       const age_years = Number(onboardingAgeDraft);
       if (bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts()) === null) {
@@ -2971,7 +2985,13 @@ export default function App(): ReactElement {
     }
 
     if (step === 'goal') {
-      return null;
+      return onboardingGoalTypeDraft ? null : 'Choose a goal to continue.';
+    }
+    if (step === 'diet' && !onboardingDietaryPatternDraft) {
+      return 'Choose how you eat to continue.';
+    }
+    if (step === 'style' && !onboardingNutritionStyleDraft) {
+      return 'Choose a nutrition style to continue.';
     }
 
     if (step === 'pace' && onboardingGoalTypeDraft !== 'maintain' && onboardingTargetWeightDraft.trim() !== '') {
@@ -3005,12 +3025,12 @@ export default function App(): ReactElement {
 
   /** The selected pace as calculated (floor off), for the below-the-minimum checks. */
   function calculatedPaceOption(pace: GoalPace = onboardingGoalPaceDraft): TargetPreviewOption | null {
-    return findPreviewOption(targetPreview, onboardingGoalTypeDraft, pace);
+    return onboardingGoalTypeDraft ? findPreviewOption(targetPreview, onboardingGoalTypeDraft, pace) : null;
   }
 
   /** The pace as it will be saved, with the recommended minimum applied unless opted out. */
   function effectivePaceOption(goal = onboardingGoalTypeDraft, pace: GoalPace = onboardingGoalPaceDraft) {
-    return withCalorieFloor(findPreviewOption(targetPreview, goal, pace), onboardingCalorieFloorDraft);
+    return goal ? withCalorieFloor(findPreviewOption(targetPreview, goal, pace), onboardingCalorieFloorDraft) : null;
   }
 
   function floorAnswered(pace: GoalPace): boolean {
@@ -3019,7 +3039,7 @@ export default function App(): ReactElement {
 
   /** What a pace card shows (honest number until the user decides), or null without a preview. */
   function displayedPace(goal = onboardingGoalTypeDraft, pace: GoalPace = onboardingGoalPaceDraft) {
-    const calculated = findPreviewOption(targetPreview, goal, pace);
+    const calculated = goal ? findPreviewOption(targetPreview, goal, pace) : null;
     const answered = floorAnsweredPaces.includes(`${goal}|${pace}`);
     return calculated ? paceDisplay(calculated, onboardingCalorieFloorDraft, answered) : null;
   }
@@ -3798,7 +3818,7 @@ export default function App(): ReactElement {
 
               {floorWarning ? (
                 (() => {
-                  const pending = findPreviewOption(targetPreview, onboardingGoalTypeDraft, floorWarning.pace);
+                  const pending = calculatedPaceOption(floorWarning.pace);
                   const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
                   const calculatedCalories = Math.round(pending?.calorie_target ?? 0);
                   const who = onboardingSexDraft === 'male' ? 'men' : 'women';
@@ -3855,7 +3875,7 @@ export default function App(): ReactElement {
                     bodyPicker,
                     onboardingUnitsDraft,
                     onboardingWheelDrafts(),
-                    onboardingGoalTypeDraft
+                    onboardingGoalTypeDraft ?? 'maintain'
                   )}
                   onDone={(indexes) => applyBodyPicker(bodyPicker, indexes)}
                   onCancel={() => setBodyPicker(null)}
@@ -4058,7 +4078,7 @@ export default function App(): ReactElement {
                   </Text>
 
                   <View style={styles.setupOptionStack}>
-                    {PACE_OPTIONS[onboardingGoalTypeDraft].map((option) => {
+                    {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
                       const active = onboardingGoalPaceDraft === option.id;
                       const calculated = calculatedPaceOption(option.id);
                       const preview = effectivePaceOption(onboardingGoalTypeDraft, option.id);
@@ -4077,7 +4097,6 @@ export default function App(): ReactElement {
                         ((onboardingGoalTypeDraft === 'lose' && display.weeklyChangeLbs >= 0) ||
                           (onboardingGoalTypeDraft === 'gain' && display.weeklyChangeLbs <= 0));
                       const belowShown = display?.state === 'below' || display?.state === 'opted_out';
-                      const steady = effectivePaceOption('maintain', 'steady');
                       const kcal = (value: number) => `${Math.round(value).toLocaleString('en-US')} kcal`;
                       return (
                         <Pressable
@@ -4101,13 +4120,6 @@ export default function App(): ReactElement {
                             <Text style={styles.setupChoiceDetail}>
                               {display && display.weeklyChangeLbs < 0 ? 'Lose ' : 'Gain '}
                               {rate}
-                            </Text>
-                          ) : null}
-                          {onboardingGoalTypeDraft === 'maintain' && preview && steady && option.id !== 'steady' ? (
-                            <Text style={styles.setupChoiceDetail}>
-                              {option.id === 'build_muscle'
-                                ? `${Math.round(preview.protein_target_g)} g protein a day (vs ${Math.round(steady.protein_target_g)} g)`
-                                : `${Math.round(preview.carbs_target_g)} g carbs a day (vs ${Math.round(steady.carbs_target_g)} g)`}
                             </Text>
                           ) : null}
                           {option.note ? <Text style={styles.setupGoalNote}>{option.note}</Text> : null}
@@ -4236,24 +4248,29 @@ export default function App(): ReactElement {
                 <View style={styles.setupPanel}>
                   <Text style={styles.panelTitle}>Allergies and foods to avoid</Text>
                   <Text style={styles.setupIntroText}>Pick all that apply, or None. Saved to your profile.</Text>
-                  <View style={styles.setupOptionStack}>
+                  {/* Two columns of compact tiles, so all eight fit on a phone screen. */}
+                  <View style={styles.allergyGrid}>
                     {allergyOptions.map((option) => {
                       const active = onboardingAllergySelectionsDraft.includes(option.id);
                       return (
                         <Pressable
                           key={option.id}
-                          style={[styles.setupOptionRow, styles.setupCheckRow, active && styles.setupOptionRowActive]}
+                          style={[styles.allergyTile, active && styles.setupOptionRowActive]}
                           onPress={() => toggleOnboardingAllergy(option.id)}
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: active }}
+                          accessibilityLabel={option.title}
                         >
-                          <Text style={styles.setupIcon} accessibilityElementsHidden importantForAccessibility="no">
+                          <Text style={styles.allergyIcon} accessibilityElementsHidden importantForAccessibility="no">
                             {option.icon}
                           </Text>
-                          <Text style={[styles.setupChoiceTitle, styles.setupIconRowCopy, active && styles.setupChoiceTitleActive]}>
+                          <Text
+                            style={[styles.allergyLabel, active && styles.setupChoiceTitleActive]}
+                            numberOfLines={1}
+                          >
                             {option.title}
                           </Text>
-                          <View style={[styles.setupCheckBox, active && styles.setupCheckBoxActive]}>
+                          <View style={[styles.setupCheckBox, styles.allergyCheck, active && styles.setupCheckBoxActive]}>
                             {active ? <Text style={styles.setupCheckMark}>✓</Text> : null}
                           </View>
                         </Pressable>
@@ -4329,7 +4346,7 @@ export default function App(): ReactElement {
                           label: 'Goal',
                           value: [
                             formatGoalTypeLabel(onboardingGoalTypeDraft),
-                            formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft),
+                            onboardingGoalTypeDraft ? formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft) : '',
                             onboardingGoalTypeDraft !== 'maintain'
                               ? formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())
                                 ? `goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
@@ -4342,12 +4359,12 @@ export default function App(): ReactElement {
                         {
                           step: 'diet' as const,
                           label: 'How you eat',
-                          value: dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Omnivore'
+                          value: dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Not chosen'
                         },
                         {
                           step: 'style' as const,
                           label: 'Nutrition style',
-                          value: nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Balanced'
+                          value: nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Not chosen'
                         },
                         {
                           step: 'allergies' as const,
@@ -5024,7 +5041,7 @@ export default function App(): ReactElement {
                     <View style={styles.profileField}>
                       <Text style={styles.profileFieldLabel}>{onboardingGoalTypeDraft === 'maintain' ? 'Focus' : 'Pace'}</Text>
                       <View style={styles.profileToggleRow}>
-                        {PACE_OPTIONS[onboardingGoalTypeDraft].map((option) => {
+                        {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
                           const active = onboardingGoalPaceDraft === option.id;
                           return (
                             <Pressable
@@ -7326,10 +7343,37 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   // A calculated target below the recommended minimum, before the user decides (or opted out).
-  setupCheckRow: {
+  allergyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  allergyTile: {
+    flexBasis: '47%',
+    flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12
+    gap: 8,
+    minHeight: 50,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: tc.line_d7dee7,
+    backgroundColor: tc.bg_f7f4ef
+  },
+  allergyIcon: {
+    fontSize: 22
+  },
+  allergyLabel: {
+    flex: 1,
+    color: tc.fg_132536,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  allergyCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 7
   },
   // An emoji at the left of a setup choice row.
   setupIconRow: {
