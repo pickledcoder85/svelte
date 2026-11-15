@@ -86,11 +86,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: tc.line_d7dee7
   },
+  // Extra room underneath keeps the icons clear of the phone's rounded corners and the home
+  // indicator.
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingTop: 6,
-    paddingBottom: 4
+    paddingTop: 8,
+    paddingBottom: 18
   },
   tab: {
     flex: 1,
