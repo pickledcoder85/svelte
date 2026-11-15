@@ -299,25 +299,30 @@ const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
 
 const dietaryPatternOptions: Array<{
   id: DietaryPattern;
+  /** Emoji, drawn by the phone's own emoji font (no images to ship). */
+  icon: string;
   title: string;
   subtitle: string;
 }> = [
-  { id: 'vegan', title: 'Vegan', subtitle: 'Plants only' },
-  { id: 'vegetarian', title: 'Vegetarian', subtitle: 'No meat or fish' },
-  { id: 'pescatarian', title: 'Pescatarian', subtitle: 'Fish, dairy, and plants' },
-  { id: 'omnivore', title: 'Omnivore', subtitle: 'Balanced mixed diet' },
-  { id: 'carnivore', title: 'Carnivore', subtitle: 'Animal-based focus' }
+  { id: 'vegan', icon: '🥦', title: 'Vegan', subtitle: 'Plants only' },
+  { id: 'vegetarian', icon: '🥗', title: 'Vegetarian', subtitle: 'No meat or fish' },
+  { id: 'pescatarian', icon: '🐟', title: 'Pescatarian', subtitle: 'Fish, dairy, and plants' },
+  { id: 'omnivore', icon: '🍗', title: 'Omnivore', subtitle: 'Balanced mixed diet' },
+  { id: 'carnivore', icon: '🥩', title: 'Carnivore', subtitle: 'Animal-based focus' }
 ];
 
 const nutritionStyleOptions: Array<{
   id: NutritionStyle;
+  /** Emoji, drawn by the phone's own emoji font (no images to ship). */
+  icon: string;
   title: string;
   subtitle: string;
 }> = [
-  { id: 'balanced', title: 'Balanced', subtitle: 'Flexible mixed approach' },
-  { id: 'keto', title: 'Keto', subtitle: 'Very low carb, higher fat' },
+  { id: 'balanced', icon: '🍽️', title: 'Balanced', subtitle: 'Flexible mixed approach' },
+  { id: 'keto', icon: '🥑', title: 'Keto', subtitle: 'Very low carb, higher fat' },
   {
     id: 'mediterranean',
+    icon: '🫒',
     title: 'Mediterranean',
     subtitle: 'Whole foods, olive oil, fish, plants'
   }
@@ -325,17 +330,19 @@ const nutritionStyleOptions: Array<{
 
 const allergyOptions: Array<{
   id: AllergyChoice;
+  /** Emoji, drawn by the phone's own emoji font (no images to ship). */
+  icon: string;
   title: string;
   subtitle: string;
 }> = [
-  { id: 'none', title: 'None', subtitle: 'No major food allergies' },
-  { id: 'milk', title: 'Milk', subtitle: 'Avoid dairy milk proteins' },
-  { id: 'egg', title: 'Egg', subtitle: 'Avoid eggs and egg ingredients' },
-  { id: 'peanut', title: 'Peanut', subtitle: 'Avoid peanuts' },
-  { id: 'tree_nuts', title: 'Tree nuts', subtitle: 'Avoid almonds, cashews, walnuts' },
-  { id: 'wheat', title: 'Wheat', subtitle: 'Avoid wheat-based foods' },
-  { id: 'shellfish', title: 'Shellfish', subtitle: 'Avoid shrimp, crab, lobster' },
-  { id: 'other', title: 'Other', subtitle: 'Add a custom restriction' }
+  { id: 'none', icon: '✅', title: 'None', subtitle: 'No major food allergies' },
+  { id: 'milk', icon: '🥛', title: 'Milk', subtitle: 'Avoid dairy milk proteins' },
+  { id: 'egg', icon: '🥚', title: 'Egg', subtitle: 'Avoid eggs and egg ingredients' },
+  { id: 'peanut', icon: '🥜', title: 'Peanut', subtitle: 'Avoid peanuts' },
+  { id: 'tree_nuts', icon: '🌰', title: 'Tree nuts', subtitle: 'Avoid almonds, cashews, walnuts' },
+  { id: 'wheat', icon: '🌾', title: 'Wheat', subtitle: 'Avoid wheat-based foods' },
+  { id: 'shellfish', icon: '🦐', title: 'Shellfish', subtitle: 'Avoid shrimp, crab, lobster' },
+  { id: 'other', icon: '✏️', title: 'Other', subtitle: 'Add a custom restriction' }
 ];
 
 // Titles and descriptions live with the setup step (src/lib/activity-level.ts).
@@ -4190,13 +4197,18 @@ export default function App(): ReactElement {
                       return (
                         <Pressable
                           key={option.id}
-                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
+                          style={[styles.setupOptionRow, styles.setupIconRow, active && styles.setupOptionRowActive]}
                           onPress={() => setOnboardingDietaryPatternDraft(option.id)}
                           accessibilityRole="radio"
                           accessibilityState={{ checked: active }}
                         >
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                          <Text style={styles.setupIcon} accessibilityElementsHidden importantForAccessibility="no">
+                            {option.icon}
+                          </Text>
+                          <View style={styles.setupIconRowCopy}>
+                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                            <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                          </View>
                         </Pressable>
                       );
                     })}
@@ -4214,13 +4226,18 @@ export default function App(): ReactElement {
                       return (
                         <Pressable
                           key={option.id}
-                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
+                          style={[styles.setupOptionRow, styles.setupIconRow, active && styles.setupOptionRowActive]}
                           onPress={() => setOnboardingNutritionStyleDraft(option.id)}
                           accessibilityRole="radio"
                           accessibilityState={{ checked: active }}
                         >
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                          <Text style={styles.setupIcon} accessibilityElementsHidden importantForAccessibility="no">
+                            {option.icon}
+                          </Text>
+                          <View style={styles.setupIconRowCopy}>
+                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                            <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                          </View>
                         </Pressable>
                       );
                     })}
@@ -4243,7 +4260,12 @@ export default function App(): ReactElement {
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: active }}
                         >
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                          <Text style={styles.setupIcon} accessibilityElementsHidden importantForAccessibility="no">
+                            {option.icon}
+                          </Text>
+                          <Text style={[styles.setupChoiceTitle, styles.setupIconRowCopy, active && styles.setupChoiceTitleActive]}>
+                            {option.title}
+                          </Text>
                           <View style={[styles.setupCheckBox, active && styles.setupCheckBoxActive]}>
                             {active ? <Text style={styles.setupCheckMark}>✓</Text> : null}
                           </View>
@@ -7320,7 +7342,22 @@ const styles = StyleSheet.create({
   setupCheckRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    gap: 12
+  },
+  // An emoji at the left of a setup choice row.
+  setupIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  setupIconRowCopy: {
+    flex: 1,
+    gap: 2
+  },
+  setupIcon: {
+    fontSize: 30,
+    width: 40,
+    textAlign: 'center'
   },
   setupCheckBox: {
     width: 26,
