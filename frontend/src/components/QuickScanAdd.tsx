@@ -43,7 +43,9 @@ export function QuickScanAdd({
   logDate,
   dayName,
   onAdded,
-  onClose
+  onClose,
+  onSearch,
+  onQuickCalories
 }: {
   accessToken: string;
   logDate: string;
@@ -51,6 +53,9 @@ export function QuickScanAdd({
   dayName: string;
   onAdded(food: FoodItem): void;
   onClose(): void;
+  /** Nothing to photograph: search instead, or just enter calories. */
+  onSearch?(): void;
+  onQuickCalories?(): void;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'scanning' });
   // Remounts the viewfinder (restarting the live camera), e.g. after the photo camera was cancelled.
@@ -161,6 +166,14 @@ export function QuickScanAdd({
         key={scannerKey}
         visible
         labelOnly={Boolean(phase.labelFor)}
+        footerActions={
+          phase.labelFor
+            ? undefined
+            : [
+                ...(onSearch ? [{ label: '🔎 Search', onPress: onSearch }] : []),
+                ...(onQuickCalories ? [{ label: '✏️ Quick calories', onPress: onQuickCalories }] : [])
+              ]
+        }
         onCode={(code) => void lookUpBarcode(code)}
         onCapture={(frame) => void read(frame, phase.labelFor)}
         onClose={onClose}

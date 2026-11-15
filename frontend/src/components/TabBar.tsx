@@ -1,6 +1,7 @@
 /**
- * The bottom tab bar: Today · Diary · ＋ · Trends · Plan. The raised ＋ in the middle opens the
- * quick actions. Sits under the thumb; the page keeps it clear of the iPhone home indicator.
+ * The bottom tab bar: Today · Log · 📷 · Trends · Plan. The raised camera in the middle opens
+ * the scanner straight away (scan and log a food). Sits under the thumb; the page keeps it clear
+ * of the iPhone home indicator.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -38,11 +39,11 @@ function TabIcon({ tab, color }: { tab: AppTabId; color: string }) {
 export function TabBar({
   activeTab,
   onSelect,
-  onPlus
+  onCamera
 }: {
   activeTab: AppTabId | null;
   onSelect(tab: AppTabId): void;
-  onPlus(): void;
+  onCamera(): void;
 }) {
   const pal = usePalette();
   const [first, second, ...rest] = APP_TABS;
@@ -68,9 +69,18 @@ export function TabBar({
       <View style={styles.row}>
         {renderTab(first)}
         {renderTab(second)}
-        <Pressable style={styles.plusSlot} onPress={onPlus} accessibilityRole="button" accessibilityLabel="Add food, scan, add a workout, or weigh in">
+        <Pressable style={styles.plusSlot} onPress={onCamera} accessibilityRole="button" accessibilityLabel="Scan a food to log it">
           <View style={styles.plus}>
-            <Text style={styles.plusLabel}>+</Text>
+            <Svg width={24} height={24} viewBox="0 0 24 24">
+              <Path
+                d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"
+                stroke="#ffffff"
+                strokeWidth={2}
+                fill="none"
+                strokeLinejoin="round"
+              />
+              <Circle cx={12} cy={13} r={3.5} stroke="#ffffff" strokeWidth={2} fill="none" />
+            </Svg>
           </View>
         </Pressable>
         {rest.map(renderTab)}

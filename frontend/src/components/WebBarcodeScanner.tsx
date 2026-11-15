@@ -19,9 +19,11 @@ type Props = {
   onCapture?(frame: Blob): void;
   /** Smart mode for a nutrition label only: barcodes are ignored. */
   labelOnly?: boolean;
+  /** Other ways to log, shown as a small row (e.g. Search, Quick calories). */
+  footerActions?: Array<{ label: string; onPress(): void }>;
 };
 
-export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCapture, labelOnly }: Props) {
+export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCapture, labelOnly, footerActions }: Props) {
   const smart = Boolean(onCapture);
   const [stability, setStability] = useState<StabilityState | null>(null);
   // A callback ref: the Modal mounts its children in a portal, so wait for the element itself.
@@ -118,6 +120,23 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
             />
           </View>
           <View style={styles.actions}>
+            {footerActions && footerActions.length > 0 ? (
+              <View style={styles.footerRow}>
+                {footerActions.map((action) => (
+                  <Pressable
+                    key={action.label}
+                    style={styles.footerButton}
+                    onPress={() => {
+                      stopCamera();
+                      action.onPress();
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.footerLabel}>{action.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <Pressable
               style={[styles.button, styles.primaryButton]}
               onPress={() => {
@@ -211,6 +230,24 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: 10
+  },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  footerButton: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(15,23,32,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)'
+  },
+  footerLabel: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700'
   },
   button: {
     borderRadius: 999,
