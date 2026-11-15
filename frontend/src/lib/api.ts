@@ -218,6 +218,16 @@ export async function fetchProfile(accessToken: string): Promise<UserProfile> {
   );
 }
 
+/** Profile > Reset profile: clears the setup answers so setup runs again. Logs and foods stay. */
+export async function resetProfileSetup(accessToken: string): Promise<UserProfile> {
+  return readJson<UserProfile>(
+    await apiFetch(buildApiUrl('/profile/setup/reset'), {
+      method: 'POST',
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
 export async function updateProfile(
   payload: UserProfileUpdate,
   accessToken: string

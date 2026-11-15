@@ -333,6 +333,19 @@ def complete_user_onboarding(
     return UserProfile.model_validate(profile)
 
 
+def reset_user_setup(repository: SQLiteRepository, session: AuthSession) -> UserProfile:
+    """Start setup over (Profile > Reset profile). Foods, logs, and history are kept."""
+    repository.ensure_user_identity(
+        user_id=session.user_id,
+        email=session.email,
+        display_name=session.display_name,
+    )
+    profile = repository.reset_user_setup(session.user_id)
+    if profile is None:
+        raise RuntimeError("Failed to reset the profile.")
+    return UserProfile.model_validate(profile)
+
+
 def update_user_profile(
     repository: SQLiteRepository,
     session: AuthSession,

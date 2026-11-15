@@ -49,6 +49,7 @@ import {
   fetchTodaysFoodLog,
   fetchWeightEntries,
   lookupBarcode,
+  resetProfileSetup,
   normalizeApiBaseUrl,
   rejectIngestionOutput,
   saveFoodFromIngestionOutput,
@@ -308,6 +309,23 @@ describe('api helpers', () => {
     );
 
     await expect(fetchOwnerSession()).rejects.toThrow('belongs to someone else');
+  });
+
+  it('resets the profile setup', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ user_id: 'user-1', setup_complete: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const profile = await resetProfileSetup('token-123');
+
+    expect(profile.setup_complete).toBe(false);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:8000/api/profile/setup/reset');
+    expect(init.method).toBe('POST');
   });
 
   it('posts scanned barcodes to the lookup endpoint', async () => {

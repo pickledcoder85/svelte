@@ -28,6 +28,7 @@ from backend.app.services.profile import (
     get_user_profile,
     list_user_goals,
     list_weight_entries,
+    reset_user_setup,
     update_user_profile,
 )
 
@@ -129,6 +130,14 @@ async def complete_onboarding(
         return complete_user_onboarding(repository, session, payload)
     except OnboardingAlreadyCompletedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/setup/reset", response_model=UserProfile)
+async def reset_setup(
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> UserProfile:
+    return reset_user_setup(repository, session)
 
 
 @router.post("/targets/preview", response_model=TargetPreview)
