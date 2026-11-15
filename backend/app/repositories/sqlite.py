@@ -2849,6 +2849,23 @@ class SQLiteRepository:
                 )
             return self.get_meal_plan_day(row["meal_plan_day_id"])
 
+    def delete_meal_plan_slot(self, user_id: str, slot_id: str) -> dict[str, Any] | None:
+        """Remove one planned meal ("plans changed"). Anything already logged from it stays in
+        the food log (its link is cleared); the rest of the day's plan is untouched."""
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                """
+                SELECT slots.meal_plan_day_id, days.user_id FROM meal_plan_slots slots
+                JOIN meal_plan_days days ON days.id = slots.meal_plan_day_id
+                WHERE slots.id = ?
+                """,
+                (slot_id,),
+            ).fetchone()
+            if row is None or row["user_id"] != user_id:
+                return None
+            self._connection.execute("DELETE FROM meal_plan_slots WHERE id = ?", (slot_id,))
+            return self.get_meal_plan_day(row["meal_plan_day_id"])
+
     def create_meal_prep_task(
         self,
         *,
