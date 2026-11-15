@@ -36,6 +36,9 @@ export function PlateSheet({
   // Items already logged, so a retry after a failure never logs them twice.
   const [logged, setLogged] = useState<Set<number>>(() => new Set());
 
+  // Leaving after some items were already logged still refreshes the day, so nothing looks lost.
+  const leave = () => (logged.size > 0 ? onAdded() : onClose());
+
   async function addAll() {
     if (saving || rows.length === 0) {
       return;
@@ -53,14 +56,18 @@ export function PlateSheet({
           await logFood({ food_id: food.id, log_date: logDate, grams: row.grams, meal_slot: mealSlot }, accessToken);
         } else {
           const nutrition = itemNutrition(row.item, row.grams);
+          if (nutrition.calories <= 0) {
+            done.add(row.key); // nothing to count (no estimate): skip rather than log 0 or 1 kcal
+            continue;
+          }
           await logQuickCalories(
             {
               log_date: logDate,
-              calories: Math.max(1, nutrition.calories),
+              calories: Math.min(10000, nutrition.calories),
               name: `${row.item.name} (estimate, ${row.grams} g)`.slice(0, 80),
-              protein: nutrition.macros.protein,
-              carbs: nutrition.macros.carbs,
-              fat: nutrition.macros.fat,
+              protein: Math.min(1000, nutrition.macros.protein),
+              carbs: Math.min(1000, nutrition.macros.carbs),
+              fat: Math.min(1000, nutrition.macros.fat),
               meal_slot: mealSlot
             },
             accessToken
@@ -71,7 +78,8 @@ export function PlateSheet({
       }
       onAdded();
     } catch (addError) {
-      setError(addError instanceof Error ? addError.message : 'Unable to add these foods.');
+      const message = addError instanceof Error ? addError.message : 'Unable to add these foods.';
+      setError(done.size > 0 ? `Some items were added (marked ✓). The rest failed: ${message}` : message);
       setSaving(false);
     }
   }
@@ -80,9 +88,9 @@ export function PlateSheet({
   const anyEstimate = rows.some((row) => !row.item.food?.serving_grams);
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={leave}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={leave} accessibilityLabel="Close" />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -93,11 +101,16 @@ export function PlateSheet({
 
             {rows.map((row) => {
               const nutrition = itemNutrition(row.item, row.grams);
+              const done = logged.has(row.key);
+              const locked = saving || done;
               return (
                 <View key={row.key} style={[styles.item, logged.has(row.key) && styles.itemDone]}>
                   <View style={styles.itemTop}>
                     <View style={styles.itemCopy}>
-                      <Text style={styles.itemName}>{row.item.name}</Text>
+                      <Text style={styles.itemName}>
+                        {done ? '✓ ' : ''}
+                        {row.item.name}
+                      </Text>
                       <Text style={styles.itemDetail} numberOfLines={1}>
                         {nutrition.fromUsda ? `USDA: ${row.item.food?.name}` : 'Estimate from the photo (no USDA match)'}
                       </Text>
@@ -105,7 +118,7 @@ export function PlateSheet({
                     <Pressable
                       style={styles.remove}
                       onPress={() => setRows((current) => current.filter((item) => item.key !== row.key))}
-                      disabled={saving}
+                      disabled={locked}
                       accessibilityRole="button"
                       accessibilityLabel={`Remove ${row.item.name}`}
                     >
@@ -117,7 +130,7 @@ export function PlateSheet({
                       <Pressable
                         style={styles.stepButton}
                         onPress={() => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, grams: stepGrams(item.grams, -1) } : item)))}
-                        disabled={saving}
+                        disabled={locked}
                         accessibilityRole="button"
                         accessibilityLabel={`Less ${row.item.name}`}
                       >
@@ -127,7 +140,7 @@ export function PlateSheet({
                       <Pressable
                         style={styles.stepButton}
                         onPress={() => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, grams: stepGrams(item.grams, 1) } : item)))}
-                        disabled={saving}
+                        disabled={locked}
                         accessibilityRole="button"
                         accessibilityLabel={`More ${row.item.name}`}
                       >
@@ -177,16 +190,16 @@ export function PlateSheet({
               accessibilityRole="button"
             >
               <Text style={styles.primaryLabel}>
-                {saving ? 'Adding…' : `${addButtonLabel(dayName, mealSlot).replace(/^Add to/, 'Add all to')}`}
+                {saving ? 'Adding…' : logged.size > 0 ? 'Add the rest' : `${addButtonLabel(dayName, mealSlot).replace(/^Add to/, 'Add all to')}`}
               </Text>
             </Pressable>
             <View style={styles.secondaryRow}>
-              <Pressable style={styles.secondary} onPress={onScanAgain} disabled={saving} accessibilityRole="button">
+              <Pressable style={styles.secondary} onPress={logged.size > 0 ? leave : onScanAgain} disabled={saving} accessibilityRole="button">
                 <Text style={styles.secondaryLabel}>Scan again</Text>
               </Pressable>
               <Text style={styles.muted}>·</Text>
-              <Pressable style={styles.secondary} onPress={onClose} accessibilityRole="button">
-                <Text style={styles.secondaryLabel}>Cancel</Text>
+              <Pressable style={styles.secondary} onPress={leave} accessibilityRole="button">
+                <Text style={styles.secondaryLabel}>{logged.size > 0 ? 'Done' : 'Cancel'}</Text>
               </Pressable>
             </View>
           </ScrollView>

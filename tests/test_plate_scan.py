@@ -27,6 +27,33 @@ def _food(name, calories, grams=100):
                     serving_grams=grams, macros=MacroTargets(protein=1, carbs=1, fat=1), source="USDA")
 
 
+@pytest.mark.parametrize(
+    "query, names, expected",
+    [
+        # Cooked never matches raw or dry (raw rice is ~2.8x the calories per gram).
+        ("rice white cooked", ["Rice, white, long-grain, regular, raw, enriched", "Rice, white, long-grain, regular, cooked"],
+         "Rice, white, long-grain, regular, cooked"),
+        ("chicken breast roasted", ["Chicken, broiler, breast, meat only, raw", "Chicken, broiler, breast, meat only, cooked, roasted"],
+         "Chicken, broiler, breast, meat only, cooked, roasted"),
+        ("pasta cooked", ["Pasta, dry, enriched", "Pasta, cooked, enriched, without added salt"], "Pasta, cooked, enriched, without added salt"),
+        # A different food from the same ingredient is never picked.
+        ("white rice", ["Rice cakes, brown rice, plain", "Rice, white, medium-grain, cooked"], "Rice, white, medium-grain, cooked"),
+        ("chicken", ["Chicken nuggets, frozen", "Chicken, skin only", "Chicken, broilers or fryers, meat only, roasted"],
+         "Chicken, broilers or fryers, meat only, roasted"),
+        # Plurals: potatoes and tomatoes.
+        ("baked potato", ["Potatoes, baked, flesh and skin"], "Potatoes, baked, flesh and skin"),
+        ("tomato", ["Tomatoes, red, ripe, raw"], "Tomatoes, red, ripe, raw"),
+        # Fruit and vegetables are fine raw.
+        ("apple", ["Apples, raw, with skin"], "Apples, raw, with skin"),
+        ("white rice", ["Brown rice, cooked"], None),
+    ],
+)
+def test_pick_generic_food_with_real_usda_names(query, names, expected):
+    foods = [_food(name, 100 + index) for index, name in enumerate(names)]
+    picked = pick_generic_food(query, foods)
+    assert (picked.name if picked else None) == expected
+
+
 def test_pick_generic_food_needs_the_words_and_a_weight():
     foods = [_food("Pudding, chocolate", 120), _food("Chicken, broiler, breast, meat only, roasted", 165)]
     assert pick_generic_food("chicken breast roasted", foods).calories == 165
@@ -48,6 +75,20 @@ async def test_plate_items_are_parsed_and_capped(monkeypatch, repository):
     assert kind == "meal_plate"
     assert [item["name"] for item in items] == ["grilled chicken breast", "white rice"]  # unusable rows dropped
     assert items[0]["estimate"]["calories"] == 250
+
+
+@pytest.mark.asyncio
+async def test_a_huge_portion_is_capped_at_the_same_calories_per_gram(monkeypatch, repository):
+    async def fake(settings, image_url, instructions):
+        return {"kind": "meal_plate", "items": [
+            {"name": "lasagna", "estimated_grams": 4000, "calories": 6000, "protein": 2000, "carbs": float("inf"), "fat": -5}
+        ]}
+
+    monkeypatch.setattr(vision, "_request_vision_json", fake)
+    settings = isolated_test_settings().model_copy(update={"openai_api_key": "test"})
+    _, items, _ = await analyze_scan_image(TINY_PNG_BASE64, repository, settings)
+    assert items[0]["estimated_grams"] == 2000
+    assert items[0]["estimate"] == {"calories": 3000, "protein": 1000, "carbs": 0.0, "fat": 0.0}
 
 
 @pytest.mark.asyncio

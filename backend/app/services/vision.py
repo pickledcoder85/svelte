@@ -1,4 +1,5 @@
 import base64
+import math
 import binascii
 import json
 from typing import Any
@@ -166,7 +167,8 @@ Rules:
 - for multi-variant labels, keep top-level product_name and brand_name for the box itself
 - if a field is unclear, make a conservative best guess rather than omitting it
 Extra rules:
-- kind is required and must be one of the three values above
+- kind is required and must be one of the four values above
+- a branded or sealed package (a frozen meal tray, boxed salad, wrapped sandwich), even with food visible through it, is package_front, not meal_plate
 - for nutrition_label, read only what the nutrition panel shows: product_name and brand_name only if the product's own name is printed on it; never use a "distributed by" or "manufactured by" line as the brand, and never guess a name; otherwise use null for both
 - for package_front, fill package_text, product_name, brand_name and confidence; nutrition fields may be null
 - for unreadable, the other fields may be null
@@ -298,6 +300,7 @@ def build_vision_request(settings: Settings, image_url: str, instructions: str) 
 
 SCAN_KINDS = ("nutrition_label", "package_front", "meal_plate", "unreadable")
 MAX_PLATE_ITEMS = 8
+MAX_PLATE_ITEM_GRAMS = 2000
 UNREADABLE_MESSAGE = "Couldn't read that clearly. Hold the phone a little closer and steady, or take a full photo."
 
 
@@ -312,17 +315,24 @@ def _plate_items(value: Any) -> list[dict[str, Any]]:
             continue
         name = _as_optional_string(raw.get("name"))
         grams = _as_positive_or_none(raw.get("estimated_grams"))
-        if not name or not grams:
+        if not name or not grams or not math.isfinite(grams):
             continue
+        # A capped portion keeps the estimate's calories per gram.
+        scale = min(1.0, MAX_PLATE_ITEM_GRAMS / grams)
+
+        def estimate(field: str, limit: float) -> float:
+            value = _as_number(raw.get(field), 0)
+            return round(min(limit, max(0.0, value * scale)), 1) if math.isfinite(value) else 0.0
+
         items.append({
-            "name": name,
-            "usda_query": _as_optional_string(raw.get("usda_query")) or name,
-            "estimated_grams": round(min(grams, 2000)),
+            "name": name[:60],
+            "usda_query": (_as_optional_string(raw.get("usda_query")) or name)[:80],
+            "estimated_grams": round(grams * scale),
             "estimate": {
-                "calories": max(0.0, _as_number(raw.get("calories"), 0)),
-                "protein": max(0.0, _as_number(raw.get("protein"), 0)),
-                "carbs": max(0.0, _as_number(raw.get("carbs"), 0)),
-                "fat": max(0.0, _as_number(raw.get("fat"), 0)),
+                "calories": estimate("calories", 10000),
+                "protein": estimate("protein", 1000),
+                "carbs": estimate("carbs", 1000),
+                "fat": estimate("fat", 1000),
             },
         })
     return items
