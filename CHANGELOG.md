@@ -19,6 +19,12 @@ The format should remain simple:
 
 ### Added
 
+- Food foundation (backend, used by the next Food screen): every food keeps its label serving as printed ("2 tbsp (32 g)") plus, when known, the weight of one serving (grams, or ml for drinks) and handy portions for whole foods ("1 cup" = 123 g), so any food can be logged or planned by weight (migration `005_food_bank.sql`). Weights come from the label text, the label reader (which now also reads net weight and servings per container, so a single-serve "1 packet" uses its net weight), Open Food Facts, and USDA; when none gives one, the food works by servings until you weigh it (`PUT /api/nutrition/foods/{id}/serving-weight`). Each user has a food bank of foods they scanned, saved, or logged (`GET/POST/DELETE /api/nutrition/bank`), with a silent use count for ranking usual foods first later. Search lists your bank first, then other saved foods, then USDA every time (before, USDA was only searched when nothing local matched). `POST /api/nutrition/log-food` logs by servings or grams and works out calories on the server.
+
+### Fixed
+
+- USDA search stored branded foods with per-100 g values labelled as one serving, so a 32 g serving logged at about 3× its calories; results are now converted to the serving.
+- Accepting a scan dropped fields the form doesn't edit (barcode, data source, attribution, serving weight), so rescanning a barcode could save a duplicate.
 - Setup choices have emoji icons drawn by the phone's emoji font (no images shipped): How you eat 🥦 🥗 🐟 🍗 🥩, Nutrition style 🍽️ 🥑 🫒, and Avoid ✅ 🥛 🥚 🥜 🌰 🌾 🦐 ✏️.
 - Setup asks your name on About you ("What should I call you?"). It starts empty, never prefilled from the sign-in, and is saved to your profile when setup finishes (`display_name` on `POST /api/profile/onboarding`; blank keeps the existing name). Review greets you ("Looking good, Brian!") and lists the name under About you.
 - Setup is finished: How you eat, Nutrition style, and Allergies use the same one-tap rows as How fast?, with a short line saying what each is for (diet and style don't change calories). Allergies is a checklist ("None" clears the rest; "Other" opens a text field) and no longer needs a Skip button. Review shows your daily target and macros up top, then one row per answer with an Edit link back to that step. Profile can now edit how you eat, nutrition style, and foods to avoid. Changing those saves directly and never recalculates targets or replaces a custom goal; before, a nutrition-style change made in Profile was not saved at all.

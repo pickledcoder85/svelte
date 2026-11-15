@@ -25,11 +25,11 @@ async def test_food_search_uses_usda_adapter_when_configured(client, monkeypatch
         ]
 
     monkeypatch.setattr(
-        "backend.app.services.usda.get_settings",
+        "backend.app.services.food_bank.get_settings",
         lambda: SimpleNamespace(usda_api_key="test-key"),
     )
     monkeypatch.setattr(
-        "backend.app.services.usda.search_usda_foods",
+        "backend.app.services.food_bank.search_usda_foods",
         fake_search_usda_foods,
     )
 
@@ -49,11 +49,11 @@ async def test_food_search_falls_back_to_sqlite_when_usda_errors(client, monkeyp
         raise UsdaSearchError("USDA unavailable.")
 
     monkeypatch.setattr(
-        "backend.app.services.usda.get_settings",
+        "backend.app.services.food_bank.get_settings",
         lambda: SimpleNamespace(usda_api_key="test-key"),
     )
     monkeypatch.setattr(
-        "backend.app.services.usda.search_usda_foods",
+        "backend.app.services.food_bank.search_usda_foods",
         failing_search_usda_foods,
     )
 

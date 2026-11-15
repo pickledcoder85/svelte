@@ -101,9 +101,9 @@ The service worker belongs to the live app, not development. It caches the app s
 - [x] Edit and delete food-log and exercise entries (ownership checks, meal-plan slot un-ticking, plan re-opening; exercise made by a plan is edited through the plan).
 - [ ] Manual custom-food create, edit, and delete.
 - [ ] `GET /nutrition/logs?date=` instead of downloading every log.
-- [ ] Server-side calorie calculation from food and grams.
+- [x] Server-side calorie calculation from food and servings or grams (`POST /api/nutrition/log-food`); the older entry route still trusts the app's numbers until the Food screen moves over.
 - [ ] Show weights and heights in the profile's units everywhere (Profile editor, weight history, progress), not just during setup.
-- [ ] Normalize food units to per 100 g plus serving grams.
+- [x] Store each food's label serving plus the weight of one serving (and portions), so foods work by weight (food foundation, migration 005).
 
 ### Phase 5: scan pipeline
 
