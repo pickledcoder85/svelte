@@ -109,6 +109,7 @@ import {
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { CogIcon } from './src/components/CogIcon';
+import { HapticsTest } from './src/components/HapticsTest';
 import { ChoiceSheet } from './src/components/ChoiceSheet';
 import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
 import { formatAllergySelection, missingOtherAllergy, parseAllergySelection, type AllergyChoice } from './src/lib/allergies';
@@ -6439,6 +6440,14 @@ export default function App(): ReactElement {
                 </Text>
               </Pressable>
             </View>
+
+            {Platform.OS === 'web' ? (
+              <View style={styles.panel}>
+                <Text style={styles.panelEyebrow}>Temporary</Text>
+                <Text style={styles.panelTitle}>Haptics test</Text>
+                <HapticsTest />
+              </View>
+            ) : null}
 
             <View style={styles.panel}>
               <Text style={styles.panelEyebrow}>About</Text>
