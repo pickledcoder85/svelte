@@ -86,6 +86,7 @@ import { buildCalorieBudget } from './src/lib/calorie-budget';
 import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
+import { QuickScanAdd } from './src/components/QuickScanAdd';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
@@ -503,6 +504,7 @@ export default function App(): ReactElement {
   // Bottom sheets from the tab bar's ＋ and the header avatar.
   const [openSheet, setOpenSheet] = useState<'quick' | 'account' | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
+  const [quickScanOpen, setQuickScanOpen] = useState(false);
   const mainScrollRef = useRef<ScrollView | null>(null);
   // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
   const weighInY = useRef(0);
@@ -4808,7 +4810,8 @@ export default function App(): ReactElement {
                 <Text style={styles.detailTitle}>Meals</Text>
                 <Pressable
                   style={styles.todayAddButton}
-                  onPress={() => handleSectionChange('ingestion')}
+                  onPress={() => setQuickScanOpen(true)}
+                  disabled={!foodSessionToken}
                   accessibilityRole="button"
                   accessibilityLabel="Scan a food to add"
                 >
@@ -4818,7 +4821,7 @@ export default function App(): ReactElement {
               {homeOpenPlannedMeals.length === 0 && homeFoodLog.entries.length === 0 ? (
                 <View style={styles.todayEmpty}>
                   <Text style={styles.dailyHomeEmptyState}>Nothing eaten yet.</Text>
-                  <Text style={styles.todayHint}>Tap + to scan a food and add it.</Text>
+                  <Text style={styles.todayHint}>Tap + to scan a barcode and add it.</Text>
                 </View>
               ) : null}
               {homeMealPlanDay
@@ -6962,6 +6965,38 @@ export default function App(): ReactElement {
           />
         ) : null;
       })()}
+
+      {quickScanOpen && foodSessionToken ? (
+        <QuickScanAdd
+          accessToken={foodSessionToken}
+          logDate={selectedHomeDate}
+          dayName={
+            selectedHomeDate === todayKey
+              ? 'today'
+              : new Date(`${selectedHomeDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
+          }
+          onClose={() => setQuickScanOpen(false)}
+          onPhotographLabel={() => {
+            setQuickScanOpen(false);
+            handleSectionChange('ingestion');
+          }}
+          onAdded={() => {
+            setQuickScanOpen(false);
+            const token = foodSessionToken;
+            void (async () => {
+              try {
+                if (selectedHomeDate === todayKey) {
+                  setFoodLog(await fetchTodaysFoodLog(token));
+                } else {
+                  setHomeFoodLog(await fetchFoodLogForDate(selectedHomeDate, token));
+                }
+              } catch {
+                // The Meals list catches up on the next load.
+              }
+            })();
+          }}
+        />
+      ) : null}
 
       {openSheet === 'account' ? (
         <ActionSheet
