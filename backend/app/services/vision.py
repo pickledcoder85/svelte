@@ -305,8 +305,11 @@ async def analyze_scan_image(
 
     payload = await _request_vision_json(settings, image_url, SCAN_PROMPT)
     kind = payload.get("kind") if payload.get("kind") in SCAN_KINDS else "unreadable"
-    if kind == "nutrition_label" and not isinstance(payload.get("calories"), (int, float)):
-        kind = "unreadable"
+    numbers = ("calories", "protein", "carbs", "fat")
+    if kind == "nutrition_label" and not all(
+        isinstance(payload.get(field), (int, float)) and not isinstance(payload.get(field), bool) for field in numbers
+    ):
+        kind = "unreadable"  # a half-read label is never filled in with guesses
     if kind == "nutrition_label":
         return kind, _label_extraction(payload), None
     if kind == "package_front":

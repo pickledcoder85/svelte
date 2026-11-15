@@ -17,9 +17,11 @@ type Props = {
   onTakePhoto(): void;
   /** Smart mode: also auto-capture a package front or nutrition label. */
   onCapture?(frame: Blob): void;
+  /** Smart mode for a nutrition label only: barcodes are ignored. */
+  labelOnly?: boolean;
 };
 
-export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCapture }: Props) {
+export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCapture, labelOnly }: Props) {
   const smart = Boolean(onCapture);
   const [stability, setStability] = useState<StabilityState | null>(null);
   // A callback ref: the Modal mounts its children in a portal, so wait for the element itself.
@@ -37,6 +39,7 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
     setStarting(true);
     setStability(null);
     void startBarcodeScanner(video, {
+      decodeBarcodes: !labelOnly,
       autoCapture: onCapture
         ? {
             onProgress: (state) => {
@@ -91,7 +94,7 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
         <video ref={setVideo} style={videoStyle} playsInline muted autoPlay />
         <View style={styles.overlay} pointerEvents="box-none">
           <View style={styles.header}>
-            <Text style={styles.title}>{smart ? 'Scan' : 'Scan a barcode'}</Text>
+            <Text style={styles.title}>{labelOnly ? 'Scan the nutrition label' : smart ? 'Scan' : 'Scan a barcode'}</Text>
             <Text style={styles.detail}>
               {error ??
                 (starting
@@ -99,7 +102,9 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
                   : smart
                     ? stability && stability.hint !== 'steady'
                       ? hintText(stability.hint)
-                      : 'Barcode, package front, or nutrition label. Hold it in the frame and keep still: it captures by itself.'
+                      : labelOnly
+                        ? 'Hold the Nutrition Facts panel in the frame and keep still: it captures by itself.'
+                        : 'Barcode, package front, or nutrition label. Hold it in the frame and keep still: it captures by itself.'
                     : 'Hold the barcode inside the box. It reads by itself.')}
             </Text>
           </View>

@@ -26,6 +26,7 @@ from backend.app.services.vision import (
 # vision service before any decoding.
 MAX_IMAGE_FIELD_CHARS = 16_000_000
 SCAN_FAILED_MESSAGE = "The scan could not be read right now. Try again in a moment."
+LABEL_EXPECTED_MESSAGE = "That looks like the front of the package. Point at the Nutrition Facts panel instead."
 
 
 class VisionRequest(BaseModel):
@@ -144,6 +145,10 @@ async def smart_scan(
                 label=extraction,
                 replaced=replaced,
             )
+        if payload.replace_output_id:
+            # Scanning the label for a matched package: a second package front would only add a
+            # duplicate, so ask for the label instead.
+            return SmartScanResult(kind="unreadable", message=LABEL_EXPECTED_MESSAGE)
         matches = await _package_matches(repository, settings, extraction)
         output = create_scan_output(
             repository,

@@ -92,3 +92,32 @@ async def test_scan_route_unreadable_saves_nothing(app, client, auth_headers, mo
     app.state.settings = app.state.settings.model_copy(update={"openai_api_key": "test"})
     body = (await client.post("/api/vision/scan", headers=auth_headers, json={"image_base64": TINY_PNG_BASE64})).json()
     assert body["kind"] == "unreadable" and body["output_id"] is None and "Too blurry" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_a_label_missing_macros_is_unreadable(monkeypatch, repository):
+    settings = _with_model(monkeypatch, {**LABEL, "protein": None})
+    assert (await analyze_scan_image(TINY_PNG_BASE64, repository, settings))[0] == "unreadable"
+
+
+@pytest.mark.asyncio
+async def test_replacing_with_a_package_front_adds_nothing(app, client, auth_headers, monkeypatch):
+    async def fake(settings, image_url, instructions):
+        return {"kind": "package_front", "package_text": "TRAIL", "product_name": "Granola", "brand_name": "Trail", "confidence": 0.8}
+
+    async def no_matches(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr(vision, "_request_vision_json", fake)
+    monkeypatch.setattr("backend.app.routes.vision.find_package_matches", no_matches)
+    app.state.settings = app.state.settings.model_copy(update={"openai_api_key": "test"})
+    first = (await client.post("/api/vision/scan", headers=auth_headers, json={"image_base64": TINY_PNG_BASE64})).json()
+    again = (
+        await client.post(
+            "/api/vision/scan", headers=auth_headers,
+            json={"image_base64": TINY_PNG_BASE64, "replace_output_id": first["output_id"]},
+        )
+    ).json()
+    assert again["kind"] == "unreadable" and "Nutrition Facts" in again["message"]
+    queue = (await client.get("/api/ingestion/queue", headers=auth_headers)).json()
+    assert [item["id"] for item in queue if item["review_state"] == "pending"] == [first["output_id"]]

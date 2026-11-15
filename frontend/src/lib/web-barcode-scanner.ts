@@ -6,7 +6,7 @@
  * /zxing/<version>/ (copied there by scripts/copy-zxing-wasm.mjs), never fetched from a CDN.
  * The library loads only when the scanner opens, so it adds nothing to app start-up.
  */
-import { createReadConfirmer, guideCrop, RETAIL_BARCODE_FORMATS } from './barcode-reads';
+import { createReadConfirmer, guideCrop, RETAIL_BARCODE_FORMATS, smartGuideCrop } from './barcode-reads';
 import {
   ANALYSIS_WIDTH,
   contrast,
@@ -27,6 +27,8 @@ export type BarcodeScannerHandle = { stop(): void };
 export type BarcodeScannerOptions = {
   onCode(code: string): void;
   onError(message: string): void;
+  /** False: don't read barcodes (scanning only a nutrition label). */
+  decodeBarcodes?: boolean;
   /** Also capture one full frame once the view is steady and sharp (package front or label). */
   autoCapture?: {
     onProgress(state: StabilityState): void;
@@ -37,6 +39,8 @@ export type BarcodeScannerOptions = {
 /** A barcode seen this recently wins over auto-capture (let the decoder confirm it). */
 const BARCODE_GRACE_MS = 1200;
 const CAPTURE_QUALITY = 0.92;
+/** No auto-capture in the first moments, so a barcode coming into view gets read first. */
+const CAPTURE_WARMUP_MS = 1500;
 
 type Detector = { detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>> };
 
@@ -137,6 +141,8 @@ export async function startBarcodeScanner(
   let previousGray: Float32Array | null = null;
   let lastBarcodeAt = Number.NEGATIVE_INFINITY;
   let capturing = false;
+  const startedAt = performance.now();
+  const decodeBarcodes = options.decodeBarcodes !== false;
 
   const captureFrame = () => {
     capturing = true;
@@ -172,7 +178,7 @@ export async function startBarcodeScanner(
       contrast: contrast(gray)
     };
     previousGray = gray;
-    if (now - lastBarcodeAt < BARCODE_GRACE_MS) {
+    if (now - lastBarcodeAt < BARCODE_GRACE_MS || now - startedAt < CAPTURE_WARMUP_MS) {
       tracker.reset();
       options.autoCapture.onProgress({ progress: 0, ready: false, hint: 'hold-steady' });
       return;
@@ -189,8 +195,12 @@ export async function startBarcodeScanner(
       return;
     }
     let code: string | null = null;
-    if (context && video.videoWidth > 0) {
-      const crop = guideCrop(video.videoWidth, video.videoHeight);
+    if (decodeBarcodes && context && video.videoWidth > 0) {
+      // Smart mode decodes its whole (taller) frame, so a barcode anywhere in it is read
+      // for free instead of being captured and sent to be read.
+      const crop = options.autoCapture
+        ? smartGuideCrop(video.videoWidth, video.videoHeight)
+        : guideCrop(video.videoWidth, video.videoHeight);
       const scale = Math.min(1, MAX_DECODE_WIDTH / crop.width);
       canvas.width = Math.round(crop.width * scale);
       canvas.height = Math.round(crop.height * scale);

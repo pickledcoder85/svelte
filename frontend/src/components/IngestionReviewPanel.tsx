@@ -84,6 +84,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   // The package scan the open scanner's label would replace (set when the scanner opens).
   const smartReplaceRef = useRef<string | null>(null);
+  const [smartLabelOnly, setSmartLabelOnly] = useState(false);
 
   useEffect(() => {
     if (autoStartScan && accessToken && Platform.OS === 'web') {
@@ -515,6 +516,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       return;
     }
     smartReplaceRef.current = replaceOutputId ?? null;
+    // Replacing a match needs the label, not the barcode right next to it.
+    setSmartLabelOnly(Boolean(replaceOutputId));
     setQueueError(null);
     setBarcodeScannerOpen(true);
   }
@@ -1048,6 +1051,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         <WebBarcodeScanner
           visible={barcodeScannerOpen}
           onCode={(code) => void lookUpScannedBarcode(code)}
+          labelOnly={smartLabelOnly}
           onCapture={(frame) => {
             setBarcodeScannerOpen(false);
             const replace = smartReplaceRef.current;
