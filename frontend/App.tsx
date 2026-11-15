@@ -3825,42 +3825,49 @@ export default function App(): ReactElement {
                   return (
                     <ChoiceSheet
                       title="Below the recommended minimum"
-                      primaryLabel={`Eat ${minimum.toLocaleString('en-US')} kcal and move more (recommended)`}
-                      secondaryLabel={`Opt out and keep ${calculatedCalories.toLocaleString('en-US')} kcal`}
+                      primaryLabel={`Use ${minimum.toLocaleString('en-US')} kcal`}
+                      primaryDetail="Recommended"
+                      secondaryLabel={`Keep ${calculatedCalories.toLocaleString('en-US')} kcal`}
+                      secondaryDetail="Opt out of the minimum"
                       onPrimary={() => answerFloorWarning('recommended')}
                       onSecondary={() => answerFloorWarning('off')}
                       onDismiss={() => setFloorWarning(null)}
                     >
+                      <View style={styles.floorCompare}>
+                        <View style={styles.floorCompareTile}>
+                          <Text style={styles.floorCompareLabel}>
+                            {onboardingGoalTypeDraft === 'maintain' ? 'Maintaining' : 'This pace'}
+                          </Text>
+                          <Text style={[styles.floorCompareValue, styles.paceRowCaloriesBelow]}>
+                            {calculatedCalories.toLocaleString('en-US')} kcal
+                          </Text>
+                        </View>
+                        <View style={styles.floorCompareTile}>
+                          <Text style={styles.floorCompareLabel}>Recommended minimum</Text>
+                          <Text style={styles.floorCompareValue}>{minimum.toLocaleString('en-US')} kcal</Text>
+                          <Text style={styles.floorCompareNote}>for {who}</Text>
+                        </View>
+                      </View>
                       <Text style={styles.floorWarningText}>
-                        {onboardingGoalTypeDraft === 'maintain' ? 'Maintaining your weight works out to' : 'This pace works out to'}{' '}
-                        <Text style={styles.floorWarningStrong}>{calculatedCalories.toLocaleString('en-US')} kcal a day</Text>.
-                        Dietitians generally advise {who} not to eat less than{' '}
-                        <Text style={styles.floorWarningStrong}>{minimum.toLocaleString('en-US')} kcal a day</Text> without
-                        medical supervision. Below that, it's hard to get enough protein, vitamins, and minerals, and you're more
-                        likely to lose muscle, feel run down, and regain the weight.
+                        Going lower without a doctor makes it hard to get enough protein and nutrients, and raises the risk
+                        of muscle loss, fatigue, and regaining the weight.
                       </Text>
                       {pending && caloriesToMoveMore(pending, minimum) > 0 ? (
-                        <Text style={styles.floorWarningText}>
-                          <Text style={styles.floorWarningStrong}>
-                            {onboardingGoalTypeDraft === 'maintain' ? 'A better way to hold your weight:' : 'A better way to keep this pace:'}
-                          </Text>{' '}
-                          eat{' '}
-                          {minimum.toLocaleString('en-US')} kcal and burn the other{' '}
-                          <Text style={styles.floorWarningStrong}>
-                            {caloriesToMoveMore(pending, minimum).toLocaleString('en-US')} kcal
-                          </Text>{' '}
-                          by moving more, such as a longer daily walk or a workout.
-                        </Text>
+                        <View style={styles.floorTip}>
+                          <Text style={styles.floorWarningText}>
+                            <Text style={styles.floorWarningStrong}>Better:</Text> eat {minimum.toLocaleString('en-US')} kcal and burn
+                            the other {caloriesToMoveMore(pending, minimum).toLocaleString('en-US')} kcal by moving more, like a longer
+                            daily walk.
+                          </Text>
+                        </View>
                       ) : null}
                       {calculatedCalories < VERY_LOW_CALORIE_LIMIT ? (
                         <Text style={styles.floorWarningText}>
-                          Under {VERY_LOW_CALORIE_LIMIT} kcal a day is a very-low-calorie diet, which is normally done only with
-                          medical supervision.
+                          Under {VERY_LOW_CALORIE_LIMIT} kcal a day is a very-low-calorie diet, normally done only with medical
+                          supervision.
                         </Text>
                       ) : null}
-                      <Text style={styles.floorWarningHint}>
-                        Opting out turns off the recommended minimum. You can turn it back on in Settings.
-                      </Text>
+                      <Text style={styles.floorWarningHint}>Opting out turns off the minimum. You can change it in Settings.</Text>
                     </ChoiceSheet>
                   );
                 })()
@@ -6387,7 +6394,8 @@ export default function App(): ReactElement {
             {settingsFloorWarning ? (
               <ChoiceSheet
                 title="Turn off the calorie floor?"
-                primaryLabel="Keep the recommended minimum"
+                primaryLabel="Keep the minimum"
+                primaryDetail="Recommended"
                 secondaryLabel="Turn it off"
                 onPrimary={() => setSettingsFloorWarning(false)}
                 onSecondary={() => {
@@ -9023,6 +9031,35 @@ const styles = StyleSheet.create({
   settingsError: {
     color: tc.fg_b42318,
     fontSize: 14
+  },
+  floorCompare: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  floorCompareTile: {
+    ...FIELD_BOX,
+    flex: 1,
+    padding: 12,
+    gap: 2
+  },
+  floorCompareLabel: {
+    color: tc.fg_5c6d80,
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  floorCompareValue: {
+    color: tc.fg_132536,
+    fontSize: 20,
+    fontWeight: '800'
+  },
+  floorCompareNote: {
+    color: tc.fg_5c6d80,
+    fontSize: 12
+  },
+  floorTip: {
+    backgroundColor: tc.brand_primarySoft,
+    borderRadius: 14,
+    padding: 12
   },
   floorWarningText: {
     color: tc.fg_132536,
