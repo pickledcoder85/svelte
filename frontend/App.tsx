@@ -111,6 +111,7 @@ import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { CogIcon } from './src/components/CogIcon';
 import { ChoiceSheet } from './src/components/ChoiceSheet';
 import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
+import { formatAllergySelection, missingOtherAllergy, parseAllergySelection, type AllergyChoice } from './src/lib/allergies';
 import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-level';
 import appConfig from './app.json';
 import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
@@ -281,7 +282,6 @@ const exercisePresets: Array<{
 ];
 type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
 type NutritionStyle = 'balanced' | 'keto' | 'mediterranean';
-type AllergyChoice = 'none' | 'milk' | 'egg' | 'peanut' | 'tree_nuts' | 'wheat' | 'shellfish' | 'other';
 // 'welcome' is the intro card before the numbered steps; it is not in onboardingSteps.
 type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
 
@@ -300,60 +300,43 @@ const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
 const dietaryPatternOptions: Array<{
   id: DietaryPattern;
   title: string;
-  accent: string;
   subtitle: string;
-  mark: string;
 }> = [
-  { id: 'vegan', title: 'Vegan', accent: tc.fg_0f766e, subtitle: 'Plants only', mark: 'Leaf' },
-  { id: 'vegetarian', title: 'Vegetarian', accent: tc.fg_65a30d, subtitle: 'No meat or fish', mark: 'Garden' },
-  { id: 'pescatarian', title: 'Pescatarian', accent: tc.fg_0284c7, subtitle: 'Fish, dairy, and plants', mark: 'Fish' },
-  { id: 'omnivore', title: 'Omnivore', accent: tc.fg_17324d, subtitle: 'Balanced mixed diet', mark: 'Plate' },
-  { id: 'carnivore', title: 'Carnivore', accent: tc.fg_b45309, subtitle: 'Animal-based focus', mark: 'Steak' }
+  { id: 'vegan', title: 'Vegan', subtitle: 'Plants only' },
+  { id: 'vegetarian', title: 'Vegetarian', subtitle: 'No meat or fish' },
+  { id: 'pescatarian', title: 'Pescatarian', subtitle: 'Fish, dairy, and plants' },
+  { id: 'omnivore', title: 'Omnivore', subtitle: 'Balanced mixed diet' },
+  { id: 'carnivore', title: 'Carnivore', subtitle: 'Animal-based focus' }
 ];
 
 const nutritionStyleOptions: Array<{
   id: NutritionStyle;
   title: string;
-  accent: string;
   subtitle: string;
-  mark: string;
 }> = [
-  { id: 'balanced', title: 'Balanced', accent: tc.fg_17324d, subtitle: 'Flexible mixed approach', mark: 'Plate' },
-  { id: 'keto', title: 'Keto', accent: tc.fg_2563eb, subtitle: 'Very low carb, higher fat', mark: 'Keto' },
+  { id: 'balanced', title: 'Balanced', subtitle: 'Flexible mixed approach' },
+  { id: 'keto', title: 'Keto', subtitle: 'Very low carb, higher fat' },
   {
     id: 'mediterranean',
     title: 'Mediterranean',
-    accent: tc.fg_0f766e,
-    subtitle: 'Whole foods, olive oil, fish, plants',
-    mark: 'Med'
+    subtitle: 'Whole foods, olive oil, fish, plants'
   }
 ];
 
 const allergyOptions: Array<{
   id: AllergyChoice;
   title: string;
-  accent: string;
   subtitle: string;
-  mark: string;
 }> = [
-  { id: 'none', title: 'None', accent: tc.fg_64748b, subtitle: 'No major food allergies', mark: 'None' },
-  { id: 'milk', title: 'Milk', accent: tc.fg_2563eb, subtitle: 'Avoid dairy milk proteins', mark: 'Milk' },
-  { id: 'egg', title: 'Egg', accent: tc.fg_f59e0b, subtitle: 'Avoid eggs and egg ingredients', mark: 'Egg' },
-  { id: 'peanut', title: 'Peanut', accent: tc.fg_b45309, subtitle: 'Avoid peanuts', mark: 'Nut' },
-  { id: 'tree_nuts', title: 'Tree nuts', accent: tc.fg_7c3aed, subtitle: 'Avoid almonds, cashews, walnuts', mark: 'Tree' },
-  { id: 'wheat', title: 'Wheat', accent: tc.fg_ca8a04, subtitle: 'Avoid wheat-based foods', mark: 'Wheat' },
-  { id: 'shellfish', title: 'Shellfish', accent: tc.fg_0f766e, subtitle: 'Avoid shrimp, crab, lobster', mark: 'Shell' },
-  { id: 'other', title: 'Other', accent: tc.fg_17324d, subtitle: 'Add a custom restriction', mark: 'Other' }
+  { id: 'none', title: 'None', subtitle: 'No major food allergies' },
+  { id: 'milk', title: 'Milk', subtitle: 'Avoid dairy milk proteins' },
+  { id: 'egg', title: 'Egg', subtitle: 'Avoid eggs and egg ingredients' },
+  { id: 'peanut', title: 'Peanut', subtitle: 'Avoid peanuts' },
+  { id: 'tree_nuts', title: 'Tree nuts', subtitle: 'Avoid almonds, cashews, walnuts' },
+  { id: 'wheat', title: 'Wheat', subtitle: 'Avoid wheat-based foods' },
+  { id: 'shellfish', title: 'Shellfish', subtitle: 'Avoid shrimp, crab, lobster' },
+  { id: 'other', title: 'Other', subtitle: 'Add a custom restriction' }
 ];
-
-const allergyLabels: Record<Exclude<AllergyChoice, 'none' | 'other'>, string> = {
-  milk: 'Milk',
-  egg: 'Egg',
-  peanut: 'Peanut',
-  tree_nuts: 'Tree nuts',
-  wheat: 'Wheat',
-  shellfish: 'Shellfish'
-};
 
 // Titles and descriptions live with the setup step (src/lib/activity-level.ts).
 const activityLevelCards = ACTIVITY_LEVELS.map((level) => ({
@@ -371,55 +354,6 @@ function toneColor(tone: 'checking' | 'live'): string {
 
 function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | undefined): string {
   return goalLabel(goalType);
-}
-
-function parseAllergySelection(notes: string | null | undefined): {
-  selected: AllergyChoice[];
-  otherText: string;
-} {
-  const value = notes?.trim();
-  if (!value) {
-    return { selected: ['none'], otherText: '' };
-  }
-
-  const normalized = value.toLowerCase();
-  const selected: AllergyChoice[] = [];
-
-  (Object.entries(allergyLabels) as Array<[Exclude<AllergyChoice, 'none' | 'other'>, string]>).forEach(
-    ([id, label]) => {
-      if (normalized.includes(label.toLowerCase())) {
-        selected.push(id);
-      }
-    }
-  );
-
-  const otherMatch = value.match(/Other:\s*(.+)$/i);
-  const otherText = otherMatch?.[1]?.trim() ?? '';
-  if (otherText) {
-    selected.push('other');
-  }
-
-  if (selected.length === 0) {
-    return { selected: ['other'], otherText: value };
-  }
-
-  return { selected, otherText };
-}
-
-function formatAllergySelection(selected: AllergyChoice[], otherText: string): string | null {
-  if (selected.length === 0 || selected.includes('none')) {
-    return null;
-  }
-
-  const labels = selected
-    .filter((value): value is Exclude<AllergyChoice, 'none' | 'other'> => value !== 'none' && value !== 'other')
-    .map((value) => allergyLabels[value]);
-
-  if (selected.includes('other') && otherText.trim()) {
-    labels.push(`Other: ${otherText.trim()}`);
-  }
-
-  return labels.length > 0 ? labels.join('; ') : null;
 }
 
 function formatGoalPaceLabel(goalType: 'lose' | 'maintain' | 'gain', goalPace: GoalPace | null): string {
@@ -744,16 +678,6 @@ export default function App(): ReactElement {
     });
   }
 
-  function skipAllergyStep() {
-    setOnboardingAllergySelectionsDraft(['none']);
-    setOnboardingAllergyOtherDraft('');
-    setOnboardingError(null);
-    const currentIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
-    const nextStep = onboardingSteps[currentIndex + 1];
-    if (nextStep) {
-      setOnboardingStep(nextStep.id);
-    }
-  }
   const [logFoodDraft, setLogFoodDraft] = useState('chicken');
   const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
   const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
@@ -2899,6 +2823,13 @@ export default function App(): ReactElement {
       return;
     }
 
+    if (missingOtherAllergy(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)) {
+      setProfileTone('checking');
+      setProfileStatus('Could not save profile settings');
+      setProfileError('Type the other food to avoid, or turn off Other.');
+      return;
+    }
+
     const age_years = Number(onboardingAgeDraft);
     const feet = Number(onboardingHeightFeetDraft);
     const inches = Number(onboardingHeightInchesDraft);
@@ -4225,34 +4156,23 @@ export default function App(): ReactElement {
 
               {onboardingStep === 'diet' ? (
                 <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Pick your dietary pattern</Text>
-
-                  <View style={styles.setupDietGrid}>
+                  <Text style={styles.panelTitle}>How you eat</Text>
+                  <Text style={styles.setupIntroText}>
+                    Helps Relish suggest foods and meals that fit. It doesn't change your calories.
+                  </Text>
+                  <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
                     {dietaryPatternOptions.map((option) => {
                       const active = onboardingDietaryPatternDraft === option.id;
                       return (
                         <Pressable
                           key={option.id}
-                          style={[
-                            styles.setupDietCard,
-                            { borderColor: active ? option.accent : tc.line_d7dee7 },
-                            active && styles.setupDietCardActive
-                          ]}
+                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
                           onPress={() => setOnboardingDietaryPatternDraft(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
                         >
-                          <View style={[styles.setupDietBadge, { backgroundColor: option.accent }]}>
-                            <Text style={styles.setupDietBadgeLabel}>{option.mark}</Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.setupChoiceTitle,
-                              styles.setupDietTitle,
-                              active && styles.setupChoiceTitleActive
-                            ]}
-                          >
-                            {option.title}
-                          </Text>
-                          <Text style={[styles.setupChoiceDetail, styles.setupDietDetail]}>{option.subtitle}</Text>
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
                         </Pressable>
                       );
                     })}
@@ -4262,34 +4182,21 @@ export default function App(): ReactElement {
 
               {onboardingStep === 'style' ? (
                 <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Pick your nutrition style</Text>
-
-                  <View style={styles.setupDietGrid}>
+                  <Text style={styles.panelTitle}>Nutrition style</Text>
+                  <Text style={styles.setupIntroText}>The kind of eating you prefer. You can change it any time in Profile.</Text>
+                  <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
                     {nutritionStyleOptions.map((option) => {
                       const active = onboardingNutritionStyleDraft === option.id;
                       return (
                         <Pressable
                           key={option.id}
-                          style={[
-                            styles.setupDietCard,
-                            { borderColor: active ? option.accent : tc.line_d7dee7 },
-                            active && styles.setupDietCardActive
-                          ]}
+                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
                           onPress={() => setOnboardingNutritionStyleDraft(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
                         >
-                          <View style={[styles.setupDietBadge, { backgroundColor: option.accent }]}>
-                            <Text style={styles.setupDietBadgeLabel}>{option.mark}</Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.setupChoiceTitle,
-                              styles.setupDietTitle,
-                              active && styles.setupChoiceTitleActive
-                            ]}
-                          >
-                            {option.title}
-                          </Text>
-                          <Text style={[styles.setupChoiceDetail, styles.setupDietDetail]}>{option.subtitle}</Text>
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
                         </Pressable>
                       );
                     })}
@@ -4299,132 +4206,138 @@ export default function App(): ReactElement {
 
               {onboardingStep === 'allergies' ? (
                 <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Allergies or exclusions</Text>
-
-                  <View style={styles.setupDietGrid}>
+                  <Text style={styles.panelTitle}>Allergies and foods to avoid</Text>
+                  <Text style={styles.setupIntroText}>Pick all that apply, or None. Saved to your profile.</Text>
+                  <View style={styles.setupOptionStack}>
                     {allergyOptions.map((option) => {
                       const active = onboardingAllergySelectionsDraft.includes(option.id);
                       return (
                         <Pressable
                           key={option.id}
-                          style={[
-                            styles.setupDietCard,
-                            { borderColor: active ? option.accent : tc.line_d7dee7 },
-                            active && styles.setupDietCardActive
-                          ]}
+                          style={[styles.setupOptionRow, styles.setupCheckRow, active && styles.setupOptionRowActive]}
                           onPress={() => toggleOnboardingAllergy(option.id)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: active }}
                         >
-                          <View style={[styles.setupDietBadge, { backgroundColor: option.accent }]}>
-                            <Text style={styles.setupDietBadgeLabel}>{option.mark}</Text>
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
+                          <View style={[styles.setupCheckBox, active && styles.setupCheckBoxActive]}>
+                            {active ? <Text style={styles.setupCheckMark}>✓</Text> : null}
                           </View>
-                          <Text
-                            style={[
-                              styles.setupChoiceTitle,
-                              styles.setupDietTitle,
-                              active && styles.setupChoiceTitleActive
-                            ]}
-                          >
-                            {option.title}
-                          </Text>
-                          <Text style={[styles.setupChoiceDetail, styles.setupDietDetail]}>{option.subtitle}</Text>
                         </Pressable>
                       );
                     })}
                   </View>
-
                   {onboardingAllergySelectionsDraft.includes('other') ? (
-                    <TextInput
-                      value={onboardingAllergyOtherDraft}
-                      onChangeText={setOnboardingAllergyOtherDraft}
-                      placeholder="Add another allergy or exclusion"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      style={styles.setupTextArea}
-                      multiline
-                      textAlignVertical="top"
-                    />
+                    <FieldGroup label="Other">
+                      <TextInput
+                        value={onboardingAllergyOtherDraft}
+                        onChangeText={setOnboardingAllergyOtherDraft}
+                        placeholder="For example sesame or soy"
+                        placeholderTextColor={tc.fg_9aa6b8}
+                        style={styles.settingsInput}
+                      />
+                    </FieldGroup>
                   ) : null}
                 </View>
               ) : null}
 
               {onboardingStep === 'review' ? (
                 <View style={styles.setupPanel}>
-                  <View style={styles.setupPanelHeading}>
-                    <Text style={styles.panelTitle}>Review your setup</Text>
-                    <Text style={styles.panelDetail}>
-                      Save this profile and then the app will drop you into your daily home with targets ready.
-                    </Text>
-                  </View>
+                  <Text style={styles.panelTitle}>Review</Text>
+                  <Text style={styles.setupIntroText}>
+                    Check everything, then create your profile. You can change any of this later.
+                  </Text>
 
-                  <View style={styles.setupReviewCard}>
-                    <View style={styles.setupReviewHeader}>
-                      <Text style={styles.setupReviewTitle}>{entryDisplayNameDraft || 'Local profile'}</Text>
-                      <Text style={styles.setupReviewSubtitle}>
-                        This is what the app will use to generate your first daily targets.
+                  {effectivePaceOption() ? (
+                    <View style={styles.reviewTarget}>
+                      <Text style={styles.reviewTargetLabel}>Your daily target</Text>
+                      <Text style={styles.reviewTargetValue}>{formatCalories(effectivePaceOption()?.calorie_target ?? 0)}</Text>
+                      <Text style={styles.reviewTargetMacros}>
+                        Protein {Math.round(effectivePaceOption()?.protein_target_g ?? 0)} g · Carbs{' '}
+                        {Math.round(effectivePaceOption()?.carbs_target_g ?? 0)} g · Fat {Math.round(effectivePaceOption()?.fat_target_g ?? 0)} g
                       </Text>
-                    </View>
-                    <View style={styles.setupReviewGrid}>
-                      <View style={styles.setupReviewTile}>
-                        <Text style={styles.setupReviewLabel}>Body stats</Text>
-                        <Text style={styles.setupReviewValue}>
-                          {[
-                            formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts()),
-                            formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts()),
-                            formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts())
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
+                      {onboardingCalorieFloorDraft === 'off' ? (
+                        <Text style={styles.paceRowWarning}>
+                          {calculatedPaceOption()?.below_recommended_minimum
+                            ? 'Below the recommended minimum (calorie floor off)'
+                            : 'Calorie floor off: future targets can go below the recommended minimum'}
                         </Text>
-                      </View>
-                      <View style={styles.setupReviewTile}>
-                        <Text style={styles.setupReviewLabel}>Goal</Text>
-                        <Text style={styles.setupReviewValue}>
-                          {formatGoalTypeLabel(onboardingGoalTypeDraft)} ·{' '}
-                          {formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft)}
-                          {onboardingGoalTypeDraft !== 'maintain' &&
-                          formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())
-                            ? ` · goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
-                            : ''}
-                        </Text>
-                        {effectivePaceOption() ? (
-                          <Text style={styles.setupReviewValue}>{formatCalories(effectivePaceOption()?.calorie_target ?? 0)}</Text>
-                        ) : null}
-                        {onboardingCalorieFloorDraft === 'off' ? (
-                          <Text style={styles.paceRowWarning}>
-                            {calculatedPaceOption()?.below_recommended_minimum
-                              ? 'Below the recommended minimum (calorie floor off)'
-                              : 'Calorie floor off: future targets can go below the recommended minimum'}
-                          </Text>
-                        ) : calculatedPaceOption()?.below_recommended_minimum ? (
-                          <Text style={styles.paceRowWarning}>Set to the recommended minimum</Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.setupReviewTile}>
-                        <Text style={styles.setupReviewLabel}>Lifestyle</Text>
-                        <Text style={styles.setupReviewValue}>
-                          {activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Sedentary'} activity
-                        </Text>
-                      </View>
-                      <View style={styles.setupReviewTile}>
-                        <Text style={styles.setupReviewLabel}>Diet</Text>
-                        <Text style={styles.setupReviewValue}>
-                          {dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Omnivore'}
-                        </Text>
-                      </View>
-                      <View style={styles.setupReviewTile}>
-                        <Text style={styles.setupReviewLabel}>Nutrition style</Text>
-                        <Text style={styles.setupReviewValue}>
-                          {nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Balanced'}
-                        </Text>
-                      </View>
-                      {formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft) ? (
-                        <View style={styles.setupReviewTile}>
-                          <Text style={styles.setupReviewLabel}>Avoid</Text>
-                          <Text style={styles.setupReviewValue}>
-                            {formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)}
-                          </Text>
-                        </View>
+                      ) : calculatedPaceOption()?.below_recommended_minimum ? (
+                        <Text style={styles.setupChoiceDetail}>Set to the recommended minimum</Text>
                       ) : null}
                     </View>
+                  ) : null}
+
+                  <View style={styles.reviewList}>
+                    {(
+                      [
+                        {
+                          step: 'basics' as const,
+                          label: 'About you',
+                          value: [
+                            onboardingSexDraft === 'male' ? 'Male' : 'Female',
+                            formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts()),
+                            formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts()),
+                            formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts())
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        },
+                        {
+                          step: 'activity' as const,
+                          label: 'Daily activity',
+                          value: activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Sedentary'
+                        },
+                        {
+                          step: 'goal' as const,
+                          label: 'Goal',
+                          value: [
+                            formatGoalTypeLabel(onboardingGoalTypeDraft),
+                            formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft),
+                            onboardingGoalTypeDraft !== 'maintain'
+                              ? formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())
+                                ? `goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
+                                : ''
+                              : ''
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        },
+                        {
+                          step: 'diet' as const,
+                          label: 'How you eat',
+                          value: dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Omnivore'
+                        },
+                        {
+                          step: 'style' as const,
+                          label: 'Nutrition style',
+                          value: nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Balanced'
+                        },
+                        {
+                          step: 'allergies' as const,
+                          label: 'Avoid',
+                          value: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft) || 'Nothing'
+                        }
+                      ]
+                    ).map((row) => (
+                      <View key={row.step} style={styles.reviewRow}>
+                        <View style={styles.reviewRowCopy}>
+                          <Text style={styles.reviewRowLabel}>{row.label}</Text>
+                          <Text style={styles.reviewRowValue}>{row.value}</Text>
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            setOnboardingError(null);
+                            setOnboardingStep(row.step);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit ${row.label}`}
+                          hitSlop={10}
+                        >
+                          <Text style={styles.reviewEdit}>Edit</Text>
+                        </Pressable>
+                      </View>
+                    ))}
                   </View>
                 </View>
               ) : null}
@@ -4438,16 +4351,6 @@ export default function App(): ReactElement {
                     >
                       <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
                     </Pressable>
-
-                    {onboardingStep === 'allergies' ? (
-                      <Pressable
-                        style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
-                        onPress={skipAllergyStep}
-                        disabled={onboardingSaving}
-                      >
-                        <Text style={styles.setupActionButtonLabelSecondary}>Skip</Text>
-                      </Pressable>
-                    ) : null}
 
                     {onboardingStep === 'review' ? (
                       <Pressable
@@ -5143,6 +5046,69 @@ export default function App(): ReactElement {
                           })}
                         </View>
                       </View>
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>How you eat</Text>
+                      <View style={styles.profileToggleRow}>
+                        {dietaryPatternOptions.map((option) => {
+                          const active = onboardingDietaryPatternDraft === option.id;
+                          return (
+                            <Pressable
+                              key={option.id}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setOnboardingDietaryPatternDraft(option.id)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Nutrition style</Text>
+                      <View style={styles.profileToggleRow}>
+                        {nutritionStyleOptions.map((option) => {
+                          const active = onboardingNutritionStyleDraft === option.id;
+                          return (
+                            <Pressable
+                              key={option.id}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setOnboardingNutritionStyleDraft(option.id)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Avoid</Text>
+                      <View style={styles.profileToggleRow}>
+                        {allergyOptions.map((option) => {
+                          const active = onboardingAllergySelectionsDraft.includes(option.id);
+                          return (
+                            <Pressable
+                              key={option.id}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => toggleOnboardingAllergy(option.id)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      {onboardingAllergySelectionsDraft.includes('other') ? (
+                        <TextInput
+                          value={onboardingAllergyOtherDraft}
+                          onChangeText={setOnboardingAllergyOtherDraft}
+                          placeholder="For example sesame or soy"
+                          placeholderTextColor={tc.fg_9aa6b8}
+                          style={styles.settingsInput}
+                        />
+                      ) : null}
                     </View>
                   </View>
 
@@ -7324,6 +7290,78 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   // A calculated target below the recommended minimum, before the user decides (or opted out).
+  setupCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  setupCheckBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: tc.line_cbd5e1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  setupCheckBoxActive: {
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
+  },
+  setupCheckMark: {
+    color: tc.fg_ffffff,
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  reviewTarget: {
+    ...FIELD_BOX,
+    padding: 16,
+    gap: 4
+  },
+  reviewTargetLabel: {
+    color: tc.fg_5c6d80,
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase'
+  },
+  reviewTargetValue: {
+    color: tc.fg_132536,
+    fontSize: 26,
+    fontWeight: '800'
+  },
+  reviewTargetMacros: {
+    color: tc.fg_5c6d80,
+    fontSize: 14
+  },
+  reviewList: {
+    gap: 2
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: tc.line_dbe3ec
+  },
+  reviewRowCopy: {
+    flex: 1,
+    gap: 2
+  },
+  reviewRowLabel: {
+    color: tc.fg_5c6d80,
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  reviewRowValue: {
+    color: tc.fg_132536,
+    fontSize: 16
+  },
+  reviewEdit: {
+    color: tc.fg_0f766e,
+    fontSize: 15,
+    fontWeight: '700'
+  },
   explainerActions: {
     alignSelf: 'stretch'
   },
@@ -7416,9 +7454,6 @@ const styles = StyleSheet.create({
   setupPanel: {
     gap: 14
   },
-  setupPanelHeading: {
-    gap: 6
-  },
   setupChoiceCard: {
     flexGrow: 1,
     flexBasis: 180,
@@ -7489,99 +7524,6 @@ const styles = StyleSheet.create({
   setupOptionRowActive: {
     backgroundColor: tc.bg_eef3f8,
     borderColor: tc.line_17324d
-  },
-  setupDietCard: {
-    width: 148,
-    minHeight: 136,
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 14,
-    gap: 8,
-    alignItems: 'center'
-  },
-  setupDietCardActive: {
-    backgroundColor: tc.bg_f8fafc
-  },
-  setupDietGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 12
-  },
-  setupDietTitle: {
-    textAlign: 'center'
-  },
-  setupDietDetail: {
-    textAlign: 'center'
-  },
-  setupDietBadge: {
-    alignSelf: 'center',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5
-  },
-  setupDietBadgeLabel: {
-    color: tc.fg_ffffff,
-    fontSize: 11,
-    fontWeight: '800'
-  },
-  setupTextArea: {
-    minHeight: 120,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: tc.fg_132536,
-    backgroundColor: tc.bg_f8fafc
-  },
-  setupReviewCard: {
-    backgroundColor: tc.bg_fbfcfe,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 18,
-    gap: 14
-  },
-  setupReviewHeader: {
-    gap: 4
-  },
-  setupReviewTitle: {
-    color: tc.fg_132536,
-    fontSize: 22,
-    fontWeight: '800'
-  },
-  setupReviewSubtitle: {
-    color: tc.fg_5c6d80,
-    fontSize: 13,
-    lineHeight: 18
-  },
-  setupReviewGrid: {
-    gap: 10
-  },
-  setupReviewTile: {
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_e2e8f0,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4
-  },
-  setupReviewLabel: {
-    color: tc.fg_66778c,
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
-  },
-  setupReviewValue: {
-    color: tc.fg_132536,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700'
   },
   setupFooter: {
     gap: 10,
