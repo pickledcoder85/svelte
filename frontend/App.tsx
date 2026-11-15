@@ -82,6 +82,8 @@ import {
   WORKOUT_CALORIE_SHARES,
   type WorkoutCaloriesShare
 } from './src/lib/daily-home';
+import { buildCalorieBudget } from './src/lib/calorie-budget';
+import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
 import { ActionSheet } from './src/components/ActionSheet';
@@ -1949,10 +1951,19 @@ export default function App(): ReactElement {
     () => buildDailyExerciseSummary(homePlannedExerciseEntries),
     [homePlannedExerciseEntries]
   );
+  const homeCalorieBudget = useMemo(
+    () =>
+      buildCalorieBudget({
+        summary: dailyHomeTargets,
+        sharePercent: profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE,
+        bmrCalories: profile?.bmr_calories,
+        maintenanceCalories: profile?.tdee_calories,
+        workouts: homeCompletedExerciseEntries
+      }),
+    [dailyHomeTargets, homeCompletedExerciseEntries, profile]
+  );
   const homeConsumedMacros = homeFoodLog.totals.macros;
   const homeConsumedCalories = dailyHomeTargets.intakeCalories;
-  // Today's allowance (target + a share of logged workouts) drives every Home number.
-  const homeRemainingCalories = dailyHomeTargets.remainingCalories;
   const filteredRecipeCatalog = useMemo(
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
@@ -4655,18 +4666,12 @@ export default function App(): ReactElement {
                   </View>
                 </View>
 
-                <View style={styles.dailyHomeSummaryMetricRow}>
-                  <Text style={styles.dailyHomeSummaryLabel}>Daily calories</Text>
-                  <Text style={styles.dailyHomeSummaryValue}>
-                    {homeConsumedCalories.toLocaleString()}/{dailyHomeTargets.allowanceCalories.toLocaleString()} kcal
-                  </Text>
-                </View>
-                {dailyHomeTargets.workoutCaloriesAdded > 0 ? (
-                  <Text style={styles.dailyHomeAllowanceNote}>
-                    Target {dailyHomeTargets.calorieTarget.toLocaleString()} + workouts{' '}
-                    {dailyHomeTargets.workoutCaloriesAdded.toLocaleString()} ({profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}%
-                    of {dailyHomeTargets.exerciseCalories.toLocaleString()} logged)
-                  </Text>
+                {dailyHomeTargets.calorieTarget > 0 ? (
+                  <CalorieBudgetCard
+                    budget={homeCalorieBudget}
+                    sharePercent={profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}
+                    onOpenDiary={() => handleSectionChange('tracker')}
+                  />
                 ) : null}
 
                 <View style={styles.dailyHomeSummaryMetricRow}>
@@ -4675,10 +4680,6 @@ export default function App(): ReactElement {
                     {dailyHomeTargets.macroPercentages.protein} / {dailyHomeTargets.macroPercentages.carbs} / {dailyHomeTargets.macroPercentages.fat}
                   </Text>
                 </View>
-
-                <Text style={styles.dailyHomeMacroLine}>
-                  Remaining {homeRemainingCalories.toLocaleString()} kcal
-                </Text>
               </View>
 
               <View style={styles.homeSection}>
@@ -8265,11 +8266,6 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     gap: 12
   },
-  dailyHomeAllowanceNote: {
-    color: tc.fg_66778c,
-    fontSize: 13,
-    marginTop: -4
-  },
   dailyHomeSummaryLabel: {
     color: tc.fg_66778c,
     fontSize: 14,
@@ -8280,11 +8276,6 @@ const styles = StyleSheet.create({
     color: tc.fg_132536,
     fontSize: 24,
     fontWeight: '800'
-  },
-  dailyHomeMacroLine: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 18
   },
   dailyHomeMacroRingRow: {
     flexDirection: 'row',

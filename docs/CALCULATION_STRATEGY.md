@@ -287,6 +287,7 @@ Setup order (2026-11-14): **About you → Activity → Your goal → How fast? /
 - The share is a profile preference, `workout_calories_share`: 100, 75 (default), 50, or 0 (off). It never changes the saved target.
 - Why 75%: watch, machine, and formula estimates tend to run high, and a workout raises the day's total burn by less than the workout itself because people move less for the rest of the day (MacroFactor's example: 400 extra exercise kcal raise total expenditure by about 250–300). MacroFactor itself adds back nothing and instead adapts targets from logged intake and the weight trend; an adaptive expenditure estimate is a possible later step for Relish.
 - Only logged (completed) workouts count; planned workouts do not.
+- Today shows the remaining calories as the headline, with a breakdown (`buildCalorieBudget` in `frontend/src/lib/calorie-budget.ts`): Target + Workouts (share) = Allowance − Eaten = Remaining, and where the target comes from: BMR + daily activity (maintenance − BMR) + today's active workout calories, with pace = target − maintenance. Workout calories not added back (100% − share) are shown as the extra deficit on workout days.
 
 ### Workouts from other apps (workout calc w1)
 
