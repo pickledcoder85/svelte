@@ -9,6 +9,7 @@ import type {
   VisionLabelScanResult,
   VisionPackageScanResult,
   FoodItem,
+  GarminStatus,
   FoodLogEntryInput,
   FoodLogSummary,
   MealInput,
@@ -657,6 +658,18 @@ export async function setFoodServingWeight(
       headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
       body: JSON.stringify({ serving_grams: servingGrams, serving_basis: servingBasis })
     })
+  );
+}
+
+/** Garmin connection status (whether a key is set, and the last sync). */
+export async function fetchGarminStatus(accessToken: string): Promise<GarminStatus> {
+  return readJson<GarminStatus>(await apiFetch(buildApiUrl('/integrations/garmin'), { headers: authHeaders(accessToken) }));
+}
+
+/** Pull new Garmin activities now. */
+export async function syncGarmin(accessToken: string): Promise<GarminStatus> {
+  return readJson<GarminStatus>(
+    await apiFetch(buildApiUrl('/integrations/garmin/sync'), { method: 'POST', headers: authHeaders(accessToken) })
   );
 }
 
