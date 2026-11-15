@@ -60,6 +60,7 @@ import {
   favoriteRecipe,
   searchFoodsWithSession,
   unfavoriteFood,
+  resetProfileSetup,
   updateProfile,
   updateMealPlanSlotEatenAt,
   updateMealPrepTaskStatus,
@@ -767,6 +768,7 @@ export default function App(): ReactElement {
   const [editingExerciseMinutesDraft, setEditingExerciseMinutesDraft] = useState('');
   const [editingExerciseCaloriesDraft, setEditingExerciseCaloriesDraft] = useState('');
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
+  const [profileResetting, setProfileResetting] = useState(false);
   const [entryActionBusyKey, setEntryActionBusyKey] = useState<string | null>(null);
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
@@ -2727,6 +2729,31 @@ export default function App(): ReactElement {
       setTrackerError(error instanceof Error ? error.message : 'Unable to update planned exercise completion.');
     } finally {
       setPlannedExerciseUpdatingId(null);
+    }
+  }
+
+  async function resetProfile() {
+    if (confirmDeleteKey !== 'profile-reset') {
+      setConfirmDeleteKey('profile-reset');
+      return;
+    }
+    setConfirmDeleteKey(null);
+    if (!foodSessionToken) {
+      return;
+    }
+    setProfileResetting(true);
+    setProfileError(null);
+    try {
+      const reset = await resetProfileSetup(foodSessionToken);
+      // A profile without setup sends the app back to the welcome card with empty fields.
+      applyProfileDrafts(reset);
+      setProfile(reset);
+    } catch (error) {
+      setProfileTone('checking');
+      setProfileStatus('Could not reset the profile');
+      setProfileError(error instanceof Error ? error.message : 'Unable to reset the profile.');
+    } finally {
+      setProfileResetting(false);
     }
   }
 
@@ -4984,6 +5011,31 @@ export default function App(): ReactElement {
                   <Text style={styles.primaryButtonLabel}>{goalSaving ? 'Saving...' : 'Add goal'}</Text>
                 </Pressable>
               </View>
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Start over</Text>
+              <Text style={styles.panelTitle}>Reset profile</Text>
+              <Text style={styles.panelDetail}>
+                Runs setup again from the welcome screen. Your foods, food and exercise logs, and weigh-ins are kept. To change
+                your weight or goal, edit the profile above instead.
+              </Text>
+              <Pressable
+                style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}
+                onPress={() => void resetProfile()}
+                disabled={profileResetting}
+                accessibilityRole="button"
+              >
+                <Text
+                  style={[styles.secondaryButtonLabel, confirmDeleteKey === 'profile-reset' && styles.entryDeleteConfirmLabel]}
+                >
+                  {profileResetting
+                    ? 'Resetting…'
+                    : confirmDeleteKey === 'profile-reset'
+                      ? 'Tap again to reset and start setup'
+                      : 'Reset profile'}
+                </Text>
+              </Pressable>
             </View>
           </>
         )}
@@ -8438,6 +8490,10 @@ const styles = StyleSheet.create({
   },
   entryDeleteConfirmLabel: {
     color: '#b42318'
+  },
+  resetConfirmButton: {
+    borderColor: '#f2c8be',
+    backgroundColor: '#fff4f0'
   },
   foodRow: {
     borderRadius: 18,

@@ -777,6 +777,32 @@ class SQLiteRepository:
             return None
         return self.get_user_identity(str(row["user_id"]))
 
+    @_synchronized
+    def reset_user_setup(self, user_id: str) -> dict[str, Any] | None:
+        """Clear the setup answers and the "setup done" mark so setup runs again.
+
+        Keeps the name, timezone, and units, and everything outside the profile row: foods,
+        logs, weigh-ins, scans, plans, and the dated goal history.
+        """
+        self._ensure_user_exists(user_id)
+        with self._connection:
+            self._connection.execute(
+                """
+                UPDATE user_profiles
+                SET setup_completed_at = NULL,
+                    sex = NULL, age_years = NULL, height_cm = NULL, current_weight_lbs = NULL,
+                    goal_type = NULL, goal_pace = NULL, target_weight_lbs = NULL,
+                    activity_level = NULL, dietary_pattern = NULL, nutrition_style = NULL,
+                    allergy_notes = NULL, bmr_calories = NULL, tdee_calories = NULL,
+                    initial_calorie_target = NULL, protein_target_g = NULL, carbs_target_g = NULL,
+                    fat_target_g = NULL, fiber_target_g = NULL, calculation_version = NULL,
+                    target_source = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            )
+        return self.get_user_identity(user_id)
+
     def mark_user_setup_completed(self, user_id: str) -> dict[str, Any] | None:
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
