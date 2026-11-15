@@ -16,7 +16,6 @@ import {
   sliderPosition,
   type ActivityLevel
 } from '../lib/activity-level';
-import { hapticTap } from '../lib/haptics';
 import { tc } from '../theme/palette';
 
 function kcal(value: number): string {
@@ -106,7 +105,6 @@ export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onCh
     const clamped = Math.min(last, Math.max(0, nextIndex));
     if (clamped !== index) {
       onChange(ACTIVITY_LEVELS[clamped].id);
-      hapticTap(); // a tick at each stop
     }
   }
 
