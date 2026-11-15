@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Removed the "Live backend" status: the card at the top of every screen except Home, the status line at the bottom of Home, the menu's "Mode: Owner" row (the session controls now only show in development), and Scan Food's "Session: Live" tile; Scan Food's status says "Scans" in plain words.
 - Haptics experiment removed: on iOS 27 a web app only gets the switch haptic when the user's finger flips a visible switch; triggering it from code (the hidden-switch trick) is blocked, so wheel and slider ticks never played. Tested on the owner's iPhone with a temporary Settings test.
 - The below-the-minimum warning is roomier: two tiles compare this pace's calories with the recommended minimum, one short sentence covers the risks, a tinted tip suggests eating the minimum and burning the difference by moving more, and the buttons are short ("Use 1,500 kcal" / "Keep 1,180 kcal") with a caption underneath, so nothing wraps. The sheet scrolls on small phones.
 - Setup choices start unselected: Sex, Your goal, How you eat, and Nutrition style highlight nothing until you pick, and Next asks you to choose (calorie numbers appear once sex is chosen). Allergies is a compact two-column grid that fits on a phone screen, and the Maintain focus cards drop the grey protein and carb lines, keeping the short hints.
