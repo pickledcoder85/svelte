@@ -119,7 +119,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       setSelectedOutput(null);
       setTone('checking');
       setStatusLabel('Sign in to review ingestion outputs');
-      setStatusDetail('The ingestion queue loads from the live backend session.');
+      setStatusDetail('Sign in to see your scans.');
       setQueueLoading(false);
       return;
     }
@@ -145,7 +145,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         return pending[0] ?? current ?? null;
       });
       setTone('live');
-      setStatusLabel('Live ingestion queue');
+      setStatusLabel('Scans');
       setStatusDetail(
         pending.length === 0
           ? 'No pending outputs right now.'
@@ -160,7 +160,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       setSelectedOutputId(null);
       setSelectedOutput(null);
       setTone('checking');
-      setStatusLabel('Live ingestion queue unavailable');
+      setStatusLabel('Scans unavailable');
       setStatusDetail('The backend queue is unavailable right now.');
       setQueueError(error instanceof Error ? error.message : 'Ingestion queue unavailable.');
     } finally {
@@ -520,7 +520,6 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
 
       <View style={styles.metricRow}>
         <MetricTile label="Pending" value={`${outputs.length}`} />
-        <MetricTile label="Session" value={accessToken ? 'Live' : 'Sign in required'} />
       </View>
 
       <View style={styles.card}>

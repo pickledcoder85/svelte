@@ -4503,23 +4503,15 @@ export default function App(): ReactElement {
                 </View>
               ))}
 
+              {/* Development only: switching sessions. The owner never sees this. */}
+              {isOwnerSession ? null : (
               <View style={styles.shellMenuFooter}>
                 <View style={styles.shellMenuModeRow}>
                   <View>
                     <Text style={styles.modeControlLabel}>Mode</Text>
-                    <Text style={styles.shellMenuModeValue}>
-                      {isOwnerSession ? 'Owner' : entryMode === 'live' ? 'Live local profile' : 'Preview demo'}
-                    </Text>
+                    <Text style={styles.shellMenuModeValue}>{entryMode === 'live' ? 'Local profile' : 'Preview demo'}</Text>
                   </View>
-                  <Text style={styles.shellMenuModeDetail}>
-                    {isOwnerSession
-                      ? 'Signed in automatically on this device'
-                      : entryMode === 'live'
-                        ? 'Backend session active'
-                        : 'Preview state only'}
-                  </Text>
                 </View>
-                {isOwnerSession ? null : (
                 <View style={styles.modeControlActions}>
                   {entryMode === 'live' ? (
                     <Pressable
@@ -4560,17 +4552,11 @@ export default function App(): ReactElement {
                     <Text style={styles.inlinePillButtonLabel}>Change entry mode</Text>
                   </Pressable>
                 </View>
-                )}
               </View>
+              )}
             </View>
           ) : null}
 
-          {section !== 'dashboard' ? (
-            <View style={[styles.appStatusCard, { borderColor: toneColor(syncTone) }]}>
-              <Text style={styles.appStatusLabel}>{syncLabel}</Text>
-              <Text style={styles.appStatusDetail}>{syncDetail}</Text>
-            </View>
-          ) : null}
         </View>
 
         {section === 'dashboard' && (
@@ -4822,9 +4808,6 @@ export default function App(): ReactElement {
                   )}
               </View>
 
-              <Text style={styles.dashboardFooterStatus}>
-                {syncLabel} · {syncDetail}
-              </Text>
             </View>
 
           </>
@@ -7748,24 +7731,6 @@ const styles = StyleSheet.create({
   menuIconBarActive: {
     backgroundColor: tc.bg_ffffff
   },
-  appStatusCard: {
-    backgroundColor: tc.bg_f7fafc,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4
-  },
-  appStatusLabel: {
-    color: tc.fg_132536,
-    fontWeight: '700',
-    fontSize: 14
-  },
-  appStatusDetail: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 17
-  },
   modeControlCard: {
     backgroundColor: tc.bg_ffffff,
     borderRadius: 20,
@@ -8129,13 +8094,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     marginTop: 4
-  },
-  shellMenuModeDetail: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 17,
-    flexShrink: 1,
-    textAlign: 'right'
   },
   exercisePresetGrid: {
     flexDirection: 'row',
@@ -9486,12 +9444,6 @@ const styles = StyleSheet.create({
   },
   detailSubtitle: {
     color: tc.fg_66778c
-  },
-  dashboardFooterStatus: {
-    color: tc.fg_8a98aa,
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: 'center'
   },
   footer: {
     color: tc.fg_66778c,
