@@ -23,40 +23,17 @@ export function WheelPicker({
   return (
     <div style={frameStyle}>
       <div style={bandStyle} aria-hidden="true" />
-      {columns.map((column, columnIndex) => {
-        // A whole-number wheel followed by a tenths wheel reads as one value ("165.4 lb").
-        const joinsNext = columns[columnIndex + 1]?.key === 'tenth';
-        const isTenths = column.key === 'tenth';
-        return (
-          <div
-            key={column.key}
-            style={{ ...columnStyle, width: isTenths ? 92 : 104, marginRight: joinsNext ? -8 : 0 }}
-          >
-            <Wheel
-              column={column}
-              index={indexes[columnIndex] ?? 0}
-              align={isTenths ? 'left' : 'right'}
-              onChange={(row) => onChange(columnIndex, row)}
-            />
-            {column.unit ? <div style={unitStyle}>{column.unit}</div> : null}
-          </div>
-        );
-      })}
+      {columns.map((column, columnIndex) => (
+        <div key={column.key} style={columnStyle}>
+          <Wheel column={column} index={indexes[columnIndex] ?? 0} onChange={(row) => onChange(columnIndex, row)} />
+          {column.unit ? <div style={unitStyle}>{column.unit}</div> : null}
+        </div>
+      ))}
     </div>
   );
 }
 
-function Wheel({
-  column,
-  index,
-  align,
-  onChange
-}: {
-  column: WheelColumn;
-  index: number;
-  align: 'left' | 'right';
-  onChange(row: number): void;
-}) {
+function Wheel({ column, index, onChange }: { column: WheelColumn; index: number; onChange(row: number): void }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [current, setCurrent] = useState(index);
   // Where a keyboard step is heading, so quick presses during a smooth scroll all count.
@@ -107,7 +84,7 @@ function Wheel({
     <div
       ref={ref}
       className="relish-wheel"
-      style={{ ...wheelStyle, textAlign: align }}
+      style={wheelStyle}
       onScroll={handleScroll}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -160,7 +137,7 @@ const columnStyle: CSSProperties = {
   position: 'relative',
   display: 'flex',
   alignItems: 'center',
-  flex: '0 1 auto',
+  width: 104,
   minWidth: 0
 };
 
@@ -175,6 +152,7 @@ const wheelStyle: CSSProperties = {
   maskImage: FADE,
   WebkitMaskImage: FADE,
   outline: 'none',
+  textAlign: 'right',
   fontFamily: FONT,
   fontVariantNumeric: 'tabular-nums',
   WebkitTapHighlightColor: 'transparent',

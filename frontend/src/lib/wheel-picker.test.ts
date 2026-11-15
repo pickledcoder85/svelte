@@ -36,8 +36,8 @@ describe('wheel helpers', () => {
   it('has the right wheels for each field and unit system', () => {
     expect(wheelColumns('height', 'imperial').map((column) => column.unit)).toEqual(['ft', 'in']);
     expect(wheelColumns('height', 'metric').map((column) => column.unit)).toEqual(['cm']);
-    expect(wheelColumns('weight', 'imperial')[1].labels.slice(0, 3)).toEqual(['.0', '.1', '.2']);
-    expect(wheelColumns('weight', 'metric')[1].unit).toBe('kg');
+    expect(wheelColumns('weight', 'imperial').map((column) => column.unit)).toEqual(['lb']);
+    expect(wheelColumns('weight', 'metric').map((column) => column.unit)).toEqual(['kg']);
     expect(wheelColumns('age', 'imperial')[0].values[0]).toBe(13);
   });
 });
@@ -46,30 +46,30 @@ describe('starting positions', () => {
   it('starts empty fields at typical values', () => {
     expect(valuesAt('height', 'imperial', initialWheelIndexes('height', 'imperial', empty))).toEqual([5, 7]);
     expect(valuesAt('height', 'metric', initialWheelIndexes('height', 'metric', empty))).toEqual([170]);
-    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', empty))).toEqual([165, 0]);
-    expect(valuesAt('weight', 'metric', initialWheelIndexes('weight', 'metric', empty))).toEqual([75, 0]);
+    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', empty))).toEqual([165]);
+    expect(valuesAt('weight', 'metric', initialWheelIndexes('weight', 'metric', empty))).toEqual([75]);
     expect(valuesAt('age', 'imperial', initialWheelIndexes('age', 'imperial', empty))).toEqual([30]);
   });
 
-  it('starts at the current value, including tenths', () => {
+  it('starts at the current value, rounded to a whole number', () => {
     const drafts = { ...empty, heightFeet: '6', heightInches: '1', weight: '182.4', age: '41' };
     expect(valuesAt('height', 'imperial', initialWheelIndexes('height', 'imperial', drafts))).toEqual([6, 1]);
-    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', drafts))).toEqual([182, 4]);
-    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', { ...drafts, weight: '81.96' }))).toEqual([82, 0]);
+    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', drafts))).toEqual([182]);
+    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', { ...drafts, weight: '182.6' }))).toEqual([183]);
     expect(valuesAt('age', 'imperial', initialWheelIndexes('age', 'imperial', drafts))).toEqual([41]);
   });
 
   it('starts an empty goal weight on the right side of the current weight', () => {
     const drafts = { ...empty, weight: '182.4' };
-    expect(valuesAt('goalWeight', 'imperial', initialWheelIndexes('goalWeight', 'imperial', drafts, 'lose'))).toEqual([172, 4]);
-    expect(valuesAt('goalWeight', 'imperial', initialWheelIndexes('goalWeight', 'imperial', drafts, 'gain'))).toEqual([192, 4]);
-    expect(valuesAt('goalWeight', 'metric', initialWheelIndexes('goalWeight', 'metric', { ...empty, weight: '80' }, 'lose'))).toEqual([75, 0]);
+    expect(valuesAt('goalWeight', 'imperial', initialWheelIndexes('goalWeight', 'imperial', drafts, 'lose'))).toEqual([172]);
+    expect(valuesAt('goalWeight', 'imperial', initialWheelIndexes('goalWeight', 'imperial', drafts, 'gain'))).toEqual([192]);
+    expect(valuesAt('goalWeight', 'metric', initialWheelIndexes('goalWeight', 'metric', { ...empty, weight: '80' }, 'lose'))).toEqual([75]);
     // An existing goal weight wins.
-    expect(valuesAt('goalWeight', 'imperial', initialWheelIndexes('goalWeight', 'imperial', { ...drafts, goalWeight: '160' }, 'lose'))).toEqual([160, 0]);
+    expect(valuesAt('goalWeight', 'imperial', initialWheelIndexes('goalWeight', 'imperial', { ...drafts, goalWeight: '160' }, 'lose'))).toEqual([160]);
   });
 
-  it('clamps values outside the wheel without a stray decimal', () => {
-    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', { ...empty, weight: '500.5' }))).toEqual([450, 0]);
+  it('clamps values outside the wheel', () => {
+    expect(valuesAt('weight', 'imperial', initialWheelIndexes('weight', 'imperial', { ...empty, weight: '500.5' }))).toEqual([450]);
   });
 });
 
@@ -77,9 +77,8 @@ describe('selections and display', () => {
   it('turns a selection into drafts', () => {
     expect(draftsFromWheel('height', 'imperial', [2, 10])).toEqual({ heightFeet: '5', heightInches: '10' });
     expect(draftsFromWheel('height', 'metric', [55])).toEqual({ heightCm: '175' });
-    expect(draftsFromWheel('weight', 'imperial', [95, 4])).toEqual({ weight: '165.4' });
-    expect(draftsFromWheel('weight', 'imperial', [95, 0])).toEqual({ weight: '165' });
-    expect(draftsFromWheel('goalWeight', 'metric', [40, 5])).toEqual({ goalWeight: '70.5' });
+    expect(draftsFromWheel('weight', 'imperial', [95])).toEqual({ weight: '165' });
+    expect(draftsFromWheel('goalWeight', 'metric', [40])).toEqual({ goalWeight: '70' });
     expect(draftsFromWheel('age', 'imperial', [21])).toEqual({ age: '34' });
   });
 
@@ -87,7 +86,7 @@ describe('selections and display', () => {
     const drafts = { ...empty, heightFeet: '5', heightInches: '10', heightCm: '177.8', weight: '81.64', age: '34', goalWeight: '155' };
     expect(formatBodyField('height', 'imperial', drafts)).toBe('5 ft 10 in');
     expect(formatBodyField('height', 'metric', drafts)).toBe('177.8 cm');
-    expect(formatBodyField('weight', 'metric', drafts)).toBe('81.6 kg');
+    expect(formatBodyField('weight', 'metric', drafts)).toBe('82 kg');
     expect(formatBodyField('goalWeight', 'imperial', drafts)).toBe('155 lb');
     expect(formatBodyField('age', 'imperial', drafts)).toBe('34 years');
     expect(formatBodyField('weight', 'imperial', empty)).toBe('');

@@ -49,7 +49,6 @@ export function indexForOffset(offset: number, count: number, rowHeight: number 
   return Math.min(count - 1, Math.max(0, Math.round(offset / rowHeight)));
 }
 
-const DECIMALS = wheelRange(0, 9);
 const WEIGHT_RANGE: Record<UnitSystem, [number, number]> = { imperial: [70, 450], metric: [30, 205] };
 
 function column(
@@ -62,13 +61,11 @@ function column(
   return { key, values, labels: values.map(label), unit, accessibilityLabel };
 }
 
+/** Weight is picked in whole pounds or kilograms; tenths are more precision than setup needs. */
 function weightColumns(units: UnitSystem, name: string): WheelColumn[] {
   const [min, max] = WEIGHT_RANGE[units];
-  const unit = units === 'metric' ? 'kg' : 'lb';
-  return [
-    column('whole', wheelRange(min, max), '', `${name}, whole ${unit === 'kg' ? 'kilograms' : 'pounds'}`),
-    column('tenth', DECIMALS, unit, `${name}, tenths`, (value: number) => `.${value}`)
-  ];
+  const metric = units === 'metric';
+  return [column('weight', wheelRange(min, max), metric ? 'kg' : 'lb', `${name}, ${metric ? 'kilograms' : 'pounds'}`)];
 }
 
 export function wheelColumns(field: BodyField, units: UnitSystem): WheelColumn[] {
@@ -89,12 +86,6 @@ export function wheelColumns(field: BodyField, units: UnitSystem): WheelColumn[]
 function positive(value: string): number | null {
   const parsed = Number(value.trim());
   return value.trim() !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-/** Splits 165.4 into [165, 4], carrying 165.96 up to [166, 0]. */
-function splitTenths(value: number): [number, number] {
-  const tenths = Math.round(value * 10);
-  return [Math.floor(tenths / 10), tenths % 10];
 }
 
 const STARTING_WEIGHT: Record<UnitSystem, number> = { imperial: 165, metric: 75 };
@@ -133,10 +124,7 @@ export function initialWheelIndexes(
   const current = positive(drafts.weight);
   const step = goal === 'lose' ? -GOAL_STEP[units] : goal === 'gain' ? GOAL_STEP[units] : 0;
   const fallback = field === 'goalWeight' && current !== null ? current + step : null;
-  const [whole, tenth] = splitTenths(own ?? fallback ?? STARTING_WEIGHT[units]);
-  const wholeIndex = at(0, whole);
-  // A value outside the wheel's range snaps to the end, without a stray decimal.
-  return [wholeIndex, columns[0].values[wholeIndex] === whole ? tenth : 0];
+  return [at(0, Math.round(own ?? fallback ?? STARTING_WEIGHT[units]))];
 }
 
 /** The draft fields a picker selection sets. */
@@ -150,10 +138,8 @@ export function draftsFromWheel(field: BodyField, units: UnitSystem, indexes: nu
     case 'age':
       return { age: String(values[0]) };
     case 'weight':
-    case 'goalWeight': {
-      const text = values[1] === 0 ? String(values[0]) : `${values[0]}.${values[1]}`;
-      return field === 'weight' ? { weight: text } : { goalWeight: text };
-    }
+    case 'goalWeight':
+      return field === 'weight' ? { weight: String(values[0]) } : { goalWeight: String(values[0]) };
   }
 }
 
@@ -174,5 +160,6 @@ export function formatBodyField(field: BodyField, units: UnitSystem, drafts: Whe
     return positive(drafts.age) === null ? '' : `${drafts.age.trim()} years`;
   }
   const value = field === 'weight' ? drafts.weight : drafts.goalWeight;
-  return positive(value) === null ? '' : `${trimNumber(value)} ${units === 'metric' ? 'kg' : 'lb'}`;
+  // Whole numbers, matching the wheel (a value converted between lb and kg can have decimals).
+  return positive(value) === null ? '' : `${Math.round(Number(value))} ${units === 'metric' ? 'kg' : 'lb'}`;
 }
