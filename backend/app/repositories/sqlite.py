@@ -598,18 +598,20 @@ class SQLiteRepository:
         user_id: str,
         timezone: str | None = None,
         units: str | None = None,
+        workout_calories_share: int | None = None,
     ) -> None:
-        """Set timezone and/or units; a None argument keeps the saved value."""
+        """Set timezone, units, and/or the workout calories share; None keeps the saved value."""
         with self._lock, self._connection:
             self._connection.execute(
                 """
                 UPDATE user_profiles
                 SET timezone = COALESCE(?, timezone),
                     units = COALESCE(?, units),
+                    workout_calories_share = COALESCE(?, workout_calories_share),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
-                (timezone, units, user_id),
+                (timezone, units, workout_calories_share, user_id),
             )
 
     def ensure_user_identity(
@@ -754,7 +756,8 @@ class SQLiteRepository:
                 p.fiber_target_g,
                 p.calculation_version,
                 p.target_source,
-                COALESCE(p.calorie_floor, 'recommended') AS calorie_floor
+                COALESCE(p.calorie_floor, 'recommended') AS calorie_floor,
+                COALESCE(p.workout_calories_share, 75) AS workout_calories_share
             FROM users u
             LEFT JOIN user_profiles p ON p.user_id = u.id
             WHERE u.id = ?
