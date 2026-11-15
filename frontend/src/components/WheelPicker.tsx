@@ -7,6 +7,7 @@ import { tc } from '../theme/palette';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { hapticTap } from '../lib/haptics';
 import { indexForOffset, WHEEL_ROW_HEIGHT, WHEEL_VISIBLE_ROWS, type WheelColumn } from '../lib/wheel-picker';
 
 const PAD_ROWS = Math.floor(WHEEL_VISIBLE_ROWS / 2);
@@ -62,6 +63,7 @@ function Wheel({ column, index, onChange }: { column: WheelColumn; index: number
     if (row !== current) {
       setCurrent(row);
       onChange(row);
+      hapticTap(); // the click of a row passing the centre, like the iOS picker
     }
   }
 
