@@ -614,6 +614,25 @@ class SQLiteRepository:
                 (timezone, units, workout_calories_share, user_id),
             )
 
+    def update_eating_preferences(
+        self,
+        *,
+        user_id: str,
+        dietary_pattern: str | None,
+        nutrition_style: str | None,
+        allergy_notes: str | None,
+    ) -> None:
+        """Save how the user eats. These don't affect calorie targets, so nothing is recalculated."""
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                UPDATE user_profiles
+                SET dietary_pattern = ?, nutrition_style = ?, allergy_notes = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                """,
+                (dietary_pattern, nutrition_style, allergy_notes, user_id),
+            )
+
     def ensure_user_identity(
         self,
         *,

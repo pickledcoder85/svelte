@@ -435,12 +435,9 @@ def update_user_profile(
             "goal_pace",
             "target_weight_lbs",
             "activity_level",
-            "dietary_pattern",
-            "allergy_notes",
             "calorie_floor",
         )
     )
-
     if derived_fields_changed:
         required_keys = (
             "sex",
@@ -456,6 +453,21 @@ def update_user_profile(
         if missing_keys:
             missing_summary = ", ".join(missing_keys)
             raise ValueError(f"Profile recalculation requires: {missing_summary}.")
+
+    # Diet, nutrition style, and allergies don't change the targets: save them directly, so a
+    # change never recalculates (or replaces a custom goal). Checked above first, so a refused
+    # recalculation doesn't leave these half-saved.
+    if any(
+        resolved[key] != existing_profile.get(key) for key in ("dietary_pattern", "nutrition_style", "allergy_notes")
+    ):
+        repository.update_eating_preferences(
+            user_id=session.user_id,
+            dietary_pattern=resolved["dietary_pattern"],
+            nutrition_style=resolved["nutrition_style"],
+            allergy_notes=resolved["allergy_notes"],
+        )
+
+    if derived_fields_changed:
 
         targets = generate_nutrition_targets(
             sex=str(resolved["sex"]),

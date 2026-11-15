@@ -1,5 +1,7 @@
 """Profile > Reset profile: setup runs again, nothing else is lost."""
 
+from datetime import date
+
 import pytest
 
 from tests.test_api_profile_onboarding import ONBOARDING_BODY, _headers
@@ -99,3 +101,38 @@ async def test_workout_calories_share_rejects_booleans(client):
         json={"timezone": done["timezone"], "units": done["units"], "workout_calories_share": False},
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_eating_preferences_save_without_recalculating_or_replacing_a_custom_goal(client):
+    headers = await _headers(client, "eating@example.com")
+    done = (await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)).json()
+    custom = await client.post(
+        "/api/profile/goals",
+        headers=headers,
+        json={"effective_at": date.today().isoformat(), "calorie_goal": 2000, "protein_goal": 150, "carbs_goal": 200, "fat_goal": 60},
+    )
+    assert custom.status_code in (200, 201)
+
+    saved = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={
+            "timezone": done["timezone"],
+            "units": done["units"],
+            "dietary_pattern": "vegetarian",
+            "nutrition_style": "mediterranean",
+            "allergy_notes": "peanut, sesame",
+        },
+    )
+    assert saved.status_code == 200
+    profile = saved.json()
+    assert (profile["dietary_pattern"], profile["nutrition_style"], profile["allergy_notes"]) == (
+        "vegetarian",
+        "mediterranean",
+        "peanut, sesame",
+    )
+    goals = (await client.get("/api/profile/goals", headers=headers)).json()
+    assert len(goals) == 2
+    assert goals[0]["calorie_goal"] == 2000
+    assert goals[0]["target_source"] == "user_custom"
