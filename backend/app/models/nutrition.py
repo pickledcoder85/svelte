@@ -9,10 +9,18 @@ class MacroTargets(BaseModel):
     fat: float = Field(ge=0)
 
 
+class FoodPortion(BaseModel):
+    """Another handy measure for a food, e.g. "1 cup" = 123 g."""
+
+    label: str
+    grams: float = Field(gt=0)
+
+
 class FoodItem(BaseModel):
     id: str
     name: str
     brand: str | None = None
+    # Nutrition is per one serving: serving_size × serving_unit (e.g. 2 × "tbsp").
     calories: float = Field(ge=0)
     serving_size: float = Field(ge=0)
     serving_unit: str
@@ -21,6 +29,14 @@ class FoodItem(BaseModel):
     favorite: bool = False
     # 14-digit GTIN for packaged foods found by barcode.
     barcode: str | None = None
+    # The serving as printed on the label, e.g. "2 tbsp (32 g)".
+    serving_text: str | None = None
+    # Weight of one serving (grams, or ml when serving_basis is "ml"); None until known.
+    serving_grams: float | None = Field(default=None, gt=0)
+    serving_basis: Literal["g", "ml"] | None = None
+    portions: list[FoodPortion] = Field(default_factory=list)
+    # In the signed-in user's food bank (set on bank and search results).
+    in_bank: bool = False
 
 
 class IngredientInput(BaseModel):
@@ -77,6 +93,10 @@ class VisionNutritionExtraction(BaseModel):
     multiple_variants_detected: bool = False
     variants: list[VisionNutritionVariant] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
+    # Weight of one serving, and package details for single-serve items (None when not shown).
+    serving_grams: float | None = None
+    servings_per_container: float | None = None
+    net_weight_grams: float | None = None
 
 
 class SavedFoodsResult(BaseModel):

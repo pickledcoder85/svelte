@@ -7,6 +7,17 @@ from backend.app.dependencies import get_app_settings, get_current_session, get_
 from backend.app.integrations.barcodes import InvalidBarcodeError
 from backend.app.models.ingestion import BarcodeLookupRequest, BarcodeLookupResult
 from backend.app.services.barcodes import lookup_barcode
+from backend.app.models.food_logs import FoodLog
+from backend.app.services.food_bank import (
+    FoodBankError,
+    LogFoodRequest,
+    ServingWeightRequest,
+    add_food_to_bank,
+    list_bank_for_user,
+    log_food,
+    search_foods_for_user,
+    set_food_serving_weight,
+)
 from backend.app.models.auth import AuthSession
 from backend.app.models.nutrition import FoodFavoriteState, FoodItem, MealInput, MealTotals, WeeklyMetrics
 from backend.app.repositories.sqlite import SQLiteRepository
@@ -39,10 +50,77 @@ async def foods_search(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> list[FoodItem]:
     try:
-        user_id = current_session.user_id if current_session is not None else None
-        return await search_standardized_foods(q, repository, user_id=user_id)
+        if current_session is not None:
+            # Signed in: the user's bank first, then other saved foods, then USDA.
+            return await search_foods_for_user(repository, current_session.user_id, q)
+        return await search_standardized_foods(q, repository, user_id=None)
     except Exception as exc:  # pragma: no cover - network path
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/bank", response_model=list[FoodItem])
+async def read_food_bank(
+    q: str = Query(default="", max_length=100),
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> list[FoodItem]:
+    """The foods the user has scanned, saved, or logged, most recently used first."""
+    return list_bank_for_user(repository, session.user_id, q)
+
+
+@router.post("/bank/{food_id}", response_model=FoodItem)
+async def add_to_bank(
+    food_id: str,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> FoodItem:
+    food = add_food_to_bank(repository, session.user_id, food_id)
+    if food is None:
+        raise HTTPException(status_code=404, detail="Food not found.")
+    return food
+
+
+@router.delete("/bank/{food_id}", status_code=204)
+async def remove_from_bank(
+    food_id: str,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> None:
+    if not repository.remove_from_food_bank(user_id=session.user_id, food_id=food_id):
+        raise HTTPException(status_code=404, detail="That food isn't in your food bank.")
+
+
+@router.put("/foods/{food_id}/serving-weight", response_model=FoodItem)
+async def put_serving_weight(
+    food_id: str,
+    payload: ServingWeightRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> FoodItem:
+    """Record how much one serving weighs, e.g. after weighing a packet."""
+    try:
+        food = set_food_serving_weight(repository, session.user_id, food_id, payload)
+    except FoodBankError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if food is None:
+        raise HTTPException(status_code=404, detail="Food not found.")
+    return food
+
+
+@router.post("/log-food", response_model=FoodLog)
+async def post_log_food(
+    payload: LogFoodRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> FoodLog:
+    """Log a food by servings or by weight; the server works out calories and macros."""
+    try:
+        log = log_food(repository, session.user_id, payload)
+    except FoodBankError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if log is None:
+        raise HTTPException(status_code=404, detail="Food not found.")
+    return log
 
 
 @router.get("/favorites/foods", response_model=list[FoodItem])

@@ -613,6 +613,53 @@ export async function ingestNutritionLabel(
   );
 }
 
+/** The user's food bank (foods they scanned, saved, or logged), most recently used first. */
+export async function fetchFoodBank(accessToken: string, query = ''): Promise<FoodItem[]> {
+  const suffix = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : '';
+  return readJson<FoodItem[]>(
+    await apiFetch(buildApiUrl(`/nutrition/bank${suffix}`), { headers: authHeaders(accessToken) })
+  );
+}
+
+export async function addFoodToBank(foodId: string, accessToken: string): Promise<FoodItem> {
+  return readJson<FoodItem>(
+    await apiFetch(buildApiUrl(`/nutrition/bank/${encodeURIComponent(foodId)}`), {
+      method: 'POST',
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
+/** Log a food by servings or by weight; the server works out calories and macros. */
+export async function logFood(
+  payload: { food_id: string; log_date: string } & ({ servings: number } | { grams: number }),
+  accessToken: string
+): Promise<unknown> {
+  return readJson<unknown>(
+    await apiFetch(buildApiUrl('/nutrition/log-food'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+/** Record how much one serving weighs (e.g. after weighing a packet). */
+export async function setFoodServingWeight(
+  foodId: string,
+  servingGrams: number,
+  accessToken: string,
+  servingBasis: 'g' | 'ml' = 'g'
+): Promise<FoodItem> {
+  return readJson<FoodItem>(
+    await apiFetch(buildApiUrl(`/nutrition/foods/${encodeURIComponent(foodId)}/serving-weight`), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ serving_grams: servingGrams, serving_basis: servingBasis })
+    })
+  );
+}
+
 /** Look a scanned barcode up in the food bank, then Open Food Facts (and USDA with a key). */
 export async function lookupBarcode(code: string, accessToken: string): Promise<BarcodeLookupResult> {
   return readJson<BarcodeLookupResult>(

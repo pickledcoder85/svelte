@@ -48,6 +48,7 @@ import {
   importRecipe,
   fetchTodaysFoodLog,
   fetchWeightEntries,
+  logFood,
   lookupBarcode,
   resetProfileSetup,
   normalizeApiBaseUrl,
@@ -309,6 +310,20 @@ describe('api helpers', () => {
     );
 
     await expect(fetchOwnerSession()).rejects.toThrow('belongs to someone else');
+  });
+
+  it('logs a food by weight', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'log-1', entries: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await logFood({ food_id: 'pb', log_date: '2026-11-15', grams: 16 }, 'token-123');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:8000/api/nutrition/log-food');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ food_id: 'pb', log_date: '2026-11-15', grams: 16 });
   });
 
   it('resets the profile setup', async () => {

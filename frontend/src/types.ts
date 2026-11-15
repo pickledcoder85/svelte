@@ -331,6 +331,15 @@ export interface FoodItem {
   favorite: boolean;
   /** 14-digit GTIN for packaged foods saved from a barcode scan. */
   barcode?: string | null;
+  /** The serving as printed on the label, e.g. "2 tbsp (32 g)". */
+  serving_text?: string | null;
+  /** Weight of one serving (grams, or ml when serving_basis is 'ml'); null until known. */
+  serving_grams?: number | null;
+  serving_basis?: 'g' | 'ml' | null;
+  /** Other handy measures, e.g. { label: '1 cup', grams: 123 }. */
+  portions?: Array<{ label: string; grams: number }>;
+  /** In the signed-in user's food bank. */
+  in_bank?: boolean;
 }
 
 export interface MealPlanSlot {

@@ -102,7 +102,10 @@ Return JSON only with this exact shape:
   "label_text": "full readable nutrition label text",
   "product_name": "best guess product name",
   "brand_name": "best guess brand or null",
-  "serving_size": "serving size text",
+  "serving_size": "serving size text exactly as printed, e.g. 2 tbsp (32g)",
+  "serving_grams": 0,
+  "servings_per_container": 0,
+  "net_weight_grams": 0,
   "calories": 0,
   "protein": 0,
   "carbs": 0,
@@ -125,6 +128,8 @@ Rules:
 - calories, protein, carbs, and fat must be numbers
 - use null for unknown brand_name
 - carbs must be total carbohydrates from the label, not net carbs
+- serving_grams is the metric weight of one serving (the grams, or ml for drinks, usually in brackets next to the serving size); use null if the label gives none
+- servings_per_container and net_weight_grams come from the label or package (convert ounces to grams); use null when not shown
 - when the label includes multiple flavors or variants in one panel, set multiple_variants_detected=true and return one entry per variant in variants
 - for multi-variant labels, keep top-level product_name and brand_name for the box itself
 - if a field is unclear, make a conservative best guess rather than omitting it
@@ -145,6 +150,9 @@ Rules:
         multiple_variants_detected=_as_bool(payload.get("multiple_variants_detected"), False),
         variants=_parse_variants(payload.get("variants")),
         confidence=_as_confidence(payload.get("confidence"), 0.62),
+        serving_grams=_as_positive_or_none(payload.get("serving_grams")),
+        servings_per_container=_as_positive_or_none(payload.get("servings_per_container")),
+        net_weight_grams=_as_positive_or_none(payload.get("net_weight_grams")),
     )
 
 
@@ -307,6 +315,14 @@ def _as_number(value: Any, fallback: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _as_positive_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def _as_confidence(value: Any, fallback: float) -> float:

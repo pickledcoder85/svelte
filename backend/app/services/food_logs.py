@@ -99,6 +99,9 @@ def add_food_log_entry(
         carbs=payload.carbs,
         fat=payload.fat,
     )
+    if payload.entry_type == "food" and payload.food_item_id and repository.get_food_by_id(payload.food_item_id):
+        # Logged foods go into the user's bank, and each use is counted.
+        repository.add_to_food_bank(user_id=user_id, food_id=payload.food_item_id, used=True)
     refreshed = repository.get_food_log(food_log_id)
     if refreshed is None:
         raise RuntimeError("Failed to reload food log after adding an entry.")

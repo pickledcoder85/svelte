@@ -118,17 +118,20 @@ async def test_authenticated_food_search_prefers_saved_favorites_before_usda(cli
     headers = {"Authorization": f"Bearer {session['access_token']}"}
 
     monkeypatch.setattr(
-        "backend.app.services.usda.get_settings",
+        "backend.app.services.food_bank.get_settings",
         lambda: SimpleNamespace(usda_api_key="test-key"),
     )
 
-    called = {"value": False}
+    async def usda_results(query: str, api_key: str):
+        return [
+            FoodItem(
+                id="usda-oats", name="Oats, raw", calories=389, serving_size=100, serving_unit="g",
+                macros=MacroTargets(protein=16.9, carbs=66.3, fat=6.9), source="USDA",
+            )
+        ]
 
-    async def fail_if_called(query: str, api_key: str):
-        called["value"] = True
-        raise AssertionError("USDA fallback should not be called when favorites satisfy the search.")
-
-    monkeypatch.setattr("backend.app.services.usda.search_usda_foods", fail_if_called)
+    # USDA is always searched now, but the user's own foods come first.
+    monkeypatch.setattr("backend.app.services.food_bank.search_usda_foods", usda_results)
 
     response = await client.get("/api/nutrition/foods/search?q=oats", headers=headers)
 
@@ -137,7 +140,7 @@ async def test_authenticated_food_search_prefers_saved_favorites_before_usda(cli
     assert foods
     assert foods[0]["id"] == "food-oats"
     assert foods[0]["favorite"] is True
-    assert called["value"] is False
+    assert foods[-1]["id"] == "usda-oats"
 
 
 @pytest.mark.asyncio
@@ -167,10 +170,10 @@ async def test_remote_food_search_results_can_be_promoted_to_favorites(client, r
         ]
 
     monkeypatch.setattr(
-        "backend.app.services.usda.get_settings",
+        "backend.app.services.food_bank.get_settings",
         lambda: SimpleNamespace(usda_api_key="test-key"),
     )
-    monkeypatch.setattr("backend.app.services.usda.search_usda_foods", fake_search_usda_foods)
+    monkeypatch.setattr("backend.app.services.food_bank.search_usda_foods", fake_search_usda_foods)
 
     search_response = await client.get("/api/nutrition/foods/search?q=quinoa", headers=headers)
     assert search_response.status_code == 200
