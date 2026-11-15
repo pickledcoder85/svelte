@@ -16,7 +16,8 @@ export const appShellSections: AppShellSectionMeta[] = [
   { id: 'meal-plan', label: 'Meal Plan', detail: 'Weekly meal schedule', group: 'organize' },
   { id: 'meal-prep', label: 'Meal Prep', detail: 'Batch cooking checklist', group: 'organize' },
   { id: 'recipes', label: 'Recipes', detail: 'Browse and favorite recipes', group: 'organize' },
-  { id: 'profile', label: 'Profile', detail: 'Targets, goals, and settings', group: 'account' }
+  { id: 'profile', label: 'Profile', detail: 'Body stats, goals, and targets', group: 'account' },
+  { id: 'settings', label: 'Settings', detail: 'Units, time zone, and account', group: 'account' }
 ];
 
 export const primaryAppSections = appShellSections.filter((section) => section.group === 'primary');

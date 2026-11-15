@@ -103,6 +103,8 @@ import {
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
+import { CogIcon } from './src/components/CogIcon';
+import appConfig from './app.json';
 import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
 import { PickerSheet } from './src/components/PickerSheet';
 import {
@@ -599,6 +601,14 @@ export default function App(): ReactElement {
   const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
 
   function handleSectionChange(nextSection: AppSection) {
+    if (nextSection === 'settings' && profile) {
+      // Settings always opens on the saved values, not edits left unsaved last time.
+      setProfileDisplayNameDraft(profile.display_name ?? '');
+      setProfileTimezoneDraft(profile.timezone);
+      setProfileUnitsDraft(profile.units);
+      setSettingsMessage(null);
+      setSettingsError(null);
+    }
     setSection(nextSection);
     setIsShellMenuOpen(false);
   }
@@ -769,6 +779,9 @@ export default function App(): ReactElement {
   const [editingExerciseCaloriesDraft, setEditingExerciseCaloriesDraft] = useState('');
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [profileResetting, setProfileResetting] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [entryActionBusyKey, setEntryActionBusyKey] = useState<string | null>(null);
   const [mealPlanTone, setMealPlanTone] = useState<'checking' | 'live'>('checking');
   const [mealPlanStatus, setMealPlanStatus] = useState('Loading meal plan');
@@ -2742,18 +2755,46 @@ export default function App(): ReactElement {
       return;
     }
     setProfileResetting(true);
-    setProfileError(null);
+    setSettingsError(null);
+    setSettingsMessage(null);
     try {
       const reset = await resetProfileSetup(foodSessionToken);
       // A profile without setup sends the app back to the welcome card with empty fields.
       applyProfileDrafts(reset);
       setProfile(reset);
     } catch (error) {
-      setProfileTone('checking');
-      setProfileStatus('Could not reset the profile');
-      setProfileError(error instanceof Error ? error.message : 'Unable to reset the profile.');
+      setSettingsError(error instanceof Error ? error.message : 'Unable to reset the profile.');
     } finally {
       setProfileResetting(false);
+    }
+  }
+
+  /** Settings: name, time zone, and units only. These never recalculate targets. */
+  async function saveSettings() {
+    if (!profile || !foodSessionToken || settingsSaving) {
+      return;
+    }
+    setSettingsSaving(true);
+    setSettingsMessage(null);
+    setSettingsError(null);
+    try {
+      const updated = await updateProfile(
+        {
+          display_name: profileDisplayNameDraft.trim() || null,
+          timezone: profileTimezoneDraft.trim() || 'UTC',
+          units: profileUnitsDraft
+        },
+        foodSessionToken
+      );
+      setProfile(updated);
+      setProfileDisplayNameDraft(updated.display_name ?? '');
+      setProfileTimezoneDraft(updated.timezone);
+      setProfileUnitsDraft(updated.units);
+      setSettingsMessage('Settings saved.');
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : 'Unable to save settings.');
+    } finally {
+      setSettingsSaving(false);
     }
   }
 
@@ -2789,9 +2830,10 @@ export default function App(): ReactElement {
     const height_cm = round1(((feet * 12 + inches) * 2.54));
 
     const payload = {
-      display_name: profileDisplayNameDraft.trim().length > 0 ? profileDisplayNameDraft.trim() : null,
-      timezone: profileTimezoneDraft.trim() || 'UTC',
-      units: profileUnitsDraft,
+      // Name, time zone, and units are edited in Settings; keep the saved values here.
+      display_name: profile.display_name ?? null,
+      timezone: profile.timezone,
+      units: profile.units,
       sex: onboardingSexDraft,
       age_years: Math.round(age_years),
       height_cm,
@@ -4205,6 +4247,7 @@ export default function App(): ReactElement {
                           style={[styles.shellMenuItem, active && styles.shellMenuItemActive]}
                           onPress={() => handleSectionChange(item.id)}
                         >
+                          {item.id === 'settings' ? <CogIcon size={22} /> : null}
                           <View style={styles.shellMenuItemCopy}>
                             <Text style={[styles.shellMenuItemTitle, active && styles.shellMenuItemTitleActive]}>
                               {item.label}
@@ -4545,9 +4588,9 @@ export default function App(): ReactElement {
               <View style={styles.panelHeader}>
                 <View>
                   <Text style={styles.panelEyebrow}>Profile</Text>
-                  <Text style={styles.panelTitle}>Settings and goals</Text>
+                  <Text style={styles.panelTitle}>Your body and goals</Text>
                 </View>
-                <Text style={styles.panelDetail}>Load your session profile, keep your display settings current, and manage goal targets in one place.</Text>
+                <Text style={styles.panelDetail}>Update your weight, body stats, and goal here; your daily targets recalculate when you save. Units, time zone, and your name are in Settings.</Text>
               </View>
 
               <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
@@ -4661,55 +4704,9 @@ export default function App(): ReactElement {
 
               {profile ? (
                 <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>{profile.display_name ?? 'Unnamed profile'}</Text>
-                  <Text style={styles.detailSubtitle}>
-                    {profile.email} · {profile.timezone} · {profile.units}
-                  </Text>
+                  <Text style={styles.detailTitle}>Body and goal</Text>
 
                   <View style={styles.profileFieldStack}>
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Display name</Text>
-                        <TextInput
-                          value={profileDisplayNameDraft}
-                          onChangeText={setProfileDisplayNameDraft}
-                          placeholder="Nutrition User"
-                          placeholderTextColor="#7c8aa5"
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Timezone</Text>
-                        <TextInput
-                          value={profileTimezoneDraft}
-                          onChangeText={setProfileTimezoneDraft}
-                          placeholder="America/New_York"
-                          placeholderTextColor="#7c8aa5"
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Units</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(['imperial', 'metric'] as const).map((units) => {
-                          const active = units === profileUnitsDraft;
-                          return (
-                            <Pressable
-                              key={units}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setProfileUnitsDraft(units)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {units === 'imperial' ? 'Imperial' : 'Metric'}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
                     <View style={styles.profileField}>
                       <Text style={styles.profileFieldLabel}>Sex</Text>
                       <View style={styles.profileToggleRow}>
@@ -5013,30 +5010,6 @@ export default function App(): ReactElement {
               </View>
             </View>
 
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Start over</Text>
-              <Text style={styles.panelTitle}>Reset profile</Text>
-              <Text style={styles.panelDetail}>
-                Runs setup again from the welcome screen. Your foods, food and exercise logs, and weigh-ins are kept. To change
-                your weight or goal, edit the profile above instead.
-              </Text>
-              <Pressable
-                style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}
-                onPress={() => void resetProfile()}
-                disabled={profileResetting}
-                accessibilityRole="button"
-              >
-                <Text
-                  style={[styles.secondaryButtonLabel, confirmDeleteKey === 'profile-reset' && styles.entryDeleteConfirmLabel]}
-                >
-                  {profileResetting
-                    ? 'Resetting…'
-                    : confirmDeleteKey === 'profile-reset'
-                      ? 'Tap again to reset and start setup'
-                      : 'Reset profile'}
-                </Text>
-              </Pressable>
-            </View>
           </>
         )}
 
@@ -5929,6 +5902,121 @@ export default function App(): ReactElement {
               </View>
             )}
           </View>
+        )}
+
+        {section === 'settings' && (
+          <>
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Settings</Text>
+              <Text style={styles.panelTitle}>Account</Text>
+              {settingsMessage ? <Text style={styles.settingsMessage}>{settingsMessage}</Text> : null}
+              {settingsError ? <Text style={styles.settingsError}>{settingsError}</Text> : null}
+              <FieldGroup label="Name">
+                <TextInput
+                  value={profileDisplayNameDraft}
+                  onChangeText={setProfileDisplayNameDraft}
+                  placeholder="Your name"
+                  placeholderTextColor="#9aa6b8"
+                  style={styles.settingsInput}
+                  autoCorrect={false}
+                />
+              </FieldGroup>
+              <FieldGroup label="Signed in as">
+                <View style={styles.settingsReadOnly}>
+                  <Text style={styles.settingsValue}>{profile?.email ?? '—'}</Text>
+                  <Text style={styles.settingsHint}>
+                    {isOwnerSession ? 'Through Tailscale on this device. No password needed.' : 'Local session'}
+                  </Text>
+                </View>
+              </FieldGroup>
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Settings</Text>
+              <Text style={styles.panelTitle}>Preferences</Text>
+              <FieldGroup label="Units">
+                <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
+                  {(
+                    [
+                      { id: 'imperial' as const, label: 'lb · ft/in' },
+                      { id: 'metric' as const, label: 'kg · cm' }
+                    ]
+                  ).map((option) => {
+                    const active = profileUnitsDraft === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                        onPress={() => setProfileUnitsDraft(option.id)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: active }}
+                      >
+                        <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </FieldGroup>
+              <FieldGroup label="Time zone">
+                <TextInput
+                  value={profileTimezoneDraft}
+                  onChangeText={setProfileTimezoneDraft}
+                  placeholder="America/New_York"
+                  placeholderTextColor="#9aa6b8"
+                  style={styles.settingsInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {deviceTimeZone() && deviceTimeZone() !== profileTimezoneDraft ? (
+                  <Pressable onPress={() => setProfileTimezoneDraft(deviceTimeZone() as string)} accessibilityRole="button">
+                    <Text style={styles.settingsLink}>Use this iPhone's time zone ({deviceTimeZone()})</Text>
+                  </Pressable>
+                ) : null}
+              </FieldGroup>
+              <Pressable
+                style={[styles.primaryButton, (settingsSaving || !profile) && styles.buttonDisabled]}
+                onPress={() => void saveSettings()}
+                disabled={settingsSaving || !profile}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryButtonLabel}>{settingsSaving ? 'Saving…' : 'Save settings'}</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Start over</Text>
+              <Text style={styles.panelTitle}>Reset profile</Text>
+              <Text style={styles.panelDetail}>
+                Runs setup again from the welcome screen. Your foods, food and exercise logs, and weigh-ins are kept. To change
+                your weight or goal, edit the profile above instead.
+              </Text>
+              <Pressable
+                style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}
+                onPress={() => void resetProfile()}
+                disabled={profileResetting}
+                accessibilityRole="button"
+              >
+                <Text
+                  style={[styles.secondaryButtonLabel, confirmDeleteKey === 'profile-reset' && styles.entryDeleteConfirmLabel]}
+                >
+                  {profileResetting
+                    ? 'Resetting…'
+                    : confirmDeleteKey === 'profile-reset'
+                      ? 'Tap again to reset and start setup'
+                      : 'Reset profile'}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>About</Text>
+              <Text style={styles.panelTitle}>Relish {appConfig.expo.version}</Text>
+              <Text style={styles.panelDetail}>
+                Packaged food data from Open Food Facts (openfoodfacts.org), available under the Open Database License (ODbL).
+                Food data from USDA FoodData Central.
+              </Text>
+            </View>
+          </>
         )}
 
         {section === 'meal-prep' && (
@@ -8490,6 +8578,42 @@ const styles = StyleSheet.create({
   },
   entryDeleteConfirmLabel: {
     color: '#b42318'
+  },
+  buttonDisabled: {
+    opacity: 0.5
+  },
+  settingsInput: {
+    ...FIELD_BOX,
+    height: FIELD_HEIGHT,
+    paddingHorizontal: 16,
+    color: '#132536',
+    fontSize: 16
+  },
+  settingsReadOnly: {
+    gap: 2
+  },
+  settingsValue: {
+    color: '#132536',
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  settingsHint: {
+    color: '#6b7b90',
+    fontSize: 13
+  },
+  settingsLink: {
+    color: '#0f766e',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  settingsMessage: {
+    color: '#0f766e',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  settingsError: {
+    color: '#b42318',
+    fontSize: 14
   },
   resetConfirmButton: {
     borderColor: '#f2c8be',
