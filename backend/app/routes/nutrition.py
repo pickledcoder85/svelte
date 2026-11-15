@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.app.config import Settings
 from backend.app.dependencies import get_app_settings, get_current_session, get_required_session, get_repository
 from backend.app.integrations.barcodes import InvalidBarcodeError
-from backend.app.models.ingestion import BarcodeLookupRequest, BarcodeLookupResult
-from backend.app.services.barcodes import lookup_barcode
+from backend.app.models.ingestion import BarcodeFoodResult, BarcodeLookupRequest, BarcodeLookupResult
+from backend.app.services.barcodes import food_for_barcode, lookup_barcode
 from backend.app.models.food_logs import FoodLog
 from backend.app.services.food_bank import (
     FoodBankError,
@@ -163,5 +163,20 @@ async def barcode_lookup(
 ) -> BarcodeLookupResult:
     try:
         return await lookup_barcode(repository, session.user_id, payload.code, usda_api_key=settings.usda_api_key)
+    except InvalidBarcodeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/barcode-foods", response_model=BarcodeFoodResult)
+async def barcode_food(
+    payload: BarcodeLookupRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+    settings: Settings = Depends(get_app_settings),
+) -> BarcodeFoodResult:
+    """Quick add: scan a barcode and get a food to log, saved to the food bank."""
+    repository.ensure_user_identity(user_id=session.user_id, email=session.email, display_name=session.display_name)
+    try:
+        return await food_for_barcode(repository, session.user_id, payload.code, usda_api_key=settings.usda_api_key)
     except InvalidBarcodeError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

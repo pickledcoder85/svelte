@@ -10,6 +10,7 @@ import type {
   VisionPackageScanResult,
   FoodItem,
   GarminStatus,
+  BarcodeFoodResult,
   FoodLogEntryInput,
   FoodLogSummary,
   MealInput,
@@ -670,6 +671,17 @@ export async function fetchGarminStatus(accessToken: string): Promise<GarminStat
 export async function syncGarmin(accessToken: string): Promise<GarminStatus> {
   return readJson<GarminStatus>(
     await apiFetch(buildApiUrl('/integrations/garmin/sync'), { method: 'POST', headers: authHeaders(accessToken) })
+  );
+}
+
+/** Quick add: a scanned barcode straight to a food in the bank, ready to log. */
+export async function foodForBarcode(code: string, accessToken: string): Promise<BarcodeFoodResult> {
+  return readJson<BarcodeFoodResult>(
+    await apiFetch(buildApiUrl('/nutrition/barcode-foods'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ code })
+    })
   );
 }
 

@@ -267,3 +267,44 @@ async def test_saving_a_barcode_scan_keeps_the_barcode_and_does_not_duplicate(cl
     again = await client.post("/api/nutrition/barcode-lookups", json={"code": UPC_A}, headers=auth_headers)
     assert again.json()["source"] == "food_bank"
     assert again.json()["food"]["id"] == first["id"]
+
+
+# --- quick add from Today --------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_quick_add_saves_the_food_to_the_bank_in_one_step(repository):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": 1, "product": OFF_PRODUCT})
+
+    user_id = _user_id(repository)
+    result = await barcode_service.food_for_barcode(repository, user_id, UPC_A, client_factory=_client_factory(handler))
+
+    assert result.found and result.source == "open_food_facts"
+    [food] = result.foods
+    assert food.name == "Crunchy Granola Bar" and food.calories == 190 and food.barcode == GTIN
+    assert food.serving_grams == 40
+    assert food.id in repository.food_bank_ids(user_id)
+
+    def fail(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("a saved barcode must not call Open Food Facts again")
+
+    again = await barcode_service.food_for_barcode(repository, user_id, UPC_A, client_factory=_client_factory(fail))
+    assert again.source == "food_bank" and again.foods[0].id == food.id
+
+
+@pytest.mark.asyncio
+async def test_quick_add_not_found_says_to_photograph_the_label(repository):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"status": 0})
+
+    result = await barcode_service.food_for_barcode(
+        repository, _user_id(repository), UPC_A, client_factory=_client_factory(handler)
+    )
+    assert not result.found and result.foods == [] and result.message == NOT_FOUND_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_quick_add_route_rejects_a_bad_code(client, auth_headers):
+    response = await client.post("/api/nutrition/barcode-foods", headers=auth_headers, json={"code": "036000291453"})
+    assert response.status_code == 400

@@ -506,6 +506,15 @@ export interface VisionLabelScanResult {
   extraction: VisionNutritionExtraction;
 }
 
+export interface BarcodeFoodResult {
+  barcode: string;
+  found: boolean;
+  source: 'food_bank' | 'open_food_facts' | 'usda' | null;
+  /** Saved to the food bank; several when the product has variants. */
+  foods: FoodItem[];
+  message: string | null;
+}
+
 export interface BarcodeLookupResult {
   /** The scanned code normalised to a 14-digit GTIN. */
   barcode: string;
