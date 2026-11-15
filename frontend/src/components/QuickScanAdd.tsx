@@ -53,6 +53,8 @@ export function QuickScanAdd({
   onClose(): void;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'scanning' });
+  // Remounts the viewfinder (restarting the live camera), e.g. after the photo camera was cancelled.
+  const [scannerKey, setScannerKey] = useState(0);
 
   async function lookUpBarcode(code: string) {
     setPhase({ kind: 'looking', text: 'Looking up the barcode…' });
@@ -89,7 +91,11 @@ export function QuickScanAdd({
     }
     const preview = previewFoodFromScan(result.label);
     if (!preview) {
-      setPhase({ kind: 'missing', message: "Couldn't read the numbers. Hold the label a little closer and try again." });
+      setPhase({
+        kind: 'missing',
+        message: "Couldn't read the numbers. Hold the label a little closer and try again.",
+        packageOutputId: labelFor
+      });
       return;
     }
     setPhase({
@@ -143,12 +149,16 @@ export function QuickScanAdd({
     const file = await pickPhotoFromCamera();
     if (file) {
       await read(file, labelFor);
+    } else {
+      setScannerKey((key) => key + 1);
+      setPhase({ kind: 'scanning', labelFor });
     }
   }
 
   if (phase.kind === 'scanning') {
     return (
       <WebBarcodeScanner
+        key={scannerKey}
         visible
         labelOnly={Boolean(phase.labelFor)}
         onCode={(code) => void lookUpBarcode(code)}

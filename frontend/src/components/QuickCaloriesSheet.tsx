@@ -32,7 +32,8 @@ export function QuickCaloriesSheet({
   const [mealSlot, setMealSlot] = useState<MealSlot>(() => defaultMealSlot());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const kcal = toNumber(calories);
+  // Whole calories only: "1,200" is twelve hundred, not 1.2.
+  const kcal = Number(calories.replace(/[^0-9]/g, '')) || 0;
 
   async function add() {
     if (!kcal || saving) {
@@ -44,7 +45,7 @@ export function QuickCaloriesSheet({
       await logQuickCalories(
         {
           log_date: logDate,
-          calories: Math.round(kcal),
+          calories: kcal,
           name: name.trim() || undefined,
           protein: toNumber(protein),
           carbs: toNumber(carbs),
@@ -89,7 +90,7 @@ export function QuickCaloriesSheet({
               <TextInput
                 style={styles.bigInput}
                 value={calories}
-                onChangeText={(text) => setCalories(text.replace(/[^0-9.,]/g, ''))}
+                onChangeText={(text) => setCalories(text.replace(/[^0-9,]/g, ''))}
                 keyboardType="number-pad"
                 inputMode="numeric"
                 placeholder="0"

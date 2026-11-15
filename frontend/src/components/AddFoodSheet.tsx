@@ -3,10 +3,10 @@
  * and its serving, ☆ favorite, the amount (servings with − / + in halves, or a weight), the
  * calories and macros for it, the meal, then Add to the day, or Save to the food bank only.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { addFavoriteFood, addFoodToBank, logFood } from '../lib/api';
+import { addFavoriteFood, addFoodToBank, logFood, unfavoriteFood } from '../lib/api';
 import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, MEAL_SLOT_LABELS, type MealSlot } from '../lib/meal-slots';
 import {
   defaultAmount,
@@ -51,6 +51,10 @@ export function AddFoodSheet({
   extraAction?: { label: string; onPress(): void };
 }) {
   const [favorite, setFavorite] = useState(Boolean(foods[0]?.favorite));
+  // A pending scan is saved once, and a food is logged once, even if a later step fails and
+  // the user taps again.
+  const preparedRef = useRef<FoodItem | null>(null);
+  const loggedRef = useRef(false);
   const [mealSlot, setMealSlot] = useState<MealSlot>(() => defaultMealSlot());
   const [foodIndex, setFoodIndex] = useState(0);
   const [amount, setAmount] = useState<QuickAmount>(defaultAmount);
@@ -58,9 +62,29 @@ export function AddFoodSheet({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The star shows the chosen food's own favorite state.
+  useEffect(() => {
+    setFavorite(Boolean(foods[Math.min(foodIndex, foods.length - 1)]?.favorite));
+  }, [foodIndex, foods]);
+
+  async function realFood(food: FoodItem): Promise<FoodItem> {
+    if (!prepare) {
+      return food;
+    }
+    preparedRef.current ??= await prepare(food);
+    return preparedRef.current;
+  }
+
+  /** Best effort: the food is already logged or saved, so a failure here doesn't undo that. */
   async function keepFavorite(food: FoodItem) {
-    if (favorite && !food.favorite) {
-      await addFavoriteFood(food.id, accessToken);
+    try {
+      if (favorite && !food.favorite) {
+        await addFavoriteFood(food.id, accessToken);
+      } else if (!favorite && food.favorite) {
+        await unfavoriteFood(food.id, accessToken);
+      }
+    } catch {
+      // Change it later in Foods.
     }
   }
 
@@ -71,8 +95,11 @@ export function AddFoodSheet({
     setSaving(true);
     setError(null);
     try {
-      const real = prepare ? await prepare(food) : food;
-      await logFood({ ...logPayload(real.id, logDate, amount), meal_slot: mealSlot } as Parameters<typeof logFood>[0], accessToken);
+      const real = await realFood(food);
+      if (!loggedRef.current) {
+        await logFood({ ...logPayload(real.id, logDate, amount), meal_slot: mealSlot } as Parameters<typeof logFood>[0], accessToken);
+        loggedRef.current = true;
+      }
       await keepFavorite(real);
       onAdded(real);
     } catch (addError) {
@@ -88,7 +115,7 @@ export function AddFoodSheet({
     setSaving(true);
     setError(null);
     try {
-      const real = prepare ? await prepare(food) : food;
+      const real = await realFood(food);
       if (!real.in_bank && !prepare) {
         await addFoodToBank(real.id, accessToken);
       }
