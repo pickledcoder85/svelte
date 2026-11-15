@@ -16,23 +16,33 @@ export type GoalPace =
   | 'build_muscle'
   | 'fuel_training';
 
+export type CalorieFloorChoice = 'recommended' | 'off';
+
 export type TargetPreviewOption = {
   goal_type: GoalType;
   goal_pace: GoalPace | null;
+  /** The calculation as is (the target with the floor off). */
   calorie_target: number;
   daily_adjustment: number;
-  limited_by_minimum: boolean;
   weekly_change_lbs: number;
   protein_target_g: number;
   carbs_target_g: number;
   fat_target_g: number;
+  /** Below the recommended minimum for the user's sex (1,200 women / 1,500 men). */
+  below_recommended_minimum: boolean;
+  /** The same pace with the recommended minimum applied. */
+  floor_calorie_target: number;
+  floor_weekly_change_lbs: number;
+  floor_protein_target_g: number;
+  floor_carbs_target_g: number;
+  floor_fat_target_g: number;
 };
 
 export type TargetPreview = {
   bmr_calories: number;
   maintenance_calories: number;
-  minimum_calorie_target: number;
-  /** True when even maintenance is under the floor, so every target is a small surplus. */
+  recommended_minimum_calories: number;
+  /** True when even maintenance is under the minimum, so with the floor every target is a surplus. */
   maintenance_below_minimum?: boolean;
   options: TargetPreviewOption[];
   /** Maintenance calories at each activity level, so the activity gauge updates instantly. */
@@ -93,6 +103,40 @@ export function findPreviewOption(
   const wanted = isPaceForGoal(goal, pace) ? pace : DEFAULT_PACE[goal];
   return preview.options.find((option) => option.goal_type === goal && option.goal_pace === wanted) ?? null;
 }
+
+/** The option as it would be saved: with the recommended minimum applied, or as calculated. */
+export function withCalorieFloor(
+  option: TargetPreviewOption | null,
+  floor: CalorieFloorChoice
+): TargetPreviewOption | null {
+  if (!option || floor === 'off') {
+    return option;
+  }
+  return {
+    ...option,
+    calorie_target: option.floor_calorie_target,
+    daily_adjustment: option.daily_adjustment + (option.floor_calorie_target - option.calorie_target),
+    weekly_change_lbs: option.floor_weekly_change_lbs,
+    protein_target_g: option.floor_protein_target_g,
+    carbs_target_g: option.floor_carbs_target_g,
+    fat_target_g: option.floor_fat_target_g
+  };
+}
+
+/**
+ * Whether choosing this pace should open the below-the-minimum warning: only when the floor is
+ * on and the user hasn't already answered it during this setup.
+ */
+export function needsFloorWarning(
+  option: TargetPreviewOption | null,
+  floor: CalorieFloorChoice,
+  alreadyAnswered: boolean
+): boolean {
+  return Boolean(option?.below_recommended_minimum) && floor === 'recommended' && !alreadyAnswered;
+}
+
+/** Below about 800 kcal a day is a very-low-calorie diet, normally medically supervised. */
+export const VERY_LOW_CALORIE_LIMIT = 800;
 
 function roundTo(value: number, step: number): number {
   return Math.round(value / step) * step;

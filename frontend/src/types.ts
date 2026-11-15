@@ -73,12 +73,16 @@ export interface FoodLogSummary {
   };
 }
 
+export type CalorieFloor = 'recommended' | 'off';
+
 export interface UserProfile {
   user_id: string;
   email: string;
   display_name: string | null;
   timezone: string;
   units: 'imperial' | 'metric';
+  /** 'recommended': targets stop at 1,200 (women) / 1,500 (men); 'off': opted out. */
+  calorie_floor?: CalorieFloor;
   user_created_at?: string | null;
   profile_created_at?: string | null;
   profile_updated_at?: string | null;
@@ -121,6 +125,7 @@ export interface UserProfileUpdate {
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
   nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
   allergy_notes?: string | null;
+  calorie_floor?: CalorieFloor;
 }
 
 export interface UserOnboardingRequest {
@@ -135,6 +140,7 @@ export interface UserOnboardingRequest {
   dietary_pattern: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
   nutrition_style: 'balanced' | 'keto' | 'mediterranean';
   allergy_notes?: string | null;
+  calorie_floor?: CalorieFloor;
   units?: 'imperial' | 'metric';
   timezone?: string;
 }

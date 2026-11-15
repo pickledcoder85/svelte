@@ -218,7 +218,7 @@ describe('api helpers', () => {
 
   it('previews targets with a POST that saves nothing', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ bmr_calories: 1887, maintenance_calories: 2736, minimum_calorie_target: 1200, options: [] }), {
+      new Response(JSON.stringify({ bmr_calories: 1887, maintenance_calories: 2736, recommended_minimum_calories: 1200, options: [] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       })

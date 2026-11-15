@@ -106,6 +106,7 @@ import {
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { CogIcon } from './src/components/CogIcon';
+import { ChoiceSheet } from './src/components/ChoiceSheet';
 import { ActivityGauge } from './src/components/ActivityGauge';
 import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-gauge';
 import appConfig from './app.json';
@@ -153,9 +154,14 @@ import {
   formatWeeklyRate,
   goalLabel,
   isPaceForGoal,
+  needsFloorWarning,
   paceLabel,
+  VERY_LOW_CALORIE_LIMIT,
+  withCalorieFloor,
+  type CalorieFloorChoice,
   type GoalPace,
-  type TargetPreview
+  type TargetPreview,
+  type TargetPreviewOption
 } from './src/lib/setup-goals';
 import { dismissLaunchSplash } from './src/lib/launch-splash-dom';
 import {
@@ -591,6 +597,13 @@ export default function App(): ReactElement {
   const [onboardingHeightCmDraft, setOnboardingHeightCmDraft] = useState('');
   // Which setup wheel picker is open, if any.
   const [bodyPicker, setBodyPicker] = useState<BodyField | null>(null);
+  // Recommended calorie minimum (1,200 women / 1,500 men), or "off" if the user opted out.
+  const [onboardingCalorieFloorDraft, setOnboardingCalorieFloorDraft] = useState<CalorieFloorChoice>('recommended');
+  // Goal/pace pairs whose below-the-minimum warning was answered "use the minimum" this setup.
+  const [floorAnsweredPaces, setFloorAnsweredPaces] = useState<string[]>([]);
+  const [floorMessage, setFloorMessage] = useState<string | null>(null);
+  const [floorWarning, setFloorWarning] = useState<{ pace: GoalPace; thenNext: boolean } | null>(null);
+  const [settingsFloorWarning, setSettingsFloorWarning] = useState(false);
   const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
   const [onboardingGoalPaceDraft, setOnboardingGoalPaceDraft] = useState<GoalPace>('recommended');
   const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('');
@@ -614,6 +627,7 @@ export default function App(): ReactElement {
       setProfileUnitsDraft(profile.units);
       setSettingsMessage(null);
       setSettingsError(null);
+      setFloorMessage(null);
     }
     setSection(nextSection);
     setIsShellMenuOpen(false);
@@ -835,6 +849,8 @@ export default function App(): ReactElement {
     setOnboardingNutritionStyleDraft('balanced');
     setOnboardingAllergySelectionsDraft(['none']);
     setOnboardingAllergyOtherDraft('');
+    setOnboardingCalorieFloorDraft('recommended');
+    setFloorAnsweredPaces([]);
     setOnboardingStep('welcome');
   }
 
@@ -885,6 +901,8 @@ export default function App(): ReactElement {
     const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
     setOnboardingAllergySelectionsDraft(parsedAllergies.selected);
     setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
+    setOnboardingCalorieFloorDraft(loadedProfile.calorie_floor ?? 'recommended');
+    setFloorAnsweredPaces([]);
     setOnboardingStep('welcome');
 
     const latestGoal = goals[0];
@@ -2268,7 +2286,8 @@ export default function App(): ReactElement {
           activity_level: onboardingActivityLevelDraft,
           dietary_pattern: onboardingDietaryPatternDraft,
           nutrition_style: onboardingNutritionStyleDraft,
-          allergy_notes
+          allergy_notes,
+          calorie_floor: onboardingCalorieFloorDraft
         },
         foodSessionToken
       );
@@ -2780,6 +2799,33 @@ export default function App(): ReactElement {
     }
   }
 
+  /** Settings > Calorie floor. Changing it recalculates the daily targets right away. */
+  async function applyCalorieFloor(choice: CalorieFloorChoice) {
+    if (!profile || !foodSessionToken || settingsSaving) {
+      return;
+    }
+    setSettingsSaving(true);
+    setFloorMessage(null);
+    try {
+      const updated = await updateProfile(
+        { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, calorie_floor: choice },
+        foodSessionToken
+      );
+      setProfile(updated);
+      setOnboardingCalorieFloorDraft(choice);
+      setProfileGoals(await fetchUserGoals(foodSessionToken));
+      setFloorMessage(
+        choice === 'off'
+          ? 'Calorie floor turned off. Your daily targets were recalculated.'
+          : 'Recommended minimum turned on. Your daily targets were recalculated.'
+      );
+    } catch (error) {
+      setFloorMessage(error instanceof Error ? error.message : 'Unable to change the calorie floor.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
   /** Settings: name, time zone, and units only. These never recalculate targets. */
   async function saveSettings() {
     if (!profile || !foodSessionToken || settingsSaving) {
@@ -2984,7 +3030,62 @@ export default function App(): ReactElement {
     return null;
   }
 
+  /** The selected pace as calculated (floor off), for the below-the-minimum checks. */
+  function calculatedPaceOption(pace: GoalPace = onboardingGoalPaceDraft): TargetPreviewOption | null {
+    return findPreviewOption(targetPreview, onboardingGoalTypeDraft, pace);
+  }
+
+  /** The pace as it will be saved, with the recommended minimum applied unless opted out. */
+  function effectivePaceOption(goal = onboardingGoalTypeDraft, pace: GoalPace = onboardingGoalPaceDraft) {
+    return withCalorieFloor(findPreviewOption(targetPreview, goal, pace), onboardingCalorieFloorDraft);
+  }
+
+  function floorAnswered(pace: GoalPace): boolean {
+    return floorAnsweredPaces.includes(`${onboardingGoalTypeDraft}|${pace}`);
+  }
+
+  function chooseOnboardingPace(pace: GoalPace) {
+    const calculated = calculatedPaceOption(pace);
+    // Tapping the chosen pace again reopens the warning, so the minimum can still be opted out of.
+    const reopen = pace === onboardingGoalPaceDraft && needsFloorWarning(calculated, onboardingCalorieFloorDraft, false);
+    if (reopen || needsFloorWarning(calculated, onboardingCalorieFloorDraft, floorAnswered(pace))) {
+      setFloorWarning({ pace, thenNext: false });
+      return;
+    }
+    setOnboardingGoalPaceDraft(pace);
+  }
+
+  function answerFloorWarning(choice: CalorieFloorChoice) {
+    const pending = floorWarning;
+    setFloorWarning(null);
+    if (!pending) {
+      return;
+    }
+    if (choice === 'recommended') {
+      const key = `${onboardingGoalTypeDraft}|${pending.pace}`;
+      setFloorAnsweredPaces((current) => (current.includes(key) ? current : [...current, key]));
+    }
+    setOnboardingCalorieFloorDraft(choice);
+    setOnboardingGoalPaceDraft(pending.pace);
+    if (pending.thenNext) {
+      advanceOnboardingStep({ skipFloorCheck: true });
+    }
+  }
+
   function goToNextOnboardingStep() {
+    advanceOnboardingStep({ skipFloorCheck: false });
+  }
+
+  function advanceOnboardingStep({ skipFloorCheck }: { skipFloorCheck: boolean }) {
+    // A pace below the recommended minimum asks before moving on (unless answered already).
+    if (
+      onboardingStep === 'pace' &&
+      !skipFloorCheck &&
+      needsFloorWarning(calculatedPaceOption(), onboardingCalorieFloorDraft, floorAnswered(onboardingGoalPaceDraft))
+    ) {
+      setFloorWarning({ pace: onboardingGoalPaceDraft, thenNext: true });
+      return;
+    }
     const error = validateOnboardingStep(onboardingStep);
     if (error) {
       setOnboardingError(error);
@@ -3636,6 +3737,46 @@ export default function App(): ReactElement {
                   </View>
                 ) : null}
 
+              {floorWarning ? (
+                (() => {
+                  const pending = findPreviewOption(targetPreview, onboardingGoalTypeDraft, floorWarning.pace);
+                  const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
+                  const calculatedCalories = Math.round(pending?.calorie_target ?? 0);
+                  const who = onboardingSexDraft === 'male' ? 'men' : 'women';
+                  return (
+                    <ChoiceSheet
+                      title="Below the recommended minimum"
+                      primaryLabel={`Use ${minimum.toLocaleString('en-US')} kcal (recommended)`}
+                      secondaryLabel={`Opt out and keep ${calculatedCalories.toLocaleString('en-US')} kcal`}
+                      onPrimary={() => answerFloorWarning('recommended')}
+                      onSecondary={() => answerFloorWarning('off')}
+                      onDismiss={() => setFloorWarning(null)}
+                    >
+                      <Text style={styles.floorWarningText}>
+                        {onboardingGoalTypeDraft === 'maintain' ? 'Maintaining your weight works out to' : 'This pace works out to'}{' '}
+                        <Text style={styles.floorWarningStrong}>{calculatedCalories.toLocaleString('en-US')} kcal a day</Text>.
+                        Dietitians generally recommend at least{' '}
+                        <Text style={styles.floorWarningStrong}>{minimum.toLocaleString('en-US')} kcal a day for {who}</Text> unless a
+                        doctor is supervising.
+                      </Text>
+                      <Text style={styles.floorWarningText}>
+                        Eating less makes it hard to get enough protein, vitamins, and minerals, speeds up muscle loss, and often
+                        brings fatigue and rebound weight gain.
+                      </Text>
+                      {calculatedCalories < VERY_LOW_CALORIE_LIMIT ? (
+                        <Text style={styles.floorWarningText}>
+                          Under {VERY_LOW_CALORIE_LIMIT} kcal a day is a very-low-calorie diet, which is normally done only with
+                          medical supervision.
+                        </Text>
+                      ) : null}
+                      <Text style={styles.floorWarningHint}>
+                        Opting out turns off the recommended minimum. You can turn it back on in Settings.
+                      </Text>
+                    </ChoiceSheet>
+                  );
+                })()
+              ) : null}
+
               {bodyPicker ? (
                 <PickerSheet
                   key={`${bodyPicker}-${onboardingUnitsDraft}`}
@@ -3817,7 +3958,7 @@ export default function App(): ReactElement {
                   <View style={styles.setupGoalGrid}>
                     {GOAL_OPTIONS.map((option) => {
                       const active = onboardingGoalTypeDraft === option.id;
-                      const preview = findPreviewOption(targetPreview, option.id, DEFAULT_PACE[option.id]);
+                      const preview = effectivePaceOption(option.id, DEFAULT_PACE[option.id]);
                       const image =
                         option.id === 'lose' ? mascotRunImage : option.id === 'gain' ? mascotWeightsImage : mascotDefaultImage;
                       return (
@@ -3855,22 +3996,24 @@ export default function App(): ReactElement {
                   <View style={styles.setupOptionStack}>
                     {PACE_OPTIONS[onboardingGoalTypeDraft].map((option) => {
                       const active = onboardingGoalPaceDraft === option.id;
-                      const preview = findPreviewOption(targetPreview, onboardingGoalTypeDraft, option.id);
+                      const calculated = calculatedPaceOption(option.id);
+                      const preview = effectivePaceOption(onboardingGoalTypeDraft, option.id);
+                      const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
                       const rate =
                         preview && onboardingGoalTypeDraft !== 'maintain'
                           ? formatWeeklyRate(preview.weekly_change_lbs, onboardingUnitsDraft)
                           : '';
-                      // The 1,200 kcal floor can turn a loss pace into a small surplus.
+                      // The recommended minimum can turn a loss pace into a small surplus.
                       const wrongDirection =
                         preview !== null &&
                         ((onboardingGoalTypeDraft === 'lose' && preview.weekly_change_lbs >= 0) ||
                           (onboardingGoalTypeDraft === 'gain' && preview.weekly_change_lbs <= 0));
-                      const steady = findPreviewOption(targetPreview, 'maintain', 'steady');
+                      const steady = effectivePaceOption('maintain', 'steady');
                       return (
                         <Pressable
                           key={option.id}
                           style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
-                          onPress={() => setOnboardingGoalPaceDraft(option.id)}
+                          onPress={() => chooseOnboardingPace(option.id)}
                           accessibilityRole="radio"
                           accessibilityState={{ checked: active }}
                         >
@@ -3896,13 +4039,15 @@ export default function App(): ReactElement {
                           {option.note ? <Text style={styles.setupGoalNote}>{option.note}</Text> : null}
                           {wrongDirection ? (
                             <Text style={styles.paceRowWarning}>
-                              Relish never sets less than {formatCalories(targetPreview?.minimum_calorie_target ?? 1200)}. That is
-                              above what you burn, so this pace will not lower your weight. Talk to a doctor or dietitian about a
+                              The recommended minimum of {formatCalories(minimum)} is above what you burn, so this pace will not
+                              lower your weight. Tap this pace to opt out of the minimum, or talk to a doctor or dietitian about a
                               plan.
                             </Text>
-                          ) : preview?.limited_by_minimum ? (
+                          ) : calculated?.below_recommended_minimum ? (
                             <Text style={styles.paceRowWarning}>
-                              Limited to {formatCalories(targetPreview?.minimum_calorie_target ?? 1200)}, so progress is slower
+                              {onboardingCalorieFloorDraft === 'off'
+                                ? `Below the ${Math.round(minimum).toLocaleString('en-US')} kcal recommended minimum (you opted out)`
+                                : `Calculated ${Math.round(calculated.calorie_target).toLocaleString('en-US')} kcal is below the ${Math.round(minimum).toLocaleString('en-US')} kcal recommended minimum, so it is set to the minimum`}
                             </Text>
                           ) : null}
                         </Pressable>
@@ -3922,7 +4067,7 @@ export default function App(): ReactElement {
                       {(() => {
                         const goalLbs = onboardingTargetWeightLbs();
                         const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
-                        const preview = findPreviewOption(targetPreview, onboardingGoalTypeDraft, onboardingGoalPaceDraft);
+                        const preview = effectivePaceOption();
                         if (goalLbs === null || !current || !preview) {
                           return null;
                         }
@@ -4112,6 +4257,18 @@ export default function App(): ReactElement {
                             ? ` · goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
                             : ''}
                         </Text>
+                        {effectivePaceOption() ? (
+                          <Text style={styles.setupReviewValue}>{formatCalories(effectivePaceOption()?.calorie_target ?? 0)}</Text>
+                        ) : null}
+                        {onboardingCalorieFloorDraft === 'off' ? (
+                          <Text style={styles.paceRowWarning}>
+                            {calculatedPaceOption()?.below_recommended_minimum
+                              ? 'Below the recommended minimum (calorie floor off)'
+                              : 'Calorie floor off: future targets can go below the recommended minimum'}
+                          </Text>
+                        ) : calculatedPaceOption()?.below_recommended_minimum ? (
+                          <Text style={styles.paceRowWarning}>Set to the recommended minimum</Text>
+                        ) : null}
                       </View>
                       <View style={styles.setupReviewTile}>
                         <Text style={styles.setupReviewLabel}>Lifestyle</Text>
@@ -5998,6 +6155,74 @@ export default function App(): ReactElement {
                 <Text style={styles.primaryButtonLabel}>{settingsSaving ? 'Saving…' : 'Save settings'}</Text>
               </Pressable>
             </View>
+
+            {profile?.setup_complete ? (
+              <View style={styles.panel}>
+                <Text style={styles.panelEyebrow}>Settings</Text>
+                <Text style={styles.panelTitle}>Nutrition</Text>
+                {floorMessage ? <Text style={styles.settingsMessage}>{floorMessage}</Text> : null}
+                <FieldGroup label="Calorie floor">
+                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Calorie floor">
+                    {(
+                      [
+                        { id: 'recommended' as const, label: 'Recommended' },
+                        { id: 'off' as const, label: 'Off' }
+                      ]
+                    ).map((option) => {
+                      const active = (profile.calorie_floor ?? 'recommended') === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                          onPress={() => {
+                            if (active || settingsSaving) {
+                              return;
+                            }
+                            if (option.id === 'off') {
+                              setSettingsFloorWarning(true);
+                            } else {
+                              void applyCalorieFloor('recommended');
+                            }
+                          }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                        >
+                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.settingsHint}>
+                    {(profile.calorie_floor ?? 'recommended') === 'off'
+                      ? 'Off: your daily target is used as calculated, even below the recommended minimum.'
+                      : `Your daily target never goes below ${profile.sex === 'male' ? '1,500' : '1,200'} kcal, the minimum dietitians recommend for ${profile.sex === 'male' ? 'men' : 'women'}.`}
+                  </Text>
+                </FieldGroup>
+              </View>
+            ) : null}
+
+            {settingsFloorWarning ? (
+              <ChoiceSheet
+                title="Turn off the calorie floor?"
+                primaryLabel="Keep the recommended minimum"
+                secondaryLabel="Turn it off"
+                onPrimary={() => setSettingsFloorWarning(false)}
+                onSecondary={() => {
+                  setSettingsFloorWarning(false);
+                  void applyCalorieFloor('off');
+                }}
+                onDismiss={() => setSettingsFloorWarning(false)}
+              >
+                <Text style={styles.floorWarningText}>
+                  Dietitians generally recommend at least {profile?.sex === 'male' ? '1,500 kcal a day for men' : '1,200 kcal a day for women'}{' '}
+                  unless a doctor is supervising. With the floor off, your target can go below that.
+                </Text>
+                <Text style={styles.floorWarningText}>
+                  Eating less makes it hard to get enough protein, vitamins, and minerals, speeds up muscle loss, and often brings
+                  fatigue and rebound weight gain. Proceed with care.
+                </Text>
+              </ChoiceSheet>
+            ) : null}
 
             <View style={styles.panel}>
               <Text style={styles.panelEyebrow}>Start over</Text>
@@ -8635,6 +8860,19 @@ const styles = StyleSheet.create({
   settingsError: {
     color: tc.fg_b42318,
     fontSize: 14
+  },
+  floorWarningText: {
+    color: tc.fg_132536,
+    fontSize: 15,
+    lineHeight: 21
+  },
+  floorWarningStrong: {
+    fontWeight: '800'
+  },
+  floorWarningHint: {
+    color: tc.fg_5c6d80,
+    fontSize: 13,
+    lineHeight: 18
   },
   resetConfirmButton: {
     borderColor: tc.line_f2c8be,
