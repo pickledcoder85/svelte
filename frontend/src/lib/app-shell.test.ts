@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   APP_TABS,
-  QUICK_ACTIONS,
   subTabsForSection,
   tabForSection,
   getAppSectionMeta,
@@ -36,7 +35,7 @@ describe('app shell metadata', () => {
     expect(subTabsForSection('profile')).toEqual([]);
   });
 
-  it('offers the quick actions from the plus button', () => {
-    expect(QUICK_ACTIONS.map((action) => action.label)).toEqual(['Add food', 'Scan', 'Add workout', 'Weigh in']);
+  it('names the log tab Log', () => {
+    expect(APP_TABS.map((tab) => tab.label)).toEqual(['Today', 'Log', 'Trends', 'Plan']);
   });
 });

@@ -92,7 +92,7 @@ import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { groupByMeal } from './src/lib/meal-slots';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
-import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
+import { APP_TABS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
 import { ActionSheet } from './src/components/ActionSheet';
 import { SubTabs } from './src/components/SubTabs';
 import { TabBar } from './src/components/TabBar';
@@ -505,7 +505,7 @@ export default function App(): ReactElement {
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
-  const [openSheet, setOpenSheet] = useState<'quick' | 'account' | 'add-food' | 'food-search' | 'quick-calories' | null>(null);
+  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'food-search' | 'quick-calories' | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
@@ -6981,25 +6981,19 @@ export default function App(): ReactElement {
         ) : null}
       </ScrollView>
 
-      <TabBar activeTab={tabForSection(section)} onSelect={openTab} onPlus={() => setOpenSheet('quick')} />
-
-      {openSheet === 'quick' ? (
-        <ActionSheet
-          actions={QUICK_ACTIONS.map((action) => ({
-            id: action.id,
-            label: action.label,
-            detail: action.detail,
-            icon: action.icon,
-            onPress: () => {
-              if (action.id === 'weigh-in') {
-                setScrollToWeighIn(true); // land on the weigh-in card, not the chart
-              }
-              handleSectionChange(action.section);
+      <TabBar
+        activeTab={tabForSection(section)}
+        onSelect={openTab}
+        onCamera={() => {
+          if (foodSessionToken) {
+            // From another tab, the camera logs to today; on Today, to the day showing.
+            if (section !== 'dashboard') {
+              setSelectedHomeDate(todayKey);
             }
-          }))}
-          onClose={() => setOpenSheet(null)}
-        />
-      ) : null}
+            setQuickScanOpen(true);
+          }
+        }}
+      />
 
       {(() => {
         const entry = workoutDetailId ? exerciseEntries.find((item) => item.id === workoutDetailId) : undefined;
@@ -7017,6 +7011,14 @@ export default function App(): ReactElement {
           logDate={selectedHomeDate}
           dayName={homeDayName}
           onClose={() => setQuickScanOpen(false)}
+          onSearch={() => {
+            setQuickScanOpen(false);
+            setOpenSheet('food-search');
+          }}
+          onQuickCalories={() => {
+            setQuickScanOpen(false);
+            setOpenSheet('quick-calories');
+          }}
           onAdded={() => {
             setQuickScanOpen(false);
             void refreshHomeFoodLog();
