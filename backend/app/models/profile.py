@@ -33,7 +33,7 @@ class UserProfile(BaseModel):
     target_weight_lbs: float | None = None
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
-    nutrition_style: Literal["balanced", "keto", "mediterranean"] | None = None
+    nutrition_style: Literal["balanced", "high_protein", "low_carb", "keto", "mediterranean", "paleo"] | None = None
     allergy_notes: str | None = None
     bmr_calories: int | None = None
     tdee_calories: int | None = None
@@ -56,7 +56,7 @@ class UserOnboardingRequest(BaseModel):
     target_weight_lbs: float | None = Field(default=None, gt=0)
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"]
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
-    nutrition_style: Literal["balanced", "keto", "mediterranean"] = "balanced"
+    nutrition_style: Literal["balanced", "high_protein", "low_carb", "keto", "mediterranean", "paleo"] = "balanced"
     allergy_notes: str | None = None
     calorie_floor: Literal["recommended", "off"] = "recommended"
     # The name to greet the user by; blank keeps the signed-in name.
@@ -98,7 +98,7 @@ class UserProfileUpdateRequest(BaseModel):
     target_weight_lbs: float | None = Field(default=None, gt=0)
     activity_level: Literal["sedentary", "light", "moderate", "very_active", "extra_active"] | None = None
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
-    nutrition_style: Literal["balanced", "keto", "mediterranean"] | None = None
+    nutrition_style: Literal["balanced", "high_protein", "low_carb", "keto", "mediterranean", "paleo"] | None = None
     allergy_notes: str | None = None
     calorie_floor: Literal["recommended", "off"] | None = None
     # A preference: changing it never recalculates targets.

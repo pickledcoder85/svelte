@@ -99,7 +99,7 @@ export interface UserProfile {
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
-  nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
+  nutrition_style?: 'balanced' | 'high_protein' | 'low_carb' | 'keto' | 'mediterranean' | 'paleo' | null;
   allergy_notes?: string | null;
   bmr_calories?: number | null;
   tdee_calories?: number | null;
@@ -125,7 +125,7 @@ export interface UserProfileUpdate {
   target_weight_lbs?: number | null;
   activity_level?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active' | null;
   dietary_pattern?: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore' | null;
-  nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
+  nutrition_style?: 'balanced' | 'high_protein' | 'low_carb' | 'keto' | 'mediterranean' | 'paleo' | null;
   allergy_notes?: string | null;
   calorie_floor?: CalorieFloor;
   workout_calories_share?: 0 | 50 | 75 | 100;
@@ -141,7 +141,7 @@ export interface UserOnboardingRequest {
   target_weight_lbs?: number | null;
   activity_level: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
   dietary_pattern: 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
-  nutrition_style: 'balanced' | 'keto' | 'mediterranean';
+  nutrition_style: 'balanced' | 'high_protein' | 'low_carb' | 'keto' | 'mediterranean' | 'paleo';
   allergy_notes?: string | null;
   calorie_floor?: CalorieFloor;
   display_name?: string | null;

@@ -22,7 +22,7 @@ def is_valid_goal_pace(goal_type: str, goal_pace: str | None) -> bool:
     """A pace/focus must belong to its goal; None means the goal's default."""
     return goal_pace is None or goal_pace in GOAL_PACES.get(goal_type, ())
 DietaryPattern = Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
-NutritionStyle = Literal["balanced", "keto", "mediterranean"]
+NutritionStyle = Literal["balanced", "high_protein", "low_carb", "keto", "mediterranean", "paleo"]
 TargetSource = Literal["system_default", "user_custom", "agent_adjusted", "admin_override"]
 
 # v2: sex-based recommended minimum (1,200 / 1,500) that users can opt out of.
