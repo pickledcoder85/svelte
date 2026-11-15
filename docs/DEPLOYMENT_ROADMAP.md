@@ -124,6 +124,7 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ## Feature backlog
 
+- Cheapest-first scanning (with the Scan redesign): 1) a barcode in frame is decoded on the phone and matched bank → Open Food Facts → USDA, no AI; 2) without a barcode, a low-detail "what is this?" vision call (name and brand only) is matched against the user's bank by name; 3) only a new food gets the full label or nutrition read (or USDA for whole foods); 4) identical images are cached for retries. The result sheet shows "✓ In your food bank" with Add to today as the main action for known foods, or Save to bank and Add to today for new ones.
 - Guided walkthrough after setup: highlight the real buttons one at a time and walk through the key features (scan a food, add food to today's diary, add a workout, create a meal plan, create a recipe), skippable and replayable from Settings.
 - Nutrition style shapes the macro split (like the Maintain focuses): for example High protein raises protein, Low carb and Keto lower carbs within their ranges.
 - Adaptive food list: rank the food bank by how often and how recently each food is logged, so usual foods sit at the top when adding food. The count is already tracked silently (`user_food_bank.use_count`, migration 005); ranking ships with the new Food screen.
