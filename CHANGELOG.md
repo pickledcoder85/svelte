@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Three more nutrition styles in setup and Profile: High protein 🍳, Low carb 🥬 (about 50–130 g carbs a day), and Paleo 🍖, alongside Balanced, Keto (now described as under about 50 g carbs a day), and Mediterranean. Styles don't change targets yet.
 - Food foundation (backend, used by the next Food screen): every food keeps its label serving as printed ("2 tbsp (32 g)") plus, when known, the weight of one serving (grams, or ml for drinks) and handy portions for whole foods ("1 cup" = 123 g), so any food can be logged or planned by weight (migration `005_food_bank.sql`). Weights come from the label text, the label reader (which now also reads net weight and servings per container, so a single-serve "1 packet" uses its net weight), Open Food Facts, and USDA; when none gives one, the food works by servings until you weigh it (`PUT /api/nutrition/foods/{id}/serving-weight`). Each user has a food bank of foods they scanned, saved, or logged (`GET/POST/DELETE /api/nutrition/bank`), with a silent use count for ranking usual foods first later. Search lists your bank first, then other saved foods, then USDA every time (before, USDA was only searched when nothing local matched). `POST /api/nutrition/log-food` logs by servings or grams and works out calories on the server.
 
 ### Fixed

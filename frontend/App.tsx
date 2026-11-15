@@ -281,7 +281,7 @@ const exercisePresets: Array<{
   }
 ];
 type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
-type NutritionStyle = 'balanced' | 'keto' | 'mediterranean';
+type NutritionStyle = 'balanced' | 'high_protein' | 'low_carb' | 'keto' | 'mediterranean' | 'paleo';
 // 'welcome' is the intro card before the numbered steps; it is not in onboardingSteps.
 type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
 
@@ -319,13 +319,11 @@ const nutritionStyleOptions: Array<{
   subtitle: string;
 }> = [
   { id: 'balanced', icon: '🍽️', title: 'Balanced', subtitle: 'Flexible mixed approach' },
-  { id: 'keto', icon: '🥑', title: 'Keto', subtitle: 'Very low carb, higher fat' },
-  {
-    id: 'mediterranean',
-    icon: '🫒',
-    title: 'Mediterranean',
-    subtitle: 'Whole foods, olive oil, fish, plants'
-  }
+  { id: 'high_protein', icon: '🍳', title: 'High protein', subtitle: 'Protein at every meal, for strength and keeping muscle' },
+  { id: 'low_carb', icon: '🥬', title: 'Low carb', subtitle: 'Fewer carbs: about 50–130 g a day' },
+  { id: 'keto', icon: '🥑', title: 'Keto', subtitle: 'Very low carb: under about 50 g a day, higher fat' },
+  { id: 'mediterranean', icon: '🫒', title: 'Mediterranean', subtitle: 'Whole foods, olive oil, fish, plants' },
+  { id: 'paleo', icon: '🍖', title: 'Paleo', subtitle: 'Meat, fish, vegetables, fruit, and nuts; no grains or dairy' }
 ];
 
 const allergyOptions: Array<{

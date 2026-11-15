@@ -234,3 +234,12 @@ async def test_onboarding_saves_the_name_from_setup(client):
     other = await _headers(client, "blank@example.com")
     kept = await client.post("/api/profile/onboarding", headers=other, json={**ONBOARDING_BODY, "display_name": " "})
     assert kept.json()["display_name"] == "Setup"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("style", ["high_protein", "low_carb", "paleo"])
+async def test_onboarding_accepts_the_newer_nutrition_styles(client, style):
+    headers = await _headers(client, f"{style}@example.com")
+    response = await client.post("/api/profile/onboarding", headers=headers, json={**ONBOARDING_BODY, "nutrition_style": style})
+    assert response.status_code == 200
+    assert response.json()["nutrition_style"] == style
