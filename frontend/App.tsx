@@ -84,6 +84,8 @@ import {
 } from './src/lib/daily-home';
 import { buildCalorieBudget } from './src/lib/calorie-budget';
 import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
+import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
+import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
 import { ActionSheet } from './src/components/ActionSheet';
@@ -499,6 +501,7 @@ export default function App(): ReactElement {
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
   const [openSheet, setOpenSheet] = useState<'quick' | 'account' | null>(null);
+  const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const mainScrollRef = useRef<ScrollView | null>(null);
   // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
   const weighInY = useRef(0);
@@ -5822,7 +5825,12 @@ export default function App(): ReactElement {
                     const fromPlan = plannedWorkoutSessions.some((session) => session.completed_exercise_entry_id === entry.id);
                     return (
                       <View key={entry.id} style={styles.logEntryCard}>
-                        <View style={styles.foodRow}>
+                        <Pressable
+                          style={styles.foodRow}
+                          onPress={() => setWorkoutDetailId(entry.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${entry.title}: show how its calories are counted`}
+                        >
                           <View style={styles.foodRowCopy}>
                             <Text style={styles.listTitle}>{entry.title}</Text>
                             <Text style={styles.listCaption}>
@@ -5830,8 +5838,8 @@ export default function App(): ReactElement {
                               {workoutSourceLabel(entry.source) ? ` · ${workoutSourceLabel(entry.source)}` : ''}
                             </Text>
                           </View>
-                          <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
-                        </View>
+                          <Text style={styles.listMetric}>{entry.calories_burned} kcal ›</Text>
+                        </Pressable>
                         {editing ? (
                           <View style={styles.entryEditRow}>
                             <TextInput
@@ -6914,6 +6922,16 @@ export default function App(): ReactElement {
           onClose={() => setOpenSheet(null)}
         />
       ) : null}
+
+      {(() => {
+        const entry = workoutDetailId ? exerciseEntries.find((item) => item.id === workoutDetailId) : undefined;
+        return entry ? (
+          <WorkoutDetailSheet
+            detail={buildWorkoutDetail(entry, profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE)}
+            onClose={() => setWorkoutDetailId(null)}
+          />
+        ) : null;
+      })()}
 
       {openSheet === 'account' ? (
         <ActionSheet
