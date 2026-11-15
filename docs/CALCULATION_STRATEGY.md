@@ -281,6 +281,13 @@ Setup order (2026-11-14): **About you → Activity → Your goal → How fast? /
 - Invalid goal/pace pairs (for example `lose` with `lean`) are rejected with `422`.
 - When even maintenance is below the recommended minimum and the floor is on, every target is a small surplus. The preview sets `maintenance_below_minimum`, and How fast? says the pace will not lower weight instead of showing a loss rate.
 
+### Workout calories (daily allowance)
+
+- The saved target covers diet and everyday movement (the activity level). Workouts are logged separately and add to that day's allowance: allowance = target + share × the day's logged workout calories, rounded to the nearest 10 (`dailyAllowance` in `frontend/src/lib/daily-home.ts`). Logged workouts stay exact.
+- The share is a profile preference, `workout_calories_share`: 100, 75 (default), 50, or 0 (off). It never changes the saved target.
+- Why 75%: watch, machine, and formula estimates tend to run high, and a workout raises the day's total burn by less than the workout itself because people move less for the rest of the day (MacroFactor's example: 400 extra exercise kcal raise total expenditure by about 250–300). MacroFactor itself adds back nothing and instead adapts targets from logged intake and the weight trend; an adaptive expenditure estimate is a possible later step for Relish.
+- Only logged (completed) workouts count; planned workouts do not.
+
 ### Rounding (calculation_version v3)
 
 - BMR, maintenance, and the daily calorie target are rounded to the nearest 10 kcal. Mifflin-St Jeor is typically within about ±10% for an individual, so single calories would be false precision.

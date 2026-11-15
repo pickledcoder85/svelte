@@ -83,6 +83,8 @@ export interface UserProfile {
   units: 'imperial' | 'metric';
   /** 'recommended': targets stop at 1,200 (women) / 1,500 (men); 'off': opted out. */
   calorie_floor?: CalorieFloor;
+  /** Percent of logged workout calories added to the day's allowance (0 = off). */
+  workout_calories_share?: 0 | 50 | 75 | 100;
   user_created_at?: string | null;
   profile_created_at?: string | null;
   profile_updated_at?: string | null;
@@ -126,6 +128,7 @@ export interface UserProfileUpdate {
   nutrition_style?: 'balanced' | 'keto' | 'mediterranean' | null;
   allergy_notes?: string | null;
   calorie_floor?: CalorieFloor;
+  workout_calories_share?: 0 | 50 | 75 | 100;
 }
 
 export interface UserOnboardingRequest {
