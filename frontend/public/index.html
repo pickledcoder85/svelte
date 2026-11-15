@@ -52,6 +52,10 @@
           font-size: max(16px, 1em) !important;
         }
       }
+      /* Setup wheel pickers (src/components/WheelPicker.tsx) scroll without a visible bar. */
+      .relish-wheel::-webkit-scrollbar {
+        display: none;
+      }
       .launch-splash {
         position: fixed;
         inset: 0;
