@@ -2,14 +2,15 @@
  * One layout for every setup field: a title, a fixed gap, then the control. Use FieldGroup
  * around any control (buttons, a picker field) so titles and gaps always match.
  */
+import { tc } from '../theme/palette';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export const FIELD_HEIGHT = 50;
 /** Shared look for field boxes and same-row buttons (the Sex choice). */
 export const FIELD_BOX = {
-  backgroundColor: '#f8fafc',
-  borderColor: '#cbd5e1',
+  backgroundColor: tc.bg_f8fafc,
+  borderColor: tc.line_cbd5e1,
   borderRadius: 18,
   borderWidth: 1
 } as const;
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
     gap: 6
   },
   label: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
@@ -73,15 +74,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16
   },
   boxPressed: {
-    backgroundColor: '#eef2f6'
+    backgroundColor: tc.bg_eef2f6
   },
   value: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '600'
   },
   placeholder: {
-    color: '#9aa6b8',
+    color: tc.fg_9aa6b8,
     fontWeight: '400'
   }
 });

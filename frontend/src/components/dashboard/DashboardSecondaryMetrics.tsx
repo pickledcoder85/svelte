@@ -1,3 +1,4 @@
+import { tc } from '../../theme/palette';
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -55,15 +56,15 @@ const styles = StyleSheet.create({
     gap: 12
   },
   summaryCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 16,
     gap: 12
   },
   eyebrow: {
-    color: '#0f766e',
+    color: tc.fg_0f766e,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1
@@ -76,20 +77,20 @@ const styles = StyleSheet.create({
   metricCell: {
     flexGrow: 1,
     minWidth: 96,
-    backgroundColor: '#f7fafc',
+    backgroundColor: tc.bg_f7fafc,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 12,
     gap: 4
   },
   metricLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   metricValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '800'
   },
@@ -97,12 +98,12 @@ const styles = StyleSheet.create({
     gap: 8
   },
   missingItem: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 13,
     lineHeight: 18
   },
   quietText: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 13,
     lineHeight: 18
   }

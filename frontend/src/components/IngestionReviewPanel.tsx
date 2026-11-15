@@ -1,3 +1,4 @@
+import { tc } from '../theme/palette';
 import { pickPhotoFromCamera, prepareScanPhoto, type PreparedPhoto } from '../lib/web-photo';
 import { addDaysToDateKey, localDateKey, localDateKeyForTimestamp } from '../lib/dates';
 import type { Dispatch, SetStateAction } from 'react';
@@ -626,7 +627,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         <Text style={styles.cardLabel}>Recent scans</Text>
         {queueLoading ? (
           <View style={styles.loadingState}>
-            <ActivityIndicator size="small" color="#17324d" />
+            <ActivityIndicator size="small" color={tc.fg_17324d} />
             <Text style={styles.detailText}>Loading recent scans...</Text>
           </View>
         ) : pendingCount === 0 ? (
@@ -980,9 +981,9 @@ function updateDraft(
 
 function toneColor(tone: SyncTone): string {
   if (tone === 'live') {
-    return '#0f766e';
+    return tc.line_0f766e;
   }
-  return '#1d4ed8';
+  return tc.line_1d4ed8;
 }
 
 function groupOutputsByDate(outputs: IngestionOutput[]): Array<{
@@ -1086,27 +1087,27 @@ function LabeledInput({
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: '#fffdf8',
+    backgroundColor: tc.bg_fffdf8,
     borderRadius: 24,
     padding: 16,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#e6dccc'
+    borderColor: tc.line_e6dccc
   },
   eyebrow: {
-    color: '#7a4e16',
+    color: tc.fg_7a4e16,
     letterSpacing: 1.2,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   title: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 24,
     fontWeight: '800'
   },
   detail: {
-    color: '#5c6d80',
+    color: tc.fg_5c6d80,
     fontSize: 14,
     lineHeight: 20
   },
@@ -1115,19 +1116,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
     gap: 4,
-    backgroundColor: '#fffaf0'
+    backgroundColor: tc.bg_fffaf0
   },
   statusLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontWeight: '800'
   },
   statusDetail: {
-    color: '#5c6d80',
+    color: tc.fg_5c6d80,
     fontSize: 13,
     lineHeight: 18
   },
   errorText: {
-    color: '#b42318',
+    color: tc.fg_b42318,
     fontSize: 13,
     lineHeight: 18
   },
@@ -1139,30 +1140,30 @@ const styles = StyleSheet.create({
   metricTile: {
     flexGrow: 1,
     flexBasis: 100,
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 16,
     padding: 12,
     gap: 4
   },
   metricLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   metricValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 18,
     fontWeight: '800'
   },
   card: {
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 20,
     padding: 14,
     gap: 10
   },
   cardLabel: {
-    color: '#7a4e16',
+    color: tc.fg_7a4e16,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
@@ -1173,10 +1174,10 @@ const styles = StyleSheet.create({
   },
   groupCard: {
     gap: 8,
-    backgroundColor: '#fffaf0',
+    backgroundColor: tc.bg_fffaf0,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#e4dccf',
+    borderColor: tc.line_e4dccf,
     padding: 10
   },
   groupHeader: {
@@ -1188,8 +1189,8 @@ const styles = StyleSheet.create({
   listRow: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
+    borderColor: tc.line_e2e8f0,
+    backgroundColor: tc.bg_ffffff,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1197,24 +1198,24 @@ const styles = StyleSheet.create({
     gap: 12
   },
   listRowActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#eef3f8'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_eef3f8
   },
   listCopy: {
     flex: 1,
     gap: 4
   },
   listTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 15,
     fontWeight: '800'
   },
   listCaption: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12
   },
   listMetric: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase'
@@ -1229,7 +1230,7 @@ const styles = StyleSheet.create({
     gap: 6
   },
   emptyTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 15,
     fontWeight: '800'
   },
@@ -1247,23 +1248,23 @@ const styles = StyleSheet.create({
     gap: 4
   },
   detailTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 18,
     fontWeight: '800'
   },
   detailSubtitle: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 18
   },
   stateChip: {
     borderRadius: 999,
-    backgroundColor: '#17324d',
+    backgroundColor: tc.bg_17324d,
     paddingHorizontal: 10,
     paddingVertical: 6
   },
   stateChipLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase'
@@ -1272,25 +1273,25 @@ const styles = StyleSheet.create({
     gap: 6
   },
   detailBlockLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   detailText: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 13,
     lineHeight: 18
   },
   codeBlock: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontFamily: 'Courier',
     fontSize: 12,
     lineHeight: 18,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: tc.line_e2e8f0,
     padding: 12
   },
   inputBlock: {
@@ -1298,25 +1299,25 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top'
   },
   uploadSummaryCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#d8e1eb',
+    borderColor: tc.line_d8e1eb,
     padding: 12,
     gap: 4
   },
   uploadSummaryTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 13,
     fontWeight: '800'
   },
   uploadSummaryDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 18
   },
   detailNote: {
-    color: '#7a4e16',
+    color: tc.fg_7a4e16,
     fontSize: 12,
     lineHeight: 18
   },
@@ -1339,28 +1340,28 @@ const styles = StyleSheet.create({
     opacity: 0.45
   },
   acceptButton: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
   },
   rejectButton: {
-    backgroundColor: '#fff4f0',
-    borderColor: '#f2c8be'
+    backgroundColor: tc.bg_fff4f0,
+    borderColor: tc.line_f2c8be
   },
   saveButton: {
-    backgroundColor: '#0f766e',
-    borderColor: '#0f766e'
+    backgroundColor: tc.bg_0f766e,
+    borderColor: tc.line_0f766e
   },
   secondaryButton: {
-    backgroundColor: '#ffffff',
-    borderColor: '#d7dee7'
+    backgroundColor: tc.bg_ffffff,
+    borderColor: tc.line_d7dee7
   },
   actionButtonLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontSize: 13,
     fontWeight: '800'
   },
   secondaryButtonLabel: {
-    color: '#17324d'
+    color: tc.fg_17324d
   },
   cameraModal: {
     flex: 1,
@@ -1422,7 +1423,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   rejectButtonLabel: {
-    color: '#8a3328'
+    color: tc.fg_8a3328
   },
   formGrid: {
     gap: 10
@@ -1431,31 +1432,31 @@ const styles = StyleSheet.create({
     gap: 4
   },
   inputLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700'
   },
   textInput: {
-    color: '#132536',
-    backgroundColor: '#ffffff',
+    color: tc.fg_132536,
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d8e1eb',
+    borderColor: tc.line_d8e1eb,
     paddingHorizontal: 12,
     paddingVertical: 10,
     // 16 px or more: iOS Safari zooms the page into smaller text fields on focus.
     fontSize: 16
   },
   savedFoodBanner: {
-    backgroundColor: '#ecfdf3',
+    backgroundColor: tc.bg_ecfdf3,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#a7f3d0',
+    borderColor: tc.line_a7f3d0,
     padding: 12,
     gap: 4
   },
   savedFoodTitle: {
-    color: '#065f46',
+    color: tc.fg_065f46,
     fontSize: 13,
     fontWeight: '800',
     textTransform: 'uppercase'

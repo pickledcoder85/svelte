@@ -3,6 +3,7 @@
  * Safari it gets native momentum scrolling and settles exactly on a row. The middle row is the
  * selection; rows fade towards the edges.
  */
+import { tc } from '../theme/palette';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
@@ -129,7 +130,7 @@ const bandStyle: CSSProperties = {
   top: PAD_ROWS * WHEEL_ROW_HEIGHT,
   height: WHEEL_ROW_HEIGHT,
   borderRadius: 10,
-  backgroundColor: '#eef2f6',
+  backgroundColor: tc.bg_eef2f6,
   pointerEvents: 'none'
 };
 
@@ -165,13 +166,13 @@ const rowStyle: CSSProperties = {
   scrollSnapAlign: 'center',
   padding: '0 2px',
   fontSize: 21,
-  color: '#8a97a8',
+  color: tc.fg_8a97a8,
   cursor: 'pointer'
 };
 
 const selectedRowStyle: CSSProperties = {
   ...rowStyle,
-  color: '#132536',
+  color: tc.fg_132536,
   fontWeight: 600
 };
 
@@ -181,5 +182,5 @@ const unitStyle: CSSProperties = {
   fontFamily: FONT,
   fontSize: 17,
   fontWeight: 600,
-  color: '#132536'
+  color: tc.fg_132536
 };

@@ -1,3 +1,5 @@
+import { MASCOT_OUTLINE, resolveColor, tc } from './src/theme/palette';
+import { APPEARANCE_OPTIONS, setAppearance, startAppearance, useAppearance, usePalette } from './src/theme/appearance';
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
@@ -212,16 +214,16 @@ const mascotBikeImage = require('./assets/bike.png');
 const mascotRunImage = require('./assets/run.png');
 const mascotSwimImage = require('./assets/swim.png');
 const RELISH_COLORS = {
-  canvas: '#f6f1e7',
-  surface: '#fffdf8',
-  text: '#163127',
-  muted: '#63776a',
-  primary: '#4b8d66',
-  primaryDeep: '#2d6046',
-  primarySoft: '#e8f3ec',
-  accent: '#ea9d2d',
-  accentSoft: '#fff3de',
-  stroke: '#d7e0d7'
+  canvas: tc.bg_f6f1e7,
+  surface: tc.bg_fffdf8,
+  text: tc.fg_163127,
+  muted: tc.fg_63776a,
+  primary: tc.brand_primary,
+  primaryDeep: tc.brand_primaryDeep,
+  primarySoft: tc.brand_primarySoft,
+  accent: tc.brand_accent,
+  accentSoft: tc.brand_accentSoft,
+  stroke: tc.brand_stroke
 } as const;
 const exercisePresets: Array<{
   id: 'weights' | 'bike' | 'run' | 'swim';
@@ -289,11 +291,11 @@ const dietaryPatternOptions: Array<{
   subtitle: string;
   mark: string;
 }> = [
-  { id: 'vegan', title: 'Vegan', accent: '#0f766e', subtitle: 'Plants only', mark: 'Leaf' },
-  { id: 'vegetarian', title: 'Vegetarian', accent: '#65a30d', subtitle: 'No meat or fish', mark: 'Garden' },
-  { id: 'pescatarian', title: 'Pescatarian', accent: '#0284c7', subtitle: 'Fish, dairy, and plants', mark: 'Fish' },
-  { id: 'omnivore', title: 'Omnivore', accent: '#17324d', subtitle: 'Balanced mixed diet', mark: 'Plate' },
-  { id: 'carnivore', title: 'Carnivore', accent: '#b45309', subtitle: 'Animal-based focus', mark: 'Steak' }
+  { id: 'vegan', title: 'Vegan', accent: tc.fg_0f766e, subtitle: 'Plants only', mark: 'Leaf' },
+  { id: 'vegetarian', title: 'Vegetarian', accent: tc.fg_65a30d, subtitle: 'No meat or fish', mark: 'Garden' },
+  { id: 'pescatarian', title: 'Pescatarian', accent: tc.fg_0284c7, subtitle: 'Fish, dairy, and plants', mark: 'Fish' },
+  { id: 'omnivore', title: 'Omnivore', accent: tc.fg_17324d, subtitle: 'Balanced mixed diet', mark: 'Plate' },
+  { id: 'carnivore', title: 'Carnivore', accent: tc.fg_b45309, subtitle: 'Animal-based focus', mark: 'Steak' }
 ];
 
 const nutritionStyleOptions: Array<{
@@ -303,12 +305,12 @@ const nutritionStyleOptions: Array<{
   subtitle: string;
   mark: string;
 }> = [
-  { id: 'balanced', title: 'Balanced', accent: '#17324d', subtitle: 'Flexible mixed approach', mark: 'Plate' },
-  { id: 'keto', title: 'Keto', accent: '#2563eb', subtitle: 'Very low carb, higher fat', mark: 'Keto' },
+  { id: 'balanced', title: 'Balanced', accent: tc.fg_17324d, subtitle: 'Flexible mixed approach', mark: 'Plate' },
+  { id: 'keto', title: 'Keto', accent: tc.fg_2563eb, subtitle: 'Very low carb, higher fat', mark: 'Keto' },
   {
     id: 'mediterranean',
     title: 'Mediterranean',
-    accent: '#0f766e',
+    accent: tc.fg_0f766e,
     subtitle: 'Whole foods, olive oil, fish, plants',
     mark: 'Med'
   }
@@ -321,14 +323,14 @@ const allergyOptions: Array<{
   subtitle: string;
   mark: string;
 }> = [
-  { id: 'none', title: 'None', accent: '#64748b', subtitle: 'No major food allergies', mark: 'None' },
-  { id: 'milk', title: 'Milk', accent: '#2563eb', subtitle: 'Avoid dairy milk proteins', mark: 'Milk' },
-  { id: 'egg', title: 'Egg', accent: '#f59e0b', subtitle: 'Avoid eggs and egg ingredients', mark: 'Egg' },
-  { id: 'peanut', title: 'Peanut', accent: '#b45309', subtitle: 'Avoid peanuts', mark: 'Nut' },
-  { id: 'tree_nuts', title: 'Tree nuts', accent: '#7c3aed', subtitle: 'Avoid almonds, cashews, walnuts', mark: 'Tree' },
-  { id: 'wheat', title: 'Wheat', accent: '#ca8a04', subtitle: 'Avoid wheat-based foods', mark: 'Wheat' },
-  { id: 'shellfish', title: 'Shellfish', accent: '#0f766e', subtitle: 'Avoid shrimp, crab, lobster', mark: 'Shell' },
-  { id: 'other', title: 'Other', accent: '#17324d', subtitle: 'Add a custom restriction', mark: 'Other' }
+  { id: 'none', title: 'None', accent: tc.fg_64748b, subtitle: 'No major food allergies', mark: 'None' },
+  { id: 'milk', title: 'Milk', accent: tc.fg_2563eb, subtitle: 'Avoid dairy milk proteins', mark: 'Milk' },
+  { id: 'egg', title: 'Egg', accent: tc.fg_f59e0b, subtitle: 'Avoid eggs and egg ingredients', mark: 'Egg' },
+  { id: 'peanut', title: 'Peanut', accent: tc.fg_b45309, subtitle: 'Avoid peanuts', mark: 'Nut' },
+  { id: 'tree_nuts', title: 'Tree nuts', accent: tc.fg_7c3aed, subtitle: 'Avoid almonds, cashews, walnuts', mark: 'Tree' },
+  { id: 'wheat', title: 'Wheat', accent: tc.fg_ca8a04, subtitle: 'Avoid wheat-based foods', mark: 'Wheat' },
+  { id: 'shellfish', title: 'Shellfish', accent: tc.fg_0f766e, subtitle: 'Avoid shrimp, crab, lobster', mark: 'Shell' },
+  { id: 'other', title: 'Other', accent: tc.fg_17324d, subtitle: 'Add a custom restriction', mark: 'Other' }
 ];
 
 const allergyLabels: Record<Exclude<AllergyChoice, 'none' | 'other'>, string> = {
@@ -354,9 +356,9 @@ const activityLevelCards: Array<{
 
 function toneColor(tone: 'checking' | 'live'): string {
   if (tone === 'live') {
-    return '#0f766e';
+    return tc.line_0f766e;
   }
-  return '#1d4ed8';
+  return tc.line_1d4ed8;
 }
 
 function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | undefined): string {
@@ -503,7 +505,14 @@ function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
   return exercisePresets[0];
 }
 
+// Colour variables and the light/dark choice, before the first render.
+if (Platform.OS === 'web') {
+  startAppearance();
+}
+
 export default function App(): ReactElement {
+  const palette = usePalette();
+  const appearance = useAppearance();
   const [ribeyeLoaded, ribeyeError] = useRibeyeFonts({
     Ribeye_400Regular
   });
@@ -2005,7 +2014,7 @@ export default function App(): ReactElement {
       targetLabel: 'Protein goal',
       targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.protein) : Math.round(selectedSeries.macroTargets.protein / Math.max(selectedSeries.points.length, 1)),
       points: proteinPoints,
-      accentColor: '#0f766e',
+      accentColor: tc.fg_0f766e,
       ringPercentage: (macroCalories.protein / macroCalorieTotal) * 100,
       ringText: `${Math.round((macroCalories.protein / macroCalorieTotal) * 100)}%`,
       chartTitle: `Protein tracked across ${activeRange}`,
@@ -2018,7 +2027,7 @@ export default function App(): ReactElement {
       targetLabel: 'Carb goal',
       targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.carbs) : Math.round(selectedSeries.macroTargets.carbs / Math.max(selectedSeries.points.length, 1)),
       points: carbsPoints,
-      accentColor: '#ea580c',
+      accentColor: tc.fg_ea580c,
       ringPercentage: (macroCalories.carbs / macroCalorieTotal) * 100,
       ringText: `${Math.round((macroCalories.carbs / macroCalorieTotal) * 100)}%`,
       chartTitle: `Carbs tracked across ${activeRange}`,
@@ -2031,7 +2040,7 @@ export default function App(): ReactElement {
       targetLabel: 'Fat goal',
       targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.fat) : Math.round(selectedSeries.macroTargets.fat / Math.max(selectedSeries.points.length, 1)),
       points: fatPoints,
-      accentColor: '#2563eb',
+      accentColor: tc.fg_2563eb,
       ringPercentage: (macroCalories.fat / macroCalorieTotal) * 100,
       ringText: `${Math.round((macroCalories.fat / macroCalorieTotal) * 100)}%`,
       chartTitle: `Fat tracked across ${activeRange}`,
@@ -2044,7 +2053,7 @@ export default function App(): ReactElement {
       targetLabel: 'Fiber goal',
       targetValue: fiberGoal,
       points: fiberPoints,
-      accentColor: '#7c3aed',
+      accentColor: tc.fg_7c3aed,
       ringPercentage: fiberConsumed > 0 && fiberGoal > 0 ? (fiberConsumed / fiberGoal) * 100 : 0,
       ringText: fiberConsumed > 0 && fiberGoal > 0 ? `${Math.round((fiberConsumed / fiberGoal) * 100)}%` : '—',
       chartTitle: `Fiber tracked across ${activeRange}`,
@@ -3456,7 +3465,7 @@ export default function App(): ReactElement {
                           setEntryEmailError(null);
                         }}
                         placeholder="dev@example.com"
-                        placeholderTextColor="#7c8aa5"
+                        placeholderTextColor={tc.fg_7c8aa5}
                         style={[styles.profileFieldInput, entryEmailError && styles.profileFieldInputError]}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -3471,7 +3480,7 @@ export default function App(): ReactElement {
                           value={entryDisplayNameDraft}
                           onChangeText={setEntryDisplayNameDraft}
                           placeholder="Local Dev User"
-                          placeholderTextColor="#7c8aa5"
+                          placeholderTextColor={tc.fg_7c8aa5}
                           style={styles.profileFieldInput}
                         />
                       </View>
@@ -3615,7 +3624,7 @@ export default function App(): ReactElement {
                   <View
                     style={[
                       styles.inlineStatus,
-                      { borderColor: onboardingSaving ? toneColor('checking') : '#d97706' }
+                      { borderColor: onboardingSaving ? toneColor('checking') : tc.line_d97706 }
                     ]}
                   >
                     <Text style={styles.inlineStatusLabel}>
@@ -3969,7 +3978,7 @@ export default function App(): ReactElement {
                           key={option.id}
                           style={[
                             styles.setupDietCard,
-                            { borderColor: active ? option.accent : '#d7dee7' },
+                            { borderColor: active ? option.accent : tc.line_d7dee7 },
                             active && styles.setupDietCardActive
                           ]}
                           onPress={() => setOnboardingDietaryPatternDraft(option.id)}
@@ -4006,7 +4015,7 @@ export default function App(): ReactElement {
                           key={option.id}
                           style={[
                             styles.setupDietCard,
-                            { borderColor: active ? option.accent : '#d7dee7' },
+                            { borderColor: active ? option.accent : tc.line_d7dee7 },
                             active && styles.setupDietCardActive
                           ]}
                           onPress={() => setOnboardingNutritionStyleDraft(option.id)}
@@ -4043,7 +4052,7 @@ export default function App(): ReactElement {
                           key={option.id}
                           style={[
                             styles.setupDietCard,
-                            { borderColor: active ? option.accent : '#d7dee7' },
+                            { borderColor: active ? option.accent : tc.line_d7dee7 },
                             active && styles.setupDietCardActive
                           ]}
                           onPress={() => toggleOnboardingAllergy(option.id)}
@@ -4071,7 +4080,7 @@ export default function App(): ReactElement {
                       value={onboardingAllergyOtherDraft}
                       onChangeText={setOnboardingAllergyOtherDraft}
                       placeholder="Add another allergy or exclusion"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       style={styles.setupTextArea}
                       multiline
                       textAlignVertical="top"
@@ -4247,7 +4256,7 @@ export default function App(): ReactElement {
                           style={[styles.shellMenuItem, active && styles.shellMenuItemActive]}
                           onPress={() => handleSectionChange(item.id)}
                         >
-                          {item.id === 'settings' ? <CogIcon size={22} /> : null}
+                          {item.id === 'settings' ? <CogIcon size={22} color={palette.fg_17324d} /> : null}
                           <View style={styles.shellMenuItemCopy}>
                             <Text style={[styles.shellMenuItemTitle, active && styles.shellMenuItemTitleActive]}>
                               {item.label}
@@ -4402,19 +4411,19 @@ export default function App(): ReactElement {
                     label="Protein"
                     consumed={Math.round(homeConsumedMacros.protein)}
                     target={Math.round(dailyHomeTargets.macroTargets.protein)}
-                    baseColor="#0f766e"
+                    baseColor={tc.fg_0f766e}
                   />
                   <MacroSplitRing
                     label="Carbs"
                     consumed={Math.round(homeConsumedMacros.carbs)}
                     target={Math.round(dailyHomeTargets.macroTargets.carbs)}
-                    baseColor="#ea580c"
+                    baseColor={tc.fg_ea580c}
                   />
                   <MacroSplitRing
                     label="Fat"
                     consumed={Math.round(homeConsumedMacros.fat)}
                     target={Math.round(dailyHomeTargets.macroTargets.fat)}
-                    baseColor="#2563eb"
+                    baseColor={tc.fg_2563eb}
                   />
                 </View>
                 {homeConsumedCalories === 0 ? (
@@ -4673,7 +4682,7 @@ export default function App(): ReactElement {
                       value={weightRecordedAtDraft}
                       onChangeText={setWeightRecordedAtDraft}
                       placeholder="2026-03-29"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       style={styles.profileFieldInput}
                     />
                   </View>
@@ -4683,7 +4692,7 @@ export default function App(): ReactElement {
                       value={weightValueDraft}
                       onChangeText={setWeightValueDraft}
                       placeholder="181.2"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       keyboardType="numeric"
                       inputMode="decimal"
                       style={styles.profileFieldInput}
@@ -4735,7 +4744,7 @@ export default function App(): ReactElement {
                           onChangeText={setOnboardingAgeDraft}
                           keyboardType="numeric"
                           placeholder="34"
-                          placeholderTextColor="#7c8aa5"
+                          placeholderTextColor={tc.fg_7c8aa5}
                           style={styles.profileFieldInput}
                         />
                       </View>
@@ -4746,7 +4755,7 @@ export default function App(): ReactElement {
                           onChangeText={setOnboardingCurrentWeightDraft}
                           keyboardType="decimal-pad"
                           placeholder="180"
-                          placeholderTextColor="#7c8aa5"
+                          placeholderTextColor={tc.fg_7c8aa5}
                           style={styles.profileFieldInput}
                         />
                       </View>
@@ -4760,7 +4769,7 @@ export default function App(): ReactElement {
                           onChangeText={setOnboardingHeightFeetDraft}
                           keyboardType="numeric"
                           placeholder="5"
-                          placeholderTextColor="#7c8aa5"
+                          placeholderTextColor={tc.fg_7c8aa5}
                           style={styles.profileFieldInput}
                         />
                       </View>
@@ -4771,7 +4780,7 @@ export default function App(): ReactElement {
                           onChangeText={setOnboardingHeightInchesDraft}
                           keyboardType="numeric"
                           placeholder="10"
-                          placeholderTextColor="#7c8aa5"
+                          placeholderTextColor={tc.fg_7c8aa5}
                           style={styles.profileFieldInput}
                         />
                       </View>
@@ -4827,7 +4836,7 @@ export default function App(): ReactElement {
                           onChangeText={setOnboardingTargetWeightDraft}
                           keyboardType="decimal-pad"
                           placeholder="170"
-                          placeholderTextColor="#7c8aa5"
+                          placeholderTextColor={tc.fg_7c8aa5}
                           style={styles.profileFieldInput}
                         />
                       </View>
@@ -4933,7 +4942,7 @@ export default function App(): ReactElement {
                     value={goalEffectiveAtDraft}
                     onChangeText={setGoalEffectiveAtDraft}
                     placeholder="2026-03-30"
-                    placeholderTextColor="#7c8aa5"
+                    placeholderTextColor={tc.fg_7c8aa5}
                     style={styles.profileFieldInput}
                   />
                 </View>
@@ -4945,7 +4954,7 @@ export default function App(): ReactElement {
                       value={goalCaloriesDraft}
                       onChangeText={setGoalCaloriesDraft}
                       placeholder="2100"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       keyboardType="numeric"
                       style={styles.profileFieldInput}
                     />
@@ -4956,7 +4965,7 @@ export default function App(): ReactElement {
                       value={goalProteinDraft}
                       onChangeText={setGoalProteinDraft}
                       placeholder="180"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       keyboardType="numeric"
                       style={styles.profileFieldInput}
                     />
@@ -4970,7 +4979,7 @@ export default function App(): ReactElement {
                       value={goalCarbsDraft}
                       onChangeText={setGoalCarbsDraft}
                       placeholder="190"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       keyboardType="numeric"
                       style={styles.profileFieldInput}
                     />
@@ -4981,7 +4990,7 @@ export default function App(): ReactElement {
                       value={goalFatDraft}
                       onChangeText={setGoalFatDraft}
                       placeholder="60"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       keyboardType="numeric"
                       style={styles.profileFieldInput}
                     />
@@ -4994,7 +5003,7 @@ export default function App(): ReactElement {
                     value={goalWeightDraft}
                     onChangeText={setGoalWeightDraft}
                     placeholder="178.5"
-                    placeholderTextColor="#7c8aa5"
+                    placeholderTextColor={tc.fg_7c8aa5}
                     keyboardType="numeric"
                     style={styles.profileFieldInput}
                   />
@@ -5060,7 +5069,7 @@ export default function App(): ReactElement {
                   value={logFoodDraft}
                   onChangeText={setLogFoodDraft}
                   placeholder="Search yogurt, oats, blueberries..."
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -5124,7 +5133,7 @@ export default function App(): ReactElement {
                       value={logGrams}
                       onChangeText={setLogGrams}
                       placeholder="100"
-                      placeholderTextColor="#7c8aa5"
+                      placeholderTextColor={tc.fg_7c8aa5}
                       style={styles.searchInput}
                       keyboardType="numeric"
                       autoCorrect={false}
@@ -5203,7 +5212,7 @@ export default function App(): ReactElement {
                   value={plannedExerciseTitleDraft}
                   onChangeText={setPlannedExerciseTitleDraft}
                   placeholder="Swim, walk, lift..."
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   autoCorrect={false}
                 />
@@ -5219,7 +5228,7 @@ export default function App(): ReactElement {
                   value={plannedExerciseMinutesDraft}
                   onChangeText={setPlannedExerciseMinutesDraft}
                   placeholder="Main set minutes"
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   keyboardType="numeric"
                   autoCorrect={false}
@@ -5255,7 +5264,7 @@ export default function App(): ReactElement {
                     value={plannedExerciseWarmupMinutesDraft}
                     onChangeText={setPlannedExerciseWarmupMinutesDraft}
                     placeholder="Warmup minutes"
-                    placeholderTextColor="#7c8aa5"
+                    placeholderTextColor={tc.fg_7c8aa5}
                     style={styles.searchInput}
                     keyboardType="numeric"
                     autoCorrect={false}
@@ -5272,7 +5281,7 @@ export default function App(): ReactElement {
                     value={plannedExerciseCooldownMinutesDraft}
                     onChangeText={setPlannedExerciseCooldownMinutesDraft}
                     placeholder="Cooldown minutes"
-                    placeholderTextColor="#7c8aa5"
+                    placeholderTextColor={tc.fg_7c8aa5}
                     style={styles.searchInput}
                     keyboardType="numeric"
                     autoCorrect={false}
@@ -5388,7 +5397,7 @@ export default function App(): ReactElement {
                   value={exerciseTitleDraft}
                   onChangeText={setExerciseTitleDraft}
                   placeholder="Walk, bike, lift..."
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   autoCorrect={false}
                 />
@@ -5402,7 +5411,7 @@ export default function App(): ReactElement {
                   value={exerciseMinutesDraft}
                   onChangeText={setExerciseMinutesDraft}
                   placeholder="Minutes"
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   keyboardType="numeric"
                   autoCorrect={false}
@@ -5411,7 +5420,7 @@ export default function App(): ReactElement {
                   value={exerciseCaloriesDraft}
                   onChangeText={setExerciseCaloriesDraft}
                   placeholder="Calories burned"
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   keyboardType="numeric"
                   autoCorrect={false}
@@ -5515,7 +5524,7 @@ export default function App(): ReactElement {
               <Text style={styles.panelTitle}>{foodLogLoading ? 'Loading entries' : formatLogDate(foodLog.date)}</Text>
               {foodLogLoading ? (
                 <View style={styles.detailCard}>
-                  <ActivityIndicator size="small" color="#17324d" />
+                  <ActivityIndicator size="small" color={tc.fg_17324d} />
                   <Text style={styles.detailSubtitle}>Fetching today’s persisted log...</Text>
                 </View>
               ) : foodLog.entries.length === 0 ? (
@@ -5603,7 +5612,7 @@ export default function App(): ReactElement {
                 value={foodDraft}
                 onChangeText={setFoodDraft}
                 placeholder="Search yogurt, oats, blueberries..."
-                placeholderTextColor="#7c8aa5"
+                placeholderTextColor={tc.fg_7c8aa5}
                 style={styles.searchInput}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -5916,7 +5925,7 @@ export default function App(): ReactElement {
                   value={profileDisplayNameDraft}
                   onChangeText={setProfileDisplayNameDraft}
                   placeholder="Your name"
-                  placeholderTextColor="#9aa6b8"
+                  placeholderTextColor={tc.fg_9aa6b8}
                   style={styles.settingsInput}
                   autoCorrect={false}
                 />
@@ -5934,6 +5943,29 @@ export default function App(): ReactElement {
             <View style={styles.panel}>
               <Text style={styles.panelEyebrow}>Settings</Text>
               <Text style={styles.panelTitle}>Preferences</Text>
+              <FieldGroup label="Appearance">
+                <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Appearance">
+                  {APPEARANCE_OPTIONS.map((option) => {
+                    const active = appearance.preference === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                        onPress={() => setAppearance(option.id)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: active }}
+                      >
+                        <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={styles.settingsHint}>
+                  {appearance.preference === 'system'
+                    ? `Follows your iPhone (${appearance.scheme === 'dark' ? 'dark' : 'light'} right now). Saved on this device.`
+                    : 'Saved on this device. Applies right away.'}
+                </Text>
+              </FieldGroup>
               <FieldGroup label="Units">
                 <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
                   {(
@@ -5962,7 +5994,7 @@ export default function App(): ReactElement {
                   value={profileTimezoneDraft}
                   onChangeText={setProfileTimezoneDraft}
                   placeholder="America/New_York"
-                  placeholderTextColor="#9aa6b8"
+                  placeholderTextColor={tc.fg_9aa6b8}
                   style={styles.settingsInput}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -6063,7 +6095,7 @@ export default function App(): ReactElement {
               value={mealDraft.name}
               onChangeText={updateMealName}
               placeholder="Untitled meal"
-              placeholderTextColor="#7c8aa5"
+              placeholderTextColor={tc.fg_7c8aa5}
               style={styles.mealNameInput}
               autoCapitalize="words"
             />
@@ -6183,7 +6215,7 @@ export default function App(): ReactElement {
                   value={recipeSearchTerm}
                   onChangeText={setRecipeSearchTerm}
                   placeholder="Find oats, chicken, parfait..."
-                  placeholderTextColor="#7c8aa5"
+                  placeholderTextColor={tc.fg_7c8aa5}
                   style={styles.searchInput}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -6192,7 +6224,7 @@ export default function App(): ReactElement {
 
               {recipeLoading ? (
                 <View style={styles.detailCard}>
-                  <ActivityIndicator size="small" color="#17324d" />
+                  <ActivityIndicator size="small" color={tc.fg_17324d} />
                   <Text style={styles.detailSubtitle}>Fetching recipes...</Text>
                 </View>
               ) : filteredRecipeCatalog.length === 0 ? (
@@ -6255,7 +6287,7 @@ export default function App(): ReactElement {
                           <View style={styles.recipeAccordionBody}>
                             {recipeDetailLoading && selectedRecipe?.id === recipe.id ? (
                               <View style={styles.recipeDetailLoading}>
-                                <ActivityIndicator size="small" color="#17324d" />
+                                <ActivityIndicator size="small" color={tc.fg_17324d} />
                                 <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
                               </View>
                             ) : (
@@ -6426,18 +6458,19 @@ function MacroSplitRing({
   const offset = circumference - (clamped / 100) * circumference;
   const overflowOffset = circumference - (Math.min(overflowPercent, 100) / 100) * circumference;
 
-  let accentColor = baseColor;
+  const pal = usePalette();
+  let accentColor = resolveColor(baseColor, pal);
   if (ratio >= 1.2) {
-    accentColor = '#b91c1c';
+    accentColor = pal.fg_b91c1c;
   } else if (ratio >= 0.9 && ratio <= 1.1) {
-    accentColor = '#15803d';
+    accentColor = pal.fg_15803d;
   }
 
   return (
     <View style={styles.macroSplitRingCard}>
       <View style={styles.macroSplitRingWrap}>
         <Svg width={54} height={54}>
-          <Circle cx="27" cy="27" r={radius} stroke="#dbe3ec" strokeWidth="7" fill="none" />
+          <Circle cx="27" cy="27" r={radius} stroke={pal.line_dbe3ec} strokeWidth="7" fill="none" />
           <Circle
             cx="27"
             cy="27"
@@ -6456,7 +6489,7 @@ function MacroSplitRing({
               cx="27"
               cy="27"
               r={radius + 4}
-              stroke="#b91c1c"
+              stroke={pal.fg_b91c1c}
               strokeWidth="3"
               fill="none"
               strokeDasharray={`${circumference} ${circumference}`}
@@ -6725,7 +6758,7 @@ function LineTrendChart({
           </>
         ) : (
           <View style={styles.chartLoading}>
-            <ActivityIndicator size="small" color="#17324d" />
+            <ActivityIndicator size="small" color={tc.fg_17324d} />
           </View>
         )}
       </View>
@@ -6760,6 +6793,7 @@ const styles = StyleSheet.create({
     gap: 14
   },
   onboardingWelcomeImage: {
+    ...MASCOT_OUTLINE,
     width: 170,
     height: 210
   },
@@ -6792,9 +6826,9 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 12,
     borderRadius: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderWidth: 1,
-    borderColor: '#e7e0cf'
+    borderColor: tc.line_e7e0cf
   },
   onboardingWelcomeBadge: {
     width: 30,
@@ -6805,7 +6839,7 @@ const styles = StyleSheet.create({
     backgroundColor: RELISH_COLORS.text
   },
   onboardingWelcomeBadgeLabel: {
-    color: '#f4efe4',
+    color: tc.fg_f4efe4,
     fontWeight: '800'
   },
   onboardingWelcomeRowCopy: {
@@ -6817,12 +6851,12 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   onboardingWelcomeRowDetail: {
-    color: '#5b6b62',
+    color: tc.fg_5b6b62,
     fontSize: 13,
     marginTop: 2
   },
   onboardingWelcomeFootnote: {
-    color: '#5b6b62',
+    color: tc.fg_5b6b62,
     fontSize: 13,
     textAlign: 'center'
   },
@@ -6833,7 +6867,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f4efe4'
+    backgroundColor: tc.bg_f4efe4
   },
   setupBackdrop: {
     minHeight: '100%',
@@ -6844,10 +6878,10 @@ const styles = StyleSheet.create({
   setupCard: {
     width: '100%',
     maxWidth: 640,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 30,
     borderWidth: 1,
-    borderColor: '#dde6ee',
+    borderColor: tc.line_dde6ee,
     padding: 18,
     gap: 14,
     shadowColor: '#132536',
@@ -6867,7 +6901,7 @@ const styles = StyleSheet.create({
     gap: 4
   },
   setupTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 22,
     fontWeight: '800'
   },
@@ -6876,9 +6910,9 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 29,
     overflow: 'hidden',
-    backgroundColor: '#f6f0e7',
+    backgroundColor: tc.bg_f6f0e7,
     borderWidth: 1,
-    borderColor: '#e5ddd1'
+    borderColor: tc.line_e5ddd1
   },
   setupMascotImage: {
     width: '100%',
@@ -6888,9 +6922,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 16,
     borderRadius: 18,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderWidth: 1,
-    borderColor: '#e7e0cf'
+    borderColor: tc.line_e7e0cf
   },
   energyCardTitle: {
     color: RELISH_COLORS.text,
@@ -6906,7 +6940,7 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   energyBarLabel: {
-    color: '#5b6b62',
+    color: tc.fg_5b6b62,
     fontSize: 13,
     fontWeight: '600'
   },
@@ -6918,7 +6952,7 @@ const styles = StyleSheet.create({
   energyBarTrack: {
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#efe9da',
+    backgroundColor: tc.bg_efe9da,
     overflow: 'hidden'
   },
   energyBarFill: {
@@ -6927,7 +6961,7 @@ const styles = StyleSheet.create({
     backgroundColor: RELISH_COLORS.text
   },
   energyBarFillRest: {
-    backgroundColor: '#7fa38c'
+    backgroundColor: tc.bg_7fa38c
   },
   energyCardBody: {
     color: RELISH_COLORS.text,
@@ -6935,7 +6969,7 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   energyCardLink: {
-    color: '#2f6b4f',
+    color: tc.fg_2f6b4f,
     fontSize: 13,
     fontWeight: '700',
     textDecorationLine: 'underline'
@@ -6945,7 +6979,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8
   },
   energyCardExplainer: {
-    color: '#5b6b62',
+    color: tc.fg_5b6b62,
     fontSize: 13,
     lineHeight: 19
   },
@@ -6967,7 +7001,7 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   paceRowWarning: {
-    color: '#b45309',
+    color: tc.fg_b45309,
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2
@@ -6993,18 +7027,18 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#e3dccb'
+    backgroundColor: tc.bg_e3dccb
   },
   setupProgressSegmentDone: {
     backgroundColor: RELISH_COLORS.text
   },
   setupProgressCount: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     fontWeight: '700'
   },
   setupIntroText: {
-    color: '#5b6b62',
+    color: tc.fg_5b6b62,
     fontSize: 14,
     lineHeight: 20,
     marginTop: -6
@@ -7014,7 +7048,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     padding: 3,
     borderRadius: 12,
-    backgroundColor: '#ece6d6'
+    backgroundColor: tc.bg_ece6d6
   },
   unitToggleOption: {
     paddingHorizontal: 14,
@@ -7022,10 +7056,10 @@ const styles = StyleSheet.create({
     borderRadius: 9
   },
   unitToggleOptionActive: {
-    backgroundColor: '#ffffff'
+    backgroundColor: tc.bg_ffffff
   },
   unitToggleLabel: {
-    color: '#5b6b62',
+    color: tc.fg_5b6b62,
     fontSize: 13,
     fontWeight: '700'
   },
@@ -7045,7 +7079,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   setupSegmentLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '600'
   },
@@ -7058,27 +7092,27 @@ const styles = StyleSheet.create({
   setupChoiceCard: {
     flexGrow: 1,
     flexBasis: 180,
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 14,
     gap: 6
   },
   setupChoiceCardActive: {
-    backgroundColor: '#eef3f8',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_eef3f8,
+    borderColor: tc.line_17324d
   },
   setupChoiceTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '800'
   },
   setupChoiceTitleActive: {
-    color: '#17324d'
+    color: tc.fg_17324d
   },
   setupChoiceDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 17
   },
@@ -7088,25 +7122,26 @@ const styles = StyleSheet.create({
   },
   setupGoalCard: {
     width: '100%',
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 6,
     alignItems: 'center'
   },
   setupGoalCardActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#eef3f8'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_eef3f8
   },
   setupGoalImage: {
+    ...MASCOT_OUTLINE,
     width: '100%',
     height: 72
   },
   setupGoalNote: {
-    color: '#0f766e',
+    color: tc.fg_0f766e,
     fontSize: 11,
     fontWeight: '700'
   },
@@ -7114,21 +7149,21 @@ const styles = StyleSheet.create({
     gap: 10
   },
   setupOptionRow: {
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 14,
     gap: 4
   },
   setupOptionRowActive: {
-    backgroundColor: '#eef3f8',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_eef3f8,
+    borderColor: tc.line_17324d
   },
   setupDietCard: {
     width: 148,
     minHeight: 136,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 20,
     borderWidth: 1,
     padding: 14,
@@ -7136,7 +7171,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   setupDietCardActive: {
-    backgroundColor: '#f8fafc'
+    backgroundColor: tc.bg_f8fafc
   },
   setupDietGrid: {
     flexDirection: 'row',
@@ -7157,26 +7192,26 @@ const styles = StyleSheet.create({
     paddingVertical: 5
   },
   setupDietBadgeLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontSize: 11,
     fontWeight: '800'
   },
   setupTextArea: {
     minHeight: 120,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 15,
-    color: '#132536',
-    backgroundColor: '#f8fafc'
+    color: tc.fg_132536,
+    backgroundColor: tc.bg_f8fafc
   },
   setupReviewCard: {
-    backgroundColor: '#fbfcfe',
+    backgroundColor: tc.bg_fbfcfe,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 18,
     gap: 14
   },
@@ -7184,12 +7219,12 @@ const styles = StyleSheet.create({
     gap: 4
   },
   setupReviewTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 22,
     fontWeight: '800'
   },
   setupReviewSubtitle: {
-    color: '#5c6d80',
+    color: tc.fg_5c6d80,
     fontSize: 13,
     lineHeight: 18
   },
@@ -7197,23 +7232,23 @@ const styles = StyleSheet.create({
     gap: 10
   },
   setupReviewTile: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: tc.line_e2e8f0,
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4
   },
   setupReviewLabel: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },
   setupReviewValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 15,
     lineHeight: 20,
     fontWeight: '700'
@@ -7236,20 +7271,20 @@ const styles = StyleSheet.create({
     flex: 1
   },
   setupActionButtonPrimary: {
-    backgroundColor: '#17324d'
+    backgroundColor: tc.bg_17324d
   },
   setupActionButtonSecondary: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderWidth: 1,
-    borderColor: '#17324d'
+    borderColor: tc.line_17324d
   },
   setupActionButtonLabelPrimary: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontWeight: '800',
     fontSize: 15
   },
   setupActionButtonLabelSecondary: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '800',
     fontSize: 15
   },
@@ -7277,7 +7312,7 @@ const styles = StyleSheet.create({
     flexShrink: 0
   },
   appBrandTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 28,
     lineHeight: 30,
     fontWeight: '800'
@@ -7294,8 +7329,8 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#d7dee7',
-    backgroundColor: '#f7f4ef',
+    borderColor: tc.line_d7dee7,
+    backgroundColor: tc.bg_f7f4ef,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -7316,15 +7351,15 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#d7dee7',
-    backgroundColor: '#ffffff',
+    borderColor: tc.line_d7dee7,
+    backgroundColor: tc.bg_ffffff,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 0
   },
   menuButtonActive: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
   },
   menuIcon: {
     gap: 4
@@ -7333,13 +7368,13 @@ const styles = StyleSheet.create({
     width: 18,
     height: 2,
     borderRadius: 999,
-    backgroundColor: '#17324d'
+    backgroundColor: tc.bg_17324d
   },
   menuIconBarActive: {
-    backgroundColor: '#ffffff'
+    backgroundColor: tc.bg_ffffff
   },
   appStatusCard: {
-    backgroundColor: '#f7fafc',
+    backgroundColor: tc.bg_f7fafc,
     borderRadius: 18,
     borderWidth: 1.5,
     paddingHorizontal: 14,
@@ -7347,20 +7382,20 @@ const styles = StyleSheet.create({
     gap: 4
   },
   appStatusLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontWeight: '700',
     fontSize: 14
   },
   appStatusDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 17
   },
   modeControlCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 14,
     gap: 10
   },
@@ -7371,20 +7406,20 @@ const styles = StyleSheet.create({
     gap: 12
   },
   modeControlLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8
   },
   modeControlValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 18,
     fontWeight: '800',
     marginTop: 4
   },
   modeControlDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 17,
     flexShrink: 1,
@@ -7396,13 +7431,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap'
   },
   hero: {
-    backgroundColor: '#17324d',
+    backgroundColor: tc.bg_17324d,
     borderRadius: 28,
     padding: 20,
     gap: 16
   },
   eyebrow: {
-    color: '#d8e1ed',
+    color: tc.fg_d8e1ed,
     letterSpacing: 1.5,
     fontSize: 12,
     fontWeight: '700'
@@ -7418,41 +7453,41 @@ const styles = StyleSheet.create({
     gap: 10
   },
   headline: {
-    color: '#f8fafc',
+    color: tc.fg_f8fafc,
     fontSize: 30,
     lineHeight: 36,
     fontWeight: '800'
   },
   lede: {
-    color: '#d6e0ea',
+    color: tc.fg_d6e0ea,
     fontSize: 15,
     lineHeight: 22
   },
   ringCard: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f6f0e7',
+    backgroundColor: tc.bg_f6f0e7,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 24,
     minWidth: 132
   },
   ringValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 30,
     fontWeight: '800'
   },
   ringLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '700',
     marginTop: 4
   },
   ringCaption: {
-    color: '#5c6d80',
+    color: tc.fg_5c6d80,
     marginTop: 4,
     fontSize: 12
   },
   mascotCard: {
-    backgroundColor: '#f6f0e7',
+    backgroundColor: tc.bg_f6f0e7,
     borderRadius: 24,
     padding: 14,
     alignItems: 'center'
@@ -7491,20 +7526,20 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase'
   },
   entryPreviewCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 14,
     gap: 6
   },
   entryPreviewTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 15,
     fontWeight: '800'
   },
   entryPreviewDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 13,
     lineHeight: 18
   },
@@ -7556,6 +7591,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   welcomeMascotImage: {
+    ...MASCOT_OUTLINE,
     width: 206,
     height: 206
   },
@@ -7574,7 +7610,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   welcomePrimaryButtonLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontWeight: '800'
   },
   welcomeSecondaryButton: {
@@ -7607,7 +7643,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#fffaf0',
+    backgroundColor: tc.bg_fffaf0,
     gap: 2
   },
   welcomeStatusLabel: {
@@ -7616,7 +7652,7 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   },
   welcomeStatusDetail: {
-    color: '#8a5a1d',
+    color: tc.fg_8a5a1d,
     fontSize: 11,
     lineHeight: 16
   },
@@ -7626,27 +7662,27 @@ const styles = StyleSheet.create({
     width: '100%'
   },
   statusBanner: {
-    backgroundColor: '#fffaf0',
+    backgroundColor: tc.bg_fffaf0,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
     gap: 4
   },
   statusLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontWeight: '700',
     fontSize: 15
   },
   statusDetail: {
-    color: '#5c6d80',
+    color: tc.fg_5c6d80,
     fontSize: 13,
     lineHeight: 18
   },
   shellMenuCard: {
-    backgroundColor: '#f9fbfd',
+    backgroundColor: tc.bg_f9fbfd,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 14,
     gap: 14
   },
@@ -7654,7 +7690,7 @@ const styles = StyleSheet.create({
     gap: 10
   },
   shellMenuGroupTitle: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -7668,42 +7704,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     paddingHorizontal: 14,
     paddingVertical: 12
   },
   shellMenuItemActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#eef3f8'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_eef3f8
   },
   shellMenuItemCopy: {
     flex: 1,
     gap: 3
   },
   shellMenuItemTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 15,
     fontWeight: '800'
   },
   shellMenuItemTitleActive: {
-    color: '#17324d'
+    color: tc.fg_17324d
   },
   shellMenuItemDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 17
   },
   shellMenuItemState: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 12,
     fontWeight: '700'
   },
   shellMenuFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#d7dee7',
+    borderTopColor: tc.line_d7dee7,
     paddingTop: 14,
     gap: 10
   },
@@ -7714,13 +7750,13 @@ const styles = StyleSheet.create({
     gap: 12
   },
   shellMenuModeValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 16,
     fontWeight: '800',
     marginTop: 4
   },
   shellMenuModeDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 17,
     flexShrink: 1,
@@ -7734,34 +7770,35 @@ const styles = StyleSheet.create({
   exercisePresetCard: {
     flexGrow: 1,
     flexBasis: 136,
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 12,
     gap: 6,
     alignItems: 'center'
   },
   exercisePresetCardActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#eef3f8'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_eef3f8
   },
   exercisePresetImage: {
+    ...MASCOT_OUTLINE,
     width: '100%',
     height: 112
   },
   exercisePresetLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 14,
     fontWeight: '800'
   },
   exercisePresetMeta: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     textAlign: 'center'
   },
   panel: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 24,
     padding: 18,
     gap: 14
@@ -7770,18 +7807,18 @@ const styles = StyleSheet.create({
     gap: 6
   },
   panelEyebrow: {
-    color: '#0f766e',
+    color: tc.fg_0f766e,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.1
   },
   panelTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 22,
     fontWeight: '800'
   },
   panelDetail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 13,
     lineHeight: 18
   },
@@ -7792,7 +7829,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#dbe3ec'
+    borderBottomColor: tc.line_dbe3ec
   },
   dailyHomeSummaryHeader: {
     flexDirection: 'row',
@@ -7809,8 +7846,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#ced7e3',
-    backgroundColor: '#ffffff',
+    borderColor: tc.line_ced7e3,
+    backgroundColor: tc.bg_ffffff,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -7818,21 +7855,21 @@ const styles = StyleSheet.create({
     opacity: 0.45
   },
   homeDateButtonLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 16,
     fontWeight: '800'
   },
   dailyHomeGoalBadge: {
-    backgroundColor: '#edf8f1',
+    backgroundColor: tc.bg_edf8f1,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#c7e5d2',
+    borderColor: tc.line_c7e5d2,
     maxWidth: 180
   },
   dailyHomeGoalBadgeLabel: {
-    color: '#1d5f3a',
+    color: tc.fg_1d5f3a,
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center'
@@ -7844,18 +7881,18 @@ const styles = StyleSheet.create({
     gap: 12
   },
   dailyHomeSummaryLabel: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 14,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   dailyHomeSummaryValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 24,
     fontWeight: '800'
   },
   dailyHomeMacroLine: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12,
     lineHeight: 18
   },
@@ -7866,7 +7903,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   dailyHomeMacroLegend: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center'
@@ -7881,13 +7918,13 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tc.line_cbd5e1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff'
+    backgroundColor: tc.bg_ffffff
   },
   dailyHomeEditButtonLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 16,
     fontWeight: '800'
   },
@@ -7900,10 +7937,10 @@ const styles = StyleSheet.create({
     gap: 8
   },
   mealPlanSlotCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#dfe7ef',
+    borderColor: tc.line_dfe7ef,
     padding: 14,
     gap: 10
   },
@@ -7920,18 +7957,18 @@ const styles = StyleSheet.create({
     gap: 12
   },
   mealPlanSlotLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '800',
     lineHeight: 20
   },
   mealPlanSlotSubtitle: {
-    color: '#7890ad',
+    color: tc.fg_7890ad,
     fontSize: 13,
     lineHeight: 18
   },
   mealPlanSlotTotal: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 15,
     fontWeight: '800'
   },
@@ -7950,12 +7987,12 @@ const styles = StyleSheet.create({
     paddingRight: 12
   },
   mealPlanItemName: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 15,
     fontWeight: '700'
   },
   mealPlanItemQuantityInline: {
-    color: '#7c8aa5',
+    color: tc.fg_7c8aa5,
     fontSize: 13,
     fontWeight: '500'
   },
@@ -7967,13 +8004,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap'
   },
   mealPlanItemMacroLine: {
-    color: '#73859d',
+    color: tc.fg_73859d,
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'right'
   },
   mealPlanItemCalories: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 13,
     fontWeight: '700'
   },
@@ -7981,10 +8018,10 @@ const styles = StyleSheet.create({
     minWidth: 98,
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     paddingHorizontal: 12,
     paddingVertical: 14
   },
@@ -8000,49 +8037,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   macroSplitRingPercent: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 12,
     fontWeight: '800'
   },
   macroSplitRingPercentNear: {
-    color: '#15803d'
+    color: tc.fg_15803d
   },
   macroSplitRingPercentOver: {
-    color: '#b91c1c'
+    color: tc.fg_b91c1c
   },
   macroSplitRingLabel: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   macroSplitRingValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 14,
     fontWeight: '800'
   },
   macroSplitRingValueNear: {
-    color: '#15803d'
+    color: tc.fg_15803d
   },
   macroSplitRingValueOver: {
-    color: '#b91c1c'
+    color: tc.fg_b91c1c
   },
   dailyHomeEmptyState: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 14,
     lineHeight: 19,
     textAlign: 'center'
   },
   dashboardIntro: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 16,
     gap: 8
   },
   dashboardTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 22,
     fontWeight: '800'
   },
@@ -8060,23 +8097,23 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 9,
-    backgroundColor: '#edf1f5'
+    backgroundColor: tc.bg_edf1f5
   },
   rangeTabActive: {
-    backgroundColor: '#17324d'
+    backgroundColor: tc.bg_17324d
   },
   rangeTabLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '700'
   },
   rangeTabLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   scaleSelectorCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#dbe3ec',
+    borderColor: tc.line_dbe3ec,
     padding: 14,
     gap: 12
   },
@@ -8087,19 +8124,19 @@ const styles = StyleSheet.create({
     gap: 12
   },
   scaleSelectorLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8
   },
   scaleSelectorValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 18,
     fontWeight: '800'
   },
   scaleSelectorHint: {
-    color: '#7c8aa5',
+    color: tc.fg_7c8aa5,
     fontSize: 12,
     lineHeight: 17,
     marginTop: 4
@@ -8110,7 +8147,7 @@ const styles = StyleSheet.create({
   scaleSelectorRail: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0'
+    backgroundColor: tc.bg_e2e8f0
   },
   scaleSelectorRailFill: {
     position: 'absolute',
@@ -8118,7 +8155,7 @@ const styles = StyleSheet.create({
     top: 0,
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#0f766e'
+    backgroundColor: tc.bg_0f766e
   },
   scaleSelectorStops: {
     flexDirection: 'row',
@@ -8137,20 +8174,20 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#f8fafc'
+    borderColor: tc.line_cbd5e1,
+    backgroundColor: tc.bg_f8fafc
   },
   scaleSelectorDotActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#17324d'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_17324d
   },
   scaleSelectorStopLabel: {
-    color: '#7c8aa5',
+    color: tc.fg_7c8aa5,
     fontSize: 11,
     fontWeight: '700'
   },
   scaleSelectorStopLabelActive: {
-    color: '#17324d'
+    color: tc.fg_17324d
   },
   mealPlanDateStrip: {
     flexDirection: 'row',
@@ -8161,39 +8198,39 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 12,
-    backgroundColor: '#f3f6fb',
+    backgroundColor: tc.bg_f3f6fb,
     borderWidth: 1,
-    borderColor: '#dbe3ec',
+    borderColor: tc.line_dbe3ec,
     gap: 4
   },
   mealPlanDateCardActive: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
   },
   mealPlanDateWeekday: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8
   },
   mealPlanDateWeekdayActive: {
-    color: '#dbe7f2'
+    color: tc.fg_dbe7f2
   },
   mealPlanDateLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 18,
     fontWeight: '800'
   },
   mealPlanDateLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   mealPlanDateMeta: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12
   },
   mealPlanDateMetaActive: {
-    color: '#dbe7f2'
+    color: tc.fg_dbe7f2
   },
   metricRow: {
     flexDirection: 'row',
@@ -8209,7 +8246,7 @@ const styles = StyleSheet.create({
   mealBuilderHint: {
     flex: 1,
     minWidth: 180,
-    color: '#7c8aa5',
+    color: tc.fg_7c8aa5,
     fontSize: 12,
     lineHeight: 17
   },
@@ -8217,10 +8254,10 @@ const styles = StyleSheet.create({
     gap: 10
   },
   mealIngredientRow: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#dbe3ec',
+    borderColor: tc.line_dbe3ec,
     padding: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -8231,32 +8268,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tc.line_cbd5e1,
     paddingHorizontal: 10,
     paddingVertical: 8
   },
   mealIngredientInput: {
     minWidth: 64,
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '800',
     textAlign: 'right',
     fontSize: 16
   },
   mealIngredientUnit: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   mealNameInput: {
     borderWidth: 1,
-    borderColor: '#d4dbe3',
+    borderColor: tc.line_d4dbe3,
     borderRadius: 16,
-    backgroundColor: '#fff',
-    color: '#132536',
+    backgroundColor: tc.bg_ffffff,
+    color: tc.fg_132536,
     fontSize: 18,
     fontWeight: '700',
     paddingHorizontal: 16,
@@ -8274,17 +8311,17 @@ const styles = StyleSheet.create({
     minWidth: 120
   },
   mealMetaLabel: {
-    color: '#7a8797',
+    color: tc.fg_7a8797,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   mealServingInput: {
     borderWidth: 1,
-    borderColor: '#d4dbe3',
+    borderColor: tc.line_d4dbe3,
     borderRadius: 12,
-    backgroundColor: '#fff',
-    color: '#132536',
+    backgroundColor: tc.bg_ffffff,
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '700',
     minWidth: 88,
@@ -8298,7 +8335,7 @@ const styles = StyleSheet.create({
   metricTile: {
     flexGrow: 1,
     minWidth: 96,
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 18,
     padding: 14,
     gap: 6
@@ -8307,23 +8344,23 @@ const styles = StyleSheet.create({
     minWidth: 140
   },
   metricLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   metricValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '800',
     fontSize: 18
   },
   chartCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 22,
     padding: 16
   },
   chartTitle: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 16,
     fontWeight: '800',
     marginBottom: 10
@@ -8331,7 +8368,7 @@ const styles = StyleSheet.create({
   lineChartFrame: {
     height: chartHeight,
     borderRadius: 18,
-    backgroundColor: '#eef3f8',
+    backgroundColor: tc.bg_eef3f8,
     paddingHorizontal: 16,
     paddingVertical: 18,
     position: 'relative',
@@ -8347,13 +8384,13 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     borderTopWidth: 1,
-    borderTopColor: '#94a3b8',
+    borderTopColor: tc.line_94a3b8,
     borderStyle: 'dashed'
   },
   lineSegment: {
     position: 'absolute',
     height: 3,
-    backgroundColor: '#0f766e',
+    backgroundColor: tc.bg_0f766e,
     borderRadius: 999,
     opacity: 0.9
   },
@@ -8362,9 +8399,9 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#17324d',
+    backgroundColor: tc.bg_17324d,
     borderWidth: 2,
-    borderColor: '#f8fafc'
+    borderColor: tc.line_f8fafc
   },
   lineChartLabels: {
     flexDirection: 'row',
@@ -8377,16 +8414,16 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   chartValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 11,
     fontWeight: '700'
   },
   chartLabel: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12
   },
   chartTargetCaption: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     marginTop: 10,
     fontSize: 12
   },
@@ -8394,7 +8431,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   quickLogCard: {
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 20,
     padding: 14,
     gap: 4
@@ -8406,12 +8443,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start'
   },
   quickLogTitle: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 18,
     fontWeight: '800'
   },
   quickLogHint: {
-    color: '#7c8aa5',
+    color: tc.fg_7c8aa5,
     fontSize: 11,
     maxWidth: 120,
     textAlign: 'right'
@@ -8427,7 +8464,7 @@ const styles = StyleSheet.create({
   macroTrack: {
     height: 12,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: tc.bg_e2e8f0,
     overflow: 'hidden'
   },
   macroFill: {
@@ -8440,19 +8477,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#edf1f5'
+    borderBottomColor: tc.line_edf1f5
   },
   listTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 15,
     fontWeight: '700'
   },
   listCaption: {
-    color: '#7c8aa5',
+    color: tc.fg_7c8aa5,
     fontSize: 12
   },
   listMetric: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '700'
   },
   searchRow: {
@@ -8462,15 +8499,15 @@ const styles = StyleSheet.create({
     gap: 8
   },
   dropdownLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   dropdownTrigger: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tc.line_cbd5e1,
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -8479,70 +8516,70 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   dropdownValue: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '800',
     fontSize: 16
   },
   dropdownCaret: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 12
   },
   dropdownMenu: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#dbe3ec',
+    borderColor: tc.line_dbe3ec,
     overflow: 'hidden'
   },
   dropdownOption: {
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#edf1f5'
+    borderBottomColor: tc.line_edf1f5
   },
   dropdownOptionActive: {
-    backgroundColor: '#17324d'
+    backgroundColor: tc.bg_17324d
   },
   dropdownOptionLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '700'
   },
   dropdownOptionLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   searchInput: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#f8fafc',
+    borderColor: tc.line_cbd5e1,
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16
   },
   primaryButton: {
     borderRadius: 18,
-    backgroundColor: '#17324d',
+    backgroundColor: tc.bg_17324d,
     paddingVertical: 14,
     alignItems: 'center'
   },
   primaryButtonLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontWeight: '800'
   },
   inlineStatus: {
-    backgroundColor: '#fffaf0',
+    backgroundColor: tc.bg_fffaf0,
     borderRadius: 18,
     borderWidth: 1,
     padding: 14,
     gap: 4
   },
   inlineStatusLabel: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontWeight: '700'
   },
   inlineStatusDetail: {
-    color: '#8a5a1d',
+    color: tc.fg_8a5a1d,
     fontSize: 12,
     lineHeight: 18,
     flexShrink: 1
@@ -8562,12 +8599,12 @@ const styles = StyleSheet.create({
   entryEditInput: {
     minWidth: 72,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tc.line_cbd5e1,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#ffffff',
-    color: '#17324d',
+    backgroundColor: tc.bg_ffffff,
+    color: tc.fg_17324d,
     fontSize: 16
   },
   entryActionRow: {
@@ -8577,7 +8614,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4
   },
   entryDeleteConfirmLabel: {
-    color: '#b42318'
+    color: tc.fg_b42318
   },
   buttonDisabled: {
     opacity: 0.5
@@ -8586,44 +8623,44 @@ const styles = StyleSheet.create({
     ...FIELD_BOX,
     height: FIELD_HEIGHT,
     paddingHorizontal: 16,
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16
   },
   settingsReadOnly: {
     gap: 2
   },
   settingsValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16,
     fontWeight: '600'
   },
   settingsHint: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 13
   },
   settingsLink: {
-    color: '#0f766e',
+    color: tc.fg_0f766e,
     fontSize: 14,
     fontWeight: '700'
   },
   settingsMessage: {
-    color: '#0f766e',
+    color: tc.fg_0f766e,
     fontSize: 14,
     fontWeight: '700'
   },
   settingsError: {
-    color: '#b42318',
+    color: tc.fg_b42318,
     fontSize: 14
   },
   resetConfirmButton: {
-    borderColor: '#f2c8be',
-    backgroundColor: '#fff4f0'
+    borderColor: tc.line_f2c8be,
+    backgroundColor: tc.bg_fff4f0
   },
   foodRow: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
+    borderColor: tc.line_e2e8f0,
+    backgroundColor: tc.bg_ffffff,
     padding: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -8635,12 +8672,12 @@ const styles = StyleSheet.create({
     gap: 10
   },
   foodRowActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#eef3f8'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_eef3f8
   },
   mealPlanLoggedRow: {
-    borderColor: '#0f766e',
-    backgroundColor: '#effaf7'
+    borderColor: tc.line_0f766e,
+    backgroundColor: tc.bg_effaf7
   },
   foodRowCopy: {
     flex: 1,
@@ -8662,8 +8699,8 @@ const styles = StyleSheet.create({
     gap: 8
   },
   foodCardChip: {
-    backgroundColor: '#edf1f5',
-    color: '#17324d',
+    backgroundColor: tc.bg_edf1f5,
+    color: tc.fg_17324d,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -8681,17 +8718,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tc.line_cbd5e1,
     overflow: 'hidden',
-    backgroundColor: '#ffffff'
+    backgroundColor: tc.bg_ffffff
   },
   quantityStepperButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#f8fafc'
+    backgroundColor: tc.bg_f8fafc
   },
   quantityStepperButtonLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 16,
     fontWeight: '800'
   },
@@ -8699,7 +8736,7 @@ const styles = StyleSheet.create({
     minWidth: 56,
     paddingHorizontal: 10,
     textAlign: 'center',
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '800'
   },
   mealPlanCheck: {
@@ -8707,33 +8744,33 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tc.line_cbd5e1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff'
+    backgroundColor: tc.bg_ffffff
   },
   mealPlanCheckActive: {
-    borderColor: '#0f766e',
-    backgroundColor: '#0f766e'
+    borderColor: tc.line_0f766e,
+    backgroundColor: tc.bg_0f766e
   },
   mealPlanCheckLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 16,
     fontWeight: '800'
   },
   mealPlanCheckLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   inlinePillButton: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#17324d',
-    backgroundColor: '#eef3f8',
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_eef3f8,
     paddingHorizontal: 12,
     paddingVertical: 7
   },
   inlinePillButtonLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontSize: 12,
     fontWeight: '800'
   },
@@ -8741,22 +8778,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cdd8e5',
-    backgroundColor: '#f6f9fc',
+    borderColor: tc.line_cdd8e5,
+    backgroundColor: tc.bg_f6f9fc,
     paddingHorizontal: 12,
     paddingVertical: 7
   },
   inlinePillText: {
-    color: '#4c627a',
+    color: tc.fg_4c627a,
     fontSize: 12,
     fontWeight: '700'
   },
   inlinePillButtonComplete: {
-    borderColor: '#15803d',
-    backgroundColor: '#edf8f1'
+    borderColor: tc.line_15803d,
+    backgroundColor: tc.bg_edf8f1
   },
   inlinePillButtonLabelComplete: {
-    color: '#15803d'
+    color: tc.fg_15803d
   },
   listRowCopyFlex: {
     flex: 1,
@@ -8777,22 +8814,22 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#f59e0b',
-    backgroundColor: '#fff8ea',
+    borderColor: tc.line_f59e0b,
+    backgroundColor: tc.bg_fff8ea,
     alignItems: 'center',
     justifyContent: 'center'
   },
   favoriteToggleButtonActive: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
   },
   favoriteToggleButtonLabel: {
-    color: '#b45309',
+    color: tc.fg_b45309,
     fontSize: 16,
     fontWeight: '800'
   },
   favoriteToggleButtonLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   recipeSection: {
     gap: 12
@@ -8805,29 +8842,29 @@ const styles = StyleSheet.create({
   },
   recipeStarButton: {
     borderRadius: 999,
-    backgroundColor: '#17324d',
+    backgroundColor: tc.bg_17324d,
     paddingHorizontal: 10,
     paddingVertical: 6
   },
   recipeStarButtonActive: {
-    backgroundColor: '#0f766e'
+    backgroundColor: tc.bg_0f766e
   },
   recipeStarButtonLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontSize: 12,
     fontWeight: '800'
   },
   recipeAccordionCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#dbe3ec',
+    borderColor: tc.line_dbe3ec,
     padding: 14,
     gap: 10
   },
   recipeAccordionCardActive: {
-    borderColor: '#17324d',
-    backgroundColor: '#f7f4ef'
+    borderColor: tc.line_17324d,
+    backgroundColor: tc.bg_f7f4ef
   },
   recipeAccordionHeader: {
     flexDirection: 'row',
@@ -8840,7 +8877,7 @@ const styles = StyleSheet.create({
     gap: 6
   },
   recipeAccordionCaret: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '800'
   },
@@ -8848,10 +8885,10 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 4,
     borderTopWidth: 1,
-    borderTopColor: '#dbe3ec'
+    borderTopColor: tc.line_dbe3ec
   },
   detailCard: {
-    backgroundColor: '#f7f4ef',
+    backgroundColor: tc.bg_f7f4ef,
     borderRadius: 20,
     padding: 16,
     gap: 10
@@ -8871,26 +8908,26 @@ const styles = StyleSheet.create({
     gap: 6
   },
   profileFieldLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   profileFieldInput: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#f8fafc',
+    borderColor: tc.line_cbd5e1,
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'web' ? 12 : 14,
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 16
   },
   profileFieldInputError: {
-    borderColor: '#2563eb'
+    borderColor: tc.line_2563eb
   },
   profileFieldError: {
-    color: '#1d4ed8',
+    color: tc.fg_1d4ed8,
     fontSize: 12,
     lineHeight: 17,
     fontWeight: '600'
@@ -8903,27 +8940,27 @@ const styles = StyleSheet.create({
   profileToggle: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#f8fafc',
+    borderColor: tc.line_cbd5e1,
+    backgroundColor: tc.bg_f8fafc,
     paddingHorizontal: 14,
     paddingVertical: 10
   },
   profileToggleActive: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
   },
   profileToggleLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '700'
   },
   profileToggleLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   goalCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: tc.bg_f8fafc,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#dbe3ec',
+    borderColor: tc.line_dbe3ec,
     padding: 14,
     gap: 10
   },
@@ -8934,8 +8971,8 @@ const styles = StyleSheet.create({
   },
   goalMetaChip: {
     borderRadius: 999,
-    backgroundColor: '#eef3f8',
-    color: '#17324d',
+    backgroundColor: tc.bg_eef3f8,
+    color: tc.fg_17324d,
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: 12,
@@ -8959,37 +8996,37 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start'
   },
   recipeStarToggleActive: {
-    backgroundColor: '#17324d',
-    borderColor: '#17324d'
+    backgroundColor: tc.bg_17324d,
+    borderColor: tc.line_17324d
   },
   recipeStarToggleInactive: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#cbd5e1'
+    backgroundColor: tc.bg_f8fafc,
+    borderColor: tc.line_cbd5e1
   },
   recipeStarToggleLabel: {
-    color: '#17324d',
+    color: tc.fg_17324d,
     fontWeight: '800'
   },
   recipeStarToggleLabelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   recipeMetaBlock: {
     gap: 6,
     paddingTop: 4
   },
   recipeMetaLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase'
   },
   recipeStep: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 13,
     lineHeight: 18
   },
   recipeMetaItem: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 13,
     lineHeight: 18
   },
@@ -8997,7 +9034,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   recipeImportCard: {
-    backgroundColor: '#f3efe8',
+    backgroundColor: tc.bg_f3efe8,
     borderRadius: 20,
     padding: 16,
     gap: 10
@@ -9005,37 +9042,37 @@ const styles = StyleSheet.create({
   recipeReviewBadge: {
     alignSelf: 'flex-start',
     borderRadius: 999,
-    backgroundColor: '#17324d',
+    backgroundColor: tc.bg_17324d,
     paddingHorizontal: 10,
     paddingVertical: 5
   },
   recipeReviewBadgeLabel: {
-    color: '#ffffff',
+    color: tc.fg_ffffff,
     fontSize: 11,
     fontWeight: '800'
   },
   recipeSecondaryCard: {
-    backgroundColor: '#f2f6fb',
+    backgroundColor: tc.bg_f2f6fb,
     borderRadius: 20,
     padding: 16,
     gap: 10
   },
   detailTitle: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 20,
     fontWeight: '800'
   },
   detailSubtitle: {
-    color: '#66778c'
+    color: tc.fg_66778c
   },
   dashboardFooterStatus: {
-    color: '#8a98aa',
+    color: tc.fg_8a98aa,
     fontSize: 11,
     lineHeight: 16,
     textAlign: 'center'
   },
   footer: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     textAlign: 'center',
     fontSize: 12,
     lineHeight: 18,

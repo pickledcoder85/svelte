@@ -6,13 +6,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <title>Relish</title>
     <meta name="description" content="Private nutrition and exercise tracker." />
-    <meta name="theme-color" content="#f4efe4" />
+    <meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121811" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Apply a saved Light or Dark choice before anything paints (src/theme/appearance.ts),
+      // and preload only the splash image that will show.
+      var relishSplash = '/splash.jpg';
+      try {
+        var relishAppearance = localStorage.getItem('relish-appearance');
+        var relishDark =
+          relishAppearance === 'dark' ||
+          (relishAppearance !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        relishSplash = relishDark ? '/splash-dark.jpg' : '/splash.jpg';
+        if (relishAppearance === 'light' || relishAppearance === 'dark') {
+          document.documentElement.setAttribute('data-theme', relishAppearance);
+          var relishCanvas = relishAppearance === 'dark' ? '#121811' : '#f4efe4';
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+            meta.setAttribute('content', relishCanvas);
+            meta.removeAttribute('media');
+          });
+        }
+      } catch (error) {}
+      var relishPreload = document.createElement('link');
+      relishPreload.rel = 'preload';
+      relishPreload.as = 'image';
+      relishPreload.href = relishSplash;
+      document.head.appendChild(relishPreload);
+    </script>
     <!-- Installable home-screen app. iOS still reads the apple-* tags. With the default
          status bar style the app is laid out below the status bar, so no safe-area padding
          is needed at the top. -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <link rel="preload" as="image" href="/splash.jpg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Relish" />
@@ -26,6 +52,21 @@
         height: 100%;
         background-color: #f4efe4;
       }
+      /* Dark: the phone is in dark mode and Light wasn't chosen, or Dark was chosen. These
+         match the app's dark canvas (src/theme/palette.ts) so nothing flashes cream. */
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme='light']),
+        html:not([data-theme='light']) body,
+        html:not([data-theme='light']) .launch-splash {
+          background-color: #121811;
+        }
+      }
+      html[data-theme='dark'],
+      html[data-theme='dark'] body,
+      html[data-theme='dark'] .launch-splash {
+        background-color: #121811;
+      }
+
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
         overflow: hidden;
@@ -84,7 +125,10 @@
       You need to enable JavaScript to run this app.
     </noscript>
     <div id="root"></div>
-    <div id="launch-splash" class="launch-splash" aria-hidden="true"><img src="/splash.jpg" alt="" /></div>
+    <div id="launch-splash" class="launch-splash" aria-hidden="true"><img id="launch-splash-image" alt="" /></div>
+    <script>
+      document.getElementById('launch-splash-image').src = relishSplash;
+    </script>
     <script>
       // Failsafe: never leave the splash over the app if the app fails to dismiss it.
       setTimeout(function () {
