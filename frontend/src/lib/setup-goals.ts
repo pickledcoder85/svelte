@@ -135,6 +135,56 @@ export function needsFloorWarning(
   return Boolean(option?.below_recommended_minimum) && floor === 'recommended' && !alreadyAnswered;
 }
 
+export type PaceDisplay = {
+  /** The daily calories the card shows. */
+  calories: number;
+  weeklyChangeLbs: number;
+  /**
+   * normal: at or above the minimum. below: under it and not decided yet (shown in red).
+   * using_minimum: the user chose the minimum for this pace. opted_out: the floor is off.
+   */
+  state: 'normal' | 'below' | 'using_minimum' | 'opted_out';
+  /** The honest calculation, for "Calculated 1,180 · using the recommended minimum". */
+  calculatedCalories: number;
+};
+
+/**
+ * What a pace card shows. The honest number is shown (in red) until the user decides; after
+ * "use the minimum" the card shows the minimum it will use, and with the floor off the honest
+ * number stays (still marked).
+ */
+export function paceDisplay(
+  option: TargetPreviewOption,
+  floor: CalorieFloorChoice,
+  answeredWithMinimum: boolean
+): PaceDisplay {
+  const calculated = {
+    calories: option.calorie_target,
+    weeklyChangeLbs: option.weekly_change_lbs,
+    calculatedCalories: option.calorie_target
+  };
+  if (!option.below_recommended_minimum) {
+    return { ...calculated, state: 'normal' };
+  }
+  if (floor === 'off') {
+    return { ...calculated, state: 'opted_out' };
+  }
+  if (answeredWithMinimum) {
+    return {
+      calories: option.floor_calorie_target,
+      weeklyChangeLbs: option.floor_weekly_change_lbs,
+      calculatedCalories: option.calorie_target,
+      state: 'using_minimum'
+    };
+  }
+  return { ...calculated, state: 'below' };
+}
+
+/** The extra calories to burn by moving more if eating at the minimum instead of below it. */
+export function caloriesToMoveMore(option: TargetPreviewOption, minimum: number): number {
+  return Math.max(0, Math.round(minimum - option.calorie_target));
+}
+
 /** Below about 800 kcal a day is a very-low-calorie diet, normally medically supervised. */
 export const VERY_LOW_CALORIE_LIMIT = 800;
 
