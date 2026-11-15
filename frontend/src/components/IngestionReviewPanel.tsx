@@ -32,20 +32,26 @@ import {
   buildNutritionDraft,
   describeOutput,
   formatCreatedAt,
-  formatStructuredJson,
+  applyAlternative,
+  describeAlternative,
+  matchInfo,
   getNutritionVariants,
   pendingOutputs,
   type EditableNutritionDraft
 } from './ingestionReviewHelpers';
 import { WebBarcodeScanner } from './WebBarcodeScanner';
+import { AddFoodSheet } from './AddFoodSheet';
+import { localDateKey as todayDateKey } from '../lib/dates';
 
 interface IngestionReviewPanelProps {
   accessToken: string | null;
+  /** Called after a scanned food is added to today, so the day's totals refresh. */
+  onFoodLogged?(): void;
 }
 
 type SyncTone = 'checking' | 'live';
 
-export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps) {
+export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionReviewPanelProps) {
   const cameraRef = useRef<CameraView | null>(null);
   const guidePulse = useRef(new Animated.Value(0)).current;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -71,6 +77,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
   const [nutritionDraft, setNutritionDraft] = useState<EditableNutritionDraft>(() => buildNutritionDraft(null));
   const [editingFields, setEditingFields] = useState(false);
   const [expandedScanDates, setExpandedScanDates] = useState<Record<string, boolean>>({});
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
 
   useEffect(() => {
     setNutritionDraft(buildNutritionDraft(selectedOutput?.structured_json));
@@ -194,14 +201,8 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
       setSelectedOutput(output);
       await refreshQueue();
       setTone('live');
-      setStatusLabel('Package scan created');
-      setStatusDetail(
-        scan.extraction.match_candidates.length > 0
-          ? `${scan.extraction.match_candidates.length} candidate match${
-              scan.extraction.match_candidates.length === 1 ? '' : 'es'
-            } ready for review.`
-          : 'Package scan created without confident existing-food candidates.'
-      );
+      setStatusLabel('Package scanned');
+      setStatusDetail(`Read "${scan.extraction.product_name}". Check the nutrition below, or scan the nutrition label for exact numbers.`);
     } catch (error) {
       setTone('checking');
       setStatusLabel('Package scan failed');
@@ -216,7 +217,8 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     await createLabelScanFromBase64(labelBase64.trim());
   }
 
-  async function createLabelScanFromBase64(imageBase64: string) {
+  /** replaceOutputId: a package scan whose guessed nutrition this label replaces (discarded). */
+  async function createLabelScanFromBase64(imageBase64: string, replaceOutputId?: string) {
     if (!accessToken || captureLoading || imageBase64.length === 0) {
       return;
     }
@@ -231,12 +233,23 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     try {
       const scan = await ingestNutritionLabel(imageBase64, accessToken);
       const output = buildPendingOutput(scan.output_id, scan.ingestion_job_id, scan.confidence, scan.extraction);
+      // The label's real numbers replace a package scan's guess: discard that scan so only
+      // one food is saved.
+      let replaced = false;
+      if (replaceOutputId) {
+        try {
+          await rejectIngestionOutput(replaceOutputId, accessToken);
+          replaced = true;
+        } catch {
+          // Already saved or gone: keep it, and don't claim a replacement.
+        }
+      }
       setSelectedOutputId(output.id);
       setSelectedOutput(output);
       await refreshQueue();
       setTone('live');
-      setStatusLabel('Label scan created');
-      setStatusDetail('The extracted nutrition draft is ready for review and acceptance.');
+      setStatusLabel('Label scanned');
+      setStatusDetail(replaced ? 'The label replaced the matched nutrition. Check it, then save.' : 'Check the numbers, then save.');
     } catch (error) {
       setTone('checking');
       setStatusLabel('Label scan failed');
@@ -284,6 +297,53 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     } finally {
       setActioningId(null);
     }
+  }
+
+  /** Save: accept the scan with any edits, then save it to the food bank, in one step. */
+  async function saveScan() {
+    if (!accessToken || !selectedOutput || actioningId || savingFoodId) {
+      return;
+    }
+    const outputId = selectedOutput.id;
+    setActioningId(outputId);
+    setSavingFoodId(outputId);
+    setQueueError(null);
+    setSavedFoods([]);
+    setTone('checking');
+    setStatusLabel('Saving');
+    setStatusDetail('Saving to your food bank.');
+    try {
+      const accepted =
+        selectedOutput.review_state === 'accepted'
+          ? selectedOutput
+          : await acceptIngestionOutput(
+              outputId,
+              accessToken,
+              buildAcceptedNutritionPayload(nutritionDraft, selectedOutput.structured_json)
+            );
+      setOutputs((current) => current.filter((item) => item.id !== outputId));
+      setSelectedOutput(accepted);
+      setEditingFields(false);
+      const result = await saveFoodFromIngestionOutput(outputId, accessToken);
+      setSavedFoods(result.saved_foods);
+      setTone('live');
+      setStatusLabel('Saved to your food bank');
+      setStatusDetail(
+        result.saved_foods.length === 1 ? `${result.saved_foods[0].name} is in your food bank.` : `${result.saved_foods.length} foods are in your food bank.`
+      );
+    } catch (error) {
+      setTone('checking');
+      setStatusLabel('Save failed');
+      setStatusDetail('Check the numbers and try again.');
+      setQueueError(error instanceof Error ? error.message : 'Unable to save this food.');
+    } finally {
+      setActioningId(null);
+      setSavingFoodId(null);
+    }
+  }
+
+  function scanLabelToReplace(outputId: string) {
+    void captureWebPhoto('label', outputId);
   }
 
   async function saveSelectedFood() {
@@ -376,7 +436,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     }
   }
 
-  async function captureWebPhoto(step: 'package' | 'label') {
+  async function captureWebPhoto(step: 'package' | 'label', replaceOutputId?: string) {
     if (captureLoading || !accessToken) {
       if (!accessToken) {
         setQueueError('Sign in before scanning.');
@@ -412,7 +472,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
     } else {
       setLabelBase64(prepared.base64);
       setLabelFileName(fileName);
-      await createLabelScanFromBase64(prepared.base64);
+      await createLabelScanFromBase64(prepared.base64, replaceOutputId);
     }
   }
 
@@ -455,7 +515,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
         setTone('live');
         setStatusLabel('Barcode found');
         setStatusDetail(
-          `${describeOutput(output)} from ${result.source === 'usda' ? 'USDA' : 'Open Food Facts'}. Check the numbers, then accept and save.`
+          `${describeOutput(output)} from ${result.source === 'usda' ? 'USDA' : 'Open Food Facts'}. Check the numbers, then save.`
         );
       } else {
         setTone('checking');
@@ -705,7 +765,7 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                     onPress={() => setEditingFields((current) => !current)}
                   >
                     <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                      {editingFields ? 'Done Editing' : 'Edit'}
+                      {editingFields ? 'Done' : 'Edit'}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -729,6 +789,51 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                   </View>
                 </View>
               </View>
+              {(() => {
+                const info = matchInfo(displayOutput.structured_json);
+                if (displayOutput.review_state !== 'pending' || info.kind === null) {
+                  return null;
+                }
+                return (
+                  <View style={[styles.matchBanner, info.kind === 'missing' && styles.matchBannerMissing]}>
+                    <Text style={styles.matchTitle}>{info.kind === 'match' ? 'Nutrition matched by name' : 'No nutrition found'}</Text>
+                    <Text style={styles.detailText}>
+                      {info.kind === 'match'
+                        ? info.note ?? 'These numbers come from a similar product. Check them against the label.'
+                        : `Nothing matched "${nutritionDraft.product_name || 'this product'}". Scan the nutrition label to read the numbers, or enter them with Edit.`}
+                    </Text>
+                    {info.alternatives.length > 0 ? (
+                      <View style={styles.matchChips}>
+                        <Text style={styles.matchChipsLabel}>Not right? Other matches:</Text>
+                        {info.alternatives.map((alternative, index) => (
+                          <Pressable
+                            key={`${describeAlternative(alternative)}-${index}`}
+                            style={styles.matchChip}
+                            onPress={() =>
+                              setSelectedOutput({ ...displayOutput, structured_json: applyAlternative(displayOutput.structured_json, index) })
+                            }
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.matchChipLabel}>{describeAlternative(alternative)}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+                    {browserViewingMode ? (
+                      <Pressable
+                        style={[styles.actionButton, styles.secondaryButton]}
+                        onPress={() => scanLabelToReplace(displayOutput.id)}
+                        disabled={captureLoading !== null}
+                        accessibilityRole="button"
+                      >
+                        <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
+                          {captureLoading === 'label' ? 'Reading the label…' : 'Scan the nutrition label'}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })()}
               {editingFields ? (
                 <View style={styles.formGrid}>
                   <LabeledInput
@@ -797,17 +902,12 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
               {displayOutput.review_state === 'pending' ? (
                 <Text style={styles.detailNote}>
                   {hasAdditionalVariants
-                    ? 'Accepting this scan will preserve the full variants list and save one food per variant.'
-                    : editingFields
-                      ? 'Edit the extracted nutrition values before accepting. Save-to-food becomes available after acceptance.'
-                      : 'Review the detected result, then accept it. Edit only if the scan needs correction before save.'}
+                    ? 'Saving keeps every variant: one food each.'
+                    : !hasValidNutritionDraft(nutritionDraft)
+                      ? 'Add a name, calories, protein, carbs, and fat to save. Tap Edit.'
+                      : 'Check the numbers. Edit if anything is off, then Save.'}
                 </Text>
               ) : null}
-            </View>
-
-            <View style={styles.detailBlock}>
-              <Text style={styles.detailBlockLabel}>Structured JSON</Text>
-              <Text style={styles.codeBlock}>{formatStructuredJson(displayOutput.structured_json)}</Text>
             </View>
 
             {savedFoods.length > 0 ? (
@@ -815,9 +915,15 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                 <Text style={styles.savedFoodTitle}>{savedFoods.length === 1 ? 'Saved food' : 'Saved foods'}</Text>
                 {savedFoods.map((food) => (
                   <Text key={food.id} style={styles.detailText}>
-                    {food.name} · {food.brand ?? 'No brand'} · {food.source}
+                    {food.name}
+                    {food.brand ? ` · ${food.brand}` : ''} · {Math.round(food.calories)} kcal per serving
                   </Text>
                 ))}
+                {accessToken ? (
+                  <Pressable style={[styles.actionButton, styles.saveButton]} onPress={() => setAddSheetOpen(true)} accessibilityRole="button">
+                    <Text style={styles.actionButtonLabel}>Add to today</Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
 
@@ -826,33 +932,31 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
                 <>
                   <Pressable
                     style={[styles.actionButton, styles.acceptButton, !canReview && styles.actionButtonDisabled]}
-                    onPress={() => void reviewOutput(displayOutput.id, 'accept')}
+                    onPress={() => void saveScan()}
                     disabled={!canReview}
+                    accessibilityRole="button"
                   >
-                    <Text style={styles.actionButtonLabel}>
-                      {actioningId === displayOutput.id ? 'Saving...' : 'Accept With Edits'}
-                    </Text>
+                    <Text style={styles.actionButtonLabel}>{actioningId === displayOutput.id ? 'Saving…' : 'Save'}</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.actionButton, styles.rejectButton]}
                     onPress={() => void reviewOutput(displayOutput.id, 'reject')}
                     disabled={actioningId === displayOutput.id}
+                    accessibilityRole="button"
                   >
-                    <Text style={[styles.actionButtonLabel, styles.rejectButtonLabel]}>
-                      {actioningId === displayOutput.id ? 'Saving...' : 'Reject'}
-                    </Text>
+                    <Text style={[styles.actionButtonLabel, styles.rejectButtonLabel]}>Discard</Text>
                   </Pressable>
                 </>
               ) : null}
 
-              {displayOutput.review_state === 'accepted' ? (
+              {displayOutput.review_state === 'accepted' && savedFoods.length === 0 ? (
                 <Pressable
                   style={[styles.actionButton, styles.saveButton]}
                   onPress={() => void saveSelectedFood()}
                   disabled={savingFoodId === displayOutput.id}
                 >
                   <Text style={styles.actionButtonLabel}>
-                    {savingFoodId === displayOutput.id ? 'Saving...' : 'Save As Food'}
+                    {savingFoodId === displayOutput.id ? 'Saving…' : 'Save'}
                   </Text>
                 </Pressable>
               ) : null}
@@ -865,6 +969,24 @@ export function IngestionReviewPanel({ accessToken }: IngestionReviewPanelProps)
           </View>
         )}
       </View>
+
+      {addSheetOpen && accessToken && savedFoods.length > 0 ? (
+        <AddFoodSheet
+          foods={savedFoods}
+          fromBank
+          accessToken={accessToken}
+          logDate={todayDateKey()}
+          dayName="today"
+          onClose={() => setAddSheetOpen(false)}
+          onAdded={(food) => {
+            setAddSheetOpen(false);
+            setTone('live');
+            setStatusLabel('Added to today');
+            setStatusDetail(`${food.name} is in today's meals.`);
+            onFoodLogged?.();
+          }}
+        />
+      ) : null}
 
       {browserViewingMode ? (
         <WebBarcodeScanner
@@ -1446,6 +1568,20 @@ const styles = StyleSheet.create({
     // 16 px or more: iOS Safari zooms the page into smaller text fields on focus.
     fontSize: 16
   },
+  matchBanner: {
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: tc.bg_fff8ea,
+    borderWidth: 1,
+    borderColor: tc.line_f59e0b
+  },
+  matchBannerMissing: { backgroundColor: tc.bg_fff4f0, borderColor: tc.line_f2c8be },
+  matchTitle: { color: tc.fg_7a4e16, fontSize: 14, fontWeight: '800' },
+  matchChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
+  matchChipsLabel: { color: tc.fg_5c6d80, fontSize: 13, width: '100%' },
+  matchChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7, backgroundColor: tc.bg_ffffff },
+  matchChipLabel: { color: tc.fg_132536, fontSize: 13, fontWeight: '600' },
   savedFoodBanner: {
     backgroundColor: tc.bg_ecfdf3,
     borderRadius: 14,

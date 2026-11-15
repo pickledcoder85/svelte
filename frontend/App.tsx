@@ -6925,7 +6925,19 @@ export default function App(): ReactElement {
           </View>
         )}
 
-        {section === 'ingestion' && <IngestionReviewPanel accessToken={foodSessionToken} />}
+        {section === 'ingestion' && (
+          <IngestionReviewPanel
+            accessToken={foodSessionToken}
+            onFoodLogged={() => {
+              const token = foodSessionToken;
+              if (token) {
+                void fetchTodaysFoodLog(token)
+                  .then(setFoodLog)
+                  .catch(() => undefined);
+              }
+            }}
+          />
+        )}
 
         {IS_DEVELOPMENT_BUILD ? (
           <Text style={styles.footer}>

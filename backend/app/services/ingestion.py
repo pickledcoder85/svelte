@@ -222,8 +222,17 @@ async def save_food_from_output(
     source = {"open_food_facts": "OPEN_FOOD_FACTS", "usda": "USDA"}.get(
         str(structured_json.get("data_source") or ""), "LABEL_SCAN"
     )
+    # A package-front match names the food it came from. Saved unchanged, that same food goes
+    # into the bank (no copy); a new id from a database (usda-…, off-…) keeps repeat scans of the
+    # same product to one food. Edited numbers make a food of their own.
+    matched_id = structured_json.get("matched_food_id") if structured_json.get("nutrition_from") == "match" else None
+    matched_id = matched_id if isinstance(matched_id, str) and matched_id.strip() else None
+    matched = repository.get_food_by_id(matched_id) if matched_id else None
+    if matched is not None and _same_nutrition(matched, product_name.strip(), float(calories), protein, carbs, fat):
+        return SavedFoodsResult(saved_foods=_add_to_bank(repository, user_id, [matched]))
+    reuse_id = matched_id if matched_id and matched is None and not matched_id.startswith("food-") else None
     food = FoodItem(
-        id=existing.id if existing else f"food-label-{uuid4().hex[:12]}",
+        id=existing.id if existing else reuse_id or f"food-label-{uuid4().hex[:12]}",
         name=product_name.strip(),
         brand=structured_json.get("brand_name"),
         calories=float(calories),
@@ -234,6 +243,17 @@ async def save_food_from_output(
         **serving,
     )
     return SavedFoodsResult(saved_foods=_add_to_bank(repository, user_id, [repository.save_food_item(food)]))
+
+
+def _same_nutrition(food: FoodItem, name: str, calories: float, protein: float, carbs: float, fat: float) -> bool:
+    close = lambda a, b: abs(float(a) - float(b)) < 0.5  # noqa: E731
+    return (
+        food.name.strip().lower() == name.lower()
+        and close(food.calories, calories)
+        and close(food.macros.protein, protein)
+        and close(food.macros.carbs, carbs)
+        and close(food.macros.fat, fat)
+    )
 
 
 def _add_to_bank(repository: SQLiteRepository, user_id: str, foods: list[FoodItem]) -> list[FoodItem]:

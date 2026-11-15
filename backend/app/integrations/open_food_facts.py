@@ -96,3 +96,37 @@ async def fetch_product(code: str, client: httpx.AsyncClient) -> dict[str, Any] 
     if payload.get("status") != 1 or not isinstance(payload.get("product"), dict):
         return None
     return payload["product"]
+
+
+OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
+
+
+async def search_products(
+    query: str, client: httpx.AsyncClient, page_size: int = 10, timeout: float = TIMEOUT_SECONDS
+) -> list[dict[str, Any]]:
+    """Products whose name or brand matches the text read off a package front. Only that text is
+    sent (no photo, no personal details)."""
+    try:
+        response = await client.get(
+            OFF_SEARCH_URL,
+            params={
+                "search_terms": query,
+                "search_simple": 1,
+                "action": "process",
+                "json": 1,
+                "page_size": page_size,
+                "fields": OFF_FIELDS,
+            },
+            headers={"User-Agent": OFF_USER_AGENT},
+            timeout=timeout,
+        )
+    except httpx.RequestError as error:
+        raise OpenFoodFactsError("Open Food Facts could not be reached.") from error
+    if response.status_code != 200:
+        raise OpenFoodFactsError(f"Open Food Facts search returned {response.status_code}.")
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise OpenFoodFactsError("Open Food Facts search returned an unexpected response.") from error
+    products = payload.get("products") if isinstance(payload, dict) else None
+    return [product for product in products or [] if isinstance(product, dict)]
