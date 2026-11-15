@@ -30,13 +30,13 @@ describe('app shell metadata', () => {
   });
 
   it('shows sub-tabs only for tabs with several sections', () => {
-    expect(subTabsForSection('foods').map((item) => item.label)).toEqual(['Diary', 'Foods', 'Scan']);
+    expect(subTabsForSection('foods').map((item) => item.label)).toEqual(['Entries', 'Foods', 'Scan']);
     expect(subTabsForSection('meal-prep').map((item) => item.id)).toEqual(['meal-plan', 'meal-prep', 'recipes', 'meals']);
     expect(subTabsForSection('dashboard')).toEqual([]);
     expect(subTabsForSection('profile')).toEqual([]);
   });
 
   it('offers the quick actions from the plus button', () => {
-    expect(QUICK_ACTIONS.map((action) => action.label)).toEqual(['Log food', 'Scan', 'Log workout', 'Weigh-in']);
+    expect(QUICK_ACTIONS.map((action) => action.label)).toEqual(['Add food', 'Scan', 'Add workout', 'Weigh in']);
   });
 });

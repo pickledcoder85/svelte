@@ -22,7 +22,8 @@ export const appShellSections: AppShellSectionMeta[] = [
 ];
 
 /**
- * Bottom tab bar. Each tab shows one or more sections; tabs with several show sub-tabs at the
+ * Bottom tab bar (Today · Diary · ＋ · Trends · Plan). Tabs are places; the ＋ actions are
+ * verbs (Add food, Scan, Add workout, Weigh in). Each tab shows one or more sections; tabs with several show sub-tabs at the
  * top. Profile and Settings belong to the avatar's account sheet, not a tab.
  */
 export type AppTabId = 'today' | 'log' | 'trends' | 'plan';
@@ -36,9 +37,9 @@ export const APP_TABS: Array<{
   { id: 'today', label: 'Today', sections: [{ id: 'dashboard', label: 'Today' }] },
   {
     id: 'log',
-    label: 'Log',
+    label: 'Diary',
     sections: [
-      { id: 'tracker', label: 'Diary' },
+      { id: 'tracker', label: 'Entries' },
       { id: 'foods', label: 'Foods' },
       { id: 'ingestion', label: 'Scan' }
     ]
@@ -69,10 +70,10 @@ export function subTabsForSection(section: AppSection): Array<{ id: AppSection; 
 
 /** What the ＋ button offers, and where each goes. */
 export const QUICK_ACTIONS: Array<{ id: string; label: string; detail: string; icon: string; section: AppSection }> = [
-  { id: 'log-food', label: 'Log food', detail: 'Search your foods or USDA', icon: '🍎', section: 'foods' },
+  { id: 'log-food', label: 'Add food', detail: 'Search your foods or USDA', icon: '🍎', section: 'foods' },
   { id: 'scan', label: 'Scan', detail: 'Barcode, label, or package photo', icon: '📷', section: 'ingestion' },
-  { id: 'log-workout', label: 'Log workout', detail: 'Add exercise to today', icon: '🚴', section: 'tracker' },
-  { id: 'weigh-in', label: 'Weigh-in', detail: "Record today's weight", icon: '⚖️', section: 'trends' }
+  { id: 'log-workout', label: 'Add workout', detail: 'Add exercise to today', icon: '🚴', section: 'tracker' },
+  { id: 'weigh-in', label: 'Weigh in', detail: "Record today's weight", icon: '⚖️', section: 'trends' }
 ];
 
 export function getAppSectionMeta(section: AppSection): AppShellSectionMeta {

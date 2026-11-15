@@ -1,5 +1,5 @@
 /**
- * The bottom tab bar: Today · Log · ＋ · Trends · Plan. The raised ＋ in the middle opens the
+ * The bottom tab bar: Today · Diary · ＋ · Trends · Plan. The raised ＋ in the middle opens the
  * quick actions. Sits under the thumb; the page keeps it clear of the iPhone home indicator.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -68,7 +68,7 @@ export function TabBar({
       <View style={styles.row}>
         {renderTab(first)}
         {renderTab(second)}
-        <Pressable style={styles.plusSlot} onPress={onPlus} accessibilityRole="button" accessibilityLabel="Add: log food, scan, log a workout, or weigh in">
+        <Pressable style={styles.plusSlot} onPress={onPlus} accessibilityRole="button" accessibilityLabel="Add food, scan, add a workout, or weigh in">
           <View style={styles.plus}>
             <Text style={styles.plusLabel}>+</Text>
           </View>
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 18
   },
   tab: {
@@ -113,11 +113,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center'
   },
+  // Rises a little above the bar, with clear space between it and the bar's top edge.
   plus: {
-    width: 52,
-    height: 52,
-    marginTop: -18,
-    borderRadius: 26,
+    width: 46,
+    height: 46,
+    marginTop: -8,
+    marginBottom: 2,
+    borderRadius: 23,
     backgroundColor: tc.brand_primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -128,8 +130,8 @@ const styles = StyleSheet.create({
   },
   plusLabel: {
     color: tc.fg_ffffff,
-    fontSize: 30,
-    lineHeight: 32,
+    fontSize: 28,
+    lineHeight: 30,
     fontWeight: '600'
   }
 });

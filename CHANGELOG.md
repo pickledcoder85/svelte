@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Navigation naming: the Log tab is now Diary (sub-tabs Entries · Foods · Scan), and the ＋ actions are verbs: Add food, Scan, Add workout, Weigh in. The ＋ is a little smaller with clear space above it. Setup no longer creates a sample meal plan or sample planned workouts; new accounts start empty.
 - The bottom tab bar sits higher, with more room underneath, so the phone's rounded corners no longer clip it.
 - New navigation, like leading fitness apps: a bottom tab bar (Today · Log · ＋ · Trends · Plan) replaces the hamburger menu. Log has sub-tabs Diary, Foods, and Scan; Plan has Meal plan, Prep, Recipes, and Meals. The raised ＋ opens quick actions (Log food, Scan, Log workout, Weigh-in) from anywhere. The Gherkin avatar opens an account sheet with Profile and Settings. A new Trends tab holds the calorie chart (moved from Today) and the progress and weigh-in cards (moved from Profile). Screens moved as they were; the Food screen redesign comes next inside Log and ＋.
 - Removed the "Live backend" status: the card at the top of every screen except Home, the status line at the bottom of Home, the menu's "Mode: Owner" row (the session controls now only show in development), and Scan Food's "Session: Live" tile; Scan Food's status says "Scans" in plain words.
