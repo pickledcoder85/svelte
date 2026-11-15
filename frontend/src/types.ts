@@ -144,6 +144,7 @@ export interface UserOnboardingRequest {
   nutrition_style: 'balanced' | 'keto' | 'mediterranean';
   allergy_notes?: string | null;
   calorie_floor?: CalorieFloor;
+  display_name?: string | null;
   units?: 'imperial' | 'metric';
   timezone?: string;
 }

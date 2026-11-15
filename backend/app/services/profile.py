@@ -270,6 +270,8 @@ def complete_user_onboarding(
         email=session.email,
         display_name=session.display_name,
     )
+    if payload.display_name and payload.display_name.strip():
+        repository.update_display_name(user_id=session.user_id, display_name=payload.display_name.strip())
     if payload.units is not None or payload.timezone is not None:
         repository.update_user_preferences(
             user_id=session.user_id,
