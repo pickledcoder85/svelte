@@ -102,6 +102,16 @@ import {
 } from './src/lib/foods';
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
+import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
+import { PickerSheet } from './src/components/PickerSheet';
+import {
+  draftsFromWheel,
+  formatBodyField,
+  initialWheelIndexes,
+  wheelColumns,
+  type BodyField,
+  type WheelDrafts
+} from './src/lib/wheel-picker';
 import {
   buildDemoPlannedWorkoutSessions,
   buildPlannedWorkoutPayload,
@@ -570,9 +580,11 @@ export default function App(): ReactElement {
     defaultUnitSystemForLocale(deviceLocale())
   );
   const [onboardingHeightCmDraft, setOnboardingHeightCmDraft] = useState('');
+  // Which setup wheel picker is open, if any.
+  const [bodyPicker, setBodyPicker] = useState<BodyField | null>(null);
   const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
   const [onboardingGoalPaceDraft, setOnboardingGoalPaceDraft] = useState<GoalPace>('recommended');
-  const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('170');
+  const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('');
   const [onboardingActivityLevelDraft, setOnboardingActivityLevelDraft] = useState<
     'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active'
   >('moderate');
@@ -791,7 +803,7 @@ export default function App(): ReactElement {
     setOnboardingCurrentWeightDraft('180');
     setOnboardingGoalTypeDraft('lose');
     setOnboardingGoalPaceDraft('recommended');
-    setOnboardingTargetWeightDraft('170');
+    setOnboardingTargetWeightDraft('');
     setOnboardingActivityLevelDraft('moderate');
     setOnboardingDietaryPatternDraft('omnivore');
     setOnboardingNutritionStyleDraft('balanced');
@@ -2814,6 +2826,21 @@ export default function App(): ReactElement {
     return Math.round((onboardingUnitsDraft === 'metric' ? value * LB_PER_KG : value) * 10) / 10;
   }
 
+  function onboardingWheelDrafts(): WheelDrafts {
+    return { ...onboardingBodyDrafts(), age: onboardingAgeDraft, goalWeight: onboardingTargetWeightDraft };
+  }
+
+  function applyBodyPicker(field: BodyField, indexes: number[]) {
+    const next = draftsFromWheel(field, onboardingUnitsDraft, indexes);
+    if (next.heightFeet !== undefined) setOnboardingHeightFeetDraft(next.heightFeet);
+    if (next.heightInches !== undefined) setOnboardingHeightInchesDraft(next.heightInches);
+    if (next.heightCm !== undefined) setOnboardingHeightCmDraft(next.heightCm);
+    if (next.weight !== undefined) setOnboardingCurrentWeightDraft(next.weight);
+    if (next.goalWeight !== undefined) setOnboardingTargetWeightDraft(next.goalWeight);
+    if (next.age !== undefined) setOnboardingAgeDraft(next.age);
+    setBodyPicker(null);
+  }
+
   function switchOnboardingUnits(next: UnitSystem) {
     if (next === onboardingUnitsDraft) {
       return;
@@ -3529,6 +3556,31 @@ export default function App(): ReactElement {
                   </View>
                 ) : null}
 
+              {bodyPicker ? (
+                <PickerSheet
+                  key={`${bodyPicker}-${onboardingUnitsDraft}`}
+                  title={{ height: 'Height', weight: 'Weight', goalWeight: 'Goal weight', age: 'Age' }[bodyPicker]}
+                  columns={wheelColumns(bodyPicker, onboardingUnitsDraft)}
+                  initialIndexes={initialWheelIndexes(
+                    bodyPicker,
+                    onboardingUnitsDraft,
+                    onboardingWheelDrafts(),
+                    onboardingGoalTypeDraft
+                  )}
+                  onDone={(indexes) => applyBodyPicker(bodyPicker, indexes)}
+                  onCancel={() => setBodyPicker(null)}
+                  {...(bodyPicker === 'goalWeight'
+                    ? {
+                        clearLabel: 'No goal weight',
+                        onClear: () => {
+                          setOnboardingTargetWeightDraft('');
+                          setBodyPicker(null);
+                        }
+                      }
+                    : {})}
+                />
+              ) : null}
+
               {onboardingStep === 'basics' ? (
                 <View style={styles.setupPanel}>
                   <Text style={styles.panelTitle}>About you</Text>
@@ -3558,99 +3610,52 @@ export default function App(): ReactElement {
                     })}
                   </View>
 
-                  <Text style={styles.profileFieldLabel}>Sex</Text>
-                  <View style={styles.setupChoiceRow}>
-                    {(['female', 'male'] as const).map((option) => {
-                      const active = onboardingSexDraft === option;
-                      return (
-                        <Pressable
-                          key={option}
-                          style={[styles.setupChoiceCard, styles.setupChoiceCardCompact, active && styles.setupChoiceCardActive]}
-                          onPress={() => setOnboardingSexDraft(option)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                            {option === 'male' ? 'Male' : 'Female'}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <FieldGroup label="Sex">
+                    <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
+                      {(['female', 'male'] as const).map((option) => {
+                        const active = onboardingSexDraft === option;
+                        return (
+                          <Pressable
+                            key={option}
+                            style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                            onPress={() => setOnboardingSexDraft(option)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: active }}
+                          >
+                            <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
+                              {option === 'male' ? 'Male' : 'Female'}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </FieldGroup>
 
-                  {onboardingUnitsDraft === 'imperial' ? (
-                    <View>
-                      <Text style={styles.profileFieldLabel}>Height</Text>
-                      <View style={styles.profileFieldRow}>
-                        <View style={styles.profileFieldHalf}>
-                          <TextInput
-                            value={onboardingHeightFeetDraft}
-                            onChangeText={setOnboardingHeightFeetDraft}
-                            keyboardType="number-pad"
-                            placeholder="e.g. 5"
-                            placeholderTextColor="#9aa6b8"
-                            style={styles.profileFieldInput}
-                            accessibilityLabel="Height, feet"
-                          />
-                          <Text style={styles.unitSuffix}>ft</Text>
-                        </View>
-                        <View style={styles.profileFieldHalf}>
-                          <TextInput
-                            value={onboardingHeightInchesDraft}
-                            onChangeText={setOnboardingHeightInchesDraft}
-                            keyboardType="number-pad"
-                            placeholder="e.g. 10"
-                            placeholderTextColor="#9aa6b8"
-                            style={styles.profileFieldInput}
-                            accessibilityLabel="Height, inches"
-                          />
-                          <Text style={styles.unitSuffix}>in</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ) : (
-                    <View>
-                      <Text style={styles.profileFieldLabel}>Height</Text>
-                      <TextInput
-                        value={onboardingHeightCmDraft}
-                        onChangeText={setOnboardingHeightCmDraft}
-                        keyboardType="number-pad"
-                        placeholder="e.g. 175"
-                        placeholderTextColor="#9aa6b8"
-                        style={styles.profileFieldInput}
-                        accessibilityLabel="Height, centimetres"
-                      />
-                      <Text style={styles.unitSuffix}>cm</Text>
-                    </View>
-                  )}
+                  <PickerField
+                    label="Height"
+                    value={formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts())}
+                    placeholder="Choose"
+                    onPress={() => setBodyPicker('height')}
+                    accessibilityLabel="Height"
+                  />
 
                   <View style={styles.profileFieldRow}>
-                    <View style={styles.profileFieldHalf}>
-                      <Text style={styles.profileFieldLabel}>Weight</Text>
-                      <TextInput
-                        value={onboardingCurrentWeightDraft}
-                        onChangeText={setOnboardingCurrentWeightDraft}
-                        keyboardType="decimal-pad"
-                        placeholder={onboardingUnitsDraft === 'metric' ? 'e.g. 75' : 'e.g. 165'}
-                        placeholderTextColor="#9aa6b8"
-                        style={styles.profileFieldInput}
-                        accessibilityLabel={onboardingUnitsDraft === 'metric' ? 'Weight, kilograms' : 'Weight, pounds'}
-                      />
-                      <Text style={styles.unitSuffix}>{onboardingUnitsDraft === 'metric' ? 'kg' : 'lb'}</Text>
-                    </View>
-                    <View style={styles.profileFieldHalf}>
-                      <Text style={styles.profileFieldLabel}>Age</Text>
-                      <TextInput
-                        value={onboardingAgeDraft}
-                        onChangeText={setOnboardingAgeDraft}
-                        keyboardType="number-pad"
-                        placeholder="e.g. 34"
-                        placeholderTextColor="#9aa6b8"
-                        style={styles.profileFieldInput}
-                        accessibilityLabel="Age, years"
-                      />
-                      <Text style={styles.unitSuffix}>years</Text>
-                    </View>
+                    <PickerField
+                      style={styles.profileFieldHalf}
+                      label="Weight"
+                      value={formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts())}
+                      placeholder="Choose"
+                      onPress={() => setBodyPicker('weight')}
+                      accessibilityLabel="Weight"
+                    />
+                    <PickerField
+                      style={styles.profileFieldHalf}
+                      label="Age"
+                      value={formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts())}
+                      placeholder="Choose"
+                      onPress={() => setBodyPicker('age')}
+                      accessibilityLabel="Age"
+                    />
                   </View>
                 </View>
               ) : null}
@@ -3845,17 +3850,13 @@ export default function App(): ReactElement {
 
                   {onboardingGoalTypeDraft !== 'maintain' ? (
                     <View style={styles.goalWeightBlock}>
-                      <Text style={styles.profileFieldLabel}>Goal weight (optional)</Text>
-                      <TextInput
-                        value={onboardingTargetWeightDraft}
-                        onChangeText={setOnboardingTargetWeightDraft}
-                        keyboardType="decimal-pad"
-                        placeholder={onboardingUnitsDraft === 'metric' ? 'e.g. 70' : 'e.g. 155'}
-                        placeholderTextColor="#9aa6b8"
-                        style={styles.profileFieldInput}
-                        accessibilityLabel={onboardingUnitsDraft === 'metric' ? 'Goal weight, kilograms' : 'Goal weight, pounds'}
+                      <PickerField
+                        label="Goal weight (optional)"
+                        value={formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}
+                        placeholder="Choose"
+                        onPress={() => setBodyPicker('goalWeight')}
+                        accessibilityLabel="Goal weight"
                       />
-                      <Text style={styles.unitSuffix}>{onboardingUnitsDraft === 'metric' ? 'kg' : 'lb'}</Text>
                       {(() => {
                         const goalLbs = onboardingTargetWeightLbs();
                         const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
@@ -4030,10 +4031,13 @@ export default function App(): ReactElement {
                       <View style={styles.setupReviewTile}>
                         <Text style={styles.setupReviewLabel}>Body stats</Text>
                         <Text style={styles.setupReviewValue}>
-                          {onboardingUnitsDraft === 'metric'
-                            ? `${onboardingCurrentWeightDraft} kg · ${onboardingHeightCmDraft} cm`
-                            : `${onboardingCurrentWeightDraft} lb · ${onboardingHeightFeetDraft}' ${onboardingHeightInchesDraft || 0}"`}{' '}
-                          · age {onboardingAgeDraft}
+                          {[
+                            formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts()),
+                            formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts()),
+                            formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts())
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </Text>
                       </View>
                       <View style={styles.setupReviewTile}>
@@ -4041,6 +4045,10 @@ export default function App(): ReactElement {
                         <Text style={styles.setupReviewValue}>
                           {formatGoalTypeLabel(onboardingGoalTypeDraft)} ·{' '}
                           {formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft)}
+                          {onboardingGoalTypeDraft !== 'maintain' &&
+                          formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())
+                            ? ` · goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
+                            : ''}
                         </Text>
                       </View>
                       <View style={styles.setupReviewTile}>
@@ -6825,13 +6833,11 @@ const styles = StyleSheet.create({
     marginTop: 2
   },
   goalWeightBlock: {
-    gap: 4,
-    marginTop: 4
+    gap: 6
   },
   goalWeightEstimate: {
     color: RELISH_COLORS.text,
-    fontSize: 13,
-    marginTop: 4
+    fontSize: 13
   },
   setupProgress: {
     flexDirection: 'row',
@@ -6886,25 +6892,28 @@ const styles = StyleSheet.create({
   unitToggleLabelActive: {
     color: RELISH_COLORS.text
   },
-  unitSuffix: {
-    color: '#66778c',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4
+  setupSegmentRow: {
+    flexDirection: 'row',
+    gap: 10
   },
-  setupChoiceCardCompact: {
-    paddingVertical: 12
+  // Same height as the picker fields, so every row on About you lines up.
+  setupSegmentChoice: {
+    ...FIELD_BOX,
+    flex: 1,
+    height: FIELD_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  setupSegmentLabel: {
+    color: '#132536',
+    fontSize: 16,
+    fontWeight: '600'
   },
   setupPanel: {
     gap: 14
   },
   setupPanelHeading: {
     gap: 6
-  },
-  setupChoiceRow: {
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap'
   },
   setupChoiceCard: {
     flexGrow: 1,
