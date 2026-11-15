@@ -35,6 +35,8 @@ export type TargetPreview = {
   /** True when even maintenance is under the floor, so every target is a small surplus. */
   maintenance_below_minimum?: boolean;
   options: TargetPreviewOption[];
+  /** Maintenance calories at each activity level, so the activity gauge updates instantly. */
+  maintenance_by_activity?: Partial<Record<'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active', number>>;
 };
 
 export const GOAL_OPTIONS: Array<{ id: GoalType; title: string; detail: string }> = [
