@@ -1,108 +1,83 @@
 /**
- * Setup step 2. ActivityGauge is the readout: a half-circle dial whose arc fills to the chosen
- * level, with the level's name inside and its description underneath. ActivitySlider is the
- * control: a five-stop slider placed at the bottom of the card, so the thumb that moves it
- * never covers the text that changes. Web only (the app ships as a PWA).
+ * Setup step 2 ("Daily activity"). ActivityEnergyBars shows energy at rest (BMR) and with the
+ * chosen activity; the activity bar grows as the level rises. ActivityCaption names the level.
+ * ActivitySlider, placed under them by the thumb, sets it. Web only (the app ships as a PWA).
  */
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { useRef } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import {
   ACTIVITY_LEVELS,
+  activityBars,
   activityIndex,
-  arcPath,
   indexForPosition,
-  pointOnArc,
   positionForIndex,
   sliderPosition,
   type ActivityLevel
-} from '../lib/activity-gauge';
-import { usePalette } from '../theme/appearance';
+} from '../lib/activity-level';
 import { tc } from '../theme/palette';
 
-const STROKE = 18;
-const MAX_WIDTH = 320;
-const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+function kcal(value: number): string {
+  return `${Math.round(value).toLocaleString('en-US')} kcal`;
+}
 
-/** The dial and caption for the chosen level. Display only: the slider below sets the level. */
-export function ActivityGauge({ value }: { value: ActivityLevel }) {
-  const pal = usePalette();
-  // Start from the screen width so the dial's space is reserved on the first frame; onLayout
-  // then gives the exact width.
-  const [width, setWidth] = useState(() => Math.max(0, Dimensions.get('window').width - 72));
+/** The two energy bars. Both are scaled to the most active level, so the lower bar can grow. */
+export function ActivityEnergyBars({
+  bmr,
+  maintenance,
+  maintenanceByLevel
+}: {
+  /** Null until the numbers arrive: the bars keep their space, empty, so nothing jumps. */
+  bmr: number | null;
+  maintenance: number | null;
+  maintenanceByLevel?: Partial<Record<ActivityLevel, number>>;
+}) {
+  const ready = bmr !== null && maintenance !== null;
+  const bars = ready ? activityBars(bmr, maintenance, maintenanceByLevel) : { rest: 0, active: 0, fromActivity: 0 };
+  return (
+    <View style={styles.bars}>
+      <View style={styles.barBlock}>
+        <View style={styles.barLabelRow}>
+          <Text style={styles.barLabel}>At rest (BMR)</Text>
+          <Text style={styles.barValue}>{bmr !== null ? kcal(bmr) : '—'}</Text>
+        </View>
+        <View style={styles.barTrack}>
+          <View style={[styles.barRest, { width: `${bars.rest}%` }]} />
+        </View>
+      </View>
+      <View style={styles.barBlock}>
+        <View style={styles.barLabelRow}>
+          <Text style={styles.barLabel}>With your activity</Text>
+          <Text style={styles.barValue}>{maintenance !== null ? kcal(maintenance) : '—'}</Text>
+        </View>
+        <View style={styles.barTrack}>
+          {/* The whole bar is the day's total: the green start is the at-rest part, amber is activity. */}
+          <View style={[styles.barActive, { width: `${bars.active}%` }]} />
+          <View style={[styles.barRest, styles.barRestOverlay, { width: `${Math.min(bars.rest, bars.active)}%` }]} />
+        </View>
+        <Text style={styles.barNote}>{ready ? `+${kcal(bars.fromActivity)} from activity` : ' '}</Text>
+      </View>
+    </View>
+  );
+}
 
+/** The chosen level's name, description, and rough step count: one block that swaps. */
+export function ActivityCaption({ value }: { value: ActivityLevel }) {
   const index = activityIndex(value);
   const level = ACTIVITY_LEVELS[index];
-  const size = Math.min(width, MAX_WIDTH);
-  const cx = size / 2;
-  const r = size / 2 - STROKE / 2 - 4;
-  const cy = r + STROKE / 2 + 4;
-  const height = cy + STROKE / 2 + 4;
-  const position = positionForIndex(index);
-  const fillEnd = pointOnArc(cx, cy, r, position);
-  const innerRadius = r - STROKE / 2 - 6;
-
   return (
     <View
-      style={styles.wrap}
-      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
-      accessibilityRole="image"
+      style={styles.caption}
       accessibilityLabel={`${level.title}, ${index + 1} of ${ACTIVITY_LEVELS.length}. ${level.description}, ${level.steps}.`}
     >
-      {size > 0 ? (
-        <div style={{ position: 'relative', width: size, height }} aria-hidden="true">
-          <Svg width={size} height={height}>
-            <Path d={arcPath(cx, cy, r, 0, 1)} stroke={pal.line_dbe3ec} strokeWidth={STROKE} strokeLinecap="round" fill="none" />
-            {position > 0 ? (
-              <Path d={arcPath(cx, cy, r, 0, position)} stroke={pal.brand_primary} strokeWidth={STROKE} strokeLinecap="round" fill="none" />
-            ) : null}
-            {/* The end of the fill; at the first level this dot is the whole fill. */}
-            <Circle cx={fillEnd.x} cy={fillEnd.y} r={STROKE / 2} fill={pal.brand_primary} />
-            {ACTIVITY_LEVELS.map((option, optionIndex) => {
-              const stop = pointOnArc(cx, cy, r, positionForIndex(optionIndex));
-              return (
-                <Circle
-                  key={option.id}
-                  cx={stop.x}
-                  cy={stop.y}
-                  r={3}
-                  fill={optionIndex <= index ? pal.fg_ffffff : pal.fg_9aa6b8}
-                  opacity={0.9}
-                />
-              );
-            })}
-          </Svg>
-          <div
-            style={{
-              position: 'absolute',
-              left: cx - innerRadius * 0.85,
-              width: innerRadius * 1.7,
-              top: cy - innerRadius * 0.75,
-              height: innerRadius * 0.75 + 4,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              fontFamily: FONT
-            }}
-          >
-            <div style={{ color: tc.fg_7a8797, fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
-              {index + 1} of {ACTIVITY_LEVELS.length}
-            </div>
-            <div style={{ color: tc.fg_132536, fontSize: 24, fontWeight: 800, marginTop: 2 }}>{level.title}</div>
-          </div>
-        </div>
-      ) : null}
-      <View style={styles.caption}>
-        <Text style={styles.description} numberOfLines={1}>
-          {level.description}
-        </Text>
-        <Text style={styles.steps} numberOfLines={1}>
-          {level.steps}
-        </Text>
-      </View>
+      <Text style={styles.captionTitle}>{level.title}</Text>
+      <Text style={styles.captionDetail} numberOfLines={1}>
+        {level.description}
+      </Text>
+      <Text style={styles.captionSteps} numberOfLines={1}>
+        {level.steps}
+      </Text>
     </View>
   );
 }
@@ -112,11 +87,15 @@ const TRACK = 8;
 /** Space at each end of the track, so the handle never hangs over the edge. */
 const INSET = HANDLE / 2 + 2;
 const SLIDER_HEIGHT = 52;
+/** Sideways movement (px) before a touch counts as dragging the handle. */
+const DRAG_THRESHOLD = 6;
 
 /** The five-stop slider that sets the level. Drag the handle or tap a stop; it snaps. */
 export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onChange(level: ActivityLevel): void }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const dragging = useRef(false);
+  // A touch only changes the level once it moves sideways (a drag) or lifts in place (a tap).
+  // A touch that turns into a page scroll is cancelled and the level it started with returns.
+  const gesture = useRef<{ startIndex: number; x: number; y: number; dragging: boolean } | null>(null);
   const index = activityIndex(value);
   const level = ACTIVITY_LEVELS[index];
   const last = ACTIVITY_LEVELS.length - 1;
@@ -170,20 +149,35 @@ export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onCh
           if (!event.isPrimary) {
             return;
           }
-          dragging.current = true;
+          gesture.current = { startIndex: index, x: event.clientX, y: event.clientY, dragging: false };
           event.currentTarget.setPointerCapture(event.pointerId);
-          chooseFromPointer(event);
         }}
         onPointerMove={(event) => {
-          if (dragging.current) {
+          const current = gesture.current;
+          if (!current) {
+            return;
+          }
+          if (!current.dragging && Math.abs(event.clientX - current.x) >= DRAG_THRESHOLD) {
+            current.dragging = true;
+          }
+          if (current.dragging) {
             chooseFromPointer(event);
           }
         }}
-        onPointerUp={() => {
-          dragging.current = false;
+        onPointerUp={(event) => {
+          // A tap (no drag) picks the stop under the finger.
+          if (gesture.current && !gesture.current.dragging) {
+            chooseFromPointer(event);
+          }
+          gesture.current = null;
         }}
         onPointerCancel={() => {
-          dragging.current = false;
+          // The browser took the touch for scrolling: put the level back.
+          const current = gesture.current;
+          gesture.current = null;
+          if (current && current.startIndex !== index) {
+            onChange(ACTIVITY_LEVELS[current.startIndex].id);
+          }
         }}
         style={{
           position: 'relative',
@@ -261,25 +255,75 @@ export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onCh
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    alignItems: 'center',
-    gap: 8
+  bars: {
+    gap: 14
   },
-  // One line each, so the energy card below stays put whichever level is chosen.
-  caption: {
-    alignItems: 'center',
-    gap: 2
+  barBlock: {
+    gap: 6
   },
-  description: {
-    color: tc.fg_132536,
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center'
+  barLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline'
   },
-  steps: {
+  barLabel: {
     color: tc.fg_5c6d80,
     fontSize: 14,
-    textAlign: 'center'
+    fontWeight: '600'
+  },
+  barValue: {
+    color: tc.fg_132536,
+    fontSize: 17,
+    fontWeight: '800'
+  },
+  barTrack: {
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: tc.line_dbe3ec,
+    overflow: 'hidden'
+  },
+  barRest: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: tc.brand_primary
+  },
+  // The thin card-coloured edge separates the two parts even where green and amber are equally
+  // bright (dark mode, colour-blind users).
+  barRestOverlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    borderRightWidth: 2,
+    borderRightColor: tc.bg_ffffff,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0
+  },
+  // What activity adds, in a warm colour that stands apart from the green at-rest part.
+  barActive: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: tc.brand_accent
+  },
+  barNote: {
+    color: tc.fg_b45309,
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  caption: {
+    gap: 2
+  },
+  captionTitle: {
+    color: tc.fg_132536,
+    fontSize: 20,
+    fontWeight: '800'
+  },
+  captionDetail: {
+    color: tc.fg_132536,
+    fontSize: 15
+  },
+  captionSteps: {
+    color: tc.fg_5c6d80,
+    fontSize: 14
   },
   sliderWrap: {
     gap: 2

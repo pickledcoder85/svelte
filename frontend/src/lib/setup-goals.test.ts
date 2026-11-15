@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PACE,
-  energyBarWidths,
   estimateGoalDate,
   findPreviewOption,
   formatApproximateDate,
@@ -65,11 +64,6 @@ describe('setup goals', () => {
     expect(estimateGoalDate(150, 150, 0.4, today)).toBeNull();
     expect(formatApproximateDate(new Date(2027, 1, 6))).toBe('early-February 2027');
     expect(formatApproximateDate(new Date(2027, 1, 15))).toBe('mid-February 2027');
-  });
-
-  it('scales the energy bars to the larger value', () => {
-    expect(energyBarWidths(1887, 2736)).toEqual({ rest: 69, active: 100 });
-    expect(energyBarWidths(0, 0)).toEqual({ rest: 0, active: 0 });
   });
 
   it('applies the recommended minimum only when the floor is on', () => {

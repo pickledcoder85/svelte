@@ -107,8 +107,8 @@ import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredi
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { CogIcon } from './src/components/CogIcon';
 import { ChoiceSheet } from './src/components/ChoiceSheet';
-import { ActivityGauge, ActivitySlider } from './src/components/ActivityGauge';
-import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-gauge';
+import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
+import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-level';
 import appConfig from './app.json';
 import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
 import { PickerSheet } from './src/components/PickerSheet';
@@ -146,7 +146,6 @@ import {
   DEFAULT_PACE,
   GOAL_OPTIONS,
   PACE_OPTIONS,
-  energyBarWidths,
   estimateGoalDate,
   findPreviewOption,
   formatApproximateDate,
@@ -350,7 +349,7 @@ const allergyLabels: Record<Exclude<AllergyChoice, 'none' | 'other'>, string> = 
   shellfish: 'Shellfish'
 };
 
-// Titles and descriptions live with the setup gauge (src/lib/activity-gauge.ts).
+// Titles and descriptions live with the setup step (src/lib/activity-level.ts).
 const activityLevelCards = ACTIVITY_LEVELS.map((level) => ({
   id: level.id,
   title: level.title,
@@ -609,7 +608,7 @@ export default function App(): ReactElement {
   const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('');
   const [onboardingActivityLevelDraft, setOnboardingActivityLevelDraft] = useState<
     'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active'
-  >('moderate');
+  >('sedentary');
   const [onboardingDietaryPatternDraft, setOnboardingDietaryPatternDraft] = useState<DietaryPattern>('omnivore');
   const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle>('balanced');
   const [onboardingAllergySelectionsDraft, setOnboardingAllergySelectionsDraft] = useState<AllergyChoice[]>(['none']);
@@ -658,8 +657,8 @@ export default function App(): ReactElement {
   ].join('|');
   const targetPreviewKey = `${targetBodyKey}|${onboardingActivityLevelDraft}`;
   const targetPreview = targetPreviewState?.key === targetPreviewKey ? targetPreviewState.preview : null;
-  // The energy card only needs the same body stats: BMR does not depend on activity, and the
-  // preview carries maintenance for every level, so moving the gauge updates it instantly.
+  // The energy bars only need the same body stats: BMR does not depend on activity, and the
+  // preview carries maintenance for every level, so moving the slider updates them instantly.
   const energyPreview =
     targetPreviewState && targetPreviewState.key.startsWith(`${targetBodyKey}|`) ? targetPreviewState.preview : null;
   const energyMaintenance = maintenanceForLevel(energyPreview, onboardingActivityLevelDraft);
@@ -844,7 +843,7 @@ export default function App(): ReactElement {
     setOnboardingGoalTypeDraft('lose');
     setOnboardingGoalPaceDraft('recommended');
     setOnboardingTargetWeightDraft('');
-    setOnboardingActivityLevelDraft('moderate');
+    setOnboardingActivityLevelDraft('sedentary');
     setOnboardingDietaryPatternDraft('omnivore');
     setOnboardingNutritionStyleDraft('balanced');
     setOnboardingAllergySelectionsDraft(['none']);
@@ -895,7 +894,8 @@ export default function App(): ReactElement {
         ? String(loadedProfile.target_weight_lbs)
         : ''
     );
-    setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'moderate');
+    // New setups start at Sedentary, so the activity bar starts short and grows with the slider.
+    setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'sedentary');
     setOnboardingDietaryPatternDraft(loadedProfile.dietary_pattern ?? 'omnivore');
     setOnboardingNutritionStyleDraft(loadedProfile.nutrition_style ?? 'balanced');
     const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
@@ -3888,64 +3888,34 @@ export default function App(): ReactElement {
                     Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
                   </Text>
 
-                  <ActivityGauge value={onboardingActivityLevelDraft} />
+                  <ActivityEnergyBars
+                    bmr={energyPreview?.bmr_calories ?? null}
+                    maintenance={energyMaintenance}
+                    maintenanceByLevel={energyPreview?.maintenance_by_activity}
+                  />
 
-                  {energyPreview && energyMaintenance !== null ? (
-                    <View style={styles.energyCard}>
-                      <Text style={styles.energyCardTitle}>Your energy</Text>
-                      {(() => {
-                        const bars = energyBarWidths(energyPreview.bmr_calories, energyMaintenance);
-                        return (
-                          <View style={styles.energyBars}>
-                            <View>
-                              <View style={styles.energyBarLabelRow}>
-                                <Text style={styles.energyBarLabel}>At rest</Text>
-                                <Text style={styles.energyBarValue}>{formatCalories(energyPreview.bmr_calories)}</Text>
-                              </View>
-                              <View style={styles.energyBarTrack}>
-                                <View style={[styles.energyBarFill, styles.energyBarFillRest, { width: `${bars.rest}%` }]} />
-                              </View>
-                            </View>
-                            <View>
-                              <View style={styles.energyBarLabelRow}>
-                                <Text style={styles.energyBarLabel}>With your activity</Text>
-                                <Text style={styles.energyBarValue}>{formatCalories(energyMaintenance)}</Text>
-                              </View>
-                              <View style={styles.energyBarTrack}>
-                                <View style={[styles.energyBarFill, { width: `${bars.active}%` }]} />
-                              </View>
-                            </View>
-                          </View>
-                        );
-                      })()}
-                      <Text style={styles.energyCardBody}>
-                        Your body uses about {Math.round(energyPreview.bmr_calories).toLocaleString('en-US')} kcal a day just to keep
-                        you running (your BMR). With your activity, about{' '}
-                        {Math.round(energyMaintenance).toLocaleString('en-US')} kcal. Eat that much and your weight
-                        stays put.
-                      </Text>
-                      <Pressable
-                        onPress={() => setShowBmrExplainer((current) => !current)}
-                        accessibilityRole="button"
-                        accessibilityLabel="What's BMR?"
-                        accessibilityState={{ expanded: showBmrExplainer }}
-                        hitSlop={12}
-                        style={styles.energyCardLinkButton}
-                      >
-                        <Text style={styles.energyCardLink}>{showBmrExplainer ? 'Hide BMR info' : "What's BMR?"}</Text>
-                      </Pressable>
-                      {showBmrExplainer ? (
-                        <Text style={styles.energyCardExplainer}>
-                          BMR (basal metabolic rate) is the energy your body needs at complete rest: breathing, circulation,
-                          staying warm. Relish estimates it from your height, weight, age, and sex with the Mifflin-St Jeor
-                          formula.
-                        </Text>
-                      ) : null}
-                    </View>
-                  ) : null}
+                  <ActivityCaption value={onboardingActivityLevelDraft} />
 
-                  {/* The control sits last, by the thumb, so it never covers what changes above. */}
+                  {/* The control sits under what it changes, by the thumb. */}
                   <ActivitySlider value={onboardingActivityLevelDraft} onChange={setOnboardingActivityLevelDraft} />
+
+                  <Pressable
+                    onPress={() => setShowBmrExplainer((current) => !current)}
+                    accessibilityRole="button"
+                    accessibilityLabel="What's BMR?"
+                    accessibilityState={{ expanded: showBmrExplainer }}
+                    hitSlop={12}
+                    style={styles.bmrLinkButton}
+                  >
+                    <Text style={styles.bmrLink}>{showBmrExplainer ? 'Hide BMR info' : "What's BMR?"}</Text>
+                  </Pressable>
+                  {showBmrExplainer ? (
+                    <Text style={styles.bmrExplainer}>
+                      BMR (basal metabolic rate) is the energy your body needs at complete rest: breathing, circulation, staying
+                      warm. Relish estimates it from your height, weight, age, and sex with the Mifflin-St Jeor formula. With
+                      your activity added, that is about what you burn in a day: eat that much and your weight stays put.
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -4276,7 +4246,7 @@ export default function App(): ReactElement {
                       <View style={styles.setupReviewTile}>
                         <Text style={styles.setupReviewLabel}>Lifestyle</Text>
                         <Text style={styles.setupReviewValue}>
-                          {activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Moderate'} activity
+                          {activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Sedentary'} activity
                         </Text>
                       </View>
                       <View style={styles.setupReviewTile}>
@@ -7130,67 +7100,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%'
   },
-  energyCard: {
-    gap: 10,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: tc.bg_ffffff,
-    borderWidth: 1,
-    borderColor: tc.line_e7e0cf
-  },
-  energyCardTitle: {
-    color: RELISH_COLORS.text,
-    fontSize: 16,
-    fontWeight: '800'
-  },
-  energyBars: {
-    gap: 10
-  },
-  energyBarLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4
-  },
-  energyBarLabel: {
-    color: tc.fg_5b6b62,
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  energyBarValue: {
-    color: RELISH_COLORS.text,
-    fontSize: 13,
-    fontWeight: '800'
-  },
-  energyBarTrack: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: tc.bg_efe9da,
-    overflow: 'hidden'
-  },
-  energyBarFill: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: RELISH_COLORS.text
-  },
-  energyBarFillRest: {
-    backgroundColor: tc.bg_7fa38c
-  },
-  energyCardBody: {
-    color: RELISH_COLORS.text,
-    fontSize: 14,
-    lineHeight: 20
-  },
-  energyCardLink: {
+  bmrLink: {
     color: tc.fg_2f6b4f,
     fontSize: 13,
     fontWeight: '700',
     textDecorationLine: 'underline'
   },
-  energyCardLinkButton: {
+  bmrLinkButton: {
     alignSelf: 'flex-start',
     paddingVertical: 8
   },
-  energyCardExplainer: {
+  bmrExplainer: {
     color: tc.fg_5b6b62,
     fontSize: 13,
     lineHeight: 19
