@@ -161,3 +161,9 @@ async def test_saving_an_unchanged_bank_match_reuses_the_food(client, auth_heade
     saved = await save_food_from_output(repository, user_id, output.id)
     assert [food.id for food in saved.saved_foods] == ["mine"]
     assert "mine" in repository.food_bank_ids(user_id)
+
+
+def test_a_wordy_package_matches_the_short_database_name():
+    package = "Zero Sugar Chocolate Instant Reduced Calorie Pudding & Pie Filling"
+    assert match_score(package, "Jell-O", "Sugar Free Chocolate Instant Pudding", "Jell-O") >= 0.9
+    assert match_score(package, "Jell-O", "Vanilla Instant Pudding", "Jell-O") < 0.6

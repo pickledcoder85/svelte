@@ -12,7 +12,7 @@ from backend.app.models.nutrition import (
     VisionPackageScanResult,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
-from backend.app.services.ingestion import create_scan_output, transition_output
+from backend.app.services.ingestion import create_scan_output, get_output, transition_output
 from backend.app.services.package_match import find_package_matches, package_structured_json
 from backend.app.services.vision import (
     VisionImageError,
@@ -108,6 +108,24 @@ async def _package_matches(repository: SQLiteRepository, settings: Settings, ext
         return []
 
 
+def _keep_package_identity(repository: SQLiteRepository, user_id: str, output_id: str, label):
+    """The package front names the product best; the label gives the numbers. Keep the name and
+    brand read off the front when a label replaces a package scan."""
+    try:
+        package = get_output(repository, user_id, output_id)
+    except Exception:
+        return label
+    front = package.structured_json if isinstance(package.structured_json, dict) else {}
+    name = front.get("read_product_name") or front.get("product_name")
+    brand = front.get("read_brand_name") or front.get("brand_name")
+    updates = {}
+    if isinstance(name, str) and name.strip():
+        updates["product_name"] = name.strip()
+    if isinstance(brand, str) and brand.strip():
+        updates["brand_name"] = brand.strip()
+    return label.model_copy(update=updates) if updates else label
+
+
 @router.post("/scan", response_model=SmartScanResult)
 async def smart_scan(
     payload: SmartScanRequest,
@@ -122,6 +140,8 @@ async def smart_scan(
         if kind == "unreadable" or extraction is None:
             return SmartScanResult(kind="unreadable", message=message)
         if kind == "nutrition_label":
+            if payload.replace_output_id:
+                extraction = _keep_package_identity(repository, session.user_id, payload.replace_output_id, extraction)
             output = create_scan_output(
                 repository,
                 session.user_id,

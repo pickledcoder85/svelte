@@ -31,6 +31,8 @@ BRAND_MATCH_BONUS = 0.15
 BRAND_MISMATCH_PENALTY = 0.3
 BRAND_MISSING_PENALTY = 0.25
 MAX_ALTERNATIVES = 3
+# Words packages use interchangeably ("Zero Sugar" and "Sugar Free").
+_SYNONYMS = {"zero": "free", "lite": "light", "lowfat": "low", "nonfat": "free", "fatfree": "free"}
 _STOPWORDS = {"the", "and", "with", "of", "a", "an", "&", "in", "for", "by", "co", "inc", "foods", "food", "brand"}
 _SOURCE_NAMES = {"food_bank": "your food bank", "open_food_facts": "Open Food Facts", "usda": "USDA"}
 
@@ -40,22 +42,30 @@ def _words(text: str | None) -> set[str]:
     cleaned = re.sub(r"['’]s\b", "", (text or "").lower())
     words = re.findall(r"[a-z0-9]+", cleaned)
     return {
-        word.rstrip("s") if len(word) > 3 else word
+        _SYNONYMS.get(word, word.rstrip("s") if len(word) > 3 else word)
         for word in words
         if len(word) > 1 and word not in _STOPWORDS
     }
 
 
 def match_score(product_name: str, brand: str | None, candidate_name: str, candidate_brand: str | None) -> float:
-    """0–1: how much of the package's name the candidate covers, with a brand bonus or penalty."""
+    """0–1: how well a candidate's name fits the package's, with a brand bonus or penalty.
+
+    Package fronts are wordy ("Zero Sugar Chocolate Instant Reduced Calorie Pudding & Pie
+    Filling") while database names are short ("Sugar Free Chocolate Instant Pudding"), so the
+    candidate's words being on the package counts most (60%), and covering the package's words
+    less (40%). A candidate word the package doesn't have usually means another flavour or food.
+    """
     wanted = _words(product_name)
-    if not wanted:
-        return 0.0
-    have = _words(candidate_name) | _words(candidate_brand)
-    coverage = len(wanted & have) / len(wanted)
     package_brand = _words(brand)
-    extra = len(_words(candidate_name) - wanted - package_brand)
-    score = coverage - min(0.75, EXTRA_WORD_PENALTY * extra)
+    candidate = _words(candidate_name) - package_brand
+    if not wanted or not candidate:
+        return 0.0
+    matched = len(wanted & candidate)
+    precision = matched / len(candidate)
+    recall = matched / len(wanted)
+    extra = len(candidate - wanted)
+    score = 0.6 * precision + 0.4 * recall - min(0.75, EXTRA_WORD_PENALTY * extra)
     if package_brand:
         if package_brand & (_words(candidate_brand) | _words(candidate_name)):
             score += BRAND_MATCH_BONUS
@@ -95,6 +105,8 @@ async def find_package_matches(
     query = " ".join(part for part in (brand_name, product_name) if part).strip()
     if not query:
         return []
+    key_words = [word for word in re.findall(r"[A-Za-z0-9'-]+", product_name) if word.lower() not in _STOPWORDS][:4]
+    short_query = " ".join(part for part in (brand_name, " ".join(key_words)) if part).strip()
     found: list[dict[str, Any]] = []
 
     for food in repository.search_foods(product_name)[:10]:
@@ -103,7 +115,11 @@ async def find_package_matches(
 
     async def off_labels(client: httpx.AsyncClient) -> list[dict[str, Any]]:
         labels = []
-        for product in await search_products(query, client, timeout=SEARCH_TIMEOUT_SECONDS):
+        products = await search_products(query, client, timeout=SEARCH_TIMEOUT_SECONDS)
+        if len(products) < 3 and short_query != query:
+            # A long package name can match nothing word for word; try the brand and key words.
+            products += await search_products(short_query, client, timeout=SEARCH_TIMEOUT_SECONDS)
+        for product in products:
             label = product_to_label(product, barcode="")
             if label:
                 code = str(product.get("code") or "").strip()
@@ -144,7 +160,16 @@ async def find_package_matches(
 def package_structured_json(extraction: dict[str, Any], matches: list[dict[str, Any]]) -> dict[str, Any]:
     """The package scan for review: what was read off the package, plus the best match's
     nutrition (marked as a match) and the alternatives, or nutrition_found = False."""
-    base = {**extraction, "nutrition_from": None, "nutrition_found": False, "alternatives": []}
+    base = {
+        **extraction,
+        # The name and brand as read off the front: a label scan that replaces this match keeps
+        # them (labels often name the distributor, e.g. Kraft for Jell-O).
+        "read_product_name": extraction.get("product_name"),
+        "read_brand_name": extraction.get("brand_name"),
+        "nutrition_from": None,
+        "nutrition_found": False,
+        "alternatives": [],
+    }
     if not matches:
         return base
     best, others = matches[0], matches[1:]
