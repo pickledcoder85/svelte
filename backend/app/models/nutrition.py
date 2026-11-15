@@ -135,11 +135,28 @@ class VisionLabelScanResult(VisionIngestionResult):
     extraction: VisionNutritionExtraction
 
 
+class PlateEstimate(BaseModel):
+    calories: float = 0
+    protein: float = 0
+    carbs: float = 0
+    fat: float = 0
+
+
+class PlateItem(BaseModel):
+    """One food seen in a photo: the portion estimate, the USDA food to log it by weight (None
+    when there's no match), and the AI's own nutrition guess for that portion as a fallback."""
+
+    name: str
+    estimated_grams: float
+    food: FoodItem | None = None
+    estimate: PlateEstimate
+
+
 class SmartScanResult(BaseModel):
     """The auto-capture scanner's result: a nutrition label (exact numbers), a package front
     (matched by name), or unreadable (message says why; nothing is saved)."""
 
-    kind: Literal["nutrition_label", "package_front", "unreadable"]
+    kind: Literal["nutrition_label", "package_front", "meal_plate", "unreadable"]
     ingestion_job_id: str | None = None
     output_id: str | None = None
     label: VisionNutritionExtraction | None = None
@@ -147,3 +164,5 @@ class SmartScanResult(BaseModel):
     message: str | None = None
     # True when this label replaced a package scan's matched nutrition (that scan was discarded).
     replaced: bool = False
+    # meal_plate: the foods seen, nothing saved yet (they're logged from the app).
+    items: list[PlateItem] = Field(default_factory=list)

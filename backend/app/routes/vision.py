@@ -14,6 +14,7 @@ from backend.app.models.nutrition import (
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.ingestion import create_scan_output, get_output, transition_output
 from backend.app.services.package_match import find_package_matches, package_structured_json
+from backend.app.services.plate_match import resolve_plate_items
 from backend.app.services.vision import (
     VisionImageError,
     VisionNotConfiguredError,
@@ -139,6 +140,15 @@ async def smart_scan(
         kind, extraction, message = await analyze_scan_image(payload.image_base64, repository, settings)
         if kind == "unreadable" or extraction is None:
             return SmartScanResult(kind="unreadable", message=message)
+        if kind == "meal_plate":
+            if payload.replace_output_id:
+                return SmartScanResult(kind="unreadable", message=LABEL_EXPECTED_MESSAGE)
+            try:
+                items = await resolve_plate_items(repository, extraction, usda_api_key=settings.usda_api_key)
+            except Exception:  # lookups are best-effort; the estimates still stand
+                logger.warning("Plate lookup failed", exc_info=False)
+                items = [{**item, "food": None} for item in extraction]
+            return SmartScanResult(kind="meal_plate", items=items)
         if kind == "nutrition_label":
             if payload.replace_output_id:
                 extraction = _keep_package_identity(repository, session.user_id, payload.replace_output_id, extraction)

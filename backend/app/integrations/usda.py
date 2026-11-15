@@ -87,10 +87,15 @@ def parse_usda_search_response(payload: dict[str, Any]) -> list[FoodItem]:
     return [_search_food_to_item(food) for food in payload.get("foods", [])]
 
 
+# Generic foods (per 100 g) rather than branded products: for foods seen on a plate.
+GENERIC_DATA_TYPES = "Foundation,SR Legacy,Survey (FNDDS)"
+
+
 async def search_usda_foods(
     query: str,
     api_key: str,
     client: httpx.AsyncClient | None = None,
+    data_types: str | None = None,
 ) -> list[FoodItem]:
     owns_client = client is None
     try:
@@ -99,7 +104,12 @@ async def search_usda_foods(
         ) as http_client:
             response = await http_client.get(
                 USDA_SEARCH_URL,
-                params={"query": query, "pageSize": 10, "api_key": api_key},
+                params={
+                    "query": query,
+                    "pageSize": 10,
+                    "api_key": api_key,
+                    **({"dataType": data_types} if data_types else {}),
+                },
             )
     except httpx.RequestError as exc:  # pragma: no cover - network error path
         raise UsdaSearchError("USDA search request failed.") from exc
@@ -107,10 +117,16 @@ async def search_usda_foods(
     if not response.is_success:
         raise UsdaSearchError(f"USDA search failed with status {response.status_code}")
 
-    payload = response.json()
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise UsdaSearchError("USDA search returned an invalid payload.") from exc
     if not isinstance(payload, dict):
         raise UsdaSearchError("USDA search returned an invalid payload.")
-    return parse_usda_search_response(payload)
+    try:
+        return parse_usda_search_response(payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise UsdaSearchError("USDA search returned an unexpected food.") from exc
 
 
 class _client_context:

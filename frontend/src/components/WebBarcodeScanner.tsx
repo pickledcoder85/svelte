@@ -106,7 +106,7 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
                       ? hintText(stability.hint)
                       : labelOnly
                         ? 'Hold the Nutrition Facts panel in the frame and keep still: it captures by itself.'
-                        : 'Barcode, package front, or nutrition label. Hold it in the frame and keep still: it captures by itself.'
+                        : 'Barcode, package, nutrition label, or a plate of food. Hold it in the frame and keep still: it captures by itself.'
                     : 'Hold the barcode inside the box. It reads by itself.')}
             </Text>
           </View>
