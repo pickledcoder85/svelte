@@ -24,18 +24,20 @@ describe('activity gauge', () => {
     expect(activityIndex('very_active')).toBe(3);
   });
 
-  it('puts each handle in the middle of its fifth of the arc', () => {
-    expect(positionForIndex(0)).toBeCloseTo(0.1);
-    expect(positionForIndex(2)).toBeCloseTo(0.5);
-    expect(positionForIndex(4)).toBeCloseTo(0.9);
-    expect(positionForIndex(9)).toBeCloseTo(0.9);
+  it('spreads the levels from the full left to the full right of the arc', () => {
+    expect(positionForIndex(0)).toBe(0);
+    expect(positionForIndex(1)).toBe(0.25);
+    expect(positionForIndex(2)).toBe(0.5);
+    expect(positionForIndex(4)).toBe(1);
+    expect(positionForIndex(9)).toBe(1);
   });
 
-  it('snaps a position to the level that owns it', () => {
+  it('snaps a position to the nearest level', () => {
     expect(indexForPosition(0)).toBe(0);
-    expect(indexForPosition(0.19)).toBe(0);
-    expect(indexForPosition(0.21)).toBe(1);
+    expect(indexForPosition(0.12)).toBe(0);
+    expect(indexForPosition(0.13)).toBe(1);
     expect(indexForPosition(0.5)).toBe(2);
+    expect(indexForPosition(0.9)).toBe(4);
     expect(indexForPosition(1)).toBe(4);
     for (let index = 0; index < 5; index += 1) {
       expect(indexForPosition(positionForIndex(index))).toBe(index);

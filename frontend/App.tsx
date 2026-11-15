@@ -348,7 +348,7 @@ const allergyLabels: Record<Exclude<AllergyChoice, 'none' | 'other'>, string> = 
 const activityLevelCards = ACTIVITY_LEVELS.map((level) => ({
   id: level.id,
   title: level.title,
-  subtitle: level.description
+  subtitle: `${level.description} · ${level.steps}`
 }));
 
 function toneColor(tone: 'checking' | 'live'): string {
@@ -3742,7 +3742,7 @@ export default function App(): ReactElement {
 
               {onboardingStep === 'activity' ? (
                 <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>How active are you most days?</Text>
+                  <Text style={styles.panelTitle}>Daily activity</Text>
                   <Text style={styles.setupIntroText}>
                     Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
                   </Text>

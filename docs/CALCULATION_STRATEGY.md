@@ -68,7 +68,7 @@ Use a conservative non-exercise physical-activity multiplier:
 
 These multipliers are intentionally meant to represent non-exercise lifestyle activity, not total training load.
 
-Setup describes the levels with rough daily step counts (under 5,000; 5,000–7,500; 7,500–10,000; 10,000–15,000; 15,000+) and typical jobs, as guides rather than cut-offs (`frontend/src/lib/activity-gauge.ts`). The target preview returns maintenance for every level (`maintenance_by_activity`) so setup can show the effect of each choice.
+Setup describes the levels in a few words with rough daily step counts (under 5,000; 5,000–7,500; 7,500–10,000; 10,000–15,000; 15,000+), as guides rather than cut-offs (`frontend/src/lib/activity-gauge.ts`). The target preview returns maintenance for every level (`maintenance_by_activity`) so setup can show the effect of each choice.
 
 ### Goal selector
 

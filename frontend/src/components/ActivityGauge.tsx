@@ -175,7 +175,14 @@ export function ActivityGauge({ value, onChange }: { value: ActivityLevel; onCha
           </div>
         </div>
       ) : null}
-      <Text style={styles.description}>{level.description}</Text>
+      <View style={styles.caption}>
+        <Text style={styles.description} numberOfLines={1}>
+          {level.description}
+        </Text>
+        <Text style={styles.steps} numberOfLines={1}>
+          {level.steps}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -185,14 +192,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8
   },
-  // Three lines' height (the longest description wraps to three on a phone), so the energy
-  // card below never jumps between levels.
+  // One line each, so the energy card below stays put whichever level is chosen.
+  caption: {
+    alignItems: 'center',
+    gap: 2
+  },
   description: {
+    color: tc.fg_132536,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center'
+  },
+  steps: {
     color: tc.fg_5c6d80,
-    fontSize: 15,
-    lineHeight: 21,
-    textAlign: 'center',
-    minHeight: 63,
-    maxWidth: 340
+    fontSize: 14,
+    textAlign: 'center'
   }
 });
