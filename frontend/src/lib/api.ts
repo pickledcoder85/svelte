@@ -972,6 +972,16 @@ export async function createMealPlanDay(
   );
 }
 
+/** Remove one planned meal; anything already logged from it stays in the food log. */
+export async function deleteMealPlanSlot(slotId: string, accessToken: string): Promise<MealPlanDay> {
+  return readJson<MealPlanDay>(
+    await apiFetch(buildApiUrl(`/tracker/meal-plan/slots/${encodeURIComponent(slotId)}`), {
+      method: 'DELETE',
+      headers: authHeaders(accessToken)
+    })
+  );
+}
+
 export async function updateMealPlanSlotEatenAt(
   slotId: string,
   eatenAt: string | null,
