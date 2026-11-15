@@ -16,6 +16,7 @@ from backend.app.models.nutrition import (
     VisionPackageExtraction,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.servings import parse_serving_text, serving_grams_for_package
 
 
 class IngestionNotFoundError(ValueError):
@@ -195,7 +196,7 @@ async def save_food_from_output(
     variants = _coerce_variants(structured_json.get("variants"))
     if variants:
         saved_variants = [repository.save_food_item(_food_from_variant(product_name.strip(), brand_name, variant)) for variant in variants]
-        return SavedFoodsResult(saved_foods=saved_variants)
+        return SavedFoodsResult(saved_foods=_add_to_bank(repository, user_id, saved_variants))
 
     nutrition_missing = not isinstance(calories, (int, float)) or not isinstance(macros, dict)
     if nutrition_missing:
@@ -204,9 +205,9 @@ async def save_food_from_output(
             raise IngestionSaveError(
                 "Accepted ingestion output is missing nutrition, and USDA lookup did not find a matching food."
             )
-        return SavedFoodsResult(saved_foods=[repository.save_food_item(usda_food)])
+        return SavedFoodsResult(saved_foods=_add_to_bank(repository, user_id, [repository.save_food_item(usda_food)]))
 
-    serving_quantity, serving_unit = _parse_serving_size(serving_size)
+    serving = _serving_fields(serving_size, structured_json)
     try:
         protein = float(macros["protein"])
         carbs = float(macros["carbs"])
@@ -226,14 +227,46 @@ async def save_food_from_output(
         name=product_name.strip(),
         brand=structured_json.get("brand_name"),
         calories=float(calories),
-        serving_size=serving_quantity,
-        serving_unit=serving_unit,
         macros=MacroTargets(protein=protein, carbs=carbs, fat=fat),
         source=source,
         favorite=False,
         barcode=barcode,
+        **serving,
     )
-    return SavedFoodsResult(saved_foods=[repository.save_food_item(food)])
+    return SavedFoodsResult(saved_foods=_add_to_bank(repository, user_id, [repository.save_food_item(food)]))
+
+
+def _add_to_bank(repository: SQLiteRepository, user_id: str, foods: list[FoodItem]) -> list[FoodItem]:
+    """Foods saved from a scan go into the user's food bank."""
+    for food in foods:
+        repository.add_to_food_bank(user_id=user_id, food_id=food.id)
+    return [food.model_copy(update={"in_bank": True}) for food in foods]
+
+
+def _serving_fields(serving_size: Any, structured_json: dict[str, Any]) -> dict[str, Any]:
+    """The serving as printed plus its weight: from the source when it gives one (Open Food
+    Facts, USDA, the label reader), else from the text ("2 tbsp (32 g)"), else the net weight
+    of a single-serve package. Unknown stays None; nothing is guessed."""
+    text = serving_size.strip() if isinstance(serving_size, str) and serving_size.strip() else None
+    parsed = parse_serving_text(text)
+
+    def positive(key: str) -> float | None:
+        value = structured_json.get(key)
+        return float(value) if isinstance(value, (int, float)) and value > 0 else None
+
+    grams = positive("serving_grams") or (parsed.grams if parsed else None)
+    basis = structured_json.get("serving_basis") if structured_json.get("serving_basis") in ("g", "ml") else None
+    basis = basis or (parsed.basis if parsed and parsed.grams else None) or ("g" if grams else None)
+    if grams is None:
+        grams = serving_grams_for_package(None, positive("servings_per_container"), positive("net_weight_grams"))
+        basis = "g" if grams else None
+    return {
+        "serving_size": parsed.amount if parsed else 1.0,
+        "serving_unit": parsed.unit if parsed else (text or "serving"),
+        "serving_text": text,
+        "serving_grams": grams,
+        "serving_basis": basis,
+    }
 
 
 async def _lookup_usda_food(product_name: str, brand_name: Any) -> FoodItem | None:
@@ -289,7 +322,6 @@ def _coerce_variants(value: Any) -> list[VisionNutritionVariant]:
 
 
 def _food_from_variant(product_name: str, brand_name: Any, variant: VisionNutritionVariant) -> FoodItem:
-    serving_quantity, serving_unit = _parse_serving_size(variant.serving_size)
     brand = brand_name.strip() if isinstance(brand_name, str) and brand_name.strip() else None
     variant_label = variant.variant_name.strip()
     return FoodItem(
@@ -297,8 +329,7 @@ def _food_from_variant(product_name: str, brand_name: Any, variant: VisionNutrit
         name=f"{product_name} - {variant_label}",
         brand=brand,
         calories=variant.calories,
-        serving_size=serving_quantity,
-        serving_unit=serving_unit,
+        **_serving_fields(variant.serving_size, {}),
         macros=variant.macros,
         source="LABEL_SCAN",
         favorite=False,
@@ -310,19 +341,3 @@ def _as_string_value(value: Any, fallback: str) -> str:
         return value.strip()
     return fallback
 
-
-def _parse_serving_size(value: Any) -> tuple[float, str]:
-    if isinstance(value, (int, float)):
-        return float(value), "serving"
-    if not isinstance(value, str):
-        return 1.0, "serving"
-    normalized = value.strip()
-    if not normalized:
-        return 1.0, "serving"
-    parts = normalized.split(maxsplit=1)
-    try:
-        quantity = float(parts[0])
-        unit = parts[1] if len(parts) > 1 else "serving"
-        return quantity, unit
-    except ValueError:
-        return 1.0, normalized

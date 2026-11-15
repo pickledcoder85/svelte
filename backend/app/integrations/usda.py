@@ -4,7 +4,8 @@ from typing import Any
 
 import httpx
 
-from backend.app.models.nutrition import FoodItem, MacroTargets
+from backend.app.models.nutrition import FoodItem, FoodPortion, MacroTargets
+from backend.app.services.servings import parse_serving_text
 
 
 USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
@@ -25,27 +26,64 @@ def _nutrient_value(nutrients: list[dict[str, Any]] | None, nutrient_name: str) 
     return 0.0
 
 
-def parse_usda_search_response(payload: dict[str, Any]) -> list[FoodItem]:
-    foods = payload.get("foods", [])
-    return [
-        FoodItem(
-            id=f"usda-{food['fdcId']}",
-            name=food["description"],
-            brand=food.get("brandOwner"),
-            calories=_nutrient_value(food.get("foodNutrients"), "Energy"),
-            serving_size=float(food.get("servingSize") or 100),
-            serving_unit=food.get("servingSizeUnit") or "g",
-            macros=MacroTargets(
-                protein=_nutrient_value(food.get("foodNutrients"), "Protein"),
-                carbs=_nutrient_value(
-                    food.get("foodNutrients"), "Carbohydrate, by difference"
-                ),
-                fat=_nutrient_value(food.get("foodNutrients"), "Total lipid (fat)"),
-            ),
-            source="USDA",
-        )
-        for food in foods
+_WEIGHT_UNITS = {"g": "g", "grm": "g", "ml": "ml", "mlt": "ml"}
+
+
+def _search_food_to_item(food: dict[str, Any]) -> FoodItem:
+    """One USDA search result. Search nutrients are per 100 g (or ml): branded foods with a
+    gram serving are converted to that serving; everything else stays per 100 g."""
+    nutrients = food.get("foodNutrients")
+    per_100 = {
+        "calories": _nutrient_value(nutrients, "Energy"),
+        "protein": _nutrient_value(nutrients, "Protein"),
+        "carbs": _nutrient_value(nutrients, "Carbohydrate, by difference"),
+        "fat": _nutrient_value(nutrients, "Total lipid (fat)"),
+    }
+    size = food.get("servingSize")
+    basis = _WEIGHT_UNITS.get(str(food.get("servingSizeUnit") or "").lower())
+    household = (food.get("householdServingFullText") or "").strip()
+    if size and basis:
+        grams = float(size)
+        factor = grams / 100
+        amount_text = f"{grams:g} {basis}"
+        serving_text = f"{household} ({amount_text})" if household else amount_text
+        parsed = parse_serving_text(household) if household else None
+        serving_size, serving_unit = (parsed.amount, parsed.unit) if parsed else (grams, basis)
+    else:
+        grams, factor, basis = 100.0, 1.0, "g"
+        serving_text = "100 g"
+        serving_size, serving_unit = 100.0, "g"
+
+    portions = [
+        FoodPortion(label=str(measure.get("disseminationText")).strip(), grams=float(measure["gramWeight"]))
+        for measure in food.get("foodMeasures") or []
+        if measure.get("gramWeight")
+        and float(measure["gramWeight"]) > 0
+        and str(measure.get("disseminationText") or "").strip()
+        and "not specified" not in str(measure.get("disseminationText")).lower()
     ]
+    return FoodItem(
+        id=f"usda-{food['fdcId']}",
+        name=food["description"],
+        brand=food.get("brandOwner") or food.get("brandName"),
+        calories=round(per_100["calories"] * factor, 1),
+        serving_size=serving_size,
+        serving_unit=serving_unit,
+        macros=MacroTargets(
+            protein=round(per_100["protein"] * factor, 1),
+            carbs=round(per_100["carbs"] * factor, 1),
+            fat=round(per_100["fat"] * factor, 1),
+        ),
+        source="USDA",
+        serving_text=serving_text,
+        serving_grams=grams,
+        serving_basis=basis,
+        portions=portions[:6],
+    )
+
+
+def parse_usda_search_response(payload: dict[str, Any]) -> list[FoodItem]:
+    return [_search_food_to_item(food) for food in payload.get("foods", [])]
 
 
 async def search_usda_foods(
@@ -118,6 +156,8 @@ def branded_food_to_label(food: dict[str, Any], barcode: str) -> dict[str, Any] 
         "variants": [],
         "confidence": 0.85,
         "barcode": barcode,
+        "serving_grams": float(serving_size) if serving_size and _WEIGHT_UNITS.get(str(unit or "").lower()) else None,
+        "serving_basis": _WEIGHT_UNITS.get(str(unit or "").lower()),
         "data_source": "usda",
         "attribution": "Data from USDA FoodData Central",
     }

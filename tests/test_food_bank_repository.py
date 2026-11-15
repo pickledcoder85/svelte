@@ -24,6 +24,8 @@ def test_bank_add_list_and_remove(repository):
     assert all(food.in_bank for food in bank)
     assert [food.id for food in repository.list_food_bank("u1", "food a")] == ["a"]
     assert repository.food_bank_ids("u1") == {"a", "b"}
+    repository.add_to_food_bank(user_id="u1", food_id="b", used=True)
+    assert repository.food_bank_use_counts("u1") == {"a": 0, "b": 2}
 
     assert repository.remove_from_food_bank(user_id="u1", food_id="a") is True
     assert repository.food_bank_ids("u1") == {"b"}

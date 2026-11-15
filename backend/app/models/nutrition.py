@@ -93,6 +93,10 @@ class VisionNutritionExtraction(BaseModel):
     multiple_variants_detected: bool = False
     variants: list[VisionNutritionVariant] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
+    # Weight of one serving, and package details for single-serve items (None when not shown).
+    serving_grams: float | None = None
+    servings_per_container: float | None = None
+    net_weight_grams: float | None = None
 
 
 class SavedFoodsResult(BaseModel):

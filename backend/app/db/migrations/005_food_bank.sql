@@ -20,6 +20,8 @@ CREATE TABLE user_food_bank (
     food_id TEXT NOT NULL,
     added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at TEXT,
+    -- How many times the food was logged. Not shown; used to rank the user's usual foods first.
+    use_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, food_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (food_id) REFERENCES food_catalog (id) ON DELETE CASCADE
@@ -27,8 +29,8 @@ CREATE TABLE user_food_bank (
 CREATE INDEX idx_user_food_bank_recent ON user_food_bank (user_id, last_used_at DESC);
 
 -- Foods already logged go into that user's bank.
-INSERT OR IGNORE INTO user_food_bank (user_id, food_id, added_at, last_used_at)
-SELECT fl.user_id, e.food_item_id, MIN(e.created_at), MAX(e.created_at)
+INSERT OR IGNORE INTO user_food_bank (user_id, food_id, added_at, last_used_at, use_count)
+SELECT fl.user_id, e.food_item_id, MIN(e.created_at), MAX(e.created_at), COUNT(*)
 FROM food_log_entries e
 JOIN food_logs fl ON fl.id = e.food_log_id
 JOIN food_catalog f ON f.id = e.food_item_id

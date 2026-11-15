@@ -503,18 +503,27 @@ class SQLiteRepository:
     # --- Food bank: the foods a user has scanned, saved, or logged ---
 
     def add_to_food_bank(self, *, user_id: str, food_id: str, used: bool = False) -> None:
-        """Add a food to the user's bank (no-op if there). `used` also marks it recently used."""
+        """Add a food to the user's bank (no-op if there). `used` (it was logged) also marks it
+        recently used and counts the use, for ranking usual foods first."""
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
             self._connection.execute(
                 """
-                INSERT INTO user_food_bank (user_id, food_id, last_used_at)
-                VALUES (?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)
+                INSERT INTO user_food_bank (user_id, food_id, last_used_at, use_count)
+                VALUES (?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END, CASE WHEN ? THEN 1 ELSE 0 END)
                 ON CONFLICT(user_id, food_id) DO UPDATE SET
-                    last_used_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE user_food_bank.last_used_at END
+                    last_used_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE user_food_bank.last_used_at END,
+                    use_count = user_food_bank.use_count + CASE WHEN ? THEN 1 ELSE 0 END
                 """,
-                (user_id, food_id, used, used),
+                (user_id, food_id, used, used, used, used),
             )
+
+    @_synchronized
+    def food_bank_use_counts(self, user_id: str) -> dict[str, int]:
+        rows = self._connection.execute(
+            "SELECT food_id, use_count FROM user_food_bank WHERE user_id = ?", (user_id,)
+        ).fetchall()
+        return {row["food_id"]: row["use_count"] for row in rows}
 
     def remove_from_food_bank(self, *, user_id: str, food_id: str) -> bool:
         with self._lock, self._connection:

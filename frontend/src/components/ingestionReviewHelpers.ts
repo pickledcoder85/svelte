@@ -128,9 +128,17 @@ export function buildAcceptedNutritionPayload(draft: EditableNutritionDraft, cur
       : null;
   const variants = Array.isArray(existing?.variants) ? (existing.variants as VisionNutritionVariant[]) : undefined;
 
+  // Keep every field from the scan (barcode, data source, serving weight, attribution) and
+  // override only what the form edits.
+  const kept =
+    typeof currentStructuredJson === 'object' && currentStructuredJson !== null && !Array.isArray(currentStructuredJson)
+      ? (currentStructuredJson as Record<string, unknown>)
+      : {};
+
   return {
     extracted_text: [productName, brandName, servingSize].filter(Boolean).join('\n'),
     structured_json: {
+      ...kept,
       product_name: productName,
       brand_name: brandName.length > 0 ? brandName : null,
       serving_size: servingSize || '1 serving',

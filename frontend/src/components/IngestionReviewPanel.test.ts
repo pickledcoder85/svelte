@@ -101,4 +101,32 @@ describe('ingestion review helpers', () => {
     expect(variants).toHaveLength(1);
     expect(variants[0].variant_name).toBe('Maple & Brown Sugar');
   });
+
+  it('keeps the scan fields the form does not edit when accepting', () => {
+    const payload = buildAcceptedNutritionPayload(
+      {
+        product_name: 'Granola Bar',
+        brand_name: 'Trail Co',
+        serving_size: '1 bar (40 g)',
+        calories: '190',
+        protein: '4',
+        carbs: '29',
+        fat: '7'
+      },
+      {
+        product_name: 'Granola bar',
+        barcode: '00036000291452',
+        data_source: 'open_food_facts',
+        serving_grams: 40,
+        attribution: 'Data from Open Food Facts (ODbL)'
+      }
+    );
+    expect(payload.structured_json).toMatchObject({
+      product_name: 'Granola Bar',
+      barcode: '00036000291452',
+      data_source: 'open_food_facts',
+      serving_grams: 40,
+      attribution: 'Data from Open Food Facts (ODbL)'
+    });
+  });
 });

@@ -10,7 +10,7 @@ import httpx
 
 OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product/{code}.json"
 OFF_USER_AGENT = "Relish/0.1 (personal nutrition tracker)"
-OFF_FIELDS = "code,product_name,product_name_en,brands,serving_size,serving_quantity,nutriments"
+OFF_FIELDS = "code,product_name,product_name_en,brands,serving_size,serving_quantity,serving_quantity_unit,nutriments"
 TIMEOUT_SECONDS = 10
 
 
@@ -48,8 +48,13 @@ def product_to_label(product: dict[str, Any], barcode: str) -> dict[str, Any] | 
     serving_text = (product.get("serving_size") or "").strip()
     if serving["calories"] is not None and serving_text:
         values, serving_size = serving, serving_text
+        # OFF's numeric serving weight; the unit is grams unless it says ml.
+        unit = str(product.get("serving_quantity_unit") or "g").lower()
+        serving_grams = _number(product.get("serving_quantity")) or None
+        serving_basis = "ml" if unit == "ml" else "g"
     else:
         values, serving_size = per("100g"), "100 g"
+        serving_grams, serving_basis = 100.0, "g"
     if values["calories"] is None:
         return None
 
@@ -65,6 +70,8 @@ def product_to_label(product: dict[str, Any], barcode: str) -> dict[str, Any] | 
         "variants": [],
         "confidence": 0.9,
         "barcode": barcode,
+        "serving_grams": serving_grams,
+        "serving_basis": serving_basis if serving_grams else None,
         "data_source": "open_food_facts",
         "attribution": "Data from Open Food Facts (ODbL)",
     }
