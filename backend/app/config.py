@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     )
     usda_api_key: str = ""
     openai_api_key: str = ""
+    # Garmin Connect personal API key (the owner's own data, pull only). Empty: Garmin is off.
+    garmin_personal_api_key: str = ""
+    # Sync Garmin every 30 minutes while the app runs (when a key is set).
+    garmin_background_sync: bool = True
     # Cheapest current, non-deprecated OpenAI model with image input (decided 2026-11-14).
     # Change it here or with VISION_MODEL when OpenAI retires it.
     vision_model: str = "gpt-6-luna"

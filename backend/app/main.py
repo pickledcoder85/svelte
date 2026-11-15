@@ -1,3 +1,7 @@
+import asyncio
+import contextlib
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -11,6 +15,7 @@ from backend.app.routes.export import router as export_router
 from backend.app.routes.ingestion import router as ingestion_router
 from backend.app.routes.food_logs import router as food_logs_router
 from backend.app.routes.health import router as health_router
+from backend.app.routes.integrations import router as integrations_router
 from backend.app.routes.meals import router as meals_router
 from backend.app.routes.nutrition import router as nutrition_router
 from backend.app.routes.profile import router as profile_router
@@ -18,6 +23,7 @@ from backend.app.routes.recipes import router as recipes_router
 from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.garmin_sync import garmin_configured, run_background_sync
 from backend.app.web import mount_web_app, validate_web_dist
 
 def create_app(
@@ -31,7 +37,20 @@ def create_app(
         validate_web_dist(settings.web_dist_dir)
     origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
     db_path = database_path or resolve_sqlite_path(database_url or settings.database_url)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        task = None
+        if settings.garmin_background_sync and garmin_configured(settings) and settings.owner_email.strip():
+            task = asyncio.create_task(run_background_sync(app.state.repository, settings))
+        yield
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
     app = FastAPI(
+        lifespan=lifespan,
         title=settings.app_name,
         version="0.1.0",
         # The interactive API docs describe every route; keep them off the deployed server.
@@ -71,6 +90,7 @@ def create_app(
         tracker_router,
         vision_router,
         export_router,
+        integrations_router,
     ):
         app.include_router(router, prefix="/api", dependencies=owner_only)
 

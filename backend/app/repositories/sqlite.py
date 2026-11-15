@@ -1652,6 +1652,35 @@ class SQLiteRepository:
         return dict(row) if row is not None else None
 
     @_synchronized
+    def get_sync_state(self, *, user_id: str, source: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM integration_sync_state WHERE user_id = ? AND source = ?",
+            (user_id, source),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def record_sync_result(
+        self, *, user_id: str, source: str, at: str, ok: bool, imported: int = 0, error: str | None = None
+    ) -> None:
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO integration_sync_state (
+                    user_id, source, last_attempt_at, last_success_at, last_status, last_error, last_imported
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, source) DO UPDATE SET
+                    last_attempt_at = excluded.last_attempt_at,
+                    last_success_at = COALESCE(excluded.last_success_at, integration_sync_state.last_success_at),
+                    last_status = excluded.last_status,
+                    last_error = excluded.last_error,
+                    last_imported = CASE WHEN excluded.last_status = 'ok'
+                        THEN excluded.last_imported ELSE integration_sync_state.last_imported END
+                """,
+                (user_id, source, at, at if ok else None, "ok" if ok else "error", error, imported),
+            )
+
+    @_synchronized
     def weight_on_or_before(self, user_id: str, on: date) -> float | None:
         """The latest weigh-in on or before a day (recorded_at may carry a time)."""
         row = self._connection.execute(

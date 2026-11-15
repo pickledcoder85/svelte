@@ -39,3 +39,17 @@ CREATE TABLE exercise_source_records (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (exercise_entry_id) REFERENCES exercise_entries (id) ON DELETE SET NULL
 );
+
+-- The last sync with each connected app, for Settings ("Last synced 5 min ago").
+-- last_error is a short message for the user; it never contains a key or token.
+CREATE TABLE integration_sync_state (
+    user_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    last_attempt_at TEXT,
+    last_success_at TEXT,
+    last_status TEXT,
+    last_error TEXT,
+    last_imported INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, source),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);

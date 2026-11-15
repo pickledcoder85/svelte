@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Garmin sync: with a Garmin personal API key on the server, Relish pulls your Garmin activities every 30 minutes and whenever you open the app (the first sync reaches back 30 days). Settings → Garmin shows the last sync and has Sync now; Garmin workouts are marked in the diary. Each activity is imported once.
 - Workout provenance (migration 006): workouts record where they came from. Imports from other apps keep the original record and the source's own calorie numbers, and Relish counts active calories as the source's total minus Relish's own resting calories for the workout's minutes, frozen at import. Re-syncing never duplicates a workout, and a deleted import stays deleted. Groundwork for Garmin sync.
 - Navigation naming: the Log tab is now Diary (sub-tabs Entries · Foods · Scan), and the ＋ actions are verbs: Add food, Scan, Add workout, Weigh in. The ＋ is a little smaller with clear space above it. Setup no longer creates a sample meal plan or sample planned workouts; new accounts start empty.
 - The bottom tab bar sits higher, with more room underneath, so the phone's rounded corners no longer clip it.

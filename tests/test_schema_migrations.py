@@ -43,7 +43,7 @@ def test_fresh_database_gets_every_migration_once(tmp_path):
     tables = {name for kind, name, _ in _schema(connection) if kind == "table"}
     connection.close()
     assert versions == [path.stem for path in migration_files()]
-    assert len(tables) == 30  # 28 baseline tables + user_food_bank (005) + exercise_source_records (006)
+    assert len(tables) == 31  # 28 baseline + user_food_bank (005) + exercise_source_records, integration_sync_state (006)
     assert {"users", "food_catalog", "food_logs", "planned_workout_sessions", "recipes", "user_food_bank"} <= tables
     assert "food_items" not in tables  # the old, unused migration schema is gone
 
