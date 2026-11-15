@@ -17,24 +17,62 @@ export const appShellSections: AppShellSectionMeta[] = [
   { id: 'meal-prep', label: 'Meal Prep', detail: 'Batch cooking checklist', group: 'organize' },
   { id: 'recipes', label: 'Recipes', detail: 'Browse and favorite recipes', group: 'organize' },
   { id: 'profile', label: 'Profile', detail: 'Body stats, goals, and targets', group: 'account' },
-  { id: 'settings', label: 'Settings', detail: 'Units, time zone, and account', group: 'account' }
+  { id: 'settings', label: 'Settings', detail: 'Units, time zone, and account', group: 'account' },
+  { id: 'trends', label: 'Trends', detail: 'Weight, calories, and progress over time', group: 'primary' }
 ];
 
-export const primaryAppSections = appShellSections.filter((section) => section.group === 'primary');
+/**
+ * Bottom tab bar. Each tab shows one or more sections; tabs with several show sub-tabs at the
+ * top. Profile and Settings belong to the avatar's account sheet, not a tab.
+ */
+export type AppTabId = 'today' | 'log' | 'trends' | 'plan';
 
-export const appShellMenuGroups: Array<{ title: string; sections: AppShellSectionMeta[] }> = [
+export const APP_TABS: Array<{
+  id: AppTabId;
+  label: string;
+  /** Sections under this tab, in sub-tab order; the first opens when the tab is tapped. */
+  sections: Array<{ id: AppSection; label: string }>;
+}> = [
+  { id: 'today', label: 'Today', sections: [{ id: 'dashboard', label: 'Today' }] },
   {
-    title: 'Navigate',
-    sections: appShellSections.filter((section) => section.group === 'primary')
+    id: 'log',
+    label: 'Log',
+    sections: [
+      { id: 'tracker', label: 'Diary' },
+      { id: 'foods', label: 'Foods' },
+      { id: 'ingestion', label: 'Scan' }
+    ]
   },
+  { id: 'trends', label: 'Trends', sections: [{ id: 'trends', label: 'Trends' }] },
   {
-    title: 'Organize',
-    sections: appShellSections.filter((section) => section.group === 'organize')
-  },
-  {
-    title: 'Account',
-    sections: appShellSections.filter((section) => section.group === 'account')
+    id: 'plan',
+    label: 'Plan',
+    sections: [
+      { id: 'meal-plan', label: 'Meal plan' },
+      { id: 'meal-prep', label: 'Prep' },
+      { id: 'recipes', label: 'Recipes' },
+      { id: 'meals', label: 'Meals' }
+    ]
   }
+];
+
+/** The tab a section belongs to, or null for account screens (Profile, Settings). */
+export function tabForSection(section: AppSection): AppTabId | null {
+  return APP_TABS.find((tab) => tab.sections.some((item) => item.id === section))?.id ?? null;
+}
+
+/** The sub-tabs to show for a section (only when its tab has more than one). */
+export function subTabsForSection(section: AppSection): Array<{ id: AppSection; label: string }> {
+  const tab = APP_TABS.find((item) => item.sections.some((entry) => entry.id === section));
+  return tab && tab.sections.length > 1 ? tab.sections : [];
+}
+
+/** What the ＋ button offers, and where each goes. */
+export const QUICK_ACTIONS: Array<{ id: string; label: string; detail: string; icon: string; section: AppSection }> = [
+  { id: 'log-food', label: 'Log food', detail: 'Search your foods or USDA', icon: '🍎', section: 'foods' },
+  { id: 'scan', label: 'Scan', detail: 'Barcode, label, or package photo', icon: '📷', section: 'ingestion' },
+  { id: 'log-workout', label: 'Log workout', detail: 'Add exercise to today', icon: '🚴', section: 'tracker' },
+  { id: 'weigh-in', label: 'Weigh-in', detail: "Record today's weight", icon: '⚖️', section: 'trends' }
 ];
 
 export function getAppSectionMeta(section: AppSection): AppShellSectionMeta {
