@@ -45,6 +45,7 @@ import {
   getApiBaseUrl,
   fetchExerciseEntries,
   fetchGarminStatus,
+  deleteMealPlanSlot,
   syncGarmin,
   fetchPlannedWorkoutSessions,
   fetchFavoriteFoods,
@@ -75,7 +76,6 @@ import {
 } from './src/lib/api';
 import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
 import {
-  buildDailyExerciseSummary,
   buildDailyMealPlanSummary,
   buildDailyTargetSummary,
   DEFAULT_WORKOUT_CALORIES_SHARE,
@@ -85,6 +85,7 @@ import {
 import { buildCalorieBudget } from './src/lib/calorie-budget';
 import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
+import { DayHeader } from './src/components/DayHeader';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
@@ -1894,25 +1895,6 @@ export default function App(): ReactElement {
     () => selectMealPlanDay(sortedMealPlanDays, selectedMealPlanDate),
     [selectedMealPlanDate, sortedMealPlanDays]
   );
-  const homeDateOptions = useMemo(() => {
-    const values = new Set<string>();
-    for (let offset = -1; offset <= 5; offset += 1) {
-      values.add(addDaysToIsoDate(todayKey, offset));
-    }
-    sortedMealPlanDays.forEach((day) => {
-      if (day.plan_date) {
-        values.add(day.plan_date);
-      }
-    });
-    exerciseEntries.forEach((entry) => values.add(entry.logged_on));
-    plannedExerciseEntries.forEach((entry) => values.add(entry.planned_on));
-    values.add(selectedHomeDate);
-    return [...values].sort();
-  }, [exerciseEntries, plannedExerciseEntries, selectedHomeDate, sortedMealPlanDays, todayKey]);
-  const selectedHomeDateIndex = useMemo(
-    () => homeDateOptions.findIndex((value) => value === selectedHomeDate),
-    [homeDateOptions, selectedHomeDate]
-  );
   const trackerTotals = useMemo(() => buildTrackerTotals(foodLog, exerciseEntries), [exerciseEntries, foodLog]);
   const weightProgress = useMemo(
     () => buildWeightProgressSummary(profileProgress, weightEntries),
@@ -1931,6 +1913,11 @@ export default function App(): ReactElement {
     () => sortedMealPlanDays.find((day) => day.plan_date === selectedHomeDate) ?? null,
     [selectedHomeDate, sortedMealPlanDays]
   );
+  // Planned items still open (a completed workout shows as recorded; an eaten meal as logged).
+  const homeOpenPlannedWorkouts = useMemo(
+    () => homePlannedExerciseEntries.filter((entry) => !entry.completed_at),
+    [homePlannedExerciseEntries]
+  );
   const homeMealPlanEatenSlots = useMemo(
     () => (homeMealPlanDay ? mealPlanEatenSlots[homeMealPlanDay.id] ?? {} : {}),
     [homeMealPlanDay, mealPlanEatenSlots]
@@ -1946,13 +1933,13 @@ export default function App(): ReactElement {
       }),
     [homeCompletedExerciseEntries, homeFoodLog, latestProfileGoal, profile]
   );
+  const homeOpenPlannedMeals = useMemo(
+    () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
+    [homeMealPlanDay, homeMealPlanEatenSlots]
+  );
   const dailyMealPlanSummary = useMemo(
     () => buildDailyMealPlanSummary(homeMealPlanDay, homeMealPlanEatenSlots),
     [homeMealPlanDay, homeMealPlanEatenSlots]
-  );
-  const dailyExerciseSummary = useMemo(
-    () => buildDailyExerciseSummary(homePlannedExerciseEntries),
-    [homePlannedExerciseEntries]
   );
   const homeCalorieBudget = useMemo(
     () =>
@@ -2513,6 +2500,56 @@ export default function App(): ReactElement {
       setEditingExerciseId(null);
     } catch (error) {
       setTrackerError(error instanceof Error ? error.message : 'Unable to update this exercise.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  /** Today page: delete a food from the chosen day (tap ✕, then tap again to confirm). */
+  async function removeHomeFoodEntry(entry: FoodLogEntry) {
+    if (selectedHomeDate === todayKey) {
+      await removeFoodEntry(entry);
+      return;
+    }
+    const key = `food:${entry.id}`;
+    if (confirmDeleteKey !== key) {
+      setConfirmDeleteKey(key);
+      return;
+    }
+    if (!foodSessionToken || !homeFoodLog.log_id) {
+      return;
+    }
+    setConfirmDeleteKey(null);
+    setEntryActionBusyKey(key);
+    try {
+      setHomeFoodLog(await deleteFoodLogEntry(homeFoodLog.log_id, entry.id, foodSessionToken));
+      if (entry.meal_plan_slot_id) {
+        unmarkMealPlanSlot(entry.meal_plan_slot_id);
+      }
+    } catch (error) {
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to delete this entry.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  /** Today page: plans changed, drop one planned meal (tap ✕, then tap again to confirm). */
+  async function removeMealPlanSlot(slotId: string) {
+    const key = `slot:${slotId}`;
+    if (confirmDeleteKey !== key) {
+      setConfirmDeleteKey(key);
+      return;
+    }
+    if (!foodSessionToken) {
+      return;
+    }
+    setConfirmDeleteKey(null);
+    setEntryActionBusyKey(key);
+    try {
+      const day = await deleteMealPlanSlot(slotId, foodSessionToken);
+      setMealPlanDays((days) => days.map((item) => (item.id === day.id ? day : item)));
+    } catch (error) {
+      setMealPlanError(error instanceof Error ? error.message : 'Unable to remove this meal.');
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
@@ -4630,227 +4667,220 @@ export default function App(): ReactElement {
         </View>
 
         {section === 'dashboard' && (
-          <>
-            <View style={styles.dashboardStack}>
-              <View style={styles.homeSection}>
-                <View style={styles.dailyHomeSummaryHeader}>
-                  <View>
-                    <Text style={styles.detailTitle}>Daily Plan</Text>
-                    <Text style={styles.detailSubtitle}>{formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
-                  </View>
-                  <View style={styles.homeDateNavigator}>
-                    <Pressable
-                      style={[styles.homeDateButton, selectedHomeDateIndex <= 0 && styles.homeDateButtonDisabled]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Show previous day"
-                      disabled={selectedHomeDateIndex <= 0}
-                      onPress={() => setSelectedHomeDate(homeDateOptions[Math.max(selectedHomeDateIndex - 1, 0)] ?? selectedHomeDate)}
-                    >
-                      <Text style={styles.homeDateButtonLabel}>{'<'}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[
-                        styles.homeDateButton,
-                        selectedHomeDateIndex < 0 || selectedHomeDateIndex >= homeDateOptions.length - 1
-                          ? styles.homeDateButtonDisabled
-                          : null
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Show next day"
-                      disabled={selectedHomeDateIndex < 0 || selectedHomeDateIndex >= homeDateOptions.length - 1}
-                      onPress={() =>
-                        setSelectedHomeDate(
-                          homeDateOptions[Math.min(selectedHomeDateIndex + 1, homeDateOptions.length - 1)] ?? selectedHomeDate
-                        )
-                      }
-                    >
-                      <Text style={styles.homeDateButtonLabel}>{'>'}</Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {dailyHomeTargets.calorieTarget > 0 ? (
-                  <CalorieBudgetCard
-                    budget={homeCalorieBudget}
-                    sharePercent={profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}
-                    onOpenDiary={() => handleSectionChange('tracker')}
-                  />
-                ) : null}
-
-                <View style={styles.dailyHomeSummaryMetricRow}>
-                  <Text style={styles.dailyHomeSummaryLabel}>Macro split</Text>
-                  <Text style={styles.dailyHomeSummaryValue}>
-                    {dailyHomeTargets.macroPercentages.protein} / {dailyHomeTargets.macroPercentages.carbs} / {dailyHomeTargets.macroPercentages.fat}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.homeSection}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.detailTitle}>Consumed calories</Text>
-                  </View>
-                </View>
-                <View style={styles.dailyHomeMacroRingRow}>
-                  <MacroSplitRing
-                    label="Protein"
-                    consumed={Math.round(homeConsumedMacros.protein)}
-                    target={Math.round(dailyHomeTargets.macroTargets.protein)}
-                    baseColor={tc.fg_0f766e}
-                  />
-                  <MacroSplitRing
-                    label="Carbs"
-                    consumed={Math.round(homeConsumedMacros.carbs)}
-                    target={Math.round(dailyHomeTargets.macroTargets.carbs)}
-                    baseColor={tc.fg_ea580c}
-                  />
-                  <MacroSplitRing
-                    label="Fat"
-                    consumed={Math.round(homeConsumedMacros.fat)}
-                    target={Math.round(dailyHomeTargets.macroTargets.fat)}
-                    baseColor={tc.fg_2563eb}
-                  />
-                </View>
-                {homeConsumedCalories === 0 ? (
-                  <Text style={styles.dailyHomeEmptyState}>No calories logged yet.</Text>
-                ) : null}
-              </View>
-
-
-              <View style={styles.homeSection}>
-                  <View style={styles.recipeRowTitleWrap}>
-                    <View>
-                      <Text style={styles.panelEyebrow}>Planned exercise</Text>
-                      <Text style={styles.detailTitle}>{formatHomeSectionTitle(selectedHomeDate, todayKey, 'session')}</Text>
-                    </View>
-                    <Text style={styles.detailSubtitle}>
-                      {dailyExerciseSummary.sessionCount > 0
-                        ? `${dailyExerciseSummary.sessionCount} session${dailyExerciseSummary.sessionCount === 1 ? '' : 's'} planned`
-                        : 'No planned exercise yet'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.summaryStrip}>
-                    <MetricTile label="Minutes" value={`${dailyExerciseSummary.totalMinutes}`} compact />
-                    <MetricTile label="Calories" value={`${dailyExerciseSummary.totalCalories.toLocaleString()} kcal`} compact />
-                  </View>
-
-                  <View>
-                    {homePlannedExerciseEntries.length > 0 ? (
-                      homePlannedExerciseEntries.slice(0, 2).map((entry) => (
-                        <View key={entry.id} style={styles.listRow}>
-                          <View style={styles.listRowCopyFlex}>
-                            <Text style={styles.listTitle}>{entry.title}</Text>
-                            <Text style={styles.listCaption}>
-                              {entry.completed_at
-                                ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}`
-                                : `${entry.planned_at} · ${entry.duration_minutes} min · ${entry.intensity}`}
-                            </Text>
-                          </View>
-                          <View style={styles.listRowActions}>
-                            <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
-                            <Pressable
-                              style={[styles.inlinePillButton, entry.completed_at ? styles.inlinePillButtonComplete : null]}
-                              onPress={() => void togglePlannedExerciseCompletion(entry)}
-                              disabled={plannedExerciseUpdatingId === entry.id}
-                            >
-                              <Text style={[styles.inlinePillButtonLabel, entry.completed_at ? styles.inlinePillButtonLabelComplete : null]}>
-                                {plannedExerciseUpdatingId === entry.id
-                                  ? 'Saving...'
-                                  : entry.completed_at
-                                    ? 'Undo'
-                                    : 'Complete'}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.dailyHomeEmptyState}>No planned exercise saved yet.</Text>
-                    )}
-                  </View>
-              </View>
-
-              <View style={styles.homeSection}>
-                  <View style={styles.recipeRowTitleWrap}>
-                    <View>
-                      <Text style={styles.detailTitle}>Meal Plan</Text>
-                      <Text style={styles.detailSubtitle}>{formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
-                      {dailyMealPlanSummary.hasPlan ? (
-                        <Text style={styles.detailSubtitle}>
-                          P {Math.round(dailyMealPlanSummary.plannedMacros.protein)}g · C {Math.round(dailyMealPlanSummary.plannedMacros.carbs)}g · F {Math.round(dailyMealPlanSummary.plannedMacros.fat)}g
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View style={styles.dailyHomeMealPlanHeaderActions}>
-                      <Text style={styles.detailSubtitle}>
-                        {dailyMealPlanSummary.hasPlan
-                          ? `${dailyMealPlanSummary.plannedCalories.toLocaleString()} kcal`
-                          : 'No meal plan saved yet'}
-                      </Text>
-                      <Pressable style={styles.dailyHomeEditButton} accessibilityRole="button" accessibilityLabel="Edit meal plan">
-                        <Text style={styles.dailyHomeEditButtonLabel}>✎</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  {dailyMealPlanSummary.hasPlan ? (
-                    <>
-                      {homeMealPlanDay?.slots.map((slot) => {
-                        const logged = homeMealPlanEatenSlots[slot.id] ?? false;
-                        const slotItems = slot.items ?? [];
-                        return (
-                          <Pressable
-                            key={slot.id}
-                            style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
-                            onPress={() => void toggleMealPlanMeal(homeMealPlanDay, slot.id, slot.meal_label)}
-                          >
-                            <View style={styles.mealPlanSlotHeader}>
-                              <View style={styles.dailyHomeMealPlanSlotCopy}>
-                                <View style={styles.mealPlanSlotTitleRow}>
-                                  <Text style={styles.mealPlanSlotLabel}>{slot.meal_label}</Text>
-                                  <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
-                                </View>
-                                <Text style={styles.mealPlanSlotSubtitle}>{slot.title}</Text>
-                              </View>
-                              <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
-                                <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
-                                  {logged ? '✓' : ''}
-                                </Text>
-                              </View>
-                            </View>
-                            {slotItems.length > 0 ? (
-                              <View style={styles.mealPlanItemList}>
-                                  {slotItems.map((item, index) => (
-                                    <View key={`${slot.id}-item-${index}`} style={styles.mealPlanItemRow}>
-                                      <View style={styles.mealPlanItemCopy}>
-                                        <Text style={styles.mealPlanItemName}>
-                                          {item.name}
-                                          <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
-                                        </Text>
-                                      </View>
-                                      <View style={styles.mealPlanItemInlineMeta}>
-                                      <Text style={styles.mealPlanItemMacroLine}>
-                                        P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
-                                      </Text>
-                                      <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
-                                    </View>
-                                  </View>
-                                ))}
-                              </View>
-                            ) : null}
-                          </Pressable>
-                        );
-                      })}
-                    </>
-                  ) : (
-                    <Text style={styles.dailyHomeEmptyState}>No meal plan saved yet.</Text>
-                  )}
-              </View>
-
+          <View style={styles.dashboardStack}>
+            <View style={styles.homeSection}>
+              <DayHeader selected={selectedHomeDate} today={todayKey} onSelect={setSelectedHomeDate} />
             </View>
 
-          </>
+            {/* Overview: calories left, the eaten bar, then the three macros. */}
+            <View style={styles.homeSection}>
+              {dailyHomeTargets.calorieTarget > 0 ? (
+                <CalorieBudgetCard
+                  budget={homeCalorieBudget}
+                  sharePercent={profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}
+                  onOpenDiary={() => handleSectionChange('tracker')}
+                />
+              ) : (
+                <Text style={styles.dailyHomeEmptyState}>Finish setup to see your daily calories.</Text>
+              )}
+              <View style={styles.dailyHomeMacroRingRow}>
+                <MacroSplitRing
+                  label="Protein"
+                  consumed={Math.round(homeConsumedMacros.protein)}
+                  target={Math.round(dailyHomeTargets.macroTargets.protein)}
+                  baseColor={tc.fg_0f766e}
+                />
+                <MacroSplitRing
+                  label="Carbs"
+                  consumed={Math.round(homeConsumedMacros.carbs)}
+                  target={Math.round(dailyHomeTargets.macroTargets.carbs)}
+                  baseColor={tc.fg_ea580c}
+                />
+                <MacroSplitRing
+                  label="Fat"
+                  consumed={Math.round(homeConsumedMacros.fat)}
+                  target={Math.round(dailyHomeTargets.macroTargets.fat)}
+                  baseColor={tc.fg_2563eb}
+                />
+              </View>
+            </View>
+
+            {/* Workouts: planned first (done or skip), then what was recorded. */}
+            <View style={styles.homeSection}>
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.detailTitle}>Workouts</Text>
+                <Pressable
+                  style={styles.todayAddButton}
+                  onPress={() => handleSectionChange('tracker')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a workout"
+                >
+                  <Text style={styles.todayAddButtonLabel}>+</Text>
+                </Pressable>
+              </View>
+              {homeOpenPlannedWorkouts.length === 0 && homeCompletedExerciseEntries.length === 0 ? (
+                <View style={styles.todayEmpty}>
+                  <Text style={styles.dailyHomeEmptyState}>No workouts {selectedHomeDate === todayKey ? 'today' : 'this day'}.</Text>
+                  <Text style={styles.todayHint}>Garmin workouts show up here on their own.</Text>
+                  <Pressable style={styles.secondaryButton} onPress={() => handleSectionChange('tracker')} accessibilityRole="button">
+                    <Text style={styles.secondaryButtonLabel}>Add workout</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {homeOpenPlannedWorkouts.map((entry) => {
+                const deleteKey = `planned:${entry.id}`;
+                return (
+                  <View key={entry.id} style={styles.todayRow}>
+                    <View style={styles.listRowCopyFlex}>
+                      <Text style={styles.todayRowTag}>Planned</Text>
+                      <Text style={styles.listTitle}>{entry.title}</Text>
+                      <Text style={styles.listCaption}>
+                        {entry.planned_at} · {entry.duration_minutes} min · {entry.calories_burned} kcal
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.inlinePillButton}
+                      onPress={() => void togglePlannedExerciseCompletion(entry)}
+                      disabled={plannedExerciseUpdatingId === entry.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Mark ${entry.title} done`}
+                    >
+                      <Text style={styles.inlinePillButtonLabel}>{plannedExerciseUpdatingId === entry.id ? 'Saving…' : '✓ Done'}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
+                      onPress={() => {
+                        if (confirmDeleteKey === deleteKey) {
+                          setConfirmDeleteKey(null);
+                          void removePlannedExerciseEntry(entry);
+                        } else {
+                          setConfirmDeleteKey(deleteKey);
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm skipping ${entry.title}` : `Skip ${entry.title}`}
+                    >
+                      <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
+                        {confirmDeleteKey === deleteKey ? 'Skip?' : '✕'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+              {homeCompletedExerciseEntries.map((entry) => {
+                const deleteKey = `exercise:${entry.id}`;
+                return (
+                  <View key={entry.id} style={styles.todayRow}>
+                    <Pressable
+                      style={styles.todayRowMain}
+                      onPress={() => setWorkoutDetailId(entry.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${entry.title}: show how its calories are counted`}
+                    >
+                      <View style={styles.listRowCopyFlex}>
+                        <Text style={styles.listTitle}>{entry.title}</Text>
+                        <Text style={styles.listCaption}>
+                          {entry.logged_at} · {entry.duration_minutes} min
+                          {workoutSourceLabel(entry.source) ? ` · ${workoutSourceLabel(entry.source)}` : ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.listMetric}>{entry.calories_burned} kcal ›</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
+                      onPress={() => void removeExerciseEntry(entry)}
+                      disabled={entryActionBusyKey === deleteKey}
+                      accessibilityRole="button"
+                      accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.title}` : `Delete ${entry.title}`}
+                    >
+                      <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
+                        {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Meals: planned meals first (ate it or skip), then what was eaten. */}
+            <View style={styles.homeSection}>
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.detailTitle}>Meals</Text>
+                <Pressable
+                  style={styles.todayAddButton}
+                  onPress={() => handleSectionChange('ingestion')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan a food to add"
+                >
+                  <Text style={styles.todayAddButtonLabel}>+</Text>
+                </Pressable>
+              </View>
+              {homeOpenPlannedMeals.length === 0 && homeFoodLog.entries.length === 0 ? (
+                <View style={styles.todayEmpty}>
+                  <Text style={styles.dailyHomeEmptyState}>Nothing eaten yet.</Text>
+                  <Text style={styles.todayHint}>Tap + to scan a food and add it.</Text>
+                </View>
+              ) : null}
+              {homeMealPlanDay
+                ? homeOpenPlannedMeals.map((slot) => {
+                    const deleteKey = `slot:${slot.id}`;
+                    return (
+                      <View key={slot.id} style={styles.todayRow}>
+                        <View style={styles.listRowCopyFlex}>
+                          <Text style={styles.todayRowTag}>Planned · {slot.meal_label}</Text>
+                          <Text style={styles.listTitle}>{slot.title}</Text>
+                          <Text style={styles.listCaption}>{slot.calories} kcal</Text>
+                        </View>
+                        <Pressable
+                          style={styles.inlinePillButton}
+                          onPress={() => void toggleMealPlanMeal(homeMealPlanDay, slot.id, slot.meal_label)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`I ate ${slot.title}`}
+                        >
+                          <Text style={styles.inlinePillButtonLabel}>✓ Ate it</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
+                          onPress={() => void removeMealPlanSlot(slot.id)}
+                          disabled={entryActionBusyKey === deleteKey}
+                          accessibilityRole="button"
+                          accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm skipping ${slot.title}` : `Skip ${slot.title}`}
+                        >
+                          <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
+                            {confirmDeleteKey === deleteKey ? 'Skip?' : '✕'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })
+                : null}
+              {homeFoodLog.entries.map((entry) => {
+                const deleteKey = `food:${entry.id}`;
+                return (
+                  <View key={entry.id} style={styles.todayRow}>
+                    <View style={styles.listRowCopyFlex}>
+                      <Text style={styles.listTitle}>{entry.food_name}</Text>
+                      <Text style={styles.listCaption}>
+                        P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
+                      </Text>
+                    </View>
+                    <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
+                    <Pressable
+                      style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
+                      onPress={() => void removeHomeFoodEntry(entry)}
+                      disabled={entryActionBusyKey === deleteKey}
+                      accessibilityRole="button"
+                      accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.food_name}` : `Delete ${entry.food_name}`}
+                    >
+                      <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
+                        {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
         )}
 
         {section === 'trends' && (
@@ -7203,10 +7233,6 @@ function formatHomeDateLabel(value: string, todayKey: string): string {
   return base;
 }
 
-function formatHomeSectionTitle(value: string, todayKey: string, noun: string): string {
-  return value === todayKey ? `Today's ${noun}` : `${formatHomeDateLabel(value, todayKey)} ${noun}`;
-}
-
 function formatCompletionTimeLabel(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -8229,39 +8255,45 @@ const styles = StyleSheet.create({
   dashboardStack: {
     gap: 0
   },
+  todaySectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  todayAddButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: tc.brand_primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  todayAddButtonLabel: { color: tc.fg_ffffff, fontSize: 24, lineHeight: 26, fontWeight: '600' },
+  todayEmpty: { gap: 6, alignItems: 'flex-start' },
+  todayHint: { color: tc.fg_6b7b90, fontSize: 13 },
+  todayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: tc.line_e2e8f0
+  },
+  todayRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  todayRowTag: { color: tc.fg_0f766e, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  todayRemoveButton: {
+    minWidth: 36,
+    height: 36,
+    paddingHorizontal: 8,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tc.bg_eef2f6
+  },
+  todayRemoveConfirm: { backgroundColor: tc.bg_fff4f0 },
+  todayRemoveLabel: { color: tc.fg_5c6d80, fontSize: 14, fontWeight: '700' },
+  todayRemoveConfirmLabel: { color: tc.fg_b42318 },
   homeSection: {
     paddingVertical: 16,
     gap: 10,
     borderBottomWidth: 1,
     borderBottomColor: tc.line_dbe3ec
-  },
-  dailyHomeSummaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12
-  },
-  homeDateNavigator: {
-    flexDirection: 'row',
-    gap: 8
-  },
-  homeDateButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_ced7e3,
-    backgroundColor: tc.bg_ffffff,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  homeDateButtonDisabled: {
-    opacity: 0.45
-  },
-  homeDateButtonLabel: {
-    color: tc.fg_17324d,
-    fontSize: 16,
-    fontWeight: '800'
   },
   dailyHomeGoalBadge: {
     backgroundColor: tc.bg_edf8f1,
@@ -8277,23 +8309,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center'
-  },
-  dailyHomeSummaryMetricRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 12
-  },
-  dailyHomeSummaryLabel: {
-    color: tc.fg_66778c,
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  dailyHomeSummaryValue: {
-    color: tc.fg_132536,
-    fontSize: 24,
-    fontWeight: '800'
   },
   dailyHomeMacroRingRow: {
     flexDirection: 'row',
@@ -8311,21 +8326,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10
-  },
-  dailyHomeEditButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tc.bg_ffffff
-  },
-  dailyHomeEditButtonLabel: {
-    color: tc.fg_17324d,
-    fontSize: 16,
-    fontWeight: '800'
   },
   dailyHomeMealPlanSlotCopy: {
     flex: 1,

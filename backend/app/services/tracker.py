@@ -263,6 +263,11 @@ def update_meal_plan_slot_eaten_at(
     return MealPlanDay.model_validate(day)
 
 
+def delete_meal_plan_slot(repository: SQLiteRepository, user_id: str, slot_id: str) -> MealPlanDay | None:
+    day = repository.delete_meal_plan_slot(user_id, slot_id)
+    return MealPlanDay.model_validate(day) if day is not None else None
+
+
 def create_meal_prep_task(
     repository: SQLiteRepository,
     session: AuthSession,

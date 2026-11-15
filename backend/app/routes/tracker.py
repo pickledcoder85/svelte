@@ -22,6 +22,7 @@ from backend.app.models.tracker import (
 from backend.app.repositories.sqlite import ExerciseLinkedToPlanError, SQLiteRepository
 from backend.app.services.tracker import (
     create_exercise_entry,
+    delete_meal_plan_slot,
     create_planned_exercise_entry,
     create_planned_workout_session,
     delete_exercise_entry,
@@ -239,6 +240,18 @@ async def update_meal_plan_slot(
         slot_id,
         payload.eaten_at,
     )
+    if day is None:
+        raise HTTPException(status_code=404, detail="Meal plan slot not found.")
+    return day
+
+
+@router.delete("/meal-plan/slots/{slot_id}", response_model=MealPlanDay)
+async def remove_meal_plan_slot(
+    slot_id: str,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> MealPlanDay:
+    day = delete_meal_plan_slot(repository, session.user_id, slot_id)
     if day is None:
         raise HTTPException(status_code=404, detail="Meal plan slot not found.")
     return day
