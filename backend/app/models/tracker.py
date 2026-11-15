@@ -19,6 +19,19 @@ class ExerciseEntry(ExerciseEntryCreateRequest):
     id: str
     user_id: str
     created_at: datetime | None = None
+    # Where it came from ("manual", "garmin") and the source's numbers as recorded. For an
+    # import, calories_burned is the active calories Relish counts (source total minus Relish's
+    # resting calories for the workout's minutes).
+    source: str = "manual"
+    source_id: str | None = None
+    activity_type: str | None = None
+    started_at: str | None = None
+    distance_m: float | None = None
+    source_calories_total: int | None = None
+    source_bmr_calories: int | None = None
+    relish_resting_calories: int | None = None
+    weight_lbs_at_time: float | None = None
+    calc_version: str | None = None
 
 
 class PlannedExerciseEntryCreateRequest(BaseModel):

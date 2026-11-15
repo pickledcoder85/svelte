@@ -1560,6 +1560,110 @@ class SQLiteRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def save_imported_exercise(
+        self,
+        *,
+        user_id: str,
+        source: str,
+        source_id: str,
+        payload_json: str,
+        entry: dict[str, Any],
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Save one workout from another app, keeping its original record.
+
+        Returns ("created", row) the first time; ("unchanged", row) when it was already imported
+        (Relish's numbers are frozen at import, so only the stored original record is refreshed);
+        ("deleted", None) when the user deleted it in Relish, which is never undone by a sync.
+        """
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            existing = self._connection.execute(
+                """
+                SELECT exercise_entry_id FROM exercise_source_records
+                WHERE user_id = ? AND source = ? AND source_id = ?
+                """,
+                (user_id, source, source_id),
+            ).fetchone()
+            if existing is not None:
+                self._connection.execute(
+                    """
+                    UPDATE exercise_source_records SET payload_json = ?, fetched_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ? AND source = ? AND source_id = ?
+                    """,
+                    (payload_json, user_id, source, source_id),
+                )
+                if existing["exercise_entry_id"] is None:
+                    return "deleted", None
+                row = self._connection.execute(
+                    "SELECT * FROM exercise_entries WHERE id = ?", (existing["exercise_entry_id"],)
+                ).fetchone()
+                return "unchanged", dict(row) if row is not None else None
+
+            identifier = str(uuid4())
+            self._connection.execute(
+                """
+                INSERT INTO exercise_entries (
+                    id, user_id, title, duration_minutes, calories_burned, logged_on, logged_at,
+                    intensity, source, source_id, activity_type, started_at, distance_m,
+                    source_calories_total, source_bmr_calories, relish_resting_calories,
+                    weight_lbs_at_time, calc_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    user_id,
+                    entry["title"],
+                    entry["duration_minutes"],
+                    entry["calories_burned"],
+                    entry["logged_on"].isoformat(),
+                    entry["logged_at"],
+                    entry["intensity"],
+                    source,
+                    source_id,
+                    entry.get("activity_type"),
+                    entry.get("started_at"),
+                    entry.get("distance_m"),
+                    entry.get("source_calories_total"),
+                    entry.get("source_bmr_calories"),
+                    entry.get("relish_resting_calories"),
+                    entry.get("weight_lbs_at_time"),
+                    entry.get("calc_version"),
+                ),
+            )
+            self._connection.execute(
+                """
+                INSERT INTO exercise_source_records (user_id, source, source_id, payload_json, exercise_entry_id)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, source, source_id, payload_json, identifier),
+            )
+            row = self._connection.execute("SELECT * FROM exercise_entries WHERE id = ?", (identifier,)).fetchone()
+            return "created", dict(row)
+
+    @_synchronized
+    def get_exercise_source_record(self, *, user_id: str, exercise_entry_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            """
+            SELECT source, source_id, payload_json, fetched_at FROM exercise_source_records
+            WHERE user_id = ? AND exercise_entry_id = ?
+            """,
+            (user_id, exercise_entry_id),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    @_synchronized
+    def weight_on_or_before(self, user_id: str, on: date) -> float | None:
+        """The latest weigh-in on or before a day (recorded_at may carry a time)."""
+        row = self._connection.execute(
+            """
+            SELECT weight_lbs FROM weight_entries
+            WHERE user_id = ? AND substr(recorded_at, 1, 10) <= ?
+            ORDER BY recorded_at DESC, created_at DESC LIMIT 1
+            """,
+            (user_id, on.isoformat()),
+        ).fetchone()
+        return float(row["weight_lbs"]) if row is not None else None
+
     def _infer_planned_workout_type(self, title: str) -> str:
         normalized = title.lower()
         if "swim" in normalized:

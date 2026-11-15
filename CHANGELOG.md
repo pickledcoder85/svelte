@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Workout provenance (migration 006): workouts record where they came from. Imports from other apps keep the original record and the source's own calorie numbers, and Relish counts active calories as the source's total minus Relish's own resting calories for the workout's minutes, frozen at import. Re-syncing never duplicates a workout, and a deleted import stays deleted. Groundwork for Garmin sync.
 - Navigation naming: the Log tab is now Diary (sub-tabs Entries · Foods · Scan), and the ＋ actions are verbs: Add food, Scan, Add workout, Weigh in. The ＋ is a little smaller with clear space above it. Setup no longer creates a sample meal plan or sample planned workouts; new accounts start empty.
 - The bottom tab bar sits higher, with more room underneath, so the phone's rounded corners no longer clip it.
 - New navigation, like leading fitness apps: a bottom tab bar (Today · Log · ＋ · Trends · Plan) replaces the hamburger menu. Log has sub-tabs Diary, Foods, and Scan; Plan has Meal plan, Prep, Recipes, and Meals. The raised ＋ opens quick actions (Log food, Scan, Log workout, Weigh-in) from anywhere. The Gherkin avatar opens an account sheet with Profile and Settings. A new Trends tab holds the calorie chart (moved from Today) and the progress and weigh-in cards (moved from Profile). Screens moved as they were; the Food screen redesign comes next inside Log and ＋.
