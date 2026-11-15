@@ -12,6 +12,7 @@ from backend.app.models.nutrition import (
 )
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.ingestion import create_scan_output
+from backend.app.services.package_match import find_package_matches, package_structured_json
 from backend.app.services.vision import (
     VisionImageError,
     VisionNotConfiguredError,
@@ -63,13 +64,22 @@ async def analyze_package(
 ) -> VisionPackageScanResult:
     try:
         extraction = await analyze_package_image(payload.image_base64, repository, settings)
+        # Look the product up by name for its nutrition (real scans only: the development demo
+        # result is made up, so there is nothing real to search for).
+        matches = (
+            await find_package_matches(
+                repository, extraction.product_name, extraction.brand_name, usda_api_key=settings.usda_api_key
+            )
+            if settings.openai_api_key
+            else []
+        )
         output = create_scan_output(
             repository,
             session.user_id,
             source_kind="camera_package",
             source_name="package-scan",
             extracted_text=extraction.package_text,
-            structured_json=extraction.model_dump(),
+            structured_json=package_structured_json(extraction.model_dump(), matches),
             confidence=extraction.confidence,
         )
         return VisionPackageScanResult(
