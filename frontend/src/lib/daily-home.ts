@@ -6,10 +6,17 @@ type ExerciseLike = {
 };
 
 export interface DailyTargetSummary {
+  /** The base daily target (diet plus everyday movement). */
   calorieTarget: number;
   intakeCalories: number;
+  /** Calories from workouts logged today, exact as logged. */
   exerciseCalories: number;
   netCalories: number;
+  /** The part of today's workouts added to the allowance (the share, rounded with the allowance). */
+  workoutCaloriesAdded: number;
+  /** Today's allowance: the target plus the added workout calories, to the nearest 10. */
+  allowanceCalories: number;
+  /** Allowance minus food eaten. */
   remainingCalories: number;
   macroTargets: MacroTargets;
   macroPercentages: MacroTargets;
@@ -33,6 +40,31 @@ export interface DailyExerciseSummary {
   totalCalories: number;
 }
 
+/** Workout calories shares a user can choose (percent of logged workout calories). */
+export const WORKOUT_CALORIE_SHARES = [100, 75, 50, 0] as const;
+export type WorkoutCaloriesShare = (typeof WORKOUT_CALORIE_SHARES)[number];
+/** Default share: workout calorie estimates (watches, machines, formulas) tend to run high. */
+export const DEFAULT_WORKOUT_CALORIES_SHARE: WorkoutCaloriesShare = 75;
+
+/**
+ * Today's calorie allowance: the base target plus a share of the calories from logged workouts.
+ * Only the added part is rounded (to the nearest 10), so the target itself is never nudged and
+ * no workouts means exactly the target. Logged workouts themselves stay exact. Without a target
+ * (still loading, or preview mode) there is no allowance yet.
+ */
+export function dailyAllowance(
+  calorieTarget: number,
+  workoutCalories: number,
+  sharePercent: number
+): { allowance: number; workoutCaloriesAdded: number } {
+  if (calorieTarget <= 0) {
+    return { allowance: 0, workoutCaloriesAdded: 0 };
+  }
+  const share = Math.min(100, Math.max(0, sharePercent)) / 100;
+  const workoutCaloriesAdded = Math.round((Math.max(0, workoutCalories) * share) / 10) * 10;
+  return { allowance: calorieTarget + workoutCaloriesAdded, workoutCaloriesAdded };
+}
+
 export function calculateMacroPercentages(targets: MacroTargets): MacroTargets {
   const totalMacroCalories = targets.protein * 4 + targets.carbs * 4 + targets.fat * 9;
   if (totalMacroCalories <= 0) {
@@ -50,12 +82,15 @@ export function buildDailyTargetSummary({
   goal,
   profile,
   foodLog,
-  exerciseEntries
+  exerciseEntries,
+  workoutCaloriesShare = DEFAULT_WORKOUT_CALORIES_SHARE
 }: {
   goal: UserGoal | null;
   profile: UserProfile | null;
   foodLog: FoodLogSummary;
   exerciseEntries: ExerciseLike[];
+  /** Percent of logged workout calories added to the day's allowance. */
+  workoutCaloriesShare?: number;
 }): DailyTargetSummary {
   const calorieTarget = Math.round(goal?.calorie_goal ?? profile?.initial_calorie_target ?? 0);
   const macroTargets = {
@@ -68,13 +103,16 @@ export function buildDailyTargetSummary({
     exerciseEntries.reduce((sum, entry) => sum + entry.calories_burned, 0)
   );
   const netCalories = intakeCalories - exerciseCalories;
+  const { allowance, workoutCaloriesAdded } = dailyAllowance(calorieTarget, exerciseCalories, workoutCaloriesShare);
 
   return {
     calorieTarget,
     intakeCalories,
     exerciseCalories,
     netCalories,
-    remainingCalories: calorieTarget - netCalories,
+    workoutCaloriesAdded,
+    allowanceCalories: allowance,
+    remainingCalories: allowance - intakeCalories,
     macroTargets,
     macroPercentages: calculateMacroPercentages(macroTargets),
     fiberTarget: Math.round(goal?.fiber_goal ?? profile?.fiber_target_g ?? 0)

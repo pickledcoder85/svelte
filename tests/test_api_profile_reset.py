@@ -63,3 +63,39 @@ async def test_settings_save_changes_preferences_without_recalculating_targets(c
     assert after["initial_calorie_target"] == before["initial_calorie_target"]
     assert after["current_weight_lbs"] == before["current_weight_lbs"]
     assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_workout_calories_share_defaults_to_75_and_saves_without_recalculating(client):
+    headers = await _headers(client, "share@example.com")
+    done = (await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)).json()
+    assert done["workout_calories_share"] == 75
+
+    saved = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={"timezone": done["timezone"], "units": done["units"], "workout_calories_share": 50},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["workout_calories_share"] == 50
+    assert saved.json()["initial_calorie_target"] == done["initial_calorie_target"]
+    assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 1
+
+    bad = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={"timezone": done["timezone"], "units": done["units"], "workout_calories_share": 60},
+    )
+    assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_workout_calories_share_rejects_booleans(client):
+    headers = await _headers(client, "strict@example.com")
+    done = (await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)).json()
+    response = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={"timezone": done["timezone"], "units": done["units"], "workout_calories_share": False},
+    )
+    assert response.status_code == 422

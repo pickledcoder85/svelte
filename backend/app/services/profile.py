@@ -365,6 +365,10 @@ def update_user_profile(
         timezone=payload.timezone,
         units=payload.units,
     )
+    if payload.workout_calories_share is not None:
+        repository.update_user_preferences(
+            user_id=session.user_id, workout_calories_share=payload.workout_calories_share
+        )
 
     resolved = {
         "sex": payload.sex if "sex" in provided_fields else existing_profile.get("sex"),

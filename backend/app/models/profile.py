@@ -17,6 +17,8 @@ class UserProfile(BaseModel):
     units: str = "imperial"
     # "recommended": targets stop at 1,200 (women) / 1,500 (men); "off": opted out.
     calorie_floor: Literal["recommended", "off"] = "recommended"
+    # Percent of logged workout calories added to the day's allowance (0 = off).
+    workout_calories_share: Literal[0, 50, 75, 100] = 75
     user_created_at: datetime | None = None
     profile_created_at: datetime | None = None
     profile_updated_at: datetime | None = None
@@ -97,6 +99,16 @@ class UserProfileUpdateRequest(BaseModel):
     nutrition_style: Literal["balanced", "keto", "mediterranean"] | None = None
     allergy_notes: str | None = None
     calorie_floor: Literal["recommended", "off"] | None = None
+    # A preference: changing it never recalculates targets.
+    workout_calories_share: Literal[0, 50, 75, 100] | None = None
+
+    @field_validator("workout_calories_share", mode="before")
+    @classmethod
+    def _share_is_a_number(cls, value):
+        # Pydantic would read JSON false as 0 (turning add-back off); only numbers are allowed.
+        if isinstance(value, bool):
+            raise ValueError("workout_calories_share must be 0, 50, 75, or 100.")
+        return value
 
     @model_validator(mode="after")
     def _pace_matches_goal(self):

@@ -4,7 +4,8 @@ import type { ExerciseEntry, FoodLogSummary, MealPlanDay, UserGoal, UserProfile 
 import {
   buildDailyExerciseSummary,
   buildDailyMealPlanSummary,
-  buildDailyTargetSummary
+  buildDailyTargetSummary,
+  dailyAllowance
 } from './daily-home';
 
 const profile: UserProfile = {
@@ -89,11 +90,35 @@ describe('daily home helpers', () => {
       intakeCalories: 1685,
       exerciseCalories: 430,
       netCalories: 1255,
-      remainingCalories: 945,
+      // 75% of 430 = 322.5, so the allowance is 2,522.5, shown as 2,520.
+      workoutCaloriesAdded: 320,
+      allowanceCalories: 2520,
+      remainingCalories: 835,
       macroTargets: { protein: 160, carbs: 200, fat: 65 },
       macroPercentages: { protein: 32, carbs: 40, fat: 29 },
       fiberTarget: 32
     });
+  });
+
+  it('adds a share of logged workout calories to the allowance, rounded to 10', () => {
+    expect(dailyAllowance(2240, 412, 75)).toEqual({ allowance: 2550, workoutCaloriesAdded: 310 });
+    expect(dailyAllowance(2240, 412, 100)).toEqual({ allowance: 2650, workoutCaloriesAdded: 410 });
+    expect(dailyAllowance(2240, 412, 50)).toEqual({ allowance: 2450, workoutCaloriesAdded: 210 });
+    expect(dailyAllowance(2240, 412, 0)).toEqual({ allowance: 2240, workoutCaloriesAdded: 0 });
+    expect(dailyAllowance(2240, 0, 75)).toEqual({ allowance: 2240, workoutCaloriesAdded: 0 });
+    expect(dailyAllowance(2240, -50, 75)).toEqual({ allowance: 2240, workoutCaloriesAdded: 0 });
+    // A target that isn't a multiple of 10 (custom goals, older targets) is never nudged.
+    expect(dailyAllowance(2237, 0, 75)).toEqual({ allowance: 2237, workoutCaloriesAdded: 0 });
+    expect(dailyAllowance(2237, 4, 75)).toEqual({ allowance: 2237, workoutCaloriesAdded: 0 });
+    expect(dailyAllowance(2237, 412, 75)).toEqual({ allowance: 2547, workoutCaloriesAdded: 310 });
+    // No target yet: no allowance, whatever was logged.
+    expect(dailyAllowance(0, 550, 75)).toEqual({ allowance: 0, workoutCaloriesAdded: 0 });
+  });
+
+  it('uses the chosen share for the day summary', () => {
+    const summary = buildDailyTargetSummary({ goal, profile, foodLog, exerciseEntries, workoutCaloriesShare: 0 });
+    expect(summary.allowanceCalories).toBe(2200);
+    expect(summary.remainingCalories).toBe(2200 - 1685);
   });
 
   it('summarizes today meal plan and next remaining meal', () => {

@@ -1,3 +1,4 @@
+import { localDateKey } from './lib/dates';
 import type {
   DashboardRangeSeries,
   DashboardSnapshot,
@@ -690,7 +691,7 @@ export const demoExerciseEntries: ExerciseEntry[] = [
     title: 'Incline walk',
     duration_minutes: 35,
     calories_burned: 240,
-    logged_on: new Date().toISOString().slice(0, 10),
+    logged_on: localDateKey(),
     logged_at: '07:15',
     intensity: 'Moderate'
   },
@@ -699,7 +700,7 @@ export const demoExerciseEntries: ExerciseEntry[] = [
     title: 'Upper body lift',
     duration_minutes: 52,
     calories_burned: 310,
-    logged_on: new Date().toISOString().slice(0, 10),
+    logged_on: localDateKey(),
     logged_at: '17:40',
     intensity: 'High'
   }

@@ -14,7 +14,7 @@ export const ONBOARDING_EXPLAINERS: Record<
     title: 'Your day, not your workouts',
     intro: 'Next, tell me how much you move on a normal day: walking, chores, errands, and your job.',
     points: [
-      "Don't count workouts. You'll log those separately in Tracker.",
+      "Don't count workouts. You'll log those in Tracker, and they add to that day's allowance.",
       'This sets your baseline: what you burn on an ordinary day.'
     ],
     action: 'Got it'
@@ -24,7 +24,7 @@ export const ONBOARDING_EXPLAINERS: Record<
     intro: 'Your daily calorie target comes from your baseline and your goal. It is what you eat to stay on pace.',
     points: [
       'It covers your diet and everyday movement.',
-      'Workouts are separate: log them in Tracker.'
+      'Workouts you log add to your daily allowance, so you can eat a bit more and still stay on pace.'
     ],
     action: 'Got it'
   }

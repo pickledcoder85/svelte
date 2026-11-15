@@ -75,7 +75,10 @@ import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from '.
 import {
   buildDailyExerciseSummary,
   buildDailyMealPlanSummary,
-  buildDailyTargetSummary
+  buildDailyTargetSummary,
+  DEFAULT_WORKOUT_CALORIES_SHARE,
+  WORKOUT_CALORIE_SHARES,
+  type WorkoutCaloriesShare
 } from './src/lib/daily-home';
 import {
   appShellMenuGroups
@@ -1911,7 +1914,8 @@ export default function App(): ReactElement {
         goal: latestProfileGoal,
         profile,
         foodLog: homeFoodLog,
-        exerciseEntries: homeCompletedExerciseEntries
+        exerciseEntries: homeCompletedExerciseEntries,
+        workoutCaloriesShare: profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE
       }),
     [homeCompletedExerciseEntries, homeFoodLog, latestProfileGoal, profile]
   );
@@ -1925,8 +1929,8 @@ export default function App(): ReactElement {
   );
   const homeConsumedMacros = homeFoodLog.totals.macros;
   const homeConsumedCalories = dailyHomeTargets.intakeCalories;
-  const homeNetCalories = homeConsumedCalories - dailyHomeTargets.exerciseCalories;
-  const homeRemainingCalories = dailyHomeTargets.calorieTarget - homeNetCalories;
+  // Today's allowance (target + a share of logged workouts) drives every Home number.
+  const homeRemainingCalories = dailyHomeTargets.remainingCalories;
   const filteredRecipeCatalog = useMemo(
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
@@ -2132,7 +2136,7 @@ export default function App(): ReactElement {
     );
   }, [activeMetricConfig.points, activeRange, homeConsumedCalories, homeFoodLog.entries]);
   const homeChartTargetValue =
-    activeRange === '1D' ? dailyHomeTargets.calorieTarget : activeMetricConfig.targetValue;
+    activeRange === '1D' ? dailyHomeTargets.allowanceCalories : activeMetricConfig.targetValue;
   const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
   const [launchHoldDone, setLaunchHoldDone] = useState(false);
   useEffect(() => {
@@ -2831,6 +2835,31 @@ export default function App(): ReactElement {
       );
     } catch (error) {
       setFloorMessage(error instanceof Error ? error.message : 'Unable to change the calorie floor.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
+  /** Settings > Workout calories. A preference only: targets are not recalculated. */
+  async function applyWorkoutCaloriesShare(share: WorkoutCaloriesShare) {
+    if (!profile || !foodSessionToken || settingsSaving) {
+      return;
+    }
+    setSettingsSaving(true);
+    setFloorMessage(null);
+    try {
+      const updated = await updateProfile(
+        { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, workout_calories_share: share },
+        foodSessionToken
+      );
+      setProfile(updated);
+      setFloorMessage(
+        share === 0
+          ? 'Workouts no longer add to your daily allowance.'
+          : `${share}% of the calories from workouts you log now add to that day's allowance.`
+      );
+    } catch (error) {
+      setFloorMessage(error instanceof Error ? error.message : 'Unable to change workout calories.');
     } finally {
       setSettingsSaving(false);
     }
@@ -4624,9 +4653,16 @@ export default function App(): ReactElement {
                 <View style={styles.dailyHomeSummaryMetricRow}>
                   <Text style={styles.dailyHomeSummaryLabel}>Daily calories</Text>
                   <Text style={styles.dailyHomeSummaryValue}>
-                    {homeConsumedCalories.toLocaleString()}/{dailyHomeTargets.calorieTarget.toLocaleString()} kcal
+                    {homeConsumedCalories.toLocaleString()}/{dailyHomeTargets.allowanceCalories.toLocaleString()} kcal
                   </Text>
                 </View>
+                {dailyHomeTargets.workoutCaloriesAdded > 0 ? (
+                  <Text style={styles.dailyHomeAllowanceNote}>
+                    Target {dailyHomeTargets.calorieTarget.toLocaleString()} + workouts{' '}
+                    {dailyHomeTargets.workoutCaloriesAdded.toLocaleString()} ({profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}%
+                    of {dailyHomeTargets.exerciseCalories.toLocaleString()} logged)
+                  </Text>
+                ) : null}
 
                 <View style={styles.dailyHomeSummaryMetricRow}>
                   <Text style={styles.dailyHomeSummaryLabel}>Macro split</Text>
@@ -6295,6 +6331,35 @@ export default function App(): ReactElement {
                     {(profile.calorie_floor ?? 'recommended') === 'off'
                       ? 'Off: your daily target is used as calculated, even below the recommended minimum.'
                       : `Your daily target never goes below ${profile.sex === 'male' ? '1,500' : '1,200'} kcal, the minimum dietitians recommend for ${profile.sex === 'male' ? 'men' : 'women'}.`}
+                  </Text>
+                </FieldGroup>
+                <FieldGroup label="Workout calories">
+                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Workout calories">
+                    {WORKOUT_CALORIE_SHARES.map((share) => {
+                      const active = (profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === share;
+                      return (
+                        <Pressable
+                          key={share}
+                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                          onPress={() => {
+                            if (!active && !settingsSaving) {
+                              void applyWorkoutCaloriesShare(share);
+                            }
+                          }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                        >
+                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
+                            {share === 0 ? 'Off' : `${share}%`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.settingsHint}>
+                    {(profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === 0
+                      ? "Off: workouts you log don't change your daily allowance."
+                      : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
                   </Text>
                 </FieldGroup>
               </View>
@@ -8144,6 +8209,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
     gap: 12
+  },
+  dailyHomeAllowanceNote: {
+    color: tc.fg_66778c,
+    fontSize: 13,
+    marginTop: -4
   },
   dailyHomeSummaryLabel: {
     color: tc.fg_66778c,
