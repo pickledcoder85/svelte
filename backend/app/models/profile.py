@@ -196,3 +196,5 @@ class TargetPreview(BaseModel):
     minimum_calorie_target: int
     maintenance_below_minimum: bool
     options: list[TargetPreviewOption]
+    # Maintenance calories for each activity level (sedentary ... extra_active).
+    maintenance_by_activity: dict[str, int]

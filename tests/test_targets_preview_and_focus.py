@@ -149,3 +149,14 @@ async def test_changing_only_the_goal_drops_a_pace_from_the_old_goal(client, aut
     assert changed.status_code == 200
     assert changed.json()["goal_type"] == "maintain"
     assert changed.json()["goal_pace"] in (None, "steady")
+
+
+def test_preview_gives_maintenance_for_every_activity_level():
+    body = {"sex": "male", "age_years": 30, "height_cm": 180, "current_weight_lbs": 200}
+    preview = preview_target_options(**body, activity_level="moderate")
+    by_level = preview["maintenance_by_activity"]
+    assert list(by_level) == ["sedentary", "light", "moderate", "very_active", "extra_active"]
+    assert by_level["moderate"] == preview["maintenance_calories"]
+    for level, maintenance in by_level.items():
+        assert maintenance == preview_target_options(**body, activity_level=level)["maintenance_calories"]
+    assert by_level["sedentary"] < by_level["light"] < by_level["moderate"] < by_level["very_active"] < by_level["extra_active"]
