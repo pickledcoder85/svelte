@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Tap a workout in the diary to see how it's counted: what Garmin recorded (total, Garmin's resting estimate, active) next to what Relish counts (total, your own resting calories, active, and how much was added to today at your share), with a note on why the two differ. Workouts logged in Relish show what you entered.
 - Today opens with how many calories are left ("870 kcal left", or "120 kcal over" in amber) and a progress bar. Tap Breakdown for today's budget (Target + Workouts at your share = Allowance − Eaten = Remaining, with each workout named) and where your target comes from (at rest, daily activity, today's workouts, and your pace). Workouts stay a bonus on top of a steady target.
 - Garmin sync: with a Garmin personal API key on the server, Relish pulls your Garmin activities every 30 minutes and whenever you open the app (the first sync reaches back 30 days). Settings → Garmin shows the last sync and has Sync now; Garmin workouts are marked in the diary. Each activity is imported once.
 - Workout provenance (migration 006): workouts record where they came from. Imports from other apps keep the original record and the source's own calorie numbers, and Relish counts active calories as the source's total minus Relish's own resting calories for the workout's minutes, frozen at import. Re-syncing never duplicates a workout, and a deleted import stays deleted. Groundwork for Garmin sync.
