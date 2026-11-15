@@ -1,6 +1,7 @@
 from backend.app.services.calculations.energy import (
     GOAL_CALORIE_ADJUSTMENTS,
     MINIMUM_CALORIE_TARGET,
+    NON_EXERCISE_ACTIVITY_FACTORS,
     calculate_energy_targets,
 )
 from backend.app.services.calculations.macros import (
@@ -110,4 +111,16 @@ def preview_target_options(
         # When even maintenance is under the floor, every target is a small surplus.
         "maintenance_below_minimum": maintenance_calories < MINIMUM_CALORIE_TARGET,
         "options": options,
+        # Maintenance at every activity level, so setup can show each one without asking again.
+        "maintenance_by_activity": {
+            level: calculate_energy_targets(
+                sex=sex,
+                age_years=age_years,
+                height_cm=height_cm,
+                current_weight_lbs=current_weight_lbs,
+                activity_level=level,
+                goal_type="maintain",
+            )[1]
+            for level in NON_EXERCISE_ACTIVITY_FACTORS
+        },
     }

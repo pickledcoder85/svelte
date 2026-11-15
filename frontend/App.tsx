@@ -106,6 +106,8 @@ import {
 import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { CogIcon } from './src/components/CogIcon';
+import { ActivityGauge } from './src/components/ActivityGauge';
+import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-gauge';
 import appConfig from './app.json';
 import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
 import { PickerSheet } from './src/components/PickerSheet';
@@ -342,17 +344,12 @@ const allergyLabels: Record<Exclude<AllergyChoice, 'none' | 'other'>, string> = 
   shellfish: 'Shellfish'
 };
 
-const activityLevelCards: Array<{
-  id: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
-  title: string;
-  subtitle: string;
-}> = [
-  { id: 'sedentary', title: 'Sedentary', subtitle: 'Mostly sitting, driving, or desk time' },
-  { id: 'light', title: 'Light', subtitle: 'Some walking and light day-to-day movement' },
-  { id: 'moderate', title: 'Moderate', subtitle: 'Regular movement and time on your feet' },
-  { id: 'very_active', title: 'Very active', subtitle: 'High daily movement, walking, or physical work' },
-  { id: 'extra_active', title: 'Extra active', subtitle: 'Very high daily movement most days' }
-];
+// Titles and descriptions live with the setup gauge (src/lib/activity-gauge.ts).
+const activityLevelCards = ACTIVITY_LEVELS.map((level) => ({
+  id: level.id,
+  title: level.title,
+  subtitle: level.description
+}));
 
 function toneColor(tone: 'checking' | 'live'): string {
   if (tone === 'live') {
@@ -636,17 +633,22 @@ export default function App(): ReactElement {
   // Calorie preview for the activity, goal, and pace screens (server engine, nothing saved).
   const [targetPreviewState, setTargetPreviewState] = useState<{ key: string; preview: TargetPreview } | null>(null);
   // Only show numbers computed from the current inputs, never a previous answer.
-  const targetPreviewKey = [
+  const targetBodyKey = [
     onboardingSexDraft,
     onboardingAgeDraft,
     onboardingUnitsDraft,
     onboardingHeightFeetDraft,
     onboardingHeightInchesDraft,
     onboardingHeightCmDraft,
-    onboardingCurrentWeightDraft,
-    onboardingActivityLevelDraft
+    onboardingCurrentWeightDraft
   ].join('|');
+  const targetPreviewKey = `${targetBodyKey}|${onboardingActivityLevelDraft}`;
   const targetPreview = targetPreviewState?.key === targetPreviewKey ? targetPreviewState.preview : null;
+  // The energy card only needs the same body stats: BMR does not depend on activity, and the
+  // preview carries maintenance for every level, so moving the gauge updates it instantly.
+  const energyPreview =
+    targetPreviewState && targetPreviewState.key.startsWith(`${targetBodyKey}|`) ? targetPreviewState.preview : null;
+  const energyMaintenance = maintenanceForLevel(energyPreview, onboardingActivityLevelDraft);
   const [showBmrExplainer, setShowBmrExplainer] = useState(false);
   const previewStepActive = onboardingStep === 'activity' || onboardingStep === 'goal' || onboardingStep === 'pace';
   useEffect(() => {
@@ -3745,37 +3747,19 @@ export default function App(): ReactElement {
                     Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
                   </Text>
 
-                  <View style={styles.setupOptionStack}>
-                    {activityLevelCards.map((option) => {
-                      const active = onboardingActivityLevelDraft === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
-                          onPress={() => setOnboardingActivityLevelDraft(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                            {option.title}
-                          </Text>
-                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <ActivityGauge value={onboardingActivityLevelDraft} onChange={setOnboardingActivityLevelDraft} />
 
-                  {targetPreview ? (
+                  {energyPreview && energyMaintenance !== null ? (
                     <View style={styles.energyCard}>
                       <Text style={styles.energyCardTitle}>Your energy</Text>
                       {(() => {
-                        const bars = energyBarWidths(targetPreview.bmr_calories, targetPreview.maintenance_calories);
+                        const bars = energyBarWidths(energyPreview.bmr_calories, energyMaintenance);
                         return (
                           <View style={styles.energyBars}>
                             <View>
                               <View style={styles.energyBarLabelRow}>
                                 <Text style={styles.energyBarLabel}>At rest</Text>
-                                <Text style={styles.energyBarValue}>{formatCalories(targetPreview.bmr_calories)}</Text>
+                                <Text style={styles.energyBarValue}>{formatCalories(energyPreview.bmr_calories)}</Text>
                               </View>
                               <View style={styles.energyBarTrack}>
                                 <View style={[styles.energyBarFill, styles.energyBarFillRest, { width: `${bars.rest}%` }]} />
@@ -3784,7 +3768,7 @@ export default function App(): ReactElement {
                             <View>
                               <View style={styles.energyBarLabelRow}>
                                 <Text style={styles.energyBarLabel}>With your activity</Text>
-                                <Text style={styles.energyBarValue}>{formatCalories(targetPreview.maintenance_calories)}</Text>
+                                <Text style={styles.energyBarValue}>{formatCalories(energyMaintenance)}</Text>
                               </View>
                               <View style={styles.energyBarTrack}>
                                 <View style={[styles.energyBarFill, { width: `${bars.active}%` }]} />
@@ -3794,9 +3778,9 @@ export default function App(): ReactElement {
                         );
                       })()}
                       <Text style={styles.energyCardBody}>
-                        Your body uses about {Math.round(targetPreview.bmr_calories).toLocaleString('en-US')} kcal a day just to keep
+                        Your body uses about {Math.round(energyPreview.bmr_calories).toLocaleString('en-US')} kcal a day just to keep
                         you running (your BMR). With your activity, about{' '}
-                        {Math.round(targetPreview.maintenance_calories).toLocaleString('en-US')} kcal. Eat that much and your weight
+                        {Math.round(energyMaintenance).toLocaleString('en-US')} kcal. Eat that much and your weight
                         stays put.
                       </Text>
                       <Pressable
