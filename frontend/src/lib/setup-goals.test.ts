@@ -8,7 +8,9 @@ import {
   formatWeeklyRate,
   goalLabel,
   isPaceForGoal,
+  caloriesToMoveMore,
   needsFloorWarning,
+  paceDisplay,
   withCalorieFloor,
   paceLabel,
   type TargetPreview
@@ -91,5 +93,34 @@ describe('setup goals', () => {
     expect(needsFloorWarning(fast, 'recommended', true)).toBe(false);
     expect(needsFloorWarning(fast, 'off', false)).toBe(false);
     expect(needsFloorWarning(preview.options[0], 'recommended', false)).toBe(false);
+  });
+
+  it('shows the honest number until the user decides, then what will be used', () => {
+    const fast = {
+      ...preview.options[0],
+      goal_pace: 'extreme' as const,
+      calorie_target: 1180,
+      weekly_change_lbs: -2,
+      below_recommended_minimum: true,
+      floor_calorie_target: 1500,
+      floor_weekly_change_lbs: -1.4
+    };
+    expect(paceDisplay(fast, 'recommended', false)).toEqual({
+      calories: 1180,
+      weeklyChangeLbs: -2,
+      calculatedCalories: 1180,
+      state: 'below'
+    });
+    expect(paceDisplay(fast, 'recommended', true)).toEqual({
+      calories: 1500,
+      weeklyChangeLbs: -1.4,
+      calculatedCalories: 1180,
+      state: 'using_minimum'
+    });
+    expect(paceDisplay(fast, 'off', false).state).toBe('opted_out');
+    expect(paceDisplay(fast, 'off', false).calories).toBe(1180);
+    expect(paceDisplay(preview.options[0], 'recommended', false).state).toBe('normal');
+    expect(caloriesToMoveMore(fast, 1500)).toBe(320);
+    expect(caloriesToMoveMore(preview.options[0], 1500)).toBe(0);
   });
 });

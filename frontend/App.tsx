@@ -142,6 +142,7 @@ import {
   splashHoldRemaining
 } from './src/lib/launch-splash';
 import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
+import { explainerBefore, ONBOARDING_EXPLAINERS, type ExplainerStep } from './src/lib/onboarding-explainers';
 import {
   DEFAULT_PACE,
   GOAL_OPTIONS,
@@ -153,7 +154,9 @@ import {
   formatWeeklyRate,
   goalLabel,
   isPaceForGoal,
+  caloriesToMoveMore,
   needsFloorWarning,
+  paceDisplay,
   paceLabel,
   VERY_LOW_CALORIE_LIMIT,
   withCalorieFloor,
@@ -603,6 +606,9 @@ export default function App(): ReactElement {
   const [floorMessage, setFloorMessage] = useState<string | null>(null);
   const [floorWarning, setFloorWarning] = useState<{ pace: GoalPace; thenNext: boolean } | null>(null);
   const [settingsFloorWarning, setSettingsFloorWarning] = useState(false);
+  // Explainer cards before Daily activity and Your goal: the one showing, and those seen.
+  const [activeExplainer, setActiveExplainer] = useState<ExplainerStep | null>(null);
+  const [explainersSeen, setExplainersSeen] = useState<ExplainerStep[]>([]);
   const [onboardingGoalTypeDraft, setOnboardingGoalTypeDraft] = useState<'lose' | 'maintain' | 'gain'>('lose');
   const [onboardingGoalPaceDraft, setOnboardingGoalPaceDraft] = useState<GoalPace>('recommended');
   const [onboardingTargetWeightDraft, setOnboardingTargetWeightDraft] = useState('');
@@ -850,6 +856,8 @@ export default function App(): ReactElement {
     setOnboardingAllergyOtherDraft('');
     setOnboardingCalorieFloorDraft('recommended');
     setFloorAnsweredPaces([]);
+    setActiveExplainer(null);
+    setExplainersSeen([]);
     setOnboardingStep('welcome');
   }
 
@@ -903,6 +911,8 @@ export default function App(): ReactElement {
     setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
     setOnboardingCalorieFloorDraft(loadedProfile.calorie_floor ?? 'recommended');
     setFloorAnsweredPaces([]);
+    setActiveExplainer(null);
+    setExplainersSeen([]);
     setOnboardingStep('welcome');
 
     const latestGoal = goals[0];
@@ -3044,10 +3054,25 @@ export default function App(): ReactElement {
     return floorAnsweredPaces.includes(`${onboardingGoalTypeDraft}|${pace}`);
   }
 
+  /** What a pace card shows (honest number until the user decides), or null without a preview. */
+  function displayedPace(goal = onboardingGoalTypeDraft, pace: GoalPace = onboardingGoalPaceDraft) {
+    const calculated = findPreviewOption(targetPreview, goal, pace);
+    const answered = floorAnsweredPaces.includes(`${goal}|${pace}`);
+    return calculated ? paceDisplay(calculated, onboardingCalorieFloorDraft, answered) : null;
+  }
+
   function chooseOnboardingPace(pace: GoalPace) {
     const calculated = calculatedPaceOption(pace);
-    // Tapping the chosen pace again reopens the warning, so the minimum can still be opted out of.
-    const reopen = pace === onboardingGoalPaceDraft && needsFloorWarning(calculated, onboardingCalorieFloorDraft, false);
+    const shown = displayedPace(onboardingGoalTypeDraft, pace);
+    // At the minimum this pace would not move weight in the goal's direction.
+    const useless =
+      shown?.state === 'using_minimum' &&
+      ((onboardingGoalTypeDraft === 'lose' && shown.weeklyChangeLbs >= 0) ||
+        (onboardingGoalTypeDraft === 'gain' && shown.weeklyChangeLbs <= 0));
+    // Tapping the chosen pace again, or a pace the minimum makes useless, reopens the warning,
+    // so the minimum can still be opted out of.
+    const reopen =
+      (pace === onboardingGoalPaceDraft || useless) && needsFloorWarning(calculated, onboardingCalorieFloorDraft, false);
     if (reopen || needsFloorWarning(calculated, onboardingCalorieFloorDraft, floorAnswered(pace))) {
       setFloorWarning({ pace, thenNext: false });
       return;
@@ -3099,7 +3124,18 @@ export default function App(): ReactElement {
       setOnboardingError(null);
       setOnboardingStatus(`${nextStep.label} step ready`);
       setOnboardingStep(nextStep.id);
+      // Daily activity and Your goal open with an explainer card, once per setup.
+      const explainer = explainerBefore(nextStep.id, explainersSeen);
+      if (explainer) {
+        setActiveExplainer(explainer);
+      }
     }
+  }
+
+  /** Back from an explainer card returns to the step before the one it introduces. */
+  function leaveExplainerBack() {
+    setActiveExplainer(null);
+    goToPreviousOnboardingStep();
   }
 
   function goToPreviousOnboardingStep() {
@@ -3686,6 +3722,66 @@ export default function App(): ReactElement {
     );
   }
 
+  if (onboardingRequired && activeExplainer) {
+    const explainer = ONBOARDING_EXPLAINERS[activeExplainer];
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+          <View style={styles.setupBackdrop}>
+            <View style={[styles.setupCard, styles.onboardingWelcomeCard]}>
+              <Image
+                source={activeExplainer === 'activity' ? mascotBikeImage : mascotDefaultImage}
+                style={styles.onboardingWelcomeImage}
+                resizeMode="contain"
+              />
+              <Text
+                style={[styles.onboardingWelcomeTitle, ribeyeLoaded && styles.onboardingWelcomeTitleDisplay]}
+                accessibilityRole="header"
+              >
+                {explainer.title}
+              </Text>
+              <Text style={styles.onboardingWelcomeIntro}>{explainer.intro}</Text>
+              <View style={styles.onboardingWelcomeList}>
+                {explainer.points.map((point) => (
+                  <View key={point} style={styles.onboardingWelcomeRow}>
+                    <View style={styles.onboardingWelcomeBadge}>
+                      <Text style={styles.onboardingWelcomeBadgeLabel}>✓</Text>
+                    </View>
+                    <View style={styles.onboardingWelcomeRowCopy}>
+                      <Text style={styles.onboardingWelcomeRowDetail}>{point}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+              <View style={[styles.setupNavRow, styles.explainerActions]}>
+                <Pressable
+                  style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
+                  onPress={leaveExplainerBack}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
+                  onPress={() => {
+                    // Counts as seen only once acknowledged; Back shows it again next time.
+                    const seen = activeExplainer;
+                    setExplainersSeen((current) => (current.includes(seen) ? current : [...current, seen]));
+                    setActiveExplainer(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.setupActionButtonLabelPrimary}>{explainer.action} →</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (onboardingRequired) {
     const activeStepIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
     const currentStepLabel = onboardingSteps[activeStepIndex]?.label ?? 'Basics';
@@ -3746,7 +3842,7 @@ export default function App(): ReactElement {
                   return (
                     <ChoiceSheet
                       title="Below the recommended minimum"
-                      primaryLabel={`Use ${minimum.toLocaleString('en-US')} kcal (recommended)`}
+                      primaryLabel={`Eat ${minimum.toLocaleString('en-US')} kcal and move more (recommended)`}
                       secondaryLabel={`Opt out and keep ${calculatedCalories.toLocaleString('en-US')} kcal`}
                       onPrimary={() => answerFloorWarning('recommended')}
                       onSecondary={() => answerFloorWarning('off')}
@@ -3755,14 +3851,24 @@ export default function App(): ReactElement {
                       <Text style={styles.floorWarningText}>
                         {onboardingGoalTypeDraft === 'maintain' ? 'Maintaining your weight works out to' : 'This pace works out to'}{' '}
                         <Text style={styles.floorWarningStrong}>{calculatedCalories.toLocaleString('en-US')} kcal a day</Text>.
-                        Dietitians generally recommend at least{' '}
-                        <Text style={styles.floorWarningStrong}>{minimum.toLocaleString('en-US')} kcal a day for {who}</Text> unless a
-                        doctor is supervising.
+                        Dietitians generally advise {who} not to eat less than{' '}
+                        <Text style={styles.floorWarningStrong}>{minimum.toLocaleString('en-US')} kcal a day</Text> without
+                        medical supervision. Below that, it's hard to get enough protein, vitamins, and minerals, and you're more
+                        likely to lose muscle, feel run down, and regain the weight.
                       </Text>
-                      <Text style={styles.floorWarningText}>
-                        Eating less makes it hard to get enough protein, vitamins, and minerals, speeds up muscle loss, and often
-                        brings fatigue and rebound weight gain.
-                      </Text>
+                      {pending && caloriesToMoveMore(pending, minimum) > 0 ? (
+                        <Text style={styles.floorWarningText}>
+                          <Text style={styles.floorWarningStrong}>
+                            {onboardingGoalTypeDraft === 'maintain' ? 'A better way to hold your weight:' : 'A better way to keep this pace:'}
+                          </Text>{' '}
+                          eat{' '}
+                          {minimum.toLocaleString('en-US')} kcal and burn the other{' '}
+                          <Text style={styles.floorWarningStrong}>
+                            {caloriesToMoveMore(pending, minimum).toLocaleString('en-US')} kcal
+                          </Text>{' '}
+                          by moving more, such as a longer daily walk or a workout.
+                        </Text>
+                      ) : null}
                       {calculatedCalories < VERY_LOW_CALORIE_LIMIT ? (
                         <Text style={styles.floorWarningText}>
                           Under {VERY_LOW_CALORIE_LIMIT} kcal a day is a very-low-calorie diet, which is normally done only with
@@ -3931,7 +4037,7 @@ export default function App(): ReactElement {
                   <View style={styles.setupGoalGrid}>
                     {GOAL_OPTIONS.map((option) => {
                       const active = onboardingGoalTypeDraft === option.id;
-                      const preview = effectivePaceOption(option.id, DEFAULT_PACE[option.id]);
+                      const preview = displayedPace(option.id, DEFAULT_PACE[option.id]);
                       const image =
                         option.id === 'lose' ? mascotRunImage : option.id === 'gain' ? mascotWeightsImage : mascotDefaultImage;
                       return (
@@ -3946,7 +4052,14 @@ export default function App(): ReactElement {
                           <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
                           <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
                           {preview ? (
-                            <Text style={styles.setupGoalCalories}>About {formatCalories(preview.calorie_target)}</Text>
+                            <Text
+                              style={[
+                                styles.setupGoalCalories,
+                                (preview.state === 'below' || preview.state === 'opted_out') && styles.paceRowCaloriesBelow
+                              ]}
+                            >
+                              About {formatCalories(preview.calories)}
+                            </Text>
                           ) : null}
                         </Pressable>
                       );
@@ -3972,16 +4085,22 @@ export default function App(): ReactElement {
                       const calculated = calculatedPaceOption(option.id);
                       const preview = effectivePaceOption(onboardingGoalTypeDraft, option.id);
                       const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
+                      // The honest number until the user decides; red when below the minimum.
+                      const display = calculated
+                        ? paceDisplay(calculated, onboardingCalorieFloorDraft, floorAnswered(option.id))
+                        : null;
                       const rate =
-                        preview && onboardingGoalTypeDraft !== 'maintain'
-                          ? formatWeeklyRate(preview.weekly_change_lbs, onboardingUnitsDraft)
+                        display && onboardingGoalTypeDraft !== 'maintain'
+                          ? formatWeeklyRate(display.weeklyChangeLbs, onboardingUnitsDraft)
                           : '';
                       // The recommended minimum can turn a loss pace into a small surplus.
                       const wrongDirection =
-                        preview !== null &&
-                        ((onboardingGoalTypeDraft === 'lose' && preview.weekly_change_lbs >= 0) ||
-                          (onboardingGoalTypeDraft === 'gain' && preview.weekly_change_lbs <= 0));
+                        display !== null &&
+                        ((onboardingGoalTypeDraft === 'lose' && display.weeklyChangeLbs >= 0) ||
+                          (onboardingGoalTypeDraft === 'gain' && display.weeklyChangeLbs <= 0));
+                      const belowShown = display?.state === 'below' || display?.state === 'opted_out';
                       const steady = effectivePaceOption('maintain', 'steady');
+                      const kcal = (value: number) => `${Math.round(value).toLocaleString('en-US')} kcal`;
                       return (
                         <Pressable
                           key={option.id}
@@ -3994,11 +4113,15 @@ export default function App(): ReactElement {
                             <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
                               {option.title}
                             </Text>
-                            {preview ? <Text style={styles.paceRowCalories}>{formatCalories(preview.calorie_target)}</Text> : null}
+                            {display ? (
+                              <Text style={[styles.paceRowCalories, belowShown && styles.paceRowCaloriesBelow]}>
+                                {formatCalories(display.calories)}
+                              </Text>
+                            ) : null}
                           </View>
                           {rate && !wrongDirection ? (
                             <Text style={styles.setupChoiceDetail}>
-                              {preview && preview.weekly_change_lbs < 0 ? 'Lose ' : 'Gain '}
+                              {display && display.weeklyChangeLbs < 0 ? 'Lose ' : 'Gain '}
                               {rate}
                             </Text>
                           ) : null}
@@ -4010,17 +4133,19 @@ export default function App(): ReactElement {
                             </Text>
                           ) : null}
                           {option.note ? <Text style={styles.setupGoalNote}>{option.note}</Text> : null}
+                          {display?.state === 'below' ? (
+                            <Text style={styles.paceRowWarning}>Below the {kcal(minimum)} recommended minimum</Text>
+                          ) : display?.state === 'opted_out' ? (
+                            <Text style={styles.paceRowWarning}>Below the {kcal(minimum)} recommended minimum (floor off)</Text>
+                          ) : display?.state === 'using_minimum' ? (
+                            <Text style={styles.setupChoiceDetail}>
+                              Calculated {kcal(display.calculatedCalories)} · using the recommended minimum
+                            </Text>
+                          ) : null}
                           {wrongDirection ? (
                             <Text style={styles.paceRowWarning}>
-                              The recommended minimum of {formatCalories(minimum)} is above what you burn, so this pace will not
-                              lower your weight. Tap this pace to opt out of the minimum, or talk to a doctor or dietitian about a
-                              plan.
-                            </Text>
-                          ) : calculated?.below_recommended_minimum ? (
-                            <Text style={styles.paceRowWarning}>
-                              {onboardingCalorieFloorDraft === 'off'
-                                ? `Below the ${Math.round(minimum).toLocaleString('en-US')} kcal recommended minimum (you opted out)`
-                                : `Calculated ${Math.round(calculated.calorie_target).toLocaleString('en-US')} kcal is below the ${Math.round(minimum).toLocaleString('en-US')} kcal recommended minimum, so it is set to the minimum`}
+                              At the {kcal(minimum)} minimum you would not lose weight, because it is above what you burn. Move
+                              more to keep this pace, or tap this pace to opt out of the minimum.
                             </Text>
                           ) : null}
                         </Pressable>
@@ -4040,13 +4165,14 @@ export default function App(): ReactElement {
                       {(() => {
                         const goalLbs = onboardingTargetWeightLbs();
                         const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
-                        const preview = effectivePaceOption();
+                        // The same rate the selected card shows.
+                        const preview = displayedPace();
                         if (goalLbs === null || !current || !preview) {
                           return null;
                         }
                         const goalOnRightSide =
                           onboardingGoalTypeDraft === 'lose' ? goalLbs < current.weight_lbs : goalLbs > current.weight_lbs;
-                        const estimate = estimateGoalDate(current.weight_lbs, goalLbs, preview.weekly_change_lbs);
+                        const estimate = estimateGoalDate(current.weight_lbs, goalLbs, preview.weeklyChangeLbs);
                         if (goalOnRightSide && !estimate) {
                           return null;
                         }
@@ -7131,6 +7257,13 @@ const styles = StyleSheet.create({
     color: RELISH_COLORS.text,
     fontSize: 13,
     fontWeight: '800'
+  },
+  // A calculated target below the recommended minimum, before the user decides (or opted out).
+  explainerActions: {
+    alignSelf: 'stretch'
+  },
+  paceRowCaloriesBelow: {
+    color: tc.fg_b42318
   },
   paceRowWarning: {
     color: tc.fg_b45309,
