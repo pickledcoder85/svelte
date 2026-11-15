@@ -31,7 +31,7 @@ describe('app shell metadata', () => {
       'meal-prep',
       'recipes'
     ]);
-    expect(appShellMenuGroups[2]?.sections.map((section) => section.id)).toEqual(['profile']);
+    expect(appShellMenuGroups[2]?.sections.map((section) => section.id)).toEqual(['profile', 'settings']);
   });
 
   it('returns consistent section copy and profile initials', () => {

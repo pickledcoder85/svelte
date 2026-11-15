@@ -43,3 +43,23 @@ async def test_reset_profile_reopens_setup_and_keeps_history(client):
 async def test_reset_profile_needs_a_session(client):
     response = await client.post("/api/profile/setup/reset")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_settings_save_changes_preferences_without_recalculating_targets(client):
+    headers = await _headers(client, "settings@example.com")
+    assert (await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)).status_code == 200
+    before = (await client.get("/api/profile", headers=headers)).json()
+
+    response = await client.put(
+        "/api/profile",
+        headers=headers,
+        json={"display_name": "Pickle Fan", "timezone": "America/Chicago", "units": "metric"},
+    )
+
+    assert response.status_code == 200
+    after = response.json()
+    assert (after["display_name"], after["timezone"], after["units"]) == ("Pickle Fan", "America/Chicago", "metric")
+    assert after["initial_calorie_target"] == before["initial_calorie_target"]
+    assert after["current_weight_lbs"] == before["current_weight_lbs"]
+    assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 1
