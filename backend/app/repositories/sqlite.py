@@ -11,7 +11,8 @@ from uuid import uuid4
 
 from backend.app.models.auth import AuthSession
 from backend.app.models.meals import MealTemplate
-from backend.app.models.nutrition import FoodItem, MacroTargets, WeeklyMetrics
+from backend.app.models.nutrition import FoodItem, FoodPortion, MacroTargets, WeeklyMetrics
+from backend.app.services.servings import parse_serving_text
 from backend.app.models.recipes import RecipeAsset, RecipeDefinition
 from backend.app.db.database import apply_pending_migrations, json_text
 
@@ -381,6 +382,21 @@ class SQLiteRepository:
 
 
     def _row_to_food(self, row: sqlite3.Row) -> FoodItem:
+        keys = row.keys()
+        serving_grams = row["serving_grams"] if "serving_grams" in keys else None
+        serving_basis = row["serving_basis"] if "serving_basis" in keys else None
+        serving_text = row["serving_text"] if "serving_text" in keys else None
+        if serving_grams is None:
+            # Older rows kept the label weight inside the unit ("tbsp (32 g)"): read it back.
+            parsed = parse_serving_text(serving_text or f"{row['serving_size']:g} {row['serving_unit']}")
+            if parsed and parsed.grams:
+                serving_grams, serving_basis = parsed.grams, parsed.basis
+        portions: list[FoodPortion] = []
+        if "portions_json" in keys and row["portions_json"]:
+            try:
+                portions = [FoodPortion(**item) for item in json.loads(row["portions_json"])]
+            except (ValueError, TypeError):
+                portions = []
         return FoodItem(
             id=row["id"],
             name=row["name"],
@@ -390,7 +406,11 @@ class SQLiteRepository:
             serving_unit=row["serving_unit"],
             macros=MacroTargets(protein=row["protein"], carbs=row["carbs"], fat=row["fat"]),
             source=row["source"],
-            barcode=row["barcode"] if "barcode" in row.keys() else None,
+            barcode=row["barcode"] if "barcode" in keys else None,
+            serving_text=serving_text,
+            serving_grams=serving_grams,
+            serving_basis=serving_basis,
+            portions=portions,
         )
 
     @_synchronized
@@ -437,10 +457,16 @@ class SQLiteRepository:
                 """
                 INSERT INTO food_catalog (
                     id, name, brand, calories, serving_size, serving_unit,
-                    protein, carbs, fat, source, barcode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    protein, carbs, fat, source, barcode,
+                    serving_text, serving_grams, serving_basis, portions_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     barcode = COALESCE(excluded.barcode, food_catalog.barcode),
+                    serving_text = COALESCE(excluded.serving_text, food_catalog.serving_text),
+                    -- A weight the user entered is never wiped by a re-save without one.
+                    serving_grams = COALESCE(excluded.serving_grams, food_catalog.serving_grams),
+                    serving_basis = COALESCE(excluded.serving_basis, food_catalog.serving_basis),
+                    portions_json = COALESCE(excluded.portions_json, food_catalog.portions_json),
                     name = excluded.name,
                     brand = excluded.brand,
                     calories = excluded.calories,
@@ -463,12 +489,71 @@ class SQLiteRepository:
                     food_item.macros.fat,
                     food_item.source,
                     food_item.barcode,
+                    food_item.serving_text,
+                    food_item.serving_grams,
+                    food_item.serving_basis if food_item.serving_grams else None,
+                    json.dumps([portion.model_dump() for portion in food_item.portions]) if food_item.portions else None,
                 ),
             )
         persisted = self.get_food_by_id(food_item.id)
         if persisted is None:
             raise RuntimeError("Failed to persist food item.")
         return persisted
+
+    # --- Food bank: the foods a user has scanned, saved, or logged ---
+
+    def add_to_food_bank(self, *, user_id: str, food_id: str, used: bool = False) -> None:
+        """Add a food to the user's bank (no-op if there). `used` also marks it recently used."""
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO user_food_bank (user_id, food_id, last_used_at)
+                VALUES (?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)
+                ON CONFLICT(user_id, food_id) DO UPDATE SET
+                    last_used_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE user_food_bank.last_used_at END
+                """,
+                (user_id, food_id, used, used),
+            )
+
+    def remove_from_food_bank(self, *, user_id: str, food_id: str) -> bool:
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "DELETE FROM user_food_bank WHERE user_id = ? AND food_id = ?",
+                (user_id, food_id),
+            )
+        return cursor.rowcount > 0
+
+    @_synchronized
+    def food_bank_ids(self, user_id: str) -> set[str]:
+        rows = self._connection.execute("SELECT food_id FROM user_food_bank WHERE user_id = ?", (user_id,)).fetchall()
+        return {row["food_id"] for row in rows}
+
+    @_synchronized
+    def list_food_bank(self, user_id: str, query: str = "") -> list[FoodItem]:
+        """The user's bank, most recently used first, optionally filtered by name or brand."""
+        normalized = query.strip()
+        rows = self._connection.execute(
+            """
+            SELECT f.* FROM user_food_bank b
+            JOIN food_catalog f ON f.id = b.food_id
+            WHERE b.user_id = ?
+              AND (? = '' OR LOWER(f.name) LIKE LOWER(?) OR LOWER(COALESCE(f.brand, '')) LIKE LOWER(?))
+            -- Used foods first (most recent), then foods only added (newest first).
+            ORDER BY b.last_used_at IS NULL, b.last_used_at DESC, b.added_at DESC, b.rowid DESC
+            """,
+            (user_id, normalized, f"%{normalized}%", f"%{normalized}%"),
+        ).fetchall()
+        return [self._row_to_food(row).model_copy(update={"in_bank": True}) for row in rows]
+
+    def set_serving_weight(self, *, food_id: str, serving_grams: float, serving_basis: str) -> FoodItem | None:
+        """Record the weight of one serving (e.g. the user weighed one packet)."""
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE food_catalog SET serving_grams = ?, serving_basis = ? WHERE id = ?",
+                (serving_grams, serving_basis, food_id),
+            )
+        return self.get_food_by_id(food_id)
 
     @_synchronized
     def get_weekly_metrics(self) -> WeeklyMetrics:
