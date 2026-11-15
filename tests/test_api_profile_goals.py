@@ -92,31 +92,9 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
     onboarding_profile = onboarding_response.json()
     assert onboarding_profile["nutrition_style"] == "balanced"
 
-    meal_plan_response = await client.get("/api/tracker/meal-plan", headers=headers)
-    assert meal_plan_response.status_code == 200
-    meal_plan_days = meal_plan_response.json()
-    assert len(meal_plan_days) == 4
-    assert [day["plan_date"] for day in meal_plan_days] == [
-        (date.today() + timedelta(days=offset)).isoformat()
-        for offset in range(4)
-    ]
-    assert meal_plan_days[0]["focus"] == "Daily plan"
-    assert [slot["meal_label"] for slot in meal_plan_days[0]["slots"]] == [
-        "Breakfast",
-        "Snack",
-        "Lunch",
-        "Snack",
-        "Dinner",
-    ]
-    assert sum(slot["calories"] for slot in meal_plan_days[0]["slots"]) == onboarding_profile["initial_calorie_target"]
-    assert meal_plan_days[0]["slots"][0]["items"][0]["name"] == "Greek yogurt"
-    assert "quantity_label" in meal_plan_days[0]["slots"][0]["items"][0]
-
-    planned_exercise_response = await client.get("/api/tracker/planned-exercise", headers=headers)
-    assert planned_exercise_response.status_code == 200
-    planned_exercises = planned_exercise_response.json()
-    assert len(planned_exercises) == 4
-    assert planned_exercises[0]["planned_on"] == date.today().isoformat()
+    # Setup creates no sample meal plan or sample workouts.
+    assert (await client.get("/api/tracker/meal-plan", headers=headers)).json() == []
+    assert (await client.get("/api/tracker/planned-exercise", headers=headers)).json() == []
 
     update_response = await client.put(
         "/api/profile",

@@ -325,12 +325,8 @@ def complete_user_onboarding(
         target_source=targets.target_source,
         target_weight_lbs=payload.target_weight_lbs,
     )
-    ensure_default_meal_plan_window(
-        repository,
-        user_id=session.user_id,
-        calorie_target=targets.calorie_target,
-    )
-    ensure_default_planned_exercise_window(repository, user_id=session.user_id)
+    # Setup no longer creates a sample meal plan or sample workouts: real accounts start empty
+    # and the user builds their own (the dev seed still has sample data for testing).
     if profile is None:
         raise RuntimeError("Failed to persist onboarding profile.")
     return UserProfile.model_validate(profile)
