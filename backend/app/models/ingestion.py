@@ -32,6 +32,17 @@ class BarcodeLookupRequest(BaseModel):
     code: str = Field(min_length=6, max_length=32)
 
 
+class BarcodeFoodResult(BaseModel):
+    """Quick add: a scanned barcode turned straight into a food in the user's bank, ready to
+    log (a product with several variants gives several foods). Not found: photograph the label."""
+
+    barcode: str
+    found: bool
+    source: Literal["food_bank", "open_food_facts", "usda"] | None = None
+    foods: list[FoodItem] = Field(default_factory=list)
+    message: str | None = None
+
+
 class BarcodeLookupResult(BaseModel):
     """food_bank: the food is already saved (log it directly). open_food_facts/usda: a pending
     scan to review and save, like a label scan. Not found: fall back to photographing the label."""
