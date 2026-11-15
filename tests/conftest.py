@@ -18,6 +18,7 @@ def isolated_test_settings() -> Settings:
         dev_auto_login=False,
         # Never call the paid vision API from tests, even if a key is exported in the shell.
         openai_api_key="",
+        garmin_personal_api_key="",
     )
 
 

@@ -40,6 +40,13 @@ def recommended_minimum_calories(sex: str) -> int:
     return RECOMMENDED_MINIMUM_CALORIES.get(sex, RECOMMENDED_MINIMUM_CALORIES["female"])
 
 
+def resting_energy(*, sex: str, age_years: int, height_cm: float, current_weight_lbs: float) -> float:
+    """Mifflin-St Jeor BMR in kcal/day, unrounded."""
+    weight_kg = current_weight_lbs / 2.2046226218
+    sex_adjustment = 5 if sex == "male" else -161
+    return 10 * weight_kg + 6.25 * height_cm - 5 * age_years + sex_adjustment
+
+
 def calculate_energy_targets(
     *,
     sex: str,
@@ -53,13 +60,11 @@ def calculate_energy_targets(
 ) -> tuple[int, int, int]:
     """BMR, maintenance, and the daily target. With the recommended floor the target never goes
     below the minimum for the user's sex; with the floor off it is the calculation as is."""
-    weight_kg = current_weight_lbs / 2.2046226218
-    sex_adjustment = 5 if sex == "male" else -161
-    resting_energy = 10 * weight_kg + 6.25 * height_cm - 5 * age_years + sex_adjustment
+    resting = resting_energy(sex=sex, age_years=age_years, height_cm=height_cm, current_weight_lbs=current_weight_lbs)
     # Round each estimate once, then build the target from the rounded maintenance, so the
     # numbers on screen always add up (maintenance - 500 = target).
-    bmr = round_calories(resting_energy)
-    maintenance = round_calories(resting_energy * NON_EXERCISE_ACTIVITY_FACTORS[activity_level])
+    bmr = round_calories(resting)
+    maintenance = round_calories(resting * NON_EXERCISE_ACTIVITY_FACTORS[activity_level])
     try:
         calorie_adjustment = GOAL_CALORIE_ADJUSTMENTS[(goal_type, goal_pace)]
     except KeyError as error:

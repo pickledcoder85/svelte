@@ -206,6 +206,28 @@ export interface ExerciseEntry {
   logged_at: string;
   intensity: 'Low' | 'Moderate' | 'High';
   created_at?: string;
+  /** Where it came from. For imports, calories_burned is the active calories Relish counts. */
+  source?: 'manual' | 'garmin' | string;
+  source_id?: string | null;
+  activity_type?: string | null;
+  distance_m?: number | null;
+  /** The source's own numbers, as recorded. */
+  source_calories_total?: number | null;
+  source_bmr_calories?: number | null;
+  /** Relish's resting calories for the workout's minutes (removed from the source total). */
+  relish_resting_calories?: number | null;
+}
+
+export interface GarminStatus {
+  configured: boolean;
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  last_status: 'ok' | 'error' | null;
+  last_error: string | null;
+  last_imported: number;
+  /** Only on a sync response. matched: already logged in Relish, linked instead of added. */
+  imported?: number;
+  matched?: number;
 }
 
 export interface PlannedExerciseEntry {

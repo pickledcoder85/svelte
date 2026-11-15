@@ -44,6 +44,8 @@ import {
   fetchBackendHealth,
   getApiBaseUrl,
   fetchExerciseEntries,
+  fetchGarminStatus,
+  syncGarmin,
   fetchPlannedWorkoutSessions,
   fetchFavoriteFoods,
   fetchFavoriteRecipes,
@@ -80,6 +82,7 @@ import {
   WORKOUT_CALORIE_SHARES,
   type WorkoutCaloriesShare
 } from './src/lib/daily-home';
+import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
 import { ActionSheet } from './src/components/ActionSheet';
 import { SubTabs } from './src/components/SubTabs';
@@ -189,6 +192,7 @@ import {
 } from './src/lib/session-store';
 import type {
   AppSection,
+  GarminStatus,
   DashboardRange,
   DashboardSnapshot,
   DashboardMetricKey,
@@ -775,6 +779,14 @@ export default function App(): ReactElement {
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [profileResetting, setProfileResetting] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [garminStatus, setGarminStatus] = useState<GarminStatus | null>(null);
+  const [garminSyncing, setGarminSyncing] = useState(false);
+  const [garminNote, setGarminNote] = useState<string | null>(null);
+  const garminSyncingRef = useRef(false);
+  // The session a Garmin request belongs to (stale replies are dropped after sign-out), and the
+  // last sync time whose workouts are on screen (the server also syncs on its own).
+  const garminTokenRef = useRef<string | null>(null);
+  const garminSeenSyncRef = useRef<string | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [entryActionBusyKey, setEntryActionBusyKey] = useState<string | null>(null);
@@ -1425,6 +1437,50 @@ export default function App(): ReactElement {
       cancelled = true;
     };
   }, [entryMode, foodSessionToken]);
+
+  // Garmin: check on open and whenever the app comes back to the screen; sync if stale.
+  useEffect(() => {
+    if (!foodSessionToken) {
+      setGarminStatus(null);
+      return;
+    }
+    const token = foodSessionToken;
+    garminTokenRef.current = token;
+    garminSeenSyncRef.current = null;
+    let cancelled = false;
+    async function check() {
+      try {
+        const status = await fetchGarminStatus(token);
+        if (cancelled) {
+          return;
+        }
+        setGarminStatus(status);
+        if (garminSyncIsStale(status, new Date())) {
+          await runGarminSync(token);
+        } else {
+          await showGarminWorkoutsSince(token, status.last_success_at);
+        }
+      } catch {
+        // Status is optional; Settings shows "Checking…" until it loads.
+      }
+    }
+    void check();
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void check();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisible);
+    }
+    return () => {
+      cancelled = true;
+      garminTokenRef.current = null;
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisible);
+      }
+    };
+  }, [foodSessionToken]);
 
   useEffect(() => {
     if (entryMode === null) {
@@ -2800,6 +2856,72 @@ export default function App(): ReactElement {
       setFloorMessage(error instanceof Error ? error.message : 'Unable to change the calorie floor.');
     } finally {
       setSettingsSaving(false);
+    }
+  }
+
+  /** Reload workouts when a sync (this app's or the server's own) finished since the last look. */
+  async function showGarminWorkoutsSince(token: string, lastSuccessAt: string | null) {
+    const seen = garminSeenSyncRef.current;
+    garminSeenSyncRef.current = lastSuccessAt;
+    if (!lastSuccessAt || seen === null || seen === lastSuccessAt) {
+      return; // first look: the tracker load already has the workouts
+    }
+    const entries = await fetchExerciseEntries(token);
+    if (garminTokenRef.current === token) {
+      setExerciseEntries(entries);
+    }
+  }
+
+  /** Pull new Garmin activities; reloads workouts when any were added. One sync at a time. */
+  async function runGarminSync(token: string, announce = false) {
+    if (garminSyncingRef.current) {
+      return;
+    }
+    garminSyncingRef.current = true;
+    setGarminSyncing(true);
+    if (announce) {
+      setGarminNote(null);
+    }
+    try {
+      const result = await syncGarmin(token);
+      if (garminTokenRef.current !== token) {
+        return; // signed out or switched sessions meanwhile
+      }
+      setGarminStatus(result);
+      const added = result.imported ?? 0;
+      garminSeenSyncRef.current = result.last_success_at;
+      if (added > 0) {
+        const entries = await fetchExerciseEntries(token);
+        if (garminTokenRef.current === token) {
+          setExerciseEntries(entries);
+        }
+      }
+      if (announce) {
+        const linked = result.matched ?? 0;
+        const parts = [
+          added > 0 ? `Added ${added} workout${added === 1 ? '' : 's'} from Garmin.` : '',
+          linked > 0 ? `Linked ${linked} to workout${linked === 1 ? '' : 's'} you'd already logged.` : ''
+        ].filter(Boolean);
+        setGarminNote(parts.length > 0 ? parts.join(' ') : 'No new workouts.');
+      }
+    } catch (error) {
+      if (garminTokenRef.current !== token) {
+        return;
+      }
+      try {
+        const status = await fetchGarminStatus(token);
+        if (garminTokenRef.current === token) {
+          setGarminStatus(status);
+        }
+      } catch {
+        // Keep the last known status.
+      }
+      if (announce) {
+        setGarminNote(error instanceof Error ? error.message : 'Garmin sync failed.');
+      }
+    } finally {
+      garminSyncingRef.current = false;
+      setGarminSyncing(false);
     }
   }
 
@@ -5704,6 +5826,7 @@ export default function App(): ReactElement {
                             <Text style={styles.listTitle}>{entry.title}</Text>
                             <Text style={styles.listCaption}>
                               {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
+                              {workoutSourceLabel(entry.source) ? ` · ${workoutSourceLabel(entry.source)}` : ''}
                             </Text>
                           </View>
                           <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
@@ -6340,6 +6463,28 @@ export default function App(): ReactElement {
                     {(profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === 0
                       ? "Off: workouts you log don't change your daily allowance."
                       : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
+                  </Text>
+                </FieldGroup>
+                <FieldGroup label="Garmin">
+                  <Text style={styles.settingsHint}>{garminStatusText(garminStatus, new Date())}</Text>
+                  {garminStatus?.configured ? (
+                    <Pressable
+                      style={[styles.secondaryButton, garminSyncing && styles.buttonDisabled]}
+                      onPress={() => {
+                        if (foodSessionToken) {
+                          void runGarminSync(foodSessionToken, true);
+                        }
+                      }}
+                      disabled={garminSyncing}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.secondaryButtonLabel}>{garminSyncing ? 'Syncing…' : 'Sync now'}</Text>
+                    </Pressable>
+                  ) : null}
+                  {garminNote ? <Text style={styles.settingsHint}>{garminNote}</Text> : null}
+                  <Text style={styles.settingsHint}>
+                    Workouts sync every 30 minutes and when you open Relish. Garmin's numbers are kept as recorded. Relish counts the active part: the
+                    watch's total minus your own resting calories for those minutes, so resting calories aren't counted twice.
                   </Text>
                 </FieldGroup>
               </View>

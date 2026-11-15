@@ -43,7 +43,7 @@ def test_fresh_database_gets_every_migration_once(tmp_path):
     tables = {name for kind, name, _ in _schema(connection) if kind == "table"}
     connection.close()
     assert versions == [path.stem for path in migration_files()]
-    assert len(tables) == 29  # 28 baseline tables + user_food_bank (005)
+    assert len(tables) == 31  # 28 baseline + user_food_bank (005) + exercise_source_records, integration_sync_state (006)
     assert {"users", "food_catalog", "food_logs", "planned_workout_sessions", "recipes", "user_food_bank"} <= tables
     assert "food_items" not in tables  # the old, unused migration schema is gone
 
@@ -152,7 +152,7 @@ def test_existing_baseline_database_gets_the_barcode_column(tmp_path, monkeypatc
     apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", real_dir)
 
-    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes", "003_calorie_floor", "004_workout_calories_share", "005_food_bank"]
+    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes", "003_calorie_floor", "004_workout_calories_share", "005_food_bank", "006_workout_provenance"]
     connection = sqlite3.connect(tmp_path / "upgrade.db")
     columns = {row[1] for row in connection.execute("PRAGMA table_info(food_catalog)")}
     floor = connection.execute("SELECT dflt_value FROM pragma_table_info('user_profiles') WHERE name = 'calorie_floor'").fetchone()

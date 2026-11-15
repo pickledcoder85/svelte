@@ -66,6 +66,8 @@ Create `.env` from `.env.example` and define:
 
 - `USDA_API_KEY`
 - `OPENAI_API_KEY`
+- `GARMIN_PERSONAL_API_KEY` (optional; Garmin Connect personal API key. Keep it only in the root-only env file on the server; it is exchanged for a 24-hour token and never logged or stored)
+- `GARMIN_BACKGROUND_SYNC` (default `true`: sync Garmin every 30 minutes while a key is set)
 - `VISION_MODEL` (default `gpt-6-luna`, the cheapest current OpenAI model with image input) and `VISION_REASONING_EFFORT` (default `none`)
 - `AUTH_MODE`, `OWNER_EMAIL`, `DEV_AUTO_LOGIN` (sign-in, see below)
 

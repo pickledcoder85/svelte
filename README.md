@@ -27,6 +27,7 @@ This repository is a greenfield nutrition app starter with an Expo / React Nativ
 - Auth: single owner. In production, Tailscale identifies the owner (`AUTH_MODE=tailscale`, `OWNER_EMAIL`); local development keeps email sessions or `DEV_AUTO_LOGIN`. See [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md#environment-variables).
 - Nutrition source: USDA FoodData Central API.
 - Barcode lookup: Open Food Facts (public, no key; ODbL data, attributed in the app), then USDA Branded foods when `USDA_API_KEY` is set. Only the barcode number is sent.
+- Workouts: Garmin Connect personal API (the owner's own activities, pull only) when `GARMIN_PERSONAL_API_KEY` is set; synced every 30 minutes and when the app opens. Turn off the timer with `GARMIN_BACKGROUND_SYNC=false`.
 - AI backend: multimodal model for package-front and nutrition-label extraction, plus OCR-style recipe ingestion.
 
 ## Development commands
