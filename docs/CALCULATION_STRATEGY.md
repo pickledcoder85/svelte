@@ -281,6 +281,13 @@ Setup order (2026-11-14): **About you → Activity → Your goal → How fast? /
 - Invalid goal/pace pairs (for example `lose` with `lean`) are rejected with `422`.
 - When even maintenance is below the recommended minimum and the floor is on, every target is a small surplus. The preview sets `maintenance_below_minimum`, and How fast? says the pace will not lower weight instead of showing a loss rate.
 
+### Rounding (calculation_version v3)
+
+- BMR, maintenance, and the daily calorie target are rounded to the nearest 10 kcal. Mifflin-St Jeor is typically within about ±10% for an individual, so single calories would be false precision.
+- Rounding happens once in the engine (`round_calories` in `energy.py`): BMR and maintenance are rounded, then the target is built from the rounded maintenance and rounded again, so the numbers shown always add up. Every screen (setup preview, Home, Profile, saved goals) uses these values.
+- Macro and fibre targets are whole grams. Carbs are the remainder and round down, so protein × 4 + carbs × 4 + fat × 9 never exceeds the calorie target (it can fall a few kcal short).
+- Logged food and exercise are not rounded: they stay exact to the calorie, because rounding every entry would add up to real drift over a day.
+
 ### Recommended minimum (calculation_version v2)
 
 - The recommended minimum is 1,200 kcal a day for women and 1,500 for men, the minimums most dietitians use without medical supervision (the same split MyFitnessPal and Lose It! use).

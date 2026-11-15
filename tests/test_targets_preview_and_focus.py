@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 from backend.app.services.calculations.targets import generate_nutrition_targets, preview_target_options
@@ -7,8 +9,8 @@ BODY = {"sex": "male", "age_years": 30, "height_cm": 180, "current_weight_lbs": 
 
 def test_preview_matches_saved_targets_for_every_option():
     preview = preview_target_options(**BODY)
-    assert preview["bmr_calories"] == 1887
-    assert preview["maintenance_calories"] == 2736
+    assert preview["bmr_calories"] == 1890
+    assert preview["maintenance_calories"] == 2740
     assert {(o["goal_type"], o["goal_pace"]) for o in preview["options"]} == {
         ("lose", "light"), ("lose", "recommended"), ("lose", "extreme"),
         ("maintain", "steady"), ("maintain", "build_muscle"), ("maintain", "fuel_training"),
@@ -83,7 +85,7 @@ def test_mismatched_goal_and_pace_is_a_value_error():
 async def test_preview_endpoint_and_onboarding_with_focus_and_goal_weight(client, auth_headers):
     preview = await client.post("/api/profile/targets/preview", headers=auth_headers, json=BODY)
     assert preview.status_code == 200
-    assert preview.json()["maintenance_calories"] == 2736
+    assert preview.json()["maintenance_calories"] == 2740
     assert len(preview.json()["options"]) == 8
 
     bad_pair = await client.post(
@@ -140,7 +142,7 @@ async def test_unrelated_profile_save_keeps_a_custom_goal_for_legacy_maintain_us
     custom = await client.post(
         "/api/profile/goals",
         headers=auth_headers,
-        json={"effective_at": "2026-11-14", "calorie_goal": 2000, "protein_goal": 150, "carbs_goal": 200, "fat_goal": 60},
+        json={"effective_at": date.today().isoformat(), "calorie_goal": 2000, "protein_goal": 150, "carbs_goal": 200, "fat_goal": 60},
     )
     assert custom.status_code in (200, 201)
 
