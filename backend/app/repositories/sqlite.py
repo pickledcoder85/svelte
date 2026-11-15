@@ -1262,6 +1262,7 @@ class SQLiteRepository:
         display_name_override: str | None = None,
         created_at: str | None = None,
         entry_id: str | None = None,
+        meal_slot: str | None = None,
     ) -> str:
         identifier = entry_id or str(uuid4())
         with self._lock, self._connection:
@@ -1269,8 +1270,9 @@ class SQLiteRepository:
                 """
                 INSERT INTO food_log_entries (
                     id, food_log_id, entry_type, food_item_id, meal_template_id,
-                    meal_plan_slot_id, display_name_override, grams, servings, calories, protein, carbs, fat, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    meal_plan_slot_id, display_name_override, grams, servings, calories, protein, carbs, fat, created_at,
+                    meal_slot
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     identifier,
@@ -1287,6 +1289,7 @@ class SQLiteRepository:
                     carbs,
                     fat,
                     created_at or datetime.now(UTC).isoformat(),
+                    meal_slot,
                 ),
             )
         return identifier

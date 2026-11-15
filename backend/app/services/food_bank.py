@@ -8,6 +8,7 @@ be logged ("150 g" of a "2 tbsp (32 g)" food is 150 / 32 servings).
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -27,18 +28,34 @@ class FoodBankError(ValueError):
     serving weight)."""
 
 
+MealSlot = Literal["breakfast", "lunch", "dinner", "snack"]
+
+
 class LogFoodRequest(BaseModel):
     food_id: str
     log_date: date
     # Exactly one: a number of servings, or a weight in grams (ml for liquids).
     servings: float | None = Field(default=None, gt=0)
     grams: float | None = Field(default=None, gt=0)
+    meal_slot: MealSlot | None = None
 
     @model_validator(mode="after")
     def _one_amount(self):
         if (self.servings is None) == (self.grams is None):
             raise ValueError("Give either servings or grams.")
         return self
+
+
+class QuickCaloriesRequest(BaseModel):
+    """Just a number: log calories without looking a food up."""
+
+    log_date: date
+    calories: float = Field(gt=0, le=10000)
+    name: str | None = Field(default=None, max_length=80)
+    protein: float = Field(default=0, ge=0, le=1000)
+    carbs: float = Field(default=0, ge=0, le=1000)
+    fat: float = Field(default=0, ge=0, le=1000)
+    meal_slot: MealSlot | None = None
 
 
 class ServingWeightRequest(BaseModel):
@@ -104,6 +121,24 @@ def set_food_serving_weight(
     return _with_bank_flags(repository, user_id, [food])[0] if food else None
 
 
+def log_quick_calories(repository: SQLiteRepository, user_id: str, payload: QuickCaloriesRequest) -> FoodLog:
+    repository.create_food_log(user_id=user_id, log_date=payload.log_date)
+    log = repository.get_food_log_for_date(user_id, payload.log_date)
+    if log is None:
+        raise RuntimeError("Failed to open the food log for that day.")
+    repository.add_food_log_entry(
+        food_log_id=log["id"],
+        entry_type="meal",
+        display_name_override=(payload.name or "").strip() or "Quick calories",
+        calories=round(payload.calories, 1),
+        protein=round(payload.protein, 1),
+        carbs=round(payload.carbs, 1),
+        fat=round(payload.fat, 1),
+        meal_slot=payload.meal_slot,
+    )
+    return get_food_log(repository, user_id, log["id"])
+
+
 def log_food(repository: SQLiteRepository, user_id: str, payload: LogFoodRequest) -> FoodLog | None:
     """Log a food by servings or weight. Returns None when the food doesn't exist."""
     food = repository.get_food_by_id(payload.food_id)
@@ -138,6 +173,7 @@ def log_food(repository: SQLiteRepository, user_id: str, payload: LogFoodRequest
         protein=round(food.macros.protein * servings, 1),
         carbs=round(food.macros.carbs * servings, 1),
         fat=round(food.macros.fat * servings, 1),
+        meal_slot=payload.meal_slot,
     )
     repository.add_to_food_bank(user_id=user_id, food_id=food.id, used=True)
     return get_food_log(repository, user_id, log["id"])
