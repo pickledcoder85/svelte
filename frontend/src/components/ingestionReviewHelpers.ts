@@ -130,10 +130,17 @@ export function buildAcceptedNutritionPayload(draft: EditableNutritionDraft, cur
 
   // Keep every field from the scan (barcode, data source, serving weight, attribution) and
   // override only what the form edits.
-  const kept =
+  const kept: Record<string, unknown> =
     typeof currentStructuredJson === 'object' && currentStructuredJson !== null && !Array.isArray(currentStructuredJson)
-      ? (currentStructuredJson as Record<string, unknown>)
+      ? { ...(currentStructuredJson as Record<string, unknown>) }
       : {};
+  // A changed serving makes the scanned weight wrong; the server reads it from the new text.
+  if (typeof kept.serving_size === 'string' && kept.serving_size.trim() !== servingSize) {
+    delete kept.serving_grams;
+    delete kept.serving_basis;
+    delete kept.servings_per_container;
+    delete kept.net_weight_grams;
+  }
 
   return {
     extracted_text: [productName, brandName, servingSize].filter(Boolean).join('\n'),

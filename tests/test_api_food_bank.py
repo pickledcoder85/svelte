@@ -54,6 +54,13 @@ async def test_grams_need_a_serving_weight_which_can_be_added(client, repository
     assert refused.status_code == 400
     assert "weigh" in refused.json()["detail"]
 
+    # Only a food in the user's own bank can have its weight set.
+    outside = await client.put(
+        "/api/nutrition/foods/packet/serving-weight", headers=auth_headers, json={"serving_grams": 28}
+    )
+    assert outside.status_code == 400
+    await client.post("/api/nutrition/bank/packet", headers=auth_headers)
+
     weighed = await client.put(
         "/api/nutrition/foods/packet/serving-weight", headers=auth_headers, json={"serving_grams": 28}
     )
@@ -118,3 +125,28 @@ async def test_search_lists_the_bank_first_then_saved_foods_then_usda(client, re
     usda = next(food for food in results if food["id"] == "usda-1")
     assert usda["in_bank"] is False  # searching USDA doesn't add to the bank
     assert repository.get_food_by_id("usda-1") is not None  # but it can be logged
+
+
+@pytest.mark.asyncio
+async def test_the_older_entry_route_also_adds_to_the_bank(client, repository, auth_headers):
+    _save(repository, "rice")
+    log = (await client.post("/api/nutrition/logs", headers=auth_headers, json={"log_date": DAY})).json()
+    response = await client.post(
+        f"/api/nutrition/logs/{log['id']}/entries",
+        headers=auth_headers,
+        json={"entry_type": "food", "food_item_id": "rice", "grams": 0, "servings": 1, "calories": 200, "protein": 8, "carbs": 6, "fat": 16},
+    )
+    assert response.status_code in (200, 201)
+    user_id = await _user_id(client, auth_headers)
+    assert repository.food_bank_use_counts(user_id) == {"rice": 1}
+
+
+@pytest.mark.asyncio
+async def test_bank_foods_keep_their_favorite_flag(client, repository, auth_headers):
+    _save(repository, "fav", name="Favorite oats")
+    await client.post("/api/nutrition/bank/fav", headers=auth_headers)
+    await client.post("/api/nutrition/favorites/foods/fav", headers=auth_headers)
+    bank = (await client.get("/api/nutrition/bank", headers=auth_headers)).json()
+    assert bank[0]["favorite"] is True
+    results = (await client.get("/api/nutrition/foods/search?q=favorite", headers=auth_headers)).json()
+    assert results[0]["id"] == "fav" and results[0]["favorite"] is True

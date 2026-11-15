@@ -31,7 +31,8 @@ _WEIGHT_UNITS = {"g": "g", "grm": "g", "ml": "ml", "mlt": "ml"}
 
 def _search_food_to_item(food: dict[str, Any]) -> FoodItem:
     """One USDA search result. Search nutrients are per 100 g (or ml): branded foods with a
-    gram serving are converted to that serving; everything else stays per 100 g."""
+    gram serving are converted to that serving; everything else stays per 100 g. Values keep 3
+    decimals so tiny servings (0.5 g of a spice) don't lose precision when scaled up."""
     nutrients = food.get("foodNutrients")
     per_100 = {
         "calories": _nutrient_value(nutrients, "Energy"),
@@ -66,13 +67,13 @@ def _search_food_to_item(food: dict[str, Any]) -> FoodItem:
         id=f"usda-{food['fdcId']}",
         name=food["description"],
         brand=food.get("brandOwner") or food.get("brandName"),
-        calories=round(per_100["calories"] * factor, 1),
+        calories=round(per_100["calories"] * factor, 3),
         serving_size=serving_size,
         serving_unit=serving_unit,
         macros=MacroTargets(
-            protein=round(per_100["protein"] * factor, 1),
-            carbs=round(per_100["carbs"] * factor, 1),
-            fat=round(per_100["fat"] * factor, 1),
+            protein=round(per_100["protein"] * factor, 3),
+            carbs=round(per_100["carbs"] * factor, 3),
+            fat=round(per_100["fat"] * factor, 3),
         ),
         source="USDA",
         serving_text=serving_text,

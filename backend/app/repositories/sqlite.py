@@ -462,10 +462,17 @@ class SQLiteRepository:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     barcode = COALESCE(excluded.barcode, food_catalog.barcode),
-                    serving_text = COALESCE(excluded.serving_text, food_catalog.serving_text),
-                    -- A weight the user entered is never wiped by a re-save without one.
-                    serving_grams = COALESCE(excluded.serving_grams, food_catalog.serving_grams),
-                    serving_basis = COALESCE(excluded.serving_basis, food_catalog.serving_basis),
+                    -- A known weight (perhaps the user weighed it) survives a re-save without one,
+                    -- but only while the serving is the same; a different serving starts fresh.
+                    serving_text = CASE WHEN excluded.serving_size = food_catalog.serving_size
+                        AND excluded.serving_unit = food_catalog.serving_unit
+                        THEN COALESCE(excluded.serving_text, food_catalog.serving_text) ELSE excluded.serving_text END,
+                    serving_grams = CASE WHEN excluded.serving_size = food_catalog.serving_size
+                        AND excluded.serving_unit = food_catalog.serving_unit
+                        THEN COALESCE(excluded.serving_grams, food_catalog.serving_grams) ELSE excluded.serving_grams END,
+                    serving_basis = CASE WHEN excluded.serving_size = food_catalog.serving_size
+                        AND excluded.serving_unit = food_catalog.serving_unit
+                        THEN COALESCE(excluded.serving_basis, food_catalog.serving_basis) ELSE excluded.serving_basis END,
                     portions_json = COALESCE(excluded.portions_json, food_catalog.portions_json),
                     name = excluded.name,
                     brand = excluded.brand,

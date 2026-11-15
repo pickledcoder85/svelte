@@ -13,6 +13,7 @@ from backend.app.services.food_bank import (
     LogFoodRequest,
     ServingWeightRequest,
     add_food_to_bank,
+    list_bank_for_user,
     log_food,
     search_foods_for_user,
     set_food_serving_weight,
@@ -64,7 +65,7 @@ async def read_food_bank(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> list[FoodItem]:
     """The foods the user has scanned, saved, or logged, most recently used first."""
-    return repository.list_food_bank(session.user_id, q)
+    return list_bank_for_user(repository, session.user_id, q)
 
 
 @router.post("/bank/{food_id}", response_model=FoodItem)
@@ -97,7 +98,10 @@ async def put_serving_weight(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> FoodItem:
     """Record how much one serving weighs, e.g. after weighing a packet."""
-    food = set_food_serving_weight(repository, session.user_id, food_id, payload)
+    try:
+        food = set_food_serving_weight(repository, session.user_id, food_id, payload)
+    except FoodBankError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     if food is None:
         raise HTTPException(status_code=404, detail="Food not found.")
     return food

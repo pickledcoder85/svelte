@@ -110,5 +110,10 @@ describe('formatFoodAmount', () => {
     expect(formatFoodAmount({ serving_size: 1, serving_unit: 'can (355mL)' }, 1)).toBe('1 × can (355mL)');
     expect(formatFoodAmount({ serving_size: 1, serving_unit: 'can (355mL)' }, 2)).toBe('2 × can (355mL)');
     expect(formatFoodAmount({ serving_size: 30, serving_unit: '' }, 1)).toBe('30 g');
+    // The label serving, not a bare unit ("1 × tbsp" for a 2-tbsp serving was misleading).
+    expect(formatFoodAmount({ serving_size: 2, serving_unit: 'tbsp', serving_text: '2 tbsp (32 g)' }, 1)).toBe(
+      '1 × 2 tbsp (32 g)'
+    );
+    expect(formatFoodAmount({ serving_size: 2, serving_unit: 'tbsp' }, 1.5)).toBe('1.5 × 2 tbsp');
   });
 });

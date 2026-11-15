@@ -22,7 +22,7 @@ def test_usda_branded_results_are_per_serving_not_per_100g():
         "servingSize": 32, "servingSizeUnit": "g", "householdServingFullText": "2 tbsp",
         "foodNutrients": _nutrients(588, 25, 20, 50),
     }]})
-    assert food.calories == 188.2  # 588 × 0.32
+    assert food.calories == 188.16  # 588 × 0.32, kept to 3 decimals
     assert (food.macros.protein, food.macros.carbs, food.macros.fat) == (8.0, 6.4, 16.0)
     assert (food.serving_size, food.serving_unit, food.serving_text) == (2, "tbsp", "2 tbsp (32 g)")
     assert (food.serving_grams, food.serving_basis) == (32, "g")

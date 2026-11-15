@@ -56,3 +56,11 @@ def test_older_rows_read_the_weight_out_of_the_unit(repository):
     assert (food.serving_grams, food.serving_basis) == (32, "g")
     unknown = repository.save_food_item(_food("packet", serving_size=1, serving_unit="packet"))
     assert unknown.serving_grams is None
+
+
+def test_a_new_serving_does_not_keep_the_old_weight(repository):
+    # First saved per 100 g (weight 100); a later rescan has a per-packet serving with no weight.
+    repository.save_food_item(_food("bar", serving_size=100, serving_unit="g", serving_grams=100, serving_basis="g"))
+    rescanned = repository.save_food_item(_food("bar", serving_size=1, serving_unit="packet", calories=190))
+    assert rescanned.serving_grams is None
+    assert rescanned.calories == 190

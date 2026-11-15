@@ -19,6 +19,9 @@ from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.food_logs import get_food_log
 
 
+USDA_MIN_QUERY_LENGTH = 3
+
+
 class FoodBankError(ValueError):
     """A request that can't be done as asked (for example a weight for a food with no known
     serving weight)."""
@@ -61,11 +64,12 @@ async def search_foods_for_user(repository: SQLiteRepository, user_id: str, quer
                 seen.add(food.id)
                 results.append(food)
 
-    take(repository.list_food_bank(user_id, query))
+    take(_with_bank_flags(repository, user_id, repository.list_food_bank(user_id, query)))
     take(_with_bank_flags(repository, user_id, repository.search_foods(query)))
 
     settings = get_settings()
-    if settings.usda_api_key:
+    # Very short queries ("a") return noise and slow every search; skip USDA for those.
+    if settings.usda_api_key and len(query.strip()) >= USDA_MIN_QUERY_LENGTH:
         try:
             usda = await search_usda_foods(query, settings.usda_api_key)
         except UsdaSearchError:
@@ -82,11 +86,18 @@ def add_food_to_bank(repository: SQLiteRepository, user_id: str, food_id: str) -
     return food.model_copy(update={"in_bank": True})
 
 
+def list_bank_for_user(repository: SQLiteRepository, user_id: str, query: str = "") -> list[FoodItem]:
+    return _with_bank_flags(repository, user_id, repository.list_food_bank(user_id, query))
+
+
 def set_food_serving_weight(
     repository: SQLiteRepository, user_id: str, food_id: str, payload: ServingWeightRequest
 ) -> FoodItem | None:
     if repository.get_food_by_id(food_id) is None:
         return None
+    # Foods are shared rows; only a food in the user's own bank can have its weight set.
+    if food_id not in repository.food_bank_ids(user_id):
+        raise FoodBankError("Add this food to your food bank first.")
     food = repository.set_serving_weight(
         food_id=food_id, serving_grams=round(payload.serving_grams, 2), serving_basis=payload.serving_basis
     )

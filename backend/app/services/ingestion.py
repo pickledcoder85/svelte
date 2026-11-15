@@ -254,9 +254,14 @@ def _serving_fields(serving_size: Any, structured_json: dict[str, Any]) -> dict[
         value = structured_json.get(key)
         return float(value) if isinstance(value, (int, float)) and value > 0 else None
 
-    grams = positive("serving_grams") or (parsed.grams if parsed else None)
-    basis = structured_json.get("serving_basis") if structured_json.get("serving_basis") in ("g", "ml") else None
-    basis = basis or (parsed.basis if parsed and parsed.grams else None) or ("g" if grams else None)
+    # The weight in the serving text is what the user saw and could edit, so it wins; the
+    # source's number (Open Food Facts, USDA, the label reader) fills in when the text has none.
+    if parsed and parsed.grams:
+        grams, basis = parsed.grams, parsed.basis
+    else:
+        grams = positive("serving_grams")
+        source_basis = structured_json.get("serving_basis")
+        basis = source_basis if source_basis in ("g", "ml") else ("g" if grams else None)
     if grams is None:
         grams = serving_grams_for_package(None, positive("servings_per_container"), positive("net_weight_grams"))
         basis = "g" if grams else None

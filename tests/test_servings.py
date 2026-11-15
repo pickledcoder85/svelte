@@ -23,6 +23,18 @@ from backend.app.services.servings import ParsedServing, parse_serving_text, ser
         ("1 packet", ParsedServing(1, "packet", None, None)),
         ("1 serving", ParsedServing(1, "serving", None, None)),
         ("3 pieces (about 40 g)", ParsedServing(3, "pieces", 40, "g")),
+        # Decimal commas, metric over ounces, and the serving's own metric weight.
+        ("1 portion (28,5 g)", ParsedServing(1, "portion", 28.5, "g")),
+        ("1 biscuit (12,5g)", ParsedServing(1, "biscuit", 12.5, "g")),
+        ("28g (1oz)", ParsedServing(28, "g", 28, "g")),
+        ("1 bar (1.5 oz / 42g)", ParsedServing(1, "bar", 42, "g")),
+        ("1 Tbsp (15mL)", ParsedServing(1, "Tbsp", 15, "ml")),
+        ("12 fl oz (355 mL)", ParsedServing(12, "fl oz", 355, "ml")),
+        ("1 container (170g)", ParsedServing(1, "container", 170, "g")),
+        # Amounts for something else are ignored.
+        ("1 packet (makes 12 oz)", ParsedServing(1, "packet", None, None)),
+        ("1 cup prepared (from 1/3 cup dry, 40 g)", ParsedServing(1, "cup prepared", None, None)),
+        ("1/4 cup dry (40g)", ParsedServing(0.25, "cup dry", 40, "g")),
     ],
 )
 def test_parses_label_servings(text, expected):

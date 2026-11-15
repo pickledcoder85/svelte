@@ -9,6 +9,12 @@ ALTER TABLE food_catalog ADD COLUMN serving_grams REAL;
 ALTER TABLE food_catalog ADD COLUMN serving_basis TEXT;
 ALTER TABLE food_catalog ADD COLUMN portions_json TEXT;
 
+-- USDA search rows saved before 005 hold per-100 g nutrition under the label serving size:
+-- relabel them as 100 g so the weight matches the nutrition. (USDA barcode rows, which have a
+-- barcode, were already converted to the serving.)
+UPDATE food_catalog SET serving_size = 100, serving_unit = 'g', serving_grams = 100, serving_basis = 'g'
+WHERE source = 'USDA' AND barcode IS NULL;
+
 UPDATE food_catalog SET serving_grams = serving_size, serving_basis = 'g'
 WHERE serving_grams IS NULL AND lower(trim(serving_unit)) IN ('g', 'gram', 'grams', 'grm');
 UPDATE food_catalog SET serving_grams = serving_size, serving_basis = 'ml'
@@ -37,10 +43,6 @@ JOIN food_catalog f ON f.id = e.food_item_id
 WHERE e.food_item_id IS NOT NULL
 GROUP BY fl.user_id, e.food_item_id;
 
--- Before this, scanned foods weren't linked to who scanned them. On this single-owner server
--- every user with scans gets the scanned foods.
-INSERT OR IGNORE INTO user_food_bank (user_id, food_id)
-SELECT DISTINCT j.user_id, f.id
-FROM food_catalog f
-JOIN ingestion_jobs j
-WHERE f.source IN ('LABEL_SCAN', 'OPEN_FOOD_FACTS');
+-- Scanned foods saved before this weren't linked to who scanned them, so they aren't
+-- backfilled (guessing could put one user's foods in another's bank); scanning or logging
+-- them again adds them.

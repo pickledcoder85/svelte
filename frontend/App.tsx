@@ -24,7 +24,6 @@ import {
 } from 'react-native';
 
 import {
-  addFoodLogEntry,
   addFavoriteFood,
   createExerciseEntry,
   createPlannedWorkoutSession,
@@ -58,6 +57,7 @@ import {
   fetchRecipe,
   fetchWeightEntries,
   fetchTodaysFoodLog,
+  logFood,
   fetchWeeklyMetrics,
   favoriteRecipe,
   searchFoodsWithSession,
@@ -1896,7 +1896,8 @@ export default function App(): ReactElement {
     [selectedRecipePreview]
   );
   const logEntryPreview = useMemo(() => {
-    if (!selectedLogFood || selectedLogFood.serving_size <= 0) {
+    // Nutrition is per serving; a weight needs the serving's weight to convert.
+    if (!selectedLogFood || !selectedLogFood.serving_grams) {
       return null;
     }
 
@@ -1905,7 +1906,7 @@ export default function App(): ReactElement {
       return null;
     }
 
-    const multiplier = grams / selectedLogFood.serving_size;
+    const multiplier = grams / selectedLogFood.serving_grams;
     return {
       calories: round1(selectedLogFood.calories * multiplier),
       macros: {
@@ -2179,18 +2180,9 @@ export default function App(): ReactElement {
       if (!foodSessionToken) {
         throw new Error('Create a local session before saving food log entries.');
       }
-      const updatedLog = await addFoodLogEntry(
-        {
-          food_id: food.id,
-          grams,
-          calories: round1((food.calories * grams) / Math.max(food.serving_size, 1)),
-          protein: round1((food.macros.protein * grams) / Math.max(food.serving_size, 1)),
-          carbs: round1((food.macros.carbs * grams) / Math.max(food.serving_size, 1)),
-          fat: round1((food.macros.fat * grams) / Math.max(food.serving_size, 1))
-        },
-        foodSessionToken
-      );
-      setFoodLog(updatedLog);
+      // The server works out calories from the food (quantity = number of servings).
+      await logFood({ food_id: food.id, log_date: localDateKey(), servings: quantity }, foodSessionToken);
+      setFoodLog(await fetchTodaysFoodLog(foodSessionToken));
       setFoodLogTone('live');
       setFoodLogStatus(`Added ${formatFoodAmount(food, quantity)} of ${food.name} to today`);
     } catch (error) {
@@ -2282,6 +2274,12 @@ export default function App(): ReactElement {
       setFoodLogError('Enter a valid gram amount before adding.');
       return;
     }
+    if (!selectedLogFood.serving_grams) {
+      setFoodLogTone('checking');
+      setFoodLogStatus(`No serving weight for ${selectedLogFood.name} yet`);
+      setFoodLogError('This food has no serving weight yet, so it can only be added by servings (Food Search).');
+      return;
+    }
 
     setIsSavingLogEntry(true);
     setFoodLogTone('checking');
@@ -2292,18 +2290,9 @@ export default function App(): ReactElement {
       if (!foodSessionToken) {
         throw new Error('Create a local session before saving food log entries.');
       }
-      const updatedLog = await addFoodLogEntry(
-        {
-          food_id: selectedLogFood.id,
-          grams: round1(grams),
-          calories: logEntryPreview?.calories ?? 0,
-          protein: logEntryPreview?.macros.protein ?? 0,
-          carbs: logEntryPreview?.macros.carbs ?? 0,
-          fat: logEntryPreview?.macros.fat ?? 0
-        },
-        foodSessionToken
-      );
-      setFoodLog(updatedLog);
+      // By weight; the server converts grams to servings with the food's serving weight.
+      await logFood({ food_id: selectedLogFood.id, log_date: localDateKey(), grams: round1(grams) }, foodSessionToken);
+      setFoodLog(await fetchTodaysFoodLog(foodSessionToken));
       setFoodLogTone('live');
       setFoodLogStatus(`Added ${selectedLogFood.name} to today's log`);
       setLogGrams('100');
