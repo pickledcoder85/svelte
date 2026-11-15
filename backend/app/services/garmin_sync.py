@@ -20,8 +20,9 @@ from backend.app.services.workout_import import save_imported_workout
 
 SOURCE = "garmin"
 FIRST_SYNC_DAYS = 30
-# Re-read a few days before the last good sync: watches can upload late.
-OVERLAP_DAYS = 3
+# Re-read two weeks before the last good sync: a watch can upload days late (a trip without
+# the phone). Already-imported activities are cheap no-ops.
+OVERLAP_DAYS = 14
 BACKGROUND_INTERVAL_SECONDS = 30 * 60
 
 logger = logging.getLogger(__name__)
@@ -71,22 +72,31 @@ async def sync_garmin(
     async with _sync_lock:
         state = repository.get_sync_state(user_id=user_id, source=SOURCE)
         start, end = _window(state, today or date.today())
-        created = skipped = 0
+        created = skipped = matched = 0
         try:
             async with (client_factory or httpx.AsyncClient)() as client:
                 activities = await fetch_activities(client, settings.garmin_personal_api_key.strip(), start, end)
             for activity in activities:
-                workout = to_imported_workout(activity)
+                try:
+                    workout = to_imported_workout(activity)
+                except (TypeError, ValueError, AttributeError):
+                    workout = None
                 if workout is None:
                     skipped += 1
                     continue
                 outcome, _ = save_imported_workout(repository, user_id, workout)
                 created += outcome == "created"
+                matched += outcome == "matched"
         except GarminError as error:
             repository.record_sync_result(user_id=user_id, source=SOURCE, at=_now(), ok=False, error=str(error))
             raise
+        except Exception:
+            repository.record_sync_result(
+                user_id=user_id, source=SOURCE, at=_now(), ok=False, error="Unexpected problem syncing Garmin."
+            )
+            raise
         repository.record_sync_result(user_id=user_id, source=SOURCE, at=_now(), ok=True, imported=created)
-    return {**garmin_status(repository, settings, user_id), "imported": created, "skipped": skipped}
+    return {**garmin_status(repository, settings, user_id), "imported": created, "matched": matched, "skipped": skipped}
 
 
 async def run_background_sync(repository: SQLiteRepository, settings: Settings) -> None:

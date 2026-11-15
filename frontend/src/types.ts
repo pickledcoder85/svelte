@@ -225,8 +225,9 @@ export interface GarminStatus {
   last_status: 'ok' | 'error' | null;
   last_error: string | null;
   last_imported: number;
-  /** Only on a sync response. */
+  /** Only on a sync response. matched: already logged in Relish, linked instead of added. */
   imported?: number;
+  matched?: number;
 }
 
 export interface PlannedExerciseEntry {

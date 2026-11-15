@@ -299,6 +299,8 @@ Watches report a workout's **total** calories, which include the resting calorie
 - Relish's numbers are frozen at import with `calc_version` (`w1:relish_bmr`), so later weigh-ins or profile edits never rewrite past days. Before setup is complete there is no Relish BMR: the source's own resting estimate is subtracted instead (`w1:source_bmr`), or nothing if the source has none (`w1:total`).
 - One workout per source activity (`user_id, source, source_id` is unique); a sync never adds a copy and never overwrites the saved workout (so a user's own edit sticks). Deleting an imported workout in Relish is permanent: its source record stays as a marker and later syncs skip it.
 - The diary day is the workout's local start date where it was recorded.
+- Cross-source match: if the day already has a workout logged in Relish (by hand or by completing a planned workout) whose length is within max(10 min, 25%) of the import and that isn't linked to another source record, the import is linked to it instead of added. The user's entry keeps its numbers; the source record is still stored.
+- Sync window: the first sync reads 30 days back; later syncs re-read 14 days before the last good sync (watches can upload late). A malformed activity is skipped, not fatal.
 - Manual workouts are `source = 'manual'` with calories as entered (treated as active calories).
 
 ### Rounding (calculation_version v3)

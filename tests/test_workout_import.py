@@ -140,3 +140,29 @@ def test_manual_workouts_default_to_manual(repository):
         logged_on=date(2026, 11, 15), logged_at="7:00 AM", intensity="Low",
     )
     assert repository.get_exercise_entry(entry_id)["source"] == "manual"
+
+
+def test_a_workout_already_logged_by_hand_is_linked_not_duplicated(repository):
+    _onboard(repository)
+    manual_id = repository.create_exercise_entry(
+        user_id="u1", title="Trainer ride", duration_minutes=55, calories_burned=500,
+        logged_on=date(2026, 11, 15), logged_at="7:10 PM", intensity="High",
+    )
+    outcome, entry = save_imported_workout(repository, "u1", _ride())
+    assert outcome == "matched" and entry.id == manual_id
+    assert entry.calories_burned == 500  # the user's own entry is kept as logged
+    assert len(repository.list_exercise_entries("u1")) == 1
+    assert repository.get_exercise_source_record(user_id="u1", exercise_entry_id=manual_id) is not None
+    again, _ = save_imported_workout(repository, "u1", _ride())
+    assert again == "unchanged"
+
+
+def test_a_different_workout_the_same_day_is_still_imported(repository):
+    _onboard(repository)
+    repository.create_exercise_entry(
+        user_id="u1", title="Walk", duration_minutes=20, calories_burned=80,
+        logged_on=date(2026, 11, 15), logged_at="7:00 AM", intensity="Low",
+    )
+    outcome, _ = save_imported_workout(repository, "u1", _ride())
+    assert outcome == "created"
+    assert len(repository.list_exercise_entries("u1")) == 2

@@ -1571,7 +1571,9 @@ class SQLiteRepository:
     ) -> tuple[str, dict[str, Any] | None]:
         """Save one workout from another app, keeping its original record.
 
-        Returns ("created", row) the first time; ("unchanged", row) when it was already imported
+        Returns ("created", row) the first time; ("matched", row) when the user had already
+        logged it in Relish (same day, similar length), linked rather than duplicated;
+        ("unchanged", row) when it was already imported
         (Relish's numbers are frozen at import, so only the stored original record is refreshed);
         ("deleted", None) when the user deleted it in Relish, which is never undone by a sync.
         """
@@ -1598,6 +1600,34 @@ class SQLiteRepository:
                     "SELECT * FROM exercise_entries WHERE id = ?", (existing["exercise_entry_id"],)
                 ).fetchone()
                 return "unchanged", dict(row) if row is not None else None
+
+            # Already logged in Relish (by hand, or by ticking off a planned workout)? Link the
+            # record to that workout instead of adding a second one, so the day isn't counted
+            # twice. The user's own entry is kept as they logged it.
+            minutes = int(entry["duration_minutes"])
+            tolerance = max(10, round(minutes * 0.25))
+            match = self._connection.execute(
+                """
+                SELECT e.* FROM exercise_entries e
+                WHERE e.user_id = ? AND e.logged_on = ? AND e.source <> ?
+                  AND abs(e.duration_minutes - ?) <= ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM exercise_source_records r WHERE r.exercise_entry_id = e.id
+                  )
+                ORDER BY abs(e.duration_minutes - ?) ASC, e.created_at ASC
+                LIMIT 1
+                """,
+                (user_id, entry["logged_on"].isoformat(), source, minutes, tolerance, minutes),
+            ).fetchone()
+            if match is not None:
+                self._connection.execute(
+                    """
+                    INSERT INTO exercise_source_records (user_id, source, source_id, payload_json, exercise_entry_id)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (user_id, source, source_id, payload_json, match["id"]),
+                )
+                return "matched", dict(match)
 
             identifier = str(uuid4())
             self._connection.execute(

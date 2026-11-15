@@ -783,6 +783,10 @@ export default function App(): ReactElement {
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminNote, setGarminNote] = useState<string | null>(null);
   const garminSyncingRef = useRef(false);
+  // The session a Garmin request belongs to (stale replies are dropped after sign-out), and the
+  // last sync time whose workouts are on screen (the server also syncs on its own).
+  const garminTokenRef = useRef<string | null>(null);
+  const garminSeenSyncRef = useRef<string | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [entryActionBusyKey, setEntryActionBusyKey] = useState<string | null>(null);
@@ -1441,6 +1445,8 @@ export default function App(): ReactElement {
       return;
     }
     const token = foodSessionToken;
+    garminTokenRef.current = token;
+    garminSeenSyncRef.current = null;
     let cancelled = false;
     async function check() {
       try {
@@ -1451,6 +1457,8 @@ export default function App(): ReactElement {
         setGarminStatus(status);
         if (garminSyncIsStale(status, new Date())) {
           await runGarminSync(token);
+        } else {
+          await showGarminWorkoutsSince(token, status.last_success_at);
         }
       } catch {
         // Status is optional; Settings shows "Checking…" until it loads.
@@ -1467,6 +1475,7 @@ export default function App(): ReactElement {
     }
     return () => {
       cancelled = true;
+      garminTokenRef.current = null;
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisible);
       }
@@ -2850,6 +2859,19 @@ export default function App(): ReactElement {
     }
   }
 
+  /** Reload workouts when a sync (this app's or the server's own) finished since the last look. */
+  async function showGarminWorkoutsSince(token: string, lastSuccessAt: string | null) {
+    const seen = garminSeenSyncRef.current;
+    garminSeenSyncRef.current = lastSuccessAt;
+    if (!lastSuccessAt || seen === null || seen === lastSuccessAt) {
+      return; // first look: the tracker load already has the workouts
+    }
+    const entries = await fetchExerciseEntries(token);
+    if (garminTokenRef.current === token) {
+      setExerciseEntries(entries);
+    }
+  }
+
   /** Pull new Garmin activities; reloads workouts when any were added. One sync at a time. */
   async function runGarminSync(token: string, announce = false) {
     if (garminSyncingRef.current) {
@@ -2862,17 +2884,35 @@ export default function App(): ReactElement {
     }
     try {
       const result = await syncGarmin(token);
+      if (garminTokenRef.current !== token) {
+        return; // signed out or switched sessions meanwhile
+      }
       setGarminStatus(result);
       const added = result.imported ?? 0;
+      garminSeenSyncRef.current = result.last_success_at;
       if (added > 0) {
-        setExerciseEntries(await fetchExerciseEntries(token));
+        const entries = await fetchExerciseEntries(token);
+        if (garminTokenRef.current === token) {
+          setExerciseEntries(entries);
+        }
       }
       if (announce) {
-        setGarminNote(added > 0 ? `Added ${added} workout${added === 1 ? '' : 's'} from Garmin.` : 'No new workouts.');
+        const linked = result.matched ?? 0;
+        const parts = [
+          added > 0 ? `Added ${added} workout${added === 1 ? '' : 's'} from Garmin.` : '',
+          linked > 0 ? `Linked ${linked} to workout${linked === 1 ? '' : 's'} you'd already logged.` : ''
+        ].filter(Boolean);
+        setGarminNote(parts.length > 0 ? parts.join(' ') : 'No new workouts.');
       }
     } catch (error) {
+      if (garminTokenRef.current !== token) {
+        return;
+      }
       try {
-        setGarminStatus(await fetchGarminStatus(token));
+        const status = await fetchGarminStatus(token);
+        if (garminTokenRef.current === token) {
+          setGarminStatus(status);
+        }
       } catch {
         // Keep the last known status.
       }

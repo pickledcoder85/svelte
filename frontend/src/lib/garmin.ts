@@ -12,12 +12,16 @@ function minutesSince(iso: string | null, now: Date): number | null {
   return Number.isNaN(at) ? null : Math.max(0, (now.getTime() - at) / 60000);
 }
 
+/** Sync on open when the last attempt (good or failed) is 15+ minutes old: a failing sync
+ * isn't retried on every resume. */
 export function garminSyncIsStale(status: GarminStatus | null, now: Date): boolean {
   if (!status?.configured) {
     return false;
   }
-  const minutes = minutesSince(status.last_success_at, now);
-  return minutes === null || minutes >= GARMIN_STALE_MINUTES;
+  const success = minutesSince(status.last_success_at, now);
+  const attempt = minutesSince(status.last_attempt_at, now);
+  const latest = [success, attempt].filter((value): value is number => value !== null);
+  return latest.length === 0 || Math.min(...latest) >= GARMIN_STALE_MINUTES;
 }
 
 export function agoText(minutes: number): string {

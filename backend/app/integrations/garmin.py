@@ -81,7 +81,10 @@ async def fetch_activities(
             raise GarminError("Garmin sign-in expired; try again.")
         if not response.is_success:
             raise GarminError(f"Garmin activities failed ({response.status_code}).")
-        batch = response.json()
+        try:
+            batch = response.json()
+        except ValueError as exc:
+            raise GarminError("Garmin returned an unexpected response.") from exc
         if not isinstance(batch, list):
             raise GarminError("Garmin returned an unexpected response.")
         activities.extend(item for item in batch if isinstance(item, dict))
@@ -118,7 +121,8 @@ def to_imported_workout(activity: dict[str, Any]) -> ImportedWorkout | None:
     duration = _number(activity.get("duration")) or _number(activity.get("elapsedDuration"))
     if activity_id is None or started_local is None or not duration or duration <= 0:
         return None
-    type_key = (activity.get("activityType") or {}).get("typeKey")
+    activity_type = activity.get("activityType")
+    type_key = activity_type.get("typeKey") if isinstance(activity_type, dict) else None
     started_gmt = _parse_local(activity.get("startTimeGMT"))
     distance = _number(activity.get("distance"))
     name = str(activity.get("activityName") or "").strip()

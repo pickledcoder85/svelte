@@ -20,6 +20,13 @@ describe('garmin status', () => {
     expect(garminSyncIsStale({ ...base, last_success_at: '2026-11-15T17:40:00Z' }, now)).toBe(true);
     expect(garminSyncIsStale({ ...base, configured: false }, now)).toBe(false);
     expect(garminSyncIsStale(null, now)).toBe(false);
+    // A failure 5 minutes ago is not retried yet, even with an old success.
+    expect(
+      garminSyncIsStale(
+        { ...base, last_status: 'error', last_success_at: '2026-11-14T10:00:00Z', last_attempt_at: '2026-11-15T17:55:00Z' },
+        now
+      )
+    ).toBe(false);
   });
 
   it('says how long ago in plain words', () => {

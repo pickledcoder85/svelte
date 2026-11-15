@@ -112,3 +112,28 @@ async def test_routes_need_a_key(client, auth_headers):
 @pytest.mark.asyncio
 async def test_routes_require_a_session(client):
     assert (await client.get("/api/integrations/garmin")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_activity_is_skipped_not_fatal(repository):
+    repository.ensure_user_identity(user_id="u1", email="u1@example.com")
+    bad = {**RIDE, "activityId": 999, "activityType": "cycling"}
+    weird = {**RIDE, "activityId": 998, "duration": "n/a"}
+    result = await sync_garmin(repository, _settings(), "u1", client_factory=_handler([bad, weird, RIDE], []))
+    assert result["imported"] == 2 and result["skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_non_json_reply_is_recorded_as_an_error(repository):
+    repository.ensure_user_identity(user_id="u1", email="u1@example.com")
+
+    def handle(request):
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, text="jwt-token")
+        return httpx.Response(200, text="<html>maintenance</html>")
+
+    with pytest.raises(GarminError):
+        await sync_garmin(
+            repository, _settings(), "u1", client_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        )
+    assert repository.get_sync_state(user_id="u1", source="garmin")["last_status"] == "error"
