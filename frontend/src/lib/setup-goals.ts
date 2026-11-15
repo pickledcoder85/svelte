@@ -45,7 +45,7 @@ export type TargetPreview = {
   /** True when even maintenance is under the minimum, so with the floor every target is a surplus. */
   maintenance_below_minimum?: boolean;
   options: TargetPreviewOption[];
-  /** Maintenance calories at each activity level, so the activity gauge updates instantly. */
+  /** Maintenance calories at each activity level, so the activity slider updates instantly. */
   maintenance_by_activity?: Partial<Record<'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active', number>>;
 };
 
@@ -188,10 +188,4 @@ export function formatApproximateDate(date: Date): string {
   const part = day <= 10 ? 'early' : day <= 20 ? 'mid' : 'late';
   const month = date.toLocaleString('en-US', { month: 'long' });
   return `${part}-${month} ${date.getFullYear()}`;
-}
-
-/** Bar widths (0-100) for the "at rest" and "with activity" energy bars. */
-export function energyBarWidths(bmr: number, maintenance: number): { rest: number; active: number } {
-  const top = Math.max(bmr, maintenance, 1);
-  return { rest: Math.round((bmr / top) * 100), active: Math.round((maintenance / top) * 100) };
 }
