@@ -7,6 +7,7 @@ a guess and says so: a nutrition label scan replaces it with the real numbers.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from collections.abc import Callable
@@ -14,22 +15,35 @@ from typing import Any
 
 import httpx
 
-from backend.app.integrations.open_food_facts import OpenFoodFactsError, product_to_label, search_products
-from backend.app.integrations.usda import UsdaSearchError, search_usda_foods
+from backend.app.integrations.open_food_facts import product_to_label, search_products
+from backend.app.integrations.usda import search_usda_foods
 from backend.app.models.nutrition import FoodItem
 from backend.app.repositories.sqlite import SQLiteRepository
 
 logger = logging.getLogger(__name__)
 
-MIN_MATCH_SCORE = 0.4
+MIN_MATCH_SCORE = 0.6
+SEARCH_TIMEOUT_SECONDS = 5
+# Each word the candidate has that the package doesn't ("blueberry" vs "strawberry", "kale")
+# usually means a different flavour or food.
+EXTRA_WORD_PENALTY = 0.25
+BRAND_MATCH_BONUS = 0.15
+BRAND_MISMATCH_PENALTY = 0.3
+BRAND_MISSING_PENALTY = 0.25
 MAX_ALTERNATIVES = 3
 _STOPWORDS = {"the", "and", "with", "of", "a", "an", "&", "in", "for", "by", "co", "inc", "foods", "food", "brand"}
 _SOURCE_NAMES = {"food_bank": "your food bank", "open_food_facts": "Open Food Facts", "usda": "USDA"}
 
 
 def _words(text: str | None) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", (text or "").lower())
-    return {word.rstrip("s") if len(word) > 3 else word for word in words if word not in _STOPWORDS}
+    # "Lay's" is one word: drop the possessive before splitting, and ignore single letters.
+    cleaned = re.sub(r"['’]s\b", "", (text or "").lower())
+    words = re.findall(r"[a-z0-9]+", cleaned)
+    return {
+        word.rstrip("s") if len(word) > 3 else word
+        for word in words
+        if len(word) > 1 and word not in _STOPWORDS
+    }
 
 
 def match_score(product_name: str, brand: str | None, candidate_name: str, candidate_brand: str | None) -> float:
@@ -39,14 +53,16 @@ def match_score(product_name: str, brand: str | None, candidate_name: str, candi
         return 0.0
     have = _words(candidate_name) | _words(candidate_brand)
     coverage = len(wanted & have) / len(wanted)
-    extra = len(_words(candidate_name) - wanted - _words(brand))
-    score = coverage - min(0.3, 0.05 * extra)
     package_brand = _words(brand)
+    extra = len(_words(candidate_name) - wanted - package_brand)
+    score = coverage - min(0.75, EXTRA_WORD_PENALTY * extra)
     if package_brand:
         if package_brand & (_words(candidate_brand) | _words(candidate_name)):
-            score += 0.2
+            score += BRAND_MATCH_BONUS
         elif candidate_brand:
-            score -= 0.2
+            score -= BRAND_MISMATCH_PENALTY
+        else:
+            score -= BRAND_MISSING_PENALTY
     return round(max(0.0, min(1.0, score)), 3)
 
 
@@ -62,6 +78,8 @@ def _food_label(food: FoodItem, source: str) -> dict[str, Any]:
         "serving_basis": food.serving_basis,
         "data_source": source,
         "attribution": "Data from USDA FoodData Central" if source == "usda" else None,
+        # Saving reuses this food instead of making a copy.
+        "food_id": food.id,
     }
 
 
@@ -83,20 +101,29 @@ async def find_package_matches(
         if food.calories:
             found.append(_food_label(food, "food_bank"))
 
-    async with (client_factory or httpx.AsyncClient)() as client:
-        try:
-            for product in await search_products(query, client):
-                label = product_to_label(product, barcode="")
-                if label:
-                    found.append(label)
-        except OpenFoodFactsError as error:
-            logger.warning("Open Food Facts search failed: %s", error)
-        if usda_api_key:
-            try:
-                for food in (await search_usda_foods(query, usda_api_key, client=client))[:10]:
-                    found.append(_food_label(food, "usda"))
-            except UsdaSearchError as error:
-                logger.warning("USDA search failed: %s", error)
+    async def off_labels(client: httpx.AsyncClient) -> list[dict[str, Any]]:
+        labels = []
+        for product in await search_products(query, client, timeout=SEARCH_TIMEOUT_SECONDS):
+            label = product_to_label(product, barcode="")
+            if label:
+                code = str(product.get("code") or "").strip()
+                labels.append({**label, "food_id": f"off-{code}" if code else None})
+        return labels
+
+    async def usda_labels(client: httpx.AsyncClient) -> list[dict[str, Any]]:
+        if not usda_api_key:
+            return []
+        return [_food_label(food, "usda") for food in (await search_usda_foods(query, usda_api_key, client=client))[:10]]
+
+    # Both searches at once, each best-effort: a slow or broken source just adds nothing.
+    factory = client_factory or (lambda: httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS))
+    async with factory() as client:
+        results = await asyncio.gather(off_labels(client), usda_labels(client), return_exceptions=True)
+    for name, result in zip(("Open Food Facts", "USDA"), results):
+        if isinstance(result, BaseException):
+            logger.warning("%s search failed: %s", name, type(result).__name__)
+        else:
+            found.extend(result)
 
     seen: set[tuple[str, str]] = set()
     scored = []
@@ -134,6 +161,7 @@ def package_structured_json(extraction: dict[str, Any], matches: list[dict[str, 
         "data_source": best.get("data_source") if best.get("data_source") in ("open_food_facts", "usda") else None,
         "attribution": best.get("attribution"),
         "nutrition_from": "match",
+        "matched_food_id": best.get("food_id"),
         "nutrition_found": True,
         "match_note": f"Matched to {best['product_name']} from {source}. Check it against the label, or scan the nutrition label for the exact numbers.",
         "alternatives": others,

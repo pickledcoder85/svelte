@@ -66,13 +66,14 @@ async def analyze_package(
         extraction = await analyze_package_image(payload.image_base64, repository, settings)
         # Look the product up by name for its nutrition (real scans only: the development demo
         # result is made up, so there is nothing real to search for).
-        matches = (
-            await find_package_matches(
-                repository, extraction.product_name, extraction.brand_name, usda_api_key=settings.usda_api_key
-            )
-            if settings.openai_api_key
-            else []
-        )
+        matches = []
+        if settings.openai_api_key:
+            try:
+                matches = await find_package_matches(
+                    repository, extraction.product_name, extraction.brand_name, usda_api_key=settings.usda_api_key
+                )
+            except Exception:  # matching is optional: never lose a scan that already succeeded
+                logger.warning("Package match lookup failed", exc_info=False)
         output = create_scan_output(
             repository,
             session.user_id,

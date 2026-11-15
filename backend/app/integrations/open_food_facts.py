@@ -101,7 +101,9 @@ async def fetch_product(code: str, client: httpx.AsyncClient) -> dict[str, Any] 
 OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
 
 
-async def search_products(query: str, client: httpx.AsyncClient, page_size: int = 10) -> list[dict[str, Any]]:
+async def search_products(
+    query: str, client: httpx.AsyncClient, page_size: int = 10, timeout: float = TIMEOUT_SECONDS
+) -> list[dict[str, Any]]:
     """Products whose name or brand matches the text read off a package front. Only that text is
     sent (no photo, no personal details)."""
     try:
@@ -116,7 +118,7 @@ async def search_products(query: str, client: httpx.AsyncClient, page_size: int 
                 "fields": OFF_FIELDS,
             },
             headers={"User-Agent": OFF_USER_AGENT},
-            timeout=TIMEOUT_SECONDS,
+            timeout=timeout,
         )
     except httpx.RequestError as error:
         raise OpenFoodFactsError("Open Food Facts could not be reached.") from error
