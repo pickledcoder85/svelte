@@ -5,11 +5,10 @@ import {
   activityIndex,
   arcPath,
   indexForPosition,
-  isOnDialBand,
   maintenanceForLevel,
   pointOnArc,
   positionForIndex,
-  positionForPoint
+  sliderPosition
 } from './activity-gauge';
 
 describe('activity gauge', () => {
@@ -53,22 +52,16 @@ describe('activity gauge', () => {
     expect(top.x).toBeCloseTo(100);
     expect(top.y).toBeCloseTo(20);
     expect(right.x).toBeCloseTo(180);
-    expect(positionForPoint(100, 100, top)).toBeCloseTo(0.5);
-    expect(positionForPoint(100, 100, pointOnArc(100, 100, 80, 0.3))).toBeCloseTo(0.3);
   });
 
-  it('only counts touches on the dial band', () => {
-    expect(isOnDialBand(100, 100, 80, pointOnArc(100, 100, 80, 0.3), 20)).toBe(true);
-    expect(isOnDialBand(100, 100, 80, { x: 100, y: 35 }, 20)).toBe(true);
-    // The centre label, outside the dial, and well below the centre line.
-    expect(isOnDialBand(100, 100, 80, { x: 100, y: 80 }, 20)).toBe(false);
-    expect(isOnDialBand(100, 100, 80, { x: 100, y: -10 }, 20)).toBe(false);
-    expect(isOnDialBand(100, 100, 80, { x: 20, y: 130 }, 20)).toBe(false);
-  });
-
-  it('treats touches below the dial as the nearer end', () => {
-    expect(positionForPoint(100, 100, { x: 40, y: 140 })).toBe(0);
-    expect(positionForPoint(100, 100, { x: 160, y: 140 })).toBe(1);
+  it('maps a touch on the slider to a position, keeping room for the handle at each end', () => {
+    expect(sliderPosition(20, 300, 20)).toBe(0);
+    expect(sliderPosition(0, 300, 20)).toBe(0);
+    expect(sliderPosition(150, 300, 20)).toBe(0.5);
+    expect(sliderPosition(280, 300, 20)).toBe(1);
+    expect(sliderPosition(400, 300, 20)).toBe(1);
+    expect(sliderPosition(10, 30, 20)).toBe(0);
+    expect(indexForPosition(sliderPosition(85, 300, 20))).toBe(1);
   });
 
   it('draws arcs clockwise over the top', () => {

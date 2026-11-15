@@ -107,7 +107,7 @@ import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredi
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { CogIcon } from './src/components/CogIcon';
 import { ChoiceSheet } from './src/components/ChoiceSheet';
-import { ActivityGauge } from './src/components/ActivityGauge';
+import { ActivityGauge, ActivitySlider } from './src/components/ActivityGauge';
 import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-gauge';
 import appConfig from './app.json';
 import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
@@ -3888,7 +3888,7 @@ export default function App(): ReactElement {
                     Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
                   </Text>
 
-                  <ActivityGauge value={onboardingActivityLevelDraft} onChange={setOnboardingActivityLevelDraft} />
+                  <ActivityGauge value={onboardingActivityLevelDraft} />
 
                   {energyPreview && energyMaintenance !== null ? (
                     <View style={styles.energyCard}>
@@ -3943,6 +3943,9 @@ export default function App(): ReactElement {
                       ) : null}
                     </View>
                   ) : null}
+
+                  {/* The control sits last, by the thumb, so it never covers what changes above. */}
+                  <ActivitySlider value={onboardingActivityLevelDraft} onChange={setOnboardingActivityLevelDraft} />
                 </View>
               ) : null}
 

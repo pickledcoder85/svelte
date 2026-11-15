@@ -1,6 +1,6 @@
 /**
- * The activity-level gauge on setup step 2: five levels around a half-circle dial. The arc
- * fills to the chosen level and a handle sits on it; dragging snaps to the nearest level.
+ * The activity level on setup step 2: a half-circle dial shows the chosen level (the arc fills
+ * to it) and a slider at the bottom of the card sets it, snapping to the nearest of five levels.
  *
  * Positions run from t = 0 (left end of the dial) to t = 1 (right end). The five levels sit
  * evenly from end to end, so Sedentary is the empty start and Extra active fills the arc.
@@ -43,29 +43,15 @@ export function pointOnArc(cx: number, cy: number, r: number, t: number): Point 
 }
 
 /**
- * The arc position closest to a touch. Touches below the dial's centre line count as the
- * nearer end, so dragging past either end stays on the first or last level.
+ * The position (0 to 1) for a touch on the slider. `inset` is the space kept at each end of
+ * the track for the handle, so the first and last stops are reachable with a thumb.
  */
-export function positionForPoint(cx: number, cy: number, point: Point): number {
-  const dx = point.x - cx;
-  const dy = cy - point.y;
-  if (dy <= 0) {
-    return dx < 0 ? 0 : 1;
+export function sliderPosition(x: number, width: number, inset: number): number {
+  const span = width - inset * 2;
+  if (span <= 0) {
+    return 0;
   }
-  const angle = Math.atan2(dy, dx); // 0 (right) .. PI (left)
-  return Math.min(1, Math.max(0, 1 - angle / Math.PI));
-}
-
-/**
- * Whether a touch is on the dial's band (within `slop` of the arc, above the bottom of the
- * stroke). Touches elsewhere in the box are ignored so they don't jump the level.
- */
-export function isOnDialBand(cx: number, cy: number, r: number, point: Point, slop: number): boolean {
-  if (point.y > cy + slop) {
-    return false;
-  }
-  const distance = Math.hypot(point.x - cx, point.y - cy);
-  return Math.abs(distance - r) <= slop;
+  return Math.min(1, Math.max(0, (x - inset) / span));
 }
 
 /** SVG path for the arc between two positions (clockwise, over the top). */
