@@ -753,7 +753,8 @@ class SQLiteRepository:
                 p.fat_target_g,
                 p.fiber_target_g,
                 p.calculation_version,
-                p.target_source
+                p.target_source,
+                COALESCE(p.calorie_floor, 'recommended') AS calorie_floor
             FROM users u
             LEFT JOIN user_profiles p ON p.user_id = u.id
             WHERE u.id = ?
@@ -796,7 +797,7 @@ class SQLiteRepository:
                     allergy_notes = NULL, bmr_calories = NULL, tdee_calories = NULL,
                     initial_calorie_target = NULL, protein_target_g = NULL, carbs_target_g = NULL,
                     fat_target_g = NULL, fiber_target_g = NULL, calculation_version = NULL,
-                    target_source = NULL, updated_at = CURRENT_TIMESTAMP
+                    target_source = NULL, calorie_floor = 'recommended', updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
                 (user_id,),
@@ -841,6 +842,7 @@ class SQLiteRepository:
         fiber_target_g: float,
         calculation_version: str,
         target_source: str,
+        calorie_floor: str = "recommended",
     ) -> dict[str, Any]:
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
@@ -852,9 +854,9 @@ class SQLiteRepository:
                     dietary_pattern, nutrition_style, allergy_notes,
                     bmr_calories, tdee_calories, initial_calorie_target,
                     protein_target_g, carbs_target_g, fat_target_g, fiber_target_g,
-                    calculation_version, target_source,
+                    calculation_version, target_source, calorie_floor,
                     setup_completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
                     sex = excluded.sex,
                     age_years = excluded.age_years,
@@ -876,6 +878,7 @@ class SQLiteRepository:
                     fiber_target_g = excluded.fiber_target_g,
                     calculation_version = excluded.calculation_version,
                     target_source = excluded.target_source,
+                    calorie_floor = excluded.calorie_floor,
                     setup_completed_at = COALESCE(user_profiles.setup_completed_at, excluded.setup_completed_at),
                     updated_at = CURRENT_TIMESTAMP
                 """,
@@ -901,6 +904,7 @@ class SQLiteRepository:
                     fiber_target_g,
                     calculation_version,
                     target_source,
+                    calorie_floor,
                 ),
             )
         profile = self.get_user_identity(user_id)

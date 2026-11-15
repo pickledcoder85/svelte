@@ -66,7 +66,7 @@ def test_generated_nutrition_targets_include_fiber_and_provenance():
     assert targets.fat_target_g == 62.1
     assert targets.fiber_target_g == 31.3
     assert targets.goal_pace == "recommended"
-    assert targets.calculation_version == "v1"
+    assert targets.calculation_version == "v2"
     assert targets.target_source == "system_default"
 
 
