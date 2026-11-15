@@ -109,17 +109,13 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
             </Text>
           </View>
           <View style={styles.guideArea} pointerEvents="none">
+            {/* The frame turns green once it's steady on something, and stays green as it locks. */}
             <View
               style={[
                 smart ? styles.smartGuide : styles.guide,
-                smart && stability && stability.progress > 0 ? { borderColor: `rgba(134,239,172,${0.4 + 0.6 * stability.progress})` } : null
+                smart && stability && stability.progress >= 0.3 ? styles.guideLocked : null
               ]}
             />
-            {smart ? (
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${Math.round((stability?.progress ?? 0) * 100)}%` }]} />
-              </View>
-            ) : null}
           </View>
           <View style={styles.actions}>
             <Pressable
@@ -209,18 +205,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.9)'
   },
-  progressTrack: {
-    width: '60%',
-    height: 6,
-    borderRadius: 999,
-    marginTop: 14,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    overflow: 'hidden'
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#86efac'
+  guideLocked: {
+    borderColor: '#4ade80',
+    borderWidth: 4
   },
   actions: {
     gap: 10

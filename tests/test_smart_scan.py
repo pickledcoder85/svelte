@@ -56,7 +56,7 @@ async def test_a_package_front_and_an_unreadable_frame(monkeypatch, repository):
 async def test_scan_route_label_replaces_a_package_scan(app, client, auth_headers, monkeypatch):
     replies = iter([
         {"kind": "package_front", "package_text": "TRAIL GRANOLA", "product_name": "Granola", "brand_name": "Trail", "confidence": 0.8},
-        LABEL,
+        {**LABEL, "product_name": "granola cereal", "brand_name": "Kraft"},
     ])
 
     async def fake(settings, image_url, instructions):
@@ -79,6 +79,8 @@ async def test_scan_route_label_replaces_a_package_scan(app, client, auth_header
         )
     ).json()
     assert label["kind"] == "nutrition_label" and label["replaced"] is True
+    # The front's name and brand win over the label's (labels often name the distributor).
+    assert label["label"]["brand_name"] == "Trail" and label["label"]["product_name"] == "Granola"
     queue = (await client.get("/api/ingestion/queue", headers=auth_headers)).json()
     assert [item["id"] for item in queue if item["review_state"] == "pending"] == [label["output_id"]]
 
@@ -121,3 +123,11 @@ async def test_replacing_with_a_package_front_adds_nothing(app, client, auth_hea
     assert again["kind"] == "unreadable" and "Nutrition Facts" in again["message"]
     queue = (await client.get("/api/ingestion/queue", headers=auth_headers)).json()
     assert [item["id"] for item in queue if item["review_state"] == "pending"] == [first["output_id"]]
+
+
+@pytest.mark.asyncio
+async def test_a_label_never_invents_a_name(monkeypatch, repository):
+    settings = _with_model(monkeypatch, {**LABEL, "product_name": None, "brand_name": None})
+    kind, label, _ = await analyze_scan_image(TINY_PNG_BASE64, repository, settings)
+    assert kind == "nutrition_label" and label.product_name == "" and label.brand_name is None
+    assert label.calories == 210

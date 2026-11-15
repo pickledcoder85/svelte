@@ -166,6 +166,7 @@ Rules:
 - if a field is unclear, make a conservative best guess rather than omitting it
 Extra rules:
 - kind is required and must be one of the three values above
+- for nutrition_label, read only what the nutrition panel shows: product_name and brand_name only if the product's own name is printed on it; never use a "distributed by" or "manufactured by" line as the brand, and never guess a name; otherwise use null for both
 - for package_front, fill package_text, product_name, brand_name and confidence; nutrition fields may be null
 - for unreadable, the other fields may be null
 """.strip()
@@ -311,7 +312,10 @@ async def analyze_scan_image(
     ):
         kind = "unreadable"  # a half-read label is never filled in with guesses
     if kind == "nutrition_label":
-        return kind, _label_extraction(payload), None
+        label = _label_extraction(payload)
+        if not _as_optional_string(payload.get("product_name")):
+            label = label.model_copy(update={"product_name": ""})
+        return kind, label, None
     if kind == "package_front":
         product_name = _as_string(payload.get("product_name"), "")
         if not product_name.strip():

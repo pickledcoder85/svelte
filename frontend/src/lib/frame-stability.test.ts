@@ -63,15 +63,28 @@ describe('frame stability', () => {
     expect(contrast(a)).toBeGreaterThan(50);
   });
 
+  it('waits for something to be brought into view before counting', () => {
+    const tracker = createStabilityTracker();
+    const still = { motion: 1, sharpness: 500, contrast: 60 };
+    for (let i = 0; i < STEADY_FRAMES * 3; i += 1) {
+      expect(tracker.update(still)).toEqual({ progress: 0, ready: false, hint: 'bring-it-in' });
+    }
+    expect(tracker.update({ ...still, motion: Number.POSITIVE_INFINITY }).hint).toBe('bring-it-in');
+    tracker.update({ ...still, motion: 40 });
+    expect(tracker.update(still).hint).toBe('steady');
+  });
+
   it('captures only after enough steady, sharp frames in a row', () => {
     const tracker = createStabilityTracker();
     const good = { motion: 1, sharpness: 500, contrast: 60 };
+    tracker.update({ ...good, motion: 40 }); // the package comes into view
     for (let i = 1; i < STEADY_FRAMES; i += 1) {
       expect(tracker.update(good).ready).toBe(false);
     }
     expect(tracker.update(good)).toEqual({ progress: 1, ready: true, hint: 'steady' });
     // A shake starts over; blur holds back; a blank view says so.
-    expect(tracker.update({ ...good, motion: 30 })).toMatchObject({ progress: 0, hint: 'hold-steady' });
+    expect(tracker.update({ ...good, motion: 10 })).toMatchObject({ ready: false, hint: 'hold-steady' }); // a wobble steps back
+    expect(tracker.update({ ...good, motion: 30 })).toMatchObject({ progress: 0, hint: 'hold-steady' }); // a shake starts over
     tracker.update(good);
     tracker.update(good);
     expect(tracker.update({ ...good, sharpness: 5 })).toMatchObject({ hint: 'too-blurry', ready: false });

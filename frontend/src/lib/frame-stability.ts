@@ -4,7 +4,9 @@
  * Runs on the phone on a small grey copy of each frame (free; nothing is sent). Motion is the
  * average change between two frames; sharpness is the variance of the Laplacian (edges are
  * crisp when it's high, smeared when it's low); contrast rules out a blank wall or the dark.
- * Once enough steady, sharp frames in a row are seen, one full frame is captured.
+ * It first waits for something to be brought into view (a big change in the picture), so a
+ * table or room that happens to be still is never captured; then, once enough steady, sharp
+ * frames in a row are seen, one full frame is captured.
  */
 
 export const ANALYSIS_WIDTH = 240;
@@ -16,6 +18,8 @@ export const SHARPNESS_MIN = 60;
 export const CONTRAST_MIN = 18;
 /** Steady frames in a row before capture (about a second at 7 frames a second). */
 export const STEADY_FRAMES = 7;
+/** A change this big (bringing the package into view) arms the capture. */
+export const ARM_MOTION = 16;
 
 export function toGray(rgba: ArrayLike<number>): Float32Array {
   const gray = new Float32Array(rgba.length / 4);
@@ -78,7 +82,7 @@ export interface FrameReading {
   contrast: number;
 }
 
-export type StabilityHint = 'hold-steady' | 'too-blurry' | 'nothing-to-read' | 'steady';
+export type StabilityHint = 'bring-it-in' | 'hold-steady' | 'too-blurry' | 'nothing-to-read' | 'steady';
 
 export interface StabilityState {
   /** 0–1, for the ring. */
@@ -87,17 +91,30 @@ export interface StabilityState {
   hint: StabilityHint;
 }
 
-/** Counts steady, sharp frames in a row; a shaky frame resets it, a blurry one holds it back. */
+/**
+ * Waits for something to be brought into view, then counts steady, sharp frames. A big shake
+ * starts over, a small wobble or a blurry frame only steps back, so the count doesn't flicker.
+ */
 export function createStabilityTracker(needed = STEADY_FRAMES) {
   let steady = 0;
+  let armed = false;
   return {
     update(reading: FrameReading): StabilityState {
       let hint: StabilityHint;
+      if (!armed) {
+        if (Number.isFinite(reading.motion) && reading.motion >= ARM_MOTION) {
+          armed = true;
+        }
+        return { progress: 0, ready: false, hint: 'bring-it-in' };
+      }
       if (reading.contrast < CONTRAST_MIN) {
         steady = 0;
         hint = 'nothing-to-read';
-      } else if (reading.motion > MOTION_MAX) {
+      } else if (reading.motion > MOTION_MAX * 2) {
         steady = 0;
+        hint = 'hold-steady';
+      } else if (reading.motion > MOTION_MAX) {
+        steady = Math.max(0, steady - 1);
         hint = 'hold-steady';
       } else if (reading.sharpness < SHARPNESS_MIN) {
         steady = Math.max(0, steady - 1);
@@ -108,6 +125,7 @@ export function createStabilityTracker(needed = STEADY_FRAMES) {
       }
       return { progress: steady / needed, ready: steady >= needed, hint };
     },
+    /** Start over (a barcode came into view): keep waiting for steadiness, still armed. */
     reset() {
       steady = 0;
     }
@@ -116,6 +134,8 @@ export function createStabilityTracker(needed = STEADY_FRAMES) {
 
 export function hintText(hint: StabilityHint): string {
   switch (hint) {
+    case 'bring-it-in':
+      return 'Bring the package or label into the frame';
     case 'hold-steady':
       return 'Hold steady…';
     case 'too-blurry':
