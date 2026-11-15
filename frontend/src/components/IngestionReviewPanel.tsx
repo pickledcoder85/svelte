@@ -77,8 +77,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
   const [nutritionDraft, setNutritionDraft] = useState<EditableNutritionDraft>(() => buildNutritionDraft(null));
   const [editingFields, setEditingFields] = useState(false);
   const [expandedScanDates, setExpandedScanDates] = useState<Record<string, boolean>>({});
-  // A package scan whose guessed nutrition the next label scan replaces (it is discarded then).
-  const [replacingOutputId, setReplacingOutputId] = useState<string | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -219,7 +217,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     await createLabelScanFromBase64(labelBase64.trim());
   }
 
-  async function createLabelScanFromBase64(imageBase64: string) {
+  /** replaceOutputId: a package scan whose guessed nutrition this label replaces (discarded). */
+  async function createLabelScanFromBase64(imageBase64: string, replaceOutputId?: string) {
     if (!accessToken || captureLoading || imageBase64.length === 0) {
       return;
     }
@@ -236,13 +235,13 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
       const output = buildPendingOutput(scan.output_id, scan.ingestion_job_id, scan.confidence, scan.extraction);
       // The label's real numbers replace a package scan's guess: discard that scan so only
       // one food is saved.
-      const replaced = replacingOutputId;
-      setReplacingOutputId(null);
-      if (replaced) {
+      let replaced = false;
+      if (replaceOutputId) {
         try {
-          await rejectIngestionOutput(replaced, accessToken);
+          await rejectIngestionOutput(replaceOutputId, accessToken);
+          replaced = true;
         } catch {
-          // Already reviewed or gone; nothing to replace.
+          // Already saved or gone: keep it, and don't claim a replacement.
         }
       }
       setSelectedOutputId(output.id);
@@ -344,8 +343,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
   }
 
   function scanLabelToReplace(outputId: string) {
-    setReplacingOutputId(outputId);
-    void captureWebPhoto('label');
+    void captureWebPhoto('label', outputId);
   }
 
   async function saveSelectedFood() {
@@ -438,7 +436,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     }
   }
 
-  async function captureWebPhoto(step: 'package' | 'label') {
+  async function captureWebPhoto(step: 'package' | 'label', replaceOutputId?: string) {
     if (captureLoading || !accessToken) {
       if (!accessToken) {
         setQueueError('Sign in before scanning.');
@@ -474,7 +472,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     } else {
       setLabelBase64(prepared.base64);
       setLabelFileName(fileName);
-      await createLabelScanFromBase64(prepared.base64);
+      await createLabelScanFromBase64(prepared.base64, replaceOutputId);
     }
   }
 

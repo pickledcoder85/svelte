@@ -40,4 +40,11 @@ describe('package matches on the review screen', () => {
     expect(buildAcceptedNutritionPayload(buildNutritionDraft(next), next).structured_json).toMatchObject({ matched_food_id: 'usda-9' });
     expect(applyAlternative(scan, 5)).toBe(scan);
   });
+
+  it('switching back to a food-bank match names your food bank', () => {
+    const bankFirst = { ...scan, data_source: null, matched_food_id: 'food-label-abc' };
+    const back = applyAlternative(applyAlternative(bankFirst, 0), 0) as Record<string, any>;
+    expect(back.matched_food_id).toBe('food-label-abc');
+    expect(back.match_note).toMatch(/from your food bank/);
+  });
 });

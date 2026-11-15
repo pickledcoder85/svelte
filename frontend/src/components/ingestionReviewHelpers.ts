@@ -255,6 +255,11 @@ export function applyAlternative(value: unknown, index: number): unknown {
       previous[field] = payload[field];
     }
   }
+  // A food-bank match is stored without a data_source; remember where it came from.
+  const previousId = typeof payload.matched_food_id === 'string' ? payload.matched_food_id : '';
+  if (!previous.data_source && previousId && !previousId.startsWith('usda-') && !previousId.startsWith('off-')) {
+    previous.data_source = 'food_bank';
+  }
   const next: Record<string, unknown> = { ...payload };
   for (const field of MATCH_FIELDS) {
     if (field !== 'food_id') {
