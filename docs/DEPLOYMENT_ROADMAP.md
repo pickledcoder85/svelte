@@ -124,6 +124,10 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ## Feature backlog
 
+- Pickle avatars: a finite set of Gherkin-style pickle characters that represent the user, picked from sex, age, build, and activity level (for example a chubby coder pickle hunched over a laptop for Sedentary, a fit runner pickle for an active woman, a grey-whiskered pickle for an older user). Rough matrix: 2 sexes × 3 age bands × 3 builds as base characters, with activity shown by pose or props, so about 18 base images plus pose variants rather than every combination. Art must match Gherkin's style (transparent PNGs like assets/mascot.png, consistent outline and shading, and they need the dark-mode outline). Needs: the art set (from the owner), a pure tested mapping from profile to avatar, use in the header avatar, welcome, and Profile, and the avatar updating as weight and activity change (a nice progress moment). Keep the tone affectionate, never mocking.
+- Fuelling coach (AI or rules): when the 7-day trend of logged intake sits near or below the recommended minimum (and the user hasn't opted out), or well under target given logged activity, suggest they may be under-fuelling; the reverse when intake trends above the goal relative to logged activity. Needs workout add-back to the daily target first.
+- Profile editor calorie floor: changing goal or pace in the Profile editor recalculates with the saved floor but does not show the below-the-minimum warning that setup shows; reuse the setup warning there (fetch a preview first).
+- Workout add-back: logged exercise raises that day's target (possibly only part of the estimate, since workout burns are often overstated).
 - Dark mode follow-ups: check the iOS status bar in dark mode on the home-screen app (the `default` status-bar style may stay light); tune any screens that look off after use. Palette lives in `frontend/src/theme/palette.ts`.
 - Setup weight wheel precision: whole lb/kg today; consider 0.5 kg steps for metric, or a decimal wheel set further apart.
 - "Pickle Jar" re-scan: scanning a food already in the bank logs it in one tap; recent and frequent foods shelf.

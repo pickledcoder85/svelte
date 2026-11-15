@@ -15,6 +15,8 @@ class UserProfile(BaseModel):
     display_name: str | None = None
     timezone: str = "UTC"
     units: str = "imperial"
+    # "recommended": targets stop at 1,200 (women) / 1,500 (men); "off": opted out.
+    calorie_floor: Literal["recommended", "off"] = "recommended"
     user_created_at: datetime | None = None
     profile_created_at: datetime | None = None
     profile_updated_at: datetime | None = None
@@ -54,6 +56,7 @@ class UserOnboardingRequest(BaseModel):
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"]
     nutrition_style: Literal["balanced", "keto", "mediterranean"] = "balanced"
     allergy_notes: str | None = None
+    calorie_floor: Literal["recommended", "off"] = "recommended"
     @model_validator(mode="after")
     def _pace_matches_goal(self):
         if not is_valid_goal_pace(self.goal_type, self.goal_pace):
@@ -93,6 +96,7 @@ class UserProfileUpdateRequest(BaseModel):
     dietary_pattern: Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carnivore"] | None = None
     nutrition_style: Literal["balanced", "keto", "mediterranean"] | None = None
     allergy_notes: str | None = None
+    calorie_floor: Literal["recommended", "off"] | None = None
 
     @model_validator(mode="after")
     def _pace_matches_goal(self):
@@ -181,19 +185,26 @@ class TargetPreviewRequest(BaseModel):
 class TargetPreviewOption(BaseModel):
     goal_type: Literal["lose", "maintain", "gain"]
     goal_pace: GoalPace = None
+    # The calculation as is (what the target is with the floor off).
     calorie_target: int
     daily_adjustment: int
-    limited_by_minimum: bool
     weekly_change_lbs: float
     protein_target_g: float
     carbs_target_g: float
     fat_target_g: float
+    # Below the recommended minimum for the user's sex, and the same pace with the floor on.
+    below_recommended_minimum: bool
+    floor_calorie_target: int
+    floor_weekly_change_lbs: float
+    floor_protein_target_g: float
+    floor_carbs_target_g: float
+    floor_fat_target_g: float
 
 
 class TargetPreview(BaseModel):
     bmr_calories: int
     maintenance_calories: int
-    minimum_calorie_target: int
+    recommended_minimum_calories: int
     maintenance_below_minimum: bool
     options: list[TargetPreviewOption]
     # Maintenance calories for each activity level (sedentary ... extra_active).

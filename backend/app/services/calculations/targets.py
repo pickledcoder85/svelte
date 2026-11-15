@@ -1,8 +1,7 @@
 from backend.app.services.calculations.energy import (
-    GOAL_CALORIE_ADJUSTMENTS,
-    MINIMUM_CALORIE_TARGET,
     NON_EXERCISE_ACTIVITY_FACTORS,
     calculate_energy_targets,
+    recommended_minimum_calories,
 )
 from backend.app.services.calculations.macros import (
     generate_fiber_target,
@@ -20,6 +19,10 @@ from backend.app.services.calculations.types import (
 KCAL_PER_LB = 3500
 
 
+def weekly_change(daily_change: int) -> float:
+    return round(daily_change * 7 / KCAL_PER_LB, 2)
+
+
 def generate_nutrition_targets(
     *,
     sex: str,
@@ -30,6 +33,7 @@ def generate_nutrition_targets(
     goal_type: GoalType,
     goal_pace: GoalPace = None,
     target_source: TargetSource = "system_default",
+    calorie_floor: str = "recommended",
 ) -> GeneratedNutritionTargets:
     bmr_calories, maintenance_calories, calorie_target = calculate_energy_targets(
         sex=sex,
@@ -39,6 +43,7 @@ def generate_nutrition_targets(
         activity_level=activity_level,
         goal_type=goal_type,
         goal_pace=goal_pace,
+        calorie_floor=calorie_floor,
     )
     protein_goal, carbs_goal, fat_goal = generate_macro_targets(
         calorie_target=calorie_target,
@@ -73,11 +78,12 @@ def preview_target_options(
 
     Uses the same functions as generate_nutrition_targets, so previews match saved targets.
     """
+    minimum = recommended_minimum_calories(sex)
     options = []
     bmr_calories = maintenance_calories = 0
     for goal_type, paces in GOAL_PACES.items():
         for goal_pace in paces:
-            targets = generate_nutrition_targets(
+            body = dict(
                 sex=sex,
                 age_years=age_years,
                 height_cm=height_cm,
@@ -86,30 +92,35 @@ def preview_target_options(
                 goal_type=goal_type,
                 goal_pace=goal_pace,
             )
-            bmr_calories, maintenance_calories = targets.bmr_calories, targets.maintenance_calories
-            daily_change = targets.calorie_target - targets.maintenance_calories
+            # The honest calculation, and the same pace with the recommended minimum applied.
+            calculated = generate_nutrition_targets(**body, calorie_floor="off")
+            floored = generate_nutrition_targets(**body, calorie_floor="recommended")
+            bmr_calories, maintenance_calories = calculated.bmr_calories, calculated.maintenance_calories
+            daily_change = calculated.calorie_target - calculated.maintenance_calories
             options.append(
                 {
                     "goal_type": goal_type,
                     "goal_pace": goal_pace,
-                    "calorie_target": targets.calorie_target,
+                    "calorie_target": calculated.calorie_target,
                     "daily_adjustment": daily_change,
-                    # A loss pace asked for less than the floor allows, so the target was raised.
-                    "limited_by_minimum": goal_type == "lose"
-                    and targets.maintenance_calories + GOAL_CALORIE_ADJUSTMENTS[(goal_type, goal_pace)]
-                    < MINIMUM_CALORIE_TARGET,
-                    "weekly_change_lbs": round(daily_change * 7 / KCAL_PER_LB, 2),
-                    "protein_target_g": targets.protein_target_g,
-                    "carbs_target_g": targets.carbs_target_g,
-                    "fat_target_g": targets.fat_target_g,
+                    "weekly_change_lbs": weekly_change(daily_change),
+                    "protein_target_g": calculated.protein_target_g,
+                    "carbs_target_g": calculated.carbs_target_g,
+                    "fat_target_g": calculated.fat_target_g,
+                    "below_recommended_minimum": calculated.calorie_target < minimum,
+                    "floor_calorie_target": floored.calorie_target,
+                    "floor_weekly_change_lbs": weekly_change(floored.calorie_target - floored.maintenance_calories),
+                    "floor_protein_target_g": floored.protein_target_g,
+                    "floor_carbs_target_g": floored.carbs_target_g,
+                    "floor_fat_target_g": floored.fat_target_g,
                 }
             )
     return {
         "bmr_calories": bmr_calories,
         "maintenance_calories": maintenance_calories,
-        "minimum_calorie_target": MINIMUM_CALORIE_TARGET,
-        # When even maintenance is under the floor, every target is a small surplus.
-        "maintenance_below_minimum": maintenance_calories < MINIMUM_CALORIE_TARGET,
+        "recommended_minimum_calories": minimum,
+        # When even maintenance is under the minimum, the floor makes every target a surplus.
+        "maintenance_below_minimum": maintenance_calories < minimum,
         "options": options,
         # Maintenance at every activity level, so setup can show each one without asking again.
         "maintenance_by_activity": {

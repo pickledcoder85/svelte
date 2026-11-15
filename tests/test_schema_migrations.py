@@ -152,8 +152,10 @@ def test_existing_baseline_database_gets_the_barcode_column(tmp_path, monkeypatc
     apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", real_dir)
 
-    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes"]
+    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes", "003_calorie_floor"]
     connection = sqlite3.connect(tmp_path / "upgrade.db")
     columns = {row[1] for row in connection.execute("PRAGMA table_info(food_catalog)")}
+    floor = connection.execute("SELECT dflt_value FROM pragma_table_info('user_profiles') WHERE name = 'calorie_floor'").fetchone()
     connection.close()
     assert "barcode" in columns
+    assert floor == ("'recommended'",)

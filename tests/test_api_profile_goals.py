@@ -156,7 +156,7 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
     assert updated["carbs_target_g"] == 332.8
     assert updated["fat_target_g"] == 72.9
     assert updated["fiber_target_g"] == 36.7
-    assert updated["calculation_version"] == "v1"
+    assert updated["calculation_version"] == "v2"
     assert updated["target_source"] == "system_default"
 
     goals_response = await client.get("/api/profile/goals", headers=headers)
@@ -170,7 +170,7 @@ async def test_profile_update_recalculates_targets_and_appends_goal_history(clie
     assert goals[0]["fiber_goal"] == 36.7
     assert goals[0]["goal_type"] == "gain"
     assert goals[0]["goal_pace"] == "lean"
-    assert goals[0]["calculation_version"] == "v1"
+    assert goals[0]["calculation_version"] == "v2"
     assert goals[0]["target_source"] == "system_default"
     assert goals[0]["target_weight_lbs"] == 205
     assert goals[1]["calorie_goal"] == 2236

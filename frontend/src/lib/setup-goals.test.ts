@@ -9,6 +9,8 @@ import {
   formatWeeklyRate,
   goalLabel,
   isPaceForGoal,
+  needsFloorWarning,
+  withCalorieFloor,
   paceLabel,
   type TargetPreview
 } from './setup-goals';
@@ -16,11 +18,11 @@ import {
 const preview: TargetPreview = {
   bmr_calories: 1887,
   maintenance_calories: 2736,
-  minimum_calorie_target: 1200,
+  recommended_minimum_calories: 1500,
   options: [
-    { goal_type: 'lose', goal_pace: 'recommended', calorie_target: 2236, daily_adjustment: -500, limited_by_minimum: false, weekly_change_lbs: -1, protein_target_g: 163.3, carbs_target_g: 256, fat_target_g: 62.1 },
-    { goal_type: 'maintain', goal_pace: 'steady', calorie_target: 2736, daily_adjustment: 0, limited_by_minimum: false, weekly_change_lbs: 0, protein_target_g: 145.1, carbs_target_g: 330, fat_target_g: 91.2 },
-    { goal_type: 'maintain', goal_pace: 'build_muscle', calorie_target: 2736, daily_adjustment: 0, limited_by_minimum: false, weekly_change_lbs: 0, protein_target_g: 181.4, carbs_target_g: 297, fat_target_g: 82.1 }
+    { goal_type: 'lose', goal_pace: 'recommended', calorie_target: 2236, daily_adjustment: -500, weekly_change_lbs: -1, protein_target_g: 163.3, carbs_target_g: 256, fat_target_g: 62.1, below_recommended_minimum: false, floor_calorie_target: 2236, floor_weekly_change_lbs: -1, floor_protein_target_g: 163.3, floor_carbs_target_g: 256, floor_fat_target_g: 62.1 },
+    { goal_type: 'maintain', goal_pace: 'steady', calorie_target: 2736, daily_adjustment: 0, weekly_change_lbs: 0, protein_target_g: 145.1, carbs_target_g: 330, fat_target_g: 91.2, below_recommended_minimum: false, floor_calorie_target: 2736, floor_weekly_change_lbs: 0, floor_protein_target_g: 145.1, floor_carbs_target_g: 330, floor_fat_target_g: 91.2 },
+    { goal_type: 'maintain', goal_pace: 'build_muscle', calorie_target: 2736, daily_adjustment: 0, weekly_change_lbs: 0, protein_target_g: 181.4, carbs_target_g: 297, fat_target_g: 82.1, below_recommended_minimum: false, floor_calorie_target: 2736, floor_weekly_change_lbs: 0, floor_protein_target_g: 181.4, floor_carbs_target_g: 297, floor_fat_target_g: 82.1 }
   ]
 };
 
@@ -68,5 +70,32 @@ describe('setup goals', () => {
   it('scales the energy bars to the larger value', () => {
     expect(energyBarWidths(1887, 2736)).toEqual({ rest: 69, active: 100 });
     expect(energyBarWidths(0, 0)).toEqual({ rest: 0, active: 0 });
+  });
+
+  it('applies the recommended minimum only when the floor is on', () => {
+    const fast = {
+      ...preview.options[0],
+      goal_pace: 'extreme' as const,
+      calorie_target: 1052,
+      daily_adjustment: -1000,
+      weekly_change_lbs: -2,
+      below_recommended_minimum: true,
+      floor_calorie_target: 1500,
+      floor_weekly_change_lbs: -1.1,
+      floor_protein_target_g: 160,
+      floor_carbs_target_g: 120,
+      floor_fat_target_g: 42
+    };
+    expect(withCalorieFloor(fast, 'off')?.calorie_target).toBe(1052);
+    const floored = withCalorieFloor(fast, 'recommended');
+    expect(floored?.calorie_target).toBe(1500);
+    expect(floored?.daily_adjustment).toBe(-552);
+    expect(floored?.weekly_change_lbs).toBe(-1.1);
+    expect(withCalorieFloor(null, 'recommended')).toBeNull();
+
+    expect(needsFloorWarning(fast, 'recommended', false)).toBe(true);
+    expect(needsFloorWarning(fast, 'recommended', true)).toBe(false);
+    expect(needsFloorWarning(fast, 'off', false)).toBe(false);
+    expect(needsFloorWarning(preview.options[0], 'recommended', false)).toBe(false);
   });
 });

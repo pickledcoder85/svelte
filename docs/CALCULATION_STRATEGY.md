@@ -148,7 +148,7 @@ Implemented focus profiles (`backend/app/services/calculations/macros.py`, 2026-
 | `build_muscle` | 2.0 g/kg | 0.7 g/kg | 27% | more protein for recomposition alongside strength training |
 | `fuel_training` | 1.6 g/kg | 0.6 g/kg | 22% | less fat, so more carbohydrate for endurance training |
 
-Calories are identical across focuses, and carbs remain the remainder. Known limitation (shared with the v1 loss paces from about 220 lb): for very heavy, sedentary bodies the protein and fat floors can exceed the calorie target, so carbs clamp to 0 and macro calories run slightly over the target. `calculation_version` stays `v1` because every pre-existing input (including maintenance with no focus) produces the same targets as before; focus is an additive input. The macro split still does not depend on `dietary_pattern` or `nutrition_style`; style-aware macros remain future work.
+Calories are identical across focuses, and carbs remain the remainder. Since v2, when the protein and fat floors would exceed the calorie target (very heavy, sedentary bodies, or very low targets with the calorie floor off), fat shrinks first and then protein, so the macros never add up to more than the target; in v1 carbs clamped to 0 and macro calories ran slightly over. `calculation_version` stays `v1` because every pre-existing input (including maintenance with no focus) produces the same targets as before; focus is an additive input. The macro split still does not depend on `dietary_pattern` or `nutrition_style`; style-aware macros remain future work.
 
 #### Weight gain
 
@@ -275,11 +275,20 @@ Setup order (2026-11-14): **About you → Activity → Your goal → How fast? /
 
 - Activity shows an energy card: BMR ("at rest") and maintenance ("with your activity").
 - Your goal shows each goal's calorie target at its default pace.
-- How fast? shows each pace's calories and approximate weekly change (daily change × 7 / 3,500 kcal per lb), plus an optional goal weight with an estimated date. Paces clamped by the 1,200 kcal floor are labelled as limited.
+- How fast? shows each pace's calories and approximate weekly change (daily change × 7 / 3,500 kcal per lb), plus an optional goal weight with an estimated date. Paces whose calculated target is below the recommended minimum are labelled, and choosing one opens a warning (see Recommended minimum below).
 - Your focus (maintenance) shows each focus's calories and its protein or carb difference.
 - All numbers come from `POST /api/profile/targets/preview`, which runs the same engine as onboarding and saves nothing, so previews always match the saved targets.
 - Invalid goal/pace pairs (for example `lose` with `lean`) are rejected with `422`.
-- When even maintenance is below the 1,200 kcal floor, every target is a small surplus. The preview sets `maintenance_below_minimum`, loss paces stay flagged `limited_by_minimum`, and How fast? says the pace will not lower weight instead of showing a loss rate.
+- When even maintenance is below the recommended minimum and the floor is on, every target is a small surplus. The preview sets `maintenance_below_minimum`, and How fast? says the pace will not lower weight instead of showing a loss rate.
+
+### Recommended minimum (calculation_version v2)
+
+- The recommended minimum is 1,200 kcal a day for women and 1,500 for men, the minimums most dietitians use without medical supervision (the same split MyFitnessPal and Lose It! use).
+- It is a recommendation, not a limit. `user_profiles.calorie_floor` is `recommended` (default: targets stop at the minimum) or `off` (targets are the calculation as is), as in MacroFactor's opt-out calorie floor. There is no hard limit.
+- The preview returns the honest calculation for every pace (`calorie_target`, `weekly_change_lbs`, macros), `below_recommended_minimum`, and the same pace with the floor applied (`floor_*`), plus `recommended_minimum_calories`.
+- Setup: choosing a pace below the minimum (or pressing Next on one) opens a warning with the calculated number, the minimum for the user's sex, and the risks (nutrient shortfall, muscle loss, fatigue, rebound gain; under 800 kcal it adds that this is a very-low-calorie diet normally done with medical supervision). "Use the minimum" keeps the floor; "Opt out and keep" sets `calorie_floor` to `off`. Settings > Nutrition > Calorie floor changes it later (turning it off asks first) and recalculates targets.
+- v1 silently raised every target to 1,200 for everyone; v2 replaced that.
+
 - No pace and the goal's default pace are treated as equal when deciding whether a profile save changes targets, so profiles saved before paces were stored are not recalculated (and custom goals not replaced) on unrelated edits. A pace left over from a previous goal falls back to the default.
 
 Signup and profile setup should support:

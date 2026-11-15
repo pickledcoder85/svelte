@@ -283,7 +283,7 @@ def complete_user_onboarding(
         current_weight_lbs=payload.current_weight_lbs,
         activity_level=payload.activity_level,
         goal_type=payload.goal_type,
-        goal_pace=payload.goal_pace,
+        goal_pace=payload.goal_pace,        calorie_floor=payload.calorie_floor,
     )
     profile = repository.save_user_onboarding(
         user_id=session.user_id,
@@ -307,6 +307,7 @@ def complete_user_onboarding(
         fiber_target_g=targets.fiber_target_g,
         calculation_version=targets.calculation_version,
         target_source=targets.target_source,
+        calorie_floor=payload.calorie_floor,
     )
     repository.save_user_goal(
         user_id=session.user_id,
@@ -401,6 +402,11 @@ def update_user_profile(
             if "allergy_notes" in provided_fields
             else existing_profile.get("allergy_notes")
         ),
+        "calorie_floor": (
+            payload.calorie_floor
+            if "calorie_floor" in provided_fields and payload.calorie_floor is not None
+            else existing_profile.get("calorie_floor") or "recommended"
+        ),
     }
     # A pace carried over from a different goal no longer applies; fall back to the default.
     if resolved["goal_type"] and not is_valid_goal_pace(resolved["goal_type"], resolved["goal_pace"]):
@@ -427,6 +433,7 @@ def update_user_profile(
             "activity_level",
             "dietary_pattern",
             "allergy_notes",
+            "calorie_floor",
         )
     )
 
@@ -454,6 +461,7 @@ def update_user_profile(
             activity_level=str(resolved["activity_level"]),
             goal_type=str(resolved["goal_type"]),
             goal_pace=resolved["goal_pace"],
+            calorie_floor=str(resolved["calorie_floor"]),
         )
         profile = repository.save_user_onboarding(
             user_id=session.user_id,
@@ -485,6 +493,7 @@ def update_user_profile(
             fiber_target_g=targets.fiber_target_g,
             calculation_version=targets.calculation_version,
             target_source=targets.target_source,
+            calorie_floor=str(resolved["calorie_floor"]),
         )
         repository.save_user_goal(
             user_id=session.user_id,

@@ -49,6 +49,12 @@ def generate_macro_targets(
     fat_floor = weight_kg * fat_floor_per_kg
     fat_from_calorie_share = (calorie_target * fat_share) / 9
     fat_goal = round(max(fat_floor, fat_from_calorie_share), 1)
+    # Very low targets (possible when the calorie floor is off): protein and fat per kg can
+    # exceed the calories. Then fat shrinks first, then protein, so the macros fit the target.
+    if protein_goal * 4 + fat_goal * 9 > calorie_target:
+        fat_goal = round(max(calorie_target - protein_goal * 4, 0) / 9, 1)
+        if protein_goal * 4 > calorie_target:
+            protein_goal = round(calorie_target / 4, 1)
     carb_calories = max(calorie_target - protein_goal * 4 - fat_goal * 9, 0)
     carbs_goal = round(carb_calories / 4, 1)
     return protein_goal, carbs_goal, fat_goal

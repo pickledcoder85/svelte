@@ -31,17 +31,32 @@ def test_preview_weekly_rates_follow_the_daily_change():
     assert options[("maintain", "steady")]["weekly_change_lbs"] == 0
 
 
-def test_minimum_floor_is_reported_instead_of_hidden():
-    # Maintenance ~1,475 kcal: above the 1,200 floor, but the faster losses would go below it.
+def test_preview_shows_the_honest_number_and_the_floored_one():
+    # Maintenance ~1,475 kcal: above the 1,200 minimum for women, but Fast would go below it.
     small = {"sex": "female", "age_years": 40, "height_cm": 160, "current_weight_lbs": 130, "activity_level": "sedentary"}
     preview = preview_target_options(**small)
-    assert preview["maintenance_calories"] > 1200
+    assert preview["recommended_minimum_calories"] == 1200
     options = {(o["goal_type"], o["goal_pace"]): o for o in preview["options"]}
     extreme = options[("lose", "extreme")]
-    assert extreme["calorie_target"] == 1200
-    assert extreme["limited_by_minimum"] is True
-    assert options[("maintain", "steady")]["limited_by_minimum"] is False
-    assert options[("gain", "lean")]["limited_by_minimum"] is False
+    assert extreme["calorie_target"] == preview["maintenance_calories"] - 1000
+    assert extreme["below_recommended_minimum"] is True
+    assert extreme["floor_calorie_target"] == 1200
+    assert extreme["floor_weekly_change_lbs"] > extreme["weekly_change_lbs"]
+    steady = options[("maintain", "steady")]
+    assert steady["below_recommended_minimum"] is False
+    assert steady["floor_calorie_target"] == steady["calorie_target"]
+
+
+def test_recommended_minimum_depends_on_sex_and_can_be_switched_off():
+    man = {"sex": "male", "age_years": 35, "height_cm": 170.2, "current_weight_lbs": 180, "activity_level": "sedentary"}
+    assert preview_target_options(**man)["recommended_minimum_calories"] == 1500
+    floored = generate_nutrition_targets(**man, goal_type="lose", goal_pace="extreme")
+    honest = generate_nutrition_targets(**man, goal_type="lose", goal_pace="extreme", calorie_floor="off")
+    assert floored.calorie_target == 1500
+    assert honest.calorie_target == honest.maintenance_calories - 1000
+    assert honest.calorie_target < 1500
+    woman = {**man, "sex": "female"}
+    assert generate_nutrition_targets(**woman, goal_type="lose", goal_pace="extreme").calorie_target == 1200
 
 
 def test_maintenance_focus_keeps_calories_and_shifts_macros():
@@ -108,10 +123,11 @@ def test_preview_flags_when_maintenance_itself_is_below_the_floor():
     assert preview["maintenance_calories"] < 1200
     assert preview["maintenance_below_minimum"] is True
     options = {(o["goal_type"], o["goal_pace"]): o for o in preview["options"]}
-    # The floor makes even "lose" a small surplus; the flag only marks clamped loss paces.
-    assert options[("lose", "recommended")]["weekly_change_lbs"] > 0
-    assert options[("lose", "recommended")]["limited_by_minimum"] is True
-    assert options[("maintain", "steady")]["limited_by_minimum"] is False
+    # With the floor on even "lose" becomes a small surplus; the honest number is still a loss.
+    assert options[("lose", "recommended")]["floor_weekly_change_lbs"] > 0
+    assert options[("lose", "recommended")]["weekly_change_lbs"] < 0
+    assert options[("lose", "recommended")]["below_recommended_minimum"] is True
+    assert options[("maintain", "steady")]["below_recommended_minimum"] is True
     assert preview_target_options(**BODY)["maintenance_below_minimum"] is False
 
 
@@ -160,3 +176,38 @@ def test_preview_gives_maintenance_for_every_activity_level():
     for level, maintenance in by_level.items():
         assert maintenance == preview_target_options(**body, activity_level=level)["maintenance_calories"]
     assert by_level["sedentary"] < by_level["light"] < by_level["moderate"] < by_level["very_active"] < by_level["extra_active"]
+
+
+@pytest.mark.asyncio
+async def test_opting_out_of_the_floor_is_saved_and_can_be_changed(client, auth_headers):
+    small_man = {"sex": "male", "age_years": 45, "height_cm": 170.2, "current_weight_lbs": 180,
+                 "activity_level": "sedentary", "goal_type": "lose", "goal_pace": "extreme",
+                 "dietary_pattern": "omnivore"}
+    done = await client.post("/api/profile/onboarding", headers=auth_headers, json={**small_man, "calorie_floor": "off"})
+    assert done.status_code == 200
+    profile = done.json()
+    assert profile["calorie_floor"] == "off"
+    assert profile["initial_calorie_target"] == profile["tdee_calories"] - 1000
+
+    # Turning the floor back on (Settings) recalculates the target to the minimum for men.
+    back_on = await client.put(
+        "/api/profile",
+        headers=auth_headers,
+        json={"timezone": profile["timezone"], "units": profile["units"], "calorie_floor": "recommended"},
+    )
+    assert back_on.status_code == 200
+    assert back_on.json()["calorie_floor"] == "recommended"
+    assert back_on.json()["initial_calorie_target"] == 1500
+
+    # A reset returns the choice to the recommended default.
+    reset = await client.post("/api/profile/setup/reset", headers=auth_headers)
+    assert reset.json()["calorie_floor"] == "recommended"
+
+
+def test_macros_fit_inside_very_low_targets_with_the_floor_off():
+    tiny = {"sex": "female", "age_years": 75, "height_cm": 145, "current_weight_lbs": 95, "activity_level": "sedentary"}
+    for pace in ("light", "recommended", "extreme"):
+        targets = generate_nutrition_targets(**tiny, goal_type="lose", goal_pace=pace, calorie_floor="off")
+        macro_calories = targets.protein_target_g * 4 + targets.carbs_target_g * 4 + targets.fat_target_g * 9
+        assert macro_calories <= targets.calorie_target + 1
+        assert min(targets.protein_target_g, targets.carbs_target_g, targets.fat_target_g) >= 0

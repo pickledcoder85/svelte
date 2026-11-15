@@ -25,7 +25,8 @@ DietaryPattern = Literal["vegan", "vegetarian", "pescatarian", "omnivore", "carn
 NutritionStyle = Literal["balanced", "keto", "mediterranean"]
 TargetSource = Literal["system_default", "user_custom", "agent_adjusted", "admin_override"]
 
-CALCULATION_VERSION = "v1"
+# v2: sex-based recommended minimum (1,200 / 1,500) that users can opt out of.
+CALCULATION_VERSION = "v2"
 
 
 class GeneratedNutritionTargets(BaseModel):
