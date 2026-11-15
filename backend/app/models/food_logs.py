@@ -52,6 +52,8 @@ class FoodLogEntry(BaseModel):
     carbs: float
     fat: float
     created_at: datetime
+    # breakfast, lunch, dinner, snack; None when not given.
+    meal_slot: Literal["breakfast", "lunch", "dinner", "snack"] | None = None
 
 
 class FoodLog(BaseModel):

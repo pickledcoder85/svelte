@@ -60,6 +60,8 @@ export interface FoodLogEntry {
   servings?: number;
   /** Set when the entry was created by ticking a meal-plan slot. */
   meal_plan_slot_id?: string | null;
+  /** breakfast, lunch, dinner, snack; null when not given. */
+  meal_slot?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
 }
 
 export interface FoodLogSummary {

@@ -11,10 +11,12 @@ from backend.app.models.food_logs import FoodLog
 from backend.app.services.food_bank import (
     FoodBankError,
     LogFoodRequest,
+    QuickCaloriesRequest,
     ServingWeightRequest,
     add_food_to_bank,
     list_bank_for_user,
     log_food,
+    log_quick_calories,
     search_foods_for_user,
     set_food_serving_weight,
 )
@@ -121,6 +123,17 @@ async def post_log_food(
     if log is None:
         raise HTTPException(status_code=404, detail="Food not found.")
     return log
+
+
+@router.post("/quick-calories", response_model=FoodLog)
+async def post_quick_calories(
+    payload: QuickCaloriesRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> FoodLog:
+    """Log a number of calories (and optional macros) without looking a food up."""
+    repository.ensure_user_identity(user_id=session.user_id, email=session.email, display_name=session.display_name)
+    return log_quick_calories(repository, session.user_id, payload)
 
 
 @router.get("/favorites/foods", response_model=list[FoodItem])

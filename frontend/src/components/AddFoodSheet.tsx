@@ -1,12 +1,13 @@
 /**
- * Add a food to a day: the food and its serving, 1 serving with − / + in halves or a weight,
- * the calories and macros for that amount, and Add. Used after a quick scan and after saving a
- * scanned food on the Scan screen.
+ * The one sheet every way of finding a food ends on (scan, search, the Scan screen): the food
+ * and its serving, ☆ favorite, the amount (servings with − / + in halves, or a weight), the
+ * calories and macros for it, the meal, then Add to the day, or Save to the food bank only.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { logFood } from '../lib/api';
+import { addFavoriteFood, addFoodToBank, logFood, unfavoriteFood } from '../lib/api';
+import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, MEAL_SLOT_LABELS, type MealSlot } from '../lib/meal-slots';
 import {
   defaultAmount,
   formatServings,
@@ -25,8 +26,12 @@ export function AddFoodSheet({
   logDate,
   dayName,
   onAdded,
+  onSaved,
   onClose,
-  onScanAgain
+  onScanAgain,
+  note,
+  prepare,
+  extraAction
 }: {
   foods: FoodItem[];
   fromBank: boolean;
@@ -34,14 +39,54 @@ export function AddFoodSheet({
   logDate: string;
   dayName: string;
   onAdded(food: FoodItem): void;
+  /** Saved to the food bank without logging it. */
+  onSaved?(food: FoodItem): void;
   onClose(): void;
   onScanAgain?(): void;
+  /** E.g. "Matched to … from Open Food Facts. Check it against the label." */
+  note?: string | null;
+  /** For a scan not saved yet: save it (to the food bank) and return the real food first. */
+  prepare?(food: FoodItem): Promise<FoodItem>;
+  /** One more choice, e.g. "Scan the nutrition label" for a matched package. */
+  extraAction?: { label: string; onPress(): void };
 }) {
+  const [favorite, setFavorite] = useState(Boolean(foods[0]?.favorite));
+  // A pending scan is saved once, and a food is logged once, even if a later step fails and
+  // the user taps again.
+  const preparedRef = useRef<FoodItem | null>(null);
+  const loggedRef = useRef(false);
+  const [mealSlot, setMealSlot] = useState<MealSlot>(() => defaultMealSlot());
   const [foodIndex, setFoodIndex] = useState(0);
   const [amount, setAmount] = useState<QuickAmount>(defaultAmount);
   const [gramsDraft, setGramsDraft] = useState(foods[0]?.serving_grams ? String(Math.round(foods[0].serving_grams)) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The star shows the chosen food's own favorite state.
+  useEffect(() => {
+    setFavorite(Boolean(foods[Math.min(foodIndex, foods.length - 1)]?.favorite));
+  }, [foodIndex, foods]);
+
+  async function realFood(food: FoodItem): Promise<FoodItem> {
+    if (!prepare) {
+      return food;
+    }
+    preparedRef.current ??= await prepare(food);
+    return preparedRef.current;
+  }
+
+  /** Best effort: the food is already logged or saved, so a failure here doesn't undo that. */
+  async function keepFavorite(food: FoodItem) {
+    try {
+      if (favorite && !food.favorite) {
+        await addFavoriteFood(food.id, accessToken);
+      } else if (!favorite && food.favorite) {
+        await unfavoriteFood(food.id, accessToken);
+      }
+    } catch {
+      // Change it later in Foods.
+    }
+  }
 
   async function add(food: FoodItem) {
     if (saving) {
@@ -50,10 +95,34 @@ export function AddFoodSheet({
     setSaving(true);
     setError(null);
     try {
-      await logFood(logPayload(food.id, logDate, amount) as Parameters<typeof logFood>[0], accessToken);
-      onAdded(food);
+      const real = await realFood(food);
+      if (!loggedRef.current) {
+        await logFood({ ...logPayload(real.id, logDate, amount), meal_slot: mealSlot } as Parameters<typeof logFood>[0], accessToken);
+        loggedRef.current = true;
+      }
+      await keepFavorite(real);
+      onAdded(real);
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : 'Unable to add this food.');
+      setSaving(false);
+    }
+  }
+
+  async function saveOnly(food: FoodItem) {
+    if (saving) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const real = await realFood(food);
+      if (!real.in_bank && !prepare) {
+        await addFoodToBank(real.id, accessToken);
+      }
+      await keepFavorite(real);
+      (onSaved ?? onClose)(real);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save this food.');
       setSaving(false);
     }
   }
@@ -73,11 +142,23 @@ export function AddFoodSheet({
             {food ? (
               <>
                 <View style={styles.header}>
-                  <Text style={styles.title}>{food.name}</Text>
+                  <View style={styles.titleRow}>
+                    <Pressable
+                      onPress={() => setFavorite((value) => !value)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: favorite }}
+                      accessibilityLabel="Favorite"
+                      hitSlop={10}
+                    >
+                      <Text style={[styles.star, favorite && styles.starOn]}>{favorite ? '★' : '☆'}</Text>
+                    </Pressable>
+                    <Text style={styles.title}>{food.name}</Text>
+                  </View>
                   <Text style={styles.muted}>
                     {[food.brand, food.serving_text ? `1 serving = ${food.serving_text}` : null].filter(Boolean).join(' · ')}
                   </Text>
-                  <Text style={styles.source}>{fromBank ? 'From your food bank' : 'Saved to your food bank'}</Text>
+                  <Text style={styles.source}>{fromBank ? 'From your food bank' : prepare ? 'New: saved to your food bank when you add or save it' : 'New: saved to your food bank'}</Text>
+                  {note ? <Text style={styles.note}>{note}</Text> : null}
                 </View>
 
                 {foods.length > 1 ? (
@@ -169,6 +250,20 @@ export function AddFoodSheet({
                   <Text style={styles.muted}>Enter a weight.</Text>
                 )}
 
+                <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Meal">
+                  {MEAL_SLOTS.map((slot) => (
+                    <Pressable
+                      key={slot}
+                      style={[styles.chip, slot === mealSlot && styles.chipActive]}
+                      onPress={() => setMealSlot(slot)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: slot === mealSlot }}
+                    >
+                      <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{MEAL_SLOT_LABELS[slot]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
                 {error ? <Text style={styles.error}>{error}</Text> : null}
 
                 <Pressable
@@ -177,17 +272,22 @@ export function AddFoodSheet({
                   disabled={!preview || saving}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.primaryLabel}>{saving ? 'Adding…' : `Add to ${dayName}`}</Text>
+                  <Text style={styles.primaryLabel}>{saving ? 'Adding…' : addButtonLabel(dayName, mealSlot)}</Text>
                 </Pressable>
-                {onScanAgain ? (
-                  <Pressable style={styles.secondary} onPress={onScanAgain} accessibilityRole="button">
-                    <Text style={styles.secondaryLabel}>Scan something else</Text>
+                {extraAction ? (
+                  <Pressable style={styles.secondary} onPress={extraAction.onPress} disabled={saving} accessibilityRole="button">
+                    <Text style={styles.secondaryLabel}>{extraAction.label}</Text>
                   </Pressable>
-                ) : (
-                  <Pressable style={styles.secondary} onPress={onClose} accessibilityRole="button">
-                    <Text style={styles.secondaryLabel}>Not now</Text>
+                ) : null}
+                <View style={styles.secondaryRow}>
+                  <Pressable style={styles.secondary} onPress={() => void saveOnly(food)} disabled={saving} accessibilityRole="button">
+                    <Text style={styles.secondaryLabel}>Save to food bank only</Text>
                   </Pressable>
-                )}
+                  <Text style={styles.muted}>·</Text>
+                  <Pressable style={styles.secondary} onPress={onScanAgain ?? onClose} accessibilityRole="button">
+                    <Text style={styles.secondaryLabel}>{onScanAgain ? 'Scan again' : 'Cancel'}</Text>
+                  </Pressable>
+                </View>
               </>
             ) : null}
           </ScrollView>
@@ -215,9 +315,14 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 20, paddingBottom: 8, gap: 14 },
   center: { alignItems: 'center', gap: 10, paddingVertical: 28 },
   header: { gap: 4 },
-  title: { color: tc.fg_132536, fontSize: 20, fontWeight: '800' },
+  title: { color: tc.fg_132536, fontSize: 20, fontWeight: '800', flex: 1 },
   muted: { color: tc.fg_5c6d80, fontSize: 14, lineHeight: 19 },
   source: { color: tc.fg_0f766e, fontSize: 12, fontWeight: '700' },
+  note: { color: tc.fg_7a4e16, fontSize: 13, lineHeight: 18, backgroundColor: tc.bg_fff8ea, borderRadius: 10, padding: 10, marginTop: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  star: { fontSize: 26, lineHeight: 28, color: tc.fg_8a97a8 },
+  starOn: { color: tc.fg_ca8a04 },
+  secondaryRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7 },
   chipActive: { backgroundColor: tc.bg_17324d, borderColor: tc.line_17324d },

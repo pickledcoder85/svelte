@@ -1,4 +1,4 @@
-import type { IngestionOutput, VisionNutritionVariant } from '../types';
+import type { FoodItem, IngestionOutput, VisionNutritionVariant } from '../types';
 
 export interface EditableNutritionDraft {
   product_name: string;
@@ -277,4 +277,33 @@ export function describeAlternative(alternative: Record<string, unknown>): strin
   const name = [alternative.brand_name, alternative.product_name].filter((part) => typeof part === 'string' && part).join(' ');
   const calories = typeof alternative.calories === 'number' ? ` · ${Math.round(alternative.calories)} kcal` : '';
   return `${name || 'Food'}${calories}`;
+}
+
+/** A scan's reading as a food to show on the add sheet before anything is saved. */
+export function previewFoodFromScan(value: unknown): FoodItem | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const draft = buildNutritionDraft(value);
+  const calories = Number(draft.calories);
+  if (!draft.calories || !Number.isFinite(calories)) {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const grams = typeof payload.serving_grams === 'number' && payload.serving_grams > 0 ? payload.serving_grams : null;
+  return {
+    id: 'scan-preview',
+    name: draft.product_name || 'Scanned food',
+    brand: draft.brand_name || null,
+    calories,
+    serving_size: 1,
+    serving_unit: 'serving',
+    serving_text: draft.serving_size || null,
+    serving_grams: grams,
+    serving_basis: grams ? (payload.serving_basis === 'ml' ? 'ml' : 'g') : null,
+    macros: { protein: Number(draft.protein) || 0, carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0 },
+    source: 'LABEL_SCAN',
+    favorite: false,
+    in_bank: false
+  };
 }
