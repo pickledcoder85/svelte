@@ -124,6 +124,8 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ## Feature backlog
 
+- Dark mode follow-ups: check the iOS status bar in dark mode on the home-screen app (the `default` status-bar style may stay light); tune any screens that look off after use. Palette lives in `frontend/src/theme/palette.ts`.
+- Setup weight wheel precision: whole lb/kg today; consider 0.5 kg steps for metric, or a decimal wheel set further apart.
 - "Pickle Jar" re-scan: scanning a food already in the bank logs it in one tap; recent and frequent foods shelf.
 - Copy yesterday or repeat a meal.
 - Optional exercise add-back to the daily calorie target.

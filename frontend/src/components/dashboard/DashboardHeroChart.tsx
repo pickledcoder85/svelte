@@ -1,3 +1,5 @@
+import { tc } from '../../theme/palette';
+import { usePalette } from '../../theme/appearance';
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
@@ -34,6 +36,7 @@ export function DashboardHeroChart({
   targetValue: number;
   title: string;
 }): ReactElement {
+  const pal = usePalette();
   const [width, setWidth] = useState(0);
   const chartHeight = 240;
   const padding = { top: 16, right: 16, bottom: 24, left: 20 };
@@ -111,8 +114,8 @@ export function DashboardHeroChart({
           <Svg width={width} height={chartHeight}>
             <Defs>
               <LinearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor="#132536" stopOpacity="0.26" />
-                <Stop offset="100%" stopColor="#132536" stopOpacity="0.04" />
+                <Stop offset="0%" stopColor={pal.fg_132536} stopOpacity="0.26" />
+                <Stop offset="100%" stopColor={pal.fg_132536} stopOpacity="0.04" />
               </LinearGradient>
             </Defs>
 
@@ -123,7 +126,7 @@ export function DashboardHeroChart({
                 x2={width - padding.right}
                 y1={grid.y}
                 y2={grid.y}
-                stroke="#edf1f5"
+                stroke={pal.line_edf1f5}
                 strokeDasharray="4 6"
                 strokeWidth="1"
               />
@@ -132,7 +135,7 @@ export function DashboardHeroChart({
             <Path
               d={geometry.targetLinePath}
               fill="none"
-              stroke="#8ea0b6"
+              stroke={pal.fg_8ea0b6}
               strokeDasharray="6 6"
               strokeWidth="1.5"
             />
@@ -140,7 +143,7 @@ export function DashboardHeroChart({
               <Path
                 d={geometry.plannedLinePath}
                 fill="none"
-                stroke="#0f766e"
+                stroke={pal.fg_0f766e}
                 strokeDasharray="3 5"
                 strokeWidth="1.5"
               />
@@ -155,13 +158,13 @@ export function DashboardHeroChart({
                 x2={x}
                 y1={padding.top}
                 y2={chartHeight - padding.bottom}
-                stroke="#dce5ef"
+                stroke={pal.line_dce5ef}
                 strokeDasharray="4 6"
                 strokeWidth="1"
               />
             ))}
 
-            <Path d={geometry.linePath} fill="none" stroke="#132536" strokeWidth="3" />
+            <Path d={geometry.linePath} fill="none" stroke={pal.fg_132536} strokeWidth="3" />
 
             {geometry.nodes.map((point) => (
               <Circle
@@ -169,8 +172,8 @@ export function DashboardHeroChart({
                 cx={point.x}
                 cy={point.y}
                 r="4"
-                fill="#132536"
-                stroke="#ffffff"
+                fill={pal.fg_132536}
+                stroke={pal.bg_ffffff}
                 strokeWidth="2"
               />
             ))}
@@ -209,10 +212,10 @@ export function DashboardHeroChart({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     padding: 16,
     gap: 14
   },
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#dbe3ec',
+    borderBottomColor: tc.line_dbe3ec,
     paddingHorizontal: 0,
     paddingTop: 12,
     paddingBottom: 18
@@ -240,12 +243,12 @@ const styles = StyleSheet.create({
     gap: 10
   },
   title: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 20,
     fontWeight: '800'
   },
   detail: {
-    color: '#66778c',
+    color: tc.fg_66778c,
     fontSize: 13,
     lineHeight: 18
   },
@@ -263,30 +266,31 @@ const styles = StyleSheet.create({
     width: 18,
     height: 3,
     borderRadius: 999,
-    backgroundColor: '#132536'
+    // Same token as the plotted line, so the key matches in both modes.
+    backgroundColor: tc.fg_132536
   },
   legendGuide: {
     width: 18,
     height: 0,
     borderTopWidth: 2,
-    borderTopColor: '#8ea0b6',
+    borderTopColor: tc.line_8ea0b6,
     borderStyle: 'dashed'
   },
   legendPlannedGuide: {
     width: 18,
     height: 0,
     borderTopWidth: 2,
-    borderTopColor: '#0f766e',
+    borderTopColor: tc.fg_0f766e,
     borderStyle: 'dashed'
   },
   legendLabel: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     fontWeight: '700'
   },
   chartWrap: {
     minHeight: 240,
-    backgroundColor: '#f7fafc',
+    backgroundColor: tc.bg_f7fafc,
     borderRadius: 20,
     overflow: 'hidden',
     justifyContent: 'center'
@@ -304,16 +308,16 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   labelValue: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 11,
     fontWeight: '700'
   },
   labelCaption: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 11
   },
   caption: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 12,
     lineHeight: 17
   }

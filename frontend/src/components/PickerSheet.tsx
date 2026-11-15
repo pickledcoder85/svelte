@@ -2,6 +2,7 @@
  * A bottom sheet with wheels, like the iOS pickers: Cancel and Done in a toolbar, the dimmed
  * page behind it. Nothing changes until Done.
  */
+import { tc } from '../theme/palette';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -106,13 +107,13 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,23,32,0.35)'
+    backgroundColor: tc.backdrop
   },
   backdropPress: {
     flex: 1
   },
   sheet: {
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     width: '100%',
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#d8e1eb'
+    borderBottomColor: tc.line_d8e1eb
   },
   // Equal side slots keep the title centred on the sheet, not between the two buttons.
   toolbarSide: {
@@ -136,17 +137,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end'
   },
   title: {
-    color: '#132536',
+    color: tc.fg_132536,
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '700'
   },
   cancel: {
-    color: '#5c6d80',
+    color: tc.fg_5c6d80,
     fontSize: 16
   },
   done: {
-    color: '#0f766e',
+    color: tc.fg_0f766e,
     fontSize: 16,
     fontWeight: '800'
   },
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16
   },
   clearLabel: {
-    color: '#b42318',
+    color: tc.fg_b42318,
     fontSize: 15,
     fontWeight: '600'
   }

@@ -1,3 +1,4 @@
+import { tc } from '../../theme/palette';
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -40,17 +41,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 9,
-    backgroundColor: '#edf1f5'
+    backgroundColor: tc.bg_edf1f5
   },
   tabActive: {
-    backgroundColor: '#132536'
+    backgroundColor: tc.bg_132536
   },
   label: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 12,
     fontWeight: '700'
   },
   labelActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   }
 });

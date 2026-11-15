@@ -1,3 +1,5 @@
+import { resolveColor, tc } from '../../theme/palette';
+import { useAppearance, usePalette } from '../../theme/appearance';
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
@@ -22,6 +24,10 @@ export function DashboardHeaderMetrics({
   metrics: DashboardHeaderMetric[];
   onSelect: (metric: DashboardMetricKey) => void;
 }): ReactElement {
+  const pal = usePalette();
+  const { scheme } = useAppearance();
+  // In dark mode the selected card is bright green, so its ring is drawn dark to stay visible.
+  const darkActive = scheme === 'dark';
   return (
     <View style={styles.wrap}>
       {metrics.map((metric) => {
@@ -45,12 +51,12 @@ export function DashboardHeaderMetrics({
               <View style={styles.ringSection}>
                 <View style={styles.ringWrap}>
                   <Svg width={62} height={62}>
-                    <Circle cx="31" cy="31" r={radius} stroke={active ? '#4d6278' : '#dbe3ec'} strokeWidth="7" fill="none" />
+                    <Circle cx="31" cy="31" r={radius} stroke={active ? (darkActive ? 'rgba(16,23,15,0.22)' : pal.line_4d6278) : pal.line_dbe3ec} strokeWidth="7" fill="none" />
                     <Circle
                       cx="31"
                       cy="31"
                       r={radius}
-                      stroke={metric.accentColor ?? '#132536'}
+                      stroke={active && darkActive ? '#10170f' : resolveColor(metric.accentColor ?? tc.fg_132536, pal)}
                       strokeWidth="7"
                       fill="none"
                       strokeDasharray={`${circumference} ${circumference}`}
@@ -84,38 +90,38 @@ const styles = StyleSheet.create({
   card: {
     flexGrow: 1,
     minWidth: 110,
-    backgroundColor: '#ffffff',
+    backgroundColor: tc.bg_ffffff,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dee7',
+    borderColor: tc.line_d7dee7,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10
   },
   cardActive: {
-    backgroundColor: '#132536',
-    borderColor: '#132536'
+    backgroundColor: tc.bg_132536,
+    borderColor: tc.line_132536
   },
   cardHeader: {
     gap: 8
   },
   label: {
-    color: '#6b7b90',
+    color: tc.fg_6b7b90,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   labelActive: {
-    color: '#d8e1ed'
+    color: tc.fg_d8e1ed
   },
   value: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 17,
     fontWeight: '800'
   },
   valueActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   },
   ringSection: {
     alignItems: 'center',
@@ -134,11 +140,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   ringCenterText: {
-    color: '#132536',
+    color: tc.fg_132536,
     fontSize: 13,
     fontWeight: '800'
   },
   ringCenterTextActive: {
-    color: '#ffffff'
+    color: tc.fg_ffffff
   }
 });
