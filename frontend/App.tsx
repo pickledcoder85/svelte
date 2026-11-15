@@ -87,6 +87,9 @@ import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { QuickScanAdd } from './src/components/QuickScanAdd';
+import { FoodSearchSheet } from './src/components/FoodSearchSheet';
+import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
+import { groupByMeal } from './src/lib/meal-slots';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
@@ -502,7 +505,7 @@ export default function App(): ReactElement {
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
-  const [openSheet, setOpenSheet] = useState<'quick' | 'account' | 'add-food' | null>(null);
+  const [openSheet, setOpenSheet] = useState<'quick' | 'account' | 'add-food' | 'food-search' | 'quick-calories' | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
@@ -1936,6 +1939,11 @@ export default function App(): ReactElement {
       }),
     [homeCompletedExerciseEntries, homeFoodLog, latestProfileGoal, profile]
   );
+  const homeDayName =
+    selectedHomeDate === todayKey
+      ? 'today'
+      : new Date(`${selectedHomeDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+  const homeMealGroups = useMemo(() => groupByMeal(homeFoodLog.entries), [homeFoodLog.entries]);
   const homeOpenPlannedMeals = useMemo(
     () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
     [homeMealPlanDay, homeMealPlanEatenSlots]
@@ -2505,6 +2513,23 @@ export default function App(): ReactElement {
       setTrackerError(error instanceof Error ? error.message : 'Unable to update this exercise.');
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  /** Reload the chosen day's food after adding to it (today's log feeds the rest of the app). */
+  async function refreshHomeFoodLog() {
+    const token = foodSessionToken;
+    if (!token) {
+      return;
+    }
+    try {
+      if (selectedHomeDate === todayKey) {
+        setFoodLog(await fetchTodaysFoodLog(token));
+      } else {
+        setHomeFoodLog(await fetchFoodLogForDate(selectedHomeDate, token));
+      }
+    } catch {
+      // The Meals list catches up on the next load.
     }
   }
 
@@ -4819,7 +4844,7 @@ export default function App(): ReactElement {
               {homeOpenPlannedMeals.length === 0 && homeFoodLog.entries.length === 0 ? (
                 <View style={styles.todayEmpty}>
                   <Text style={styles.dailyHomeEmptyState}>Nothing eaten yet.</Text>
-                  <Text style={styles.todayHint}>Tap + to scan or search for a food.</Text>
+                  <Text style={styles.todayHint}>Tap + to search, scan, or add quick calories.</Text>
                 </View>
               ) : null}
               {homeMealPlanDay
@@ -4855,31 +4880,39 @@ export default function App(): ReactElement {
                     );
                   })
                 : null}
-              {homeFoodLog.entries.map((entry) => {
-                const deleteKey = `food:${entry.id}`;
-                return (
-                  <View key={entry.id} style={styles.todayRow}>
-                    <View style={styles.listRowCopyFlex}>
-                      <Text style={styles.listTitle}>{entry.food_name}</Text>
-                      <Text style={styles.listCaption}>
-                        P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
-                      </Text>
-                    </View>
-                    <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
-                    <Pressable
-                      style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
-                      onPress={() => void removeHomeFoodEntry(entry)}
-                      disabled={entryActionBusyKey === deleteKey}
-                      accessibilityRole="button"
-                      accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.food_name}` : `Delete ${entry.food_name}`}
-                    >
-                      <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                        {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
-                      </Text>
-                    </Pressable>
+              {homeMealGroups.map((group) => (
+                <View key={group.slot} style={styles.todayMealGroup}>
+                  <View style={styles.todayMealGroupHeader}>
+                    <Text style={styles.todayMealGroupLabel}>{group.label}</Text>
+                    <Text style={styles.todayMealGroupCalories}>{group.calories.toLocaleString('en-US')} kcal</Text>
                   </View>
-                );
-              })}
+                  {group.entries.map((entry) => {
+                    const deleteKey = `food:${entry.id}`;
+                    return (
+                      <View key={entry.id} style={styles.todayRow}>
+                        <View style={styles.listRowCopyFlex}>
+                          <Text style={styles.listTitle}>{entry.food_name}</Text>
+                          <Text style={styles.listCaption}>
+                            P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
+                          </Text>
+                        </View>
+                        <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
+                        <Pressable
+                          style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
+                          onPress={() => void removeHomeFoodEntry(entry)}
+                          disabled={entryActionBusyKey === deleteKey}
+                          accessibilityRole="button"
+                          accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.food_name}` : `Delete ${entry.food_name}`}
+                        >
+                          <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
+                            {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           </View>
         )}
@@ -6982,31 +7015,37 @@ export default function App(): ReactElement {
         <QuickScanAdd
           accessToken={foodSessionToken}
           logDate={selectedHomeDate}
-          dayName={
-            selectedHomeDate === todayKey
-              ? 'today'
-              : new Date(`${selectedHomeDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
-          }
+          dayName={homeDayName}
           onClose={() => setQuickScanOpen(false)}
-          onPhotographLabel={() => {
-            setQuickScanOpen(false);
-            setScanAutoStart(true);
-            handleSectionChange('ingestion');
-          }}
           onAdded={() => {
             setQuickScanOpen(false);
-            const token = foodSessionToken;
-            void (async () => {
-              try {
-                if (selectedHomeDate === todayKey) {
-                  setFoodLog(await fetchTodaysFoodLog(token));
-                } else {
-                  setHomeFoodLog(await fetchFoodLogForDate(selectedHomeDate, token));
-                }
-              } catch {
-                // The Meals list catches up on the next load.
-              }
-            })();
+            void refreshHomeFoodLog();
+          }}
+        />
+      ) : null}
+
+      {openSheet === 'food-search' && foodSessionToken ? (
+        <FoodSearchSheet
+          accessToken={foodSessionToken}
+          logDate={selectedHomeDate}
+          dayName={homeDayName}
+          onClose={() => setOpenSheet(null)}
+          onAdded={() => {
+            setOpenSheet(null);
+            void refreshHomeFoodLog();
+          }}
+        />
+      ) : null}
+
+      {openSheet === 'quick-calories' && foodSessionToken ? (
+        <QuickCaloriesSheet
+          accessToken={foodSessionToken}
+          logDate={selectedHomeDate}
+          dayName={homeDayName}
+          onClose={() => setOpenSheet(null)}
+          onAdded={() => {
+            setOpenSheet(null);
+            void refreshHomeFoodLog();
           }}
         />
       ) : null}
@@ -7016,28 +7055,25 @@ export default function App(): ReactElement {
           title={selectedHomeDate === todayKey ? 'Add food to today' : 'Add food'}
           actions={[
             {
-              id: 'barcode',
-              label: 'Scan a barcode',
-              detail: 'Fastest: packaged foods with a barcode',
-              icon: '▥',
+              id: 'search',
+              label: 'Search foods',
+              detail: 'Your foods first, then USDA (e.g. "green apple")',
+              icon: '🔎',
+              onPress: () => setOpenSheet('food-search')
+            },
+            {
+              id: 'scan',
+              label: 'Scan',
+              detail: 'Barcode, package front, or nutrition label',
+              icon: '📷',
               onPress: () => setQuickScanOpen(true)
             },
             {
-              id: 'package',
-              label: 'Scan the package or label',
-              detail: 'No barcode? Hold the package front or nutrition label steady',
-              icon: '📷',
-              onPress: () => {
-                setScanAutoStart(true);
-                handleSectionChange('ingestion');
-              }
-            },
-            {
-              id: 'search',
-              label: 'Search foods',
-              detail: 'Your food bank and USDA',
-              icon: '🔎',
-              onPress: () => handleSectionChange('foods')
+              id: 'quick-calories',
+              label: 'Quick calories',
+              detail: 'Just a number, no lookup',
+              icon: '✏️',
+              onPress: () => setOpenSheet('quick-calories')
             }
           ]}
           onClose={() => setOpenSheet(null)}
@@ -8336,6 +8372,10 @@ const styles = StyleSheet.create({
   dashboardStack: {
     gap: 0
   },
+  todayMealGroup: { gap: 0, marginTop: 6 },
+  todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
+  todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  todayMealGroupCalories: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '700' },
   todaySectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   todayAddButton: {
     width: 36,

@@ -1,5 +1,6 @@
 import { localDateKey } from './dates';
 import type { TargetPreview } from './setup-goals';
+import type { MealSlot } from './meal-slots';
 import type {
   BarcodeLookupResult,
   ExerciseEntry,
@@ -39,6 +40,7 @@ interface ApiFoodLogEntry {
   food_item_id: string | null;
   meal_template_id: string | null;
   meal_plan_slot_id?: string | null;
+  meal_slot?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
   display_name: string | null;
   brand: string | null;
   source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | 'OPEN_FOOD_FACTS' | null;
@@ -192,7 +194,8 @@ function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
     },
     logged_at: entry.created_at,
     servings: entry.servings,
-    meal_plan_slot_id: entry.meal_plan_slot_id ?? null
+    meal_plan_slot_id: entry.meal_plan_slot_id ?? null,
+    meal_slot: entry.meal_slot ?? null
   }));
 
   return {
@@ -650,11 +653,25 @@ export async function addFoodToBank(foodId: string, accessToken: string): Promis
 
 /** Log a food by servings or by weight; the server works out calories and macros. */
 export async function logFood(
-  payload: { food_id: string; log_date: string } & ({ servings: number } | { grams: number }),
+  payload: { food_id: string; log_date: string; meal_slot?: MealSlot } & ({ servings: number } | { grams: number }),
   accessToken: string
 ): Promise<unknown> {
   return readJson<unknown>(
     await apiFetch(buildApiUrl('/nutrition/log-food'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+/** Log just a number of calories (and optional macros), no food lookup. */
+export async function logQuickCalories(
+  payload: { log_date: string; calories: number; name?: string; protein?: number; carbs?: number; fat?: number; meal_slot?: MealSlot },
+  accessToken: string
+): Promise<unknown> {
+  return readJson<unknown>(
+    await apiFetch(buildApiUrl('/nutrition/quick-calories'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
       body: JSON.stringify(payload)
