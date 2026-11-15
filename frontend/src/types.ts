@@ -388,7 +388,8 @@ export type AppSection =
   | 'meal-prep'
   | 'recipes'
   | 'ingestion'
-  | 'settings';
+  | 'settings'
+  | 'trends';
 
 export interface DashboardSnapshot {
   connectionLabel: string;

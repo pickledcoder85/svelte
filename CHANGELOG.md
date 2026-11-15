@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- New navigation, like leading fitness apps: a bottom tab bar (Today · Log · ＋ · Trends · Plan) replaces the hamburger menu. Log has sub-tabs Diary, Foods, and Scan; Plan has Meal plan, Prep, Recipes, and Meals. The raised ＋ opens quick actions (Log food, Scan, Log workout, Weigh-in) from anywhere. The Gherkin avatar opens an account sheet with Profile and Settings. A new Trends tab holds the calorie chart (moved from Today) and the progress and weigh-in cards (moved from Profile). Screens moved as they were; the Food screen redesign comes next inside Log and ＋.
 - Removed the "Live backend" status: the card at the top of every screen except Home, the status line at the bottom of Home, the menu's "Mode: Owner" row (the session controls now only show in development), and Scan Food's "Session: Live" tile; Scan Food's status says "Scans" in plain words.
 - Haptics experiment removed: on iOS 27 a web app only gets the switch haptic when the user's finger flips a visible switch; triggering it from code (the hidden-switch trick) is blocked, so wheel and slider ticks never played. Tested on the owner's iPhone with a temporary Settings test.
 - The below-the-minimum warning is roomier: two tiles compare this pace's calories with the recommended minimum, one short sentence covers the risks, a tinted tip suggests eating the minimum and burning the difference by moving more, and the buttons are short ("Use 1,500 kcal" / "Keep 1,180 kcal") with a caption underneath, so nothing wraps. The sheet scrolls on small phones.

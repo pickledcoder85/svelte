@@ -80,9 +80,10 @@ import {
   WORKOUT_CALORIE_SHARES,
   type WorkoutCaloriesShare
 } from './src/lib/daily-home';
-import {
-  appShellMenuGroups
-} from './src/lib/app-shell';
+import { APP_TABS, QUICK_ACTIONS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
+import { ActionSheet } from './src/components/ActionSheet';
+import { SubTabs } from './src/components/SubTabs';
+import { TabBar } from './src/components/TabBar';
 import { DashboardTimeRangeTabs } from './src/components/dashboard/DashboardTimeRangeTabs';
 import { DashboardHeroChart } from './src/components/dashboard/DashboardHeroChart';
 import {
@@ -490,7 +491,13 @@ export default function App(): ReactElement {
   const [ownerCheckNonce, setOwnerCheckNonce] = useState(0);
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
-  const [isShellMenuOpen, setIsShellMenuOpen] = useState(false);
+  // Bottom sheets from the tab bar's ＋ and the header avatar.
+  const [openSheet, setOpenSheet] = useState<'quick' | 'account' | null>(null);
+  const mainScrollRef = useRef<ScrollView | null>(null);
+  // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
+  const weighInY = useRef(0);
+  const trendsPanelY = useRef(0);
+  const [scrollToWeighIn, setScrollToWeighIn] = useState(false);
   const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
   const [syncTone, setSyncTone] = useState<'checking' | 'live'>('checking');
@@ -582,12 +589,30 @@ export default function App(): ReactElement {
       setFloorMessage(null);
     }
     setSection(nextSection);
-    setIsShellMenuOpen(false);
+    setOpenSheet(null);
   }
 
   useEffect(() => {
-    setIsShellMenuOpen(false);
+    setOpenSheet(null);
   }, [section, entryMode]);
+
+  // Every screen opens at the top (one ScrollView holds them all, so the offset would carry over).
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [section]);
+
+  /** A tab opens its first screen; tapping the tab you're on scrolls back to the top, as on iOS. */
+  function openTab(tab: AppTabId) {
+    const target = APP_TABS.find((item) => item.id === tab);
+    if (!target) {
+      return;
+    }
+    if (tabForSection(section) === tab) {
+      mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    handleSectionChange(target.sections[0].id);
+  }
 
   useEffect(() => {
     // A pace (lose/gain) or focus (maintain) always belongs to the chosen goal.
@@ -1741,7 +1766,7 @@ export default function App(): ReactElement {
     setEntryError(null);
     setProfileLoaded(false);
     setSection('dashboard');
-    setIsShellMenuOpen(false);
+    setOpenSheet(null);
     setEntryIntent(null);
     setEntryMode(null);
     setEntryBackendStatus('Ready to create a new local profile session');
@@ -4444,7 +4469,7 @@ export default function App(): ReactElement {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView ref={mainScrollRef} style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.appHeader}>
           <View style={styles.appShellTopRow}>
             <View style={styles.appHeaderTitleWrap}>
@@ -4453,110 +4478,19 @@ export default function App(): ReactElement {
             <View style={styles.appShellActions}>
               <Pressable
                 style={styles.avatarButton}
-                onPress={() => handleSectionChange('profile')}
-                accessibilityLabel="Open profile"
+                onPress={() => setOpenSheet('account')}
+                accessibilityLabel="Account: profile and settings"
               >
                 <View style={styles.avatarBadge}>
                   <Image source={mascotAvatarImage} style={styles.avatarImage} resizeMode="cover" />
                 </View>
               </Pressable>
-              <Pressable
-                style={[styles.menuButton, isShellMenuOpen && styles.menuButtonActive]}
-                onPress={() => setIsShellMenuOpen((current) => !current)}
-                accessibilityLabel="Toggle navigation menu"
-              >
-                <View style={styles.menuIcon}>
-                  <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
-                  <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
-                  <View style={[styles.menuIconBar, isShellMenuOpen && styles.menuIconBarActive]} />
-                </View>
-              </Pressable>
             </View>
           </View>
 
-          {isShellMenuOpen ? (
-            <View style={styles.shellMenuCard}>
-              {appShellMenuGroups.map((group) => (
-                <View key={group.title} style={styles.shellMenuGroup}>
-                  <Text style={styles.shellMenuGroupTitle}>{group.title}</Text>
-                  <View style={styles.shellMenuList}>
-                    {group.sections.map((item) => {
-                      const active = item.id === section;
-                      return (
-                        <Pressable
-                          key={item.id}
-                          style={[styles.shellMenuItem, active && styles.shellMenuItemActive]}
-                          onPress={() => handleSectionChange(item.id)}
-                        >
-                          {item.id === 'settings' ? <CogIcon size={22} color={palette.fg_17324d} /> : null}
-                          <View style={styles.shellMenuItemCopy}>
-                            <Text style={[styles.shellMenuItemTitle, active && styles.shellMenuItemTitleActive]}>
-                              {item.label}
-                            </Text>
-                            <Text style={styles.shellMenuItemDetail}>{item.detail}</Text>
-                          </View>
-                          {active ? <Text style={styles.shellMenuItemState}>Open</Text> : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ))}
-
-              {/* Development only: switching sessions. The owner never sees this. */}
-              {isOwnerSession ? null : (
-              <View style={styles.shellMenuFooter}>
-                <View style={styles.shellMenuModeRow}>
-                  <View>
-                    <Text style={styles.modeControlLabel}>Mode</Text>
-                    <Text style={styles.shellMenuModeValue}>{entryMode === 'live' ? 'Local profile' : 'Preview demo'}</Text>
-                  </View>
-                </View>
-                <View style={styles.modeControlActions}>
-                  {entryMode === 'live' ? (
-                    <Pressable
-                      style={styles.inlinePillButton}
-                      onPress={logoutToEntryScreen}
-                    >
-                      <Text style={styles.inlinePillButtonLabel}>Log out</Text>
-                    </Pressable>
-                  ) : null}
-                  {entryMode === 'live' ? (
-                    <Pressable
-                      style={styles.inlinePillButton}
-                      onPress={() => {
-                        setIsShellMenuOpen(false);
-                        enterPreviewMode();
-                      }}
-                    >
-                      <Text style={styles.inlinePillButtonLabel}>Switch to preview</Text>
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      style={styles.inlinePillButton}
-                      onPress={() => {
-                        setIsShellMenuOpen(false);
-                        returnToEntryScreen();
-                      }}
-                    >
-                      <Text style={styles.inlinePillButtonLabel}>Create live profile</Text>
-                    </Pressable>
-                  )}
-                  <Pressable
-                    style={styles.inlinePillButton}
-                    onPress={() => {
-                      setIsShellMenuOpen(false);
-                      returnToEntryScreen();
-                    }}
-                  >
-                    <Text style={styles.inlinePillButtonLabel}>Change entry mode</Text>
-                  </Pressable>
-                </View>
-              </View>
-              )}
-            </View>
+          {subTabsForSection(section).length > 0 ? (
+            <SubTabs items={subTabsForSection(section)} active={section} onSelect={handleSectionChange} />
           ) : null}
-
         </View>
 
         {section === 'dashboard' && (
@@ -4656,26 +4590,6 @@ export default function App(): ReactElement {
                 ) : null}
               </View>
 
-              <DashboardHeroChart
-                controls={
-                  <DashboardTimeRangeTabs
-                    activeRange={activeRange}
-                    onChange={setActiveRange}
-                    ranges={rangeTabs}
-                  />
-                }
-                caption={null}
-                detail={null}
-                legendLabel="Consumed calories"
-                plannedLabel="Planned calories"
-                plannedValue={dailyMealPlanSummary.hasPlan ? dailyMealPlanSummary.plannedCalories : null}
-                points={homeChartPoints}
-                range={activeRange}
-                targetLabel="Target calories"
-                targetValue={homeChartTargetValue}
-                title="Calories"
-                flat
-              />
 
               <View style={styles.homeSection}>
                   <View style={styles.recipeRowTitleWrap}>
@@ -4813,22 +4727,47 @@ export default function App(): ReactElement {
           </>
         )}
 
-        {section === 'profile' && (
-          <>
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>Profile</Text>
-                  <Text style={styles.panelTitle}>Your body and goals</Text>
-                </View>
-                <Text style={styles.panelDetail}>Update your weight, body stats, and goal here; your daily targets recalculate when you save. Units, time zone, and your name are in Settings.</Text>
-              </View>
+        {section === 'trends' && (
+          <View
+            style={styles.dashboardStack}
+            onLayout={(event) => {
+              if (scrollToWeighIn) {
+                const top = event.nativeEvent.layout.y;
+                // Wait a frame so the cards inside have laid out.
+                setTimeout(() => {
+                  mainScrollRef.current?.scrollTo({ y: top + trendsPanelY.current + weighInY.current - 12, animated: true });
+                  setScrollToWeighIn(false);
+                }, 60);
+              }
+            }}
+          >
+              <DashboardHeroChart
+                controls={
+                  <DashboardTimeRangeTabs
+                    activeRange={activeRange}
+                    onChange={setActiveRange}
+                    ranges={rangeTabs}
+                  />
+                }
+                caption={null}
+                detail={null}
+                legendLabel="Consumed calories"
+                plannedLabel="Planned calories"
+                plannedValue={dailyMealPlanSummary.hasPlan ? dailyMealPlanSummary.plannedCalories : null}
+                points={homeChartPoints}
+                range={activeRange}
+                targetLabel="Target calories"
+                targetValue={homeChartTargetValue}
+                title="Calories"
+                flat
+              />
 
-              <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
-                {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
-              </View>
-
+            <View
+              style={styles.panel}
+              onLayout={(event) => {
+                trendsPanelY.current = event.nativeEvent.layout.y;
+              }}
+            >
               <View style={styles.detailCard}>
                 <View style={styles.recipeRowTitleWrap}>
                   <View>
@@ -4886,7 +4825,19 @@ export default function App(): ReactElement {
                 </View>
               </View>
 
-              <View style={styles.detailCard}>
+              <View
+                style={styles.detailCard}
+                onLayout={(event) => {
+                  // Relative to the Trends panel; the panel's own offset is added when scrolling.
+                  weighInY.current = event.nativeEvent.layout.y;
+                }}
+              >
+                {profileStatus && section === 'trends' && /weight/i.test(`${profileStatus} ${profileError ?? ''}`) ? (
+                  <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
+                    <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
+                    {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
+                  </View>
+                ) : null}
                 <View style={styles.recipeRowTitleWrap}>
                   <View>
                     <Text style={styles.panelEyebrow}>Weight history</Text>
@@ -4931,6 +4882,26 @@ export default function App(): ReactElement {
                     {weightSaving ? 'Saving...' : 'Add weight entry'}
                   </Text>
                 </Pressable>
+              </View>
+
+            </View>
+          </View>
+        )}
+
+        {section === 'profile' && (
+          <>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <View>
+                  <Text style={styles.panelEyebrow}>Profile</Text>
+                  <Text style={styles.panelTitle}>Your body and goals</Text>
+                </View>
+                <Text style={styles.panelDetail}>Update your weight, body stats, and goal here; your daily targets recalculate when you save. Units, time zone, and your name are in Settings.</Text>
+              </View>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
+                {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
               </View>
 
               {profile ? (
@@ -6777,6 +6748,46 @@ export default function App(): ReactElement {
           </Text>
         ) : null}
       </ScrollView>
+
+      <TabBar activeTab={tabForSection(section)} onSelect={openTab} onPlus={() => setOpenSheet('quick')} />
+
+      {openSheet === 'quick' ? (
+        <ActionSheet
+          actions={QUICK_ACTIONS.map((action) => ({
+            id: action.id,
+            label: action.label,
+            detail: action.detail,
+            icon: action.icon,
+            onPress: () => {
+              if (action.id === 'weigh-in') {
+                setScrollToWeighIn(true); // land on the weigh-in card, not the chart
+              }
+              handleSectionChange(action.section);
+            }
+          }))}
+          onClose={() => setOpenSheet(null)}
+        />
+      ) : null}
+
+      {openSheet === 'account' ? (
+        <ActionSheet
+          title={profile?.display_name || 'Account'}
+          actions={[
+            { id: 'profile', label: 'Profile', detail: 'Body, goal, and targets', icon: '🥒', onPress: () => handleSectionChange('profile') },
+            { id: 'settings', label: 'Settings', detail: 'Appearance, units, nutrition, account', icon: '⚙️', onPress: () => handleSectionChange('settings') },
+            // Development sessions only: the owner never sees these.
+            ...(isOwnerSession
+              ? []
+              : entryMode === 'live'
+                ? [
+                    { id: 'preview', label: 'Switch to preview', onPress: enterPreviewMode },
+                    { id: 'logout', label: 'Log out', onPress: logoutToEntryScreen }
+                  ]
+                : [{ id: 'entry', label: 'Change entry mode', onPress: returnToEntryScreen }])
+          ]}
+          onClose={() => setOpenSheet(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -7704,33 +7715,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%'
   },
-  menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    backgroundColor: tc.bg_ffffff,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0
-  },
-  menuButtonActive: {
-    backgroundColor: tc.bg_17324d,
-    borderColor: tc.line_17324d
-  },
-  menuIcon: {
-    gap: 4
-  },
-  menuIconBar: {
-    width: 18,
-    height: 2,
-    borderRadius: 999,
-    backgroundColor: tc.bg_17324d
-  },
-  menuIconBarActive: {
-    backgroundColor: tc.bg_ffffff
-  },
   modeControlCard: {
     backgroundColor: tc.bg_ffffff,
     borderRadius: 20,
@@ -8017,83 +8001,6 @@ const styles = StyleSheet.create({
     color: tc.fg_5c6d80,
     fontSize: 13,
     lineHeight: 18
-  },
-  shellMenuCard: {
-    backgroundColor: tc.bg_f9fbfd,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 14,
-    gap: 14
-  },
-  shellMenuGroup: {
-    gap: 10
-  },
-  shellMenuGroupTitle: {
-    color: tc.fg_6b7b90,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8
-  },
-  shellMenuList: {
-    gap: 8
-  },
-  shellMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    paddingHorizontal: 14,
-    paddingVertical: 12
-  },
-  shellMenuItemActive: {
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_eef3f8
-  },
-  shellMenuItemCopy: {
-    flex: 1,
-    gap: 3
-  },
-  shellMenuItemTitle: {
-    color: tc.fg_132536,
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  shellMenuItemTitleActive: {
-    color: tc.fg_17324d
-  },
-  shellMenuItemDetail: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 17
-  },
-  shellMenuItemState: {
-    color: tc.fg_17324d,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  shellMenuFooter: {
-    borderTopWidth: 1,
-    borderTopColor: tc.line_d7dee7,
-    paddingTop: 14,
-    gap: 10
-  },
-  shellMenuModeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12
-  },
-  shellMenuModeValue: {
-    color: tc.fg_17324d,
-    fontSize: 16,
-    fontWeight: '800',
-    marginTop: 4
   },
   exercisePresetGrid: {
     flexDirection: 'row',
