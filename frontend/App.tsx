@@ -502,7 +502,7 @@ export default function App(): ReactElement {
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
-  const [openSheet, setOpenSheet] = useState<'quick' | 'account' | null>(null);
+  const [openSheet, setOpenSheet] = useState<'quick' | 'account' | 'add-food' | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const mainScrollRef = useRef<ScrollView | null>(null);
@@ -4723,10 +4723,7 @@ export default function App(): ReactElement {
               {homeOpenPlannedWorkouts.length === 0 && homeCompletedExerciseEntries.length === 0 ? (
                 <View style={styles.todayEmpty}>
                   <Text style={styles.dailyHomeEmptyState}>No workouts {selectedHomeDate === todayKey ? 'today' : 'this day'}.</Text>
-                  <Text style={styles.todayHint}>Garmin workouts show up here on their own.</Text>
-                  <Pressable style={styles.secondaryButton} onPress={() => handleSectionChange('tracker')} accessibilityRole="button">
-                    <Text style={styles.secondaryButtonLabel}>Add workout</Text>
-                  </Pressable>
+                  <Text style={styles.todayHint}>Garmin workouts show up here on their own, or tap + to add one.</Text>
                 </View>
               ) : null}
               {homeOpenPlannedWorkouts.map((entry) => {
@@ -4810,10 +4807,10 @@ export default function App(): ReactElement {
                 <Text style={styles.detailTitle}>Meals</Text>
                 <Pressable
                   style={styles.todayAddButton}
-                  onPress={() => setQuickScanOpen(true)}
+                  onPress={() => setOpenSheet('add-food')}
                   disabled={!foodSessionToken}
                   accessibilityRole="button"
-                  accessibilityLabel="Scan a food to add"
+                  accessibilityLabel="Add a food"
                 >
                   <Text style={styles.todayAddButtonLabel}>+</Text>
                 </Pressable>
@@ -4821,7 +4818,7 @@ export default function App(): ReactElement {
               {homeOpenPlannedMeals.length === 0 && homeFoodLog.entries.length === 0 ? (
                 <View style={styles.todayEmpty}>
                   <Text style={styles.dailyHomeEmptyState}>Nothing eaten yet.</Text>
-                  <Text style={styles.todayHint}>Tap + to scan a barcode and add it.</Text>
+                  <Text style={styles.todayHint}>Tap + to scan or search for a food.</Text>
                 </View>
               ) : null}
               {homeMealPlanDay
@@ -7007,6 +7004,36 @@ export default function App(): ReactElement {
               }
             })();
           }}
+        />
+      ) : null}
+
+      {openSheet === 'add-food' ? (
+        <ActionSheet
+          title={selectedHomeDate === todayKey ? 'Add food to today' : 'Add food'}
+          actions={[
+            {
+              id: 'barcode',
+              label: 'Scan a barcode',
+              detail: 'Fastest: packaged foods with a barcode',
+              icon: '▥',
+              onPress: () => setQuickScanOpen(true)
+            },
+            {
+              id: 'package',
+              label: 'Photograph the package or label',
+              detail: 'No barcode? Read the package front or the nutrition label',
+              icon: '📷',
+              onPress: () => handleSectionChange('ingestion')
+            },
+            {
+              id: 'search',
+              label: 'Search foods',
+              detail: 'Your food bank and USDA',
+              icon: '🔎',
+              onPress: () => handleSectionChange('foods')
+            }
+          ]}
+          onClose={() => setOpenSheet(null)}
         />
       ) : null}
 
