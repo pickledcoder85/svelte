@@ -11,6 +11,7 @@ import type {
   FoodItem,
   GarminStatus,
   BarcodeFoodResult,
+  SmartScanResult,
   FoodLogEntryInput,
   FoodLogSummary,
   MealInput,
@@ -595,6 +596,21 @@ export async function scanFoodPackage(
         ...authHeaders(accessToken)
       },
       body: JSON.stringify({ image_base64: imageBase64 })
+    })
+  );
+}
+
+/** The auto-capture scanner: one read that tells a nutrition label from a package front. */
+export async function smartScan(
+  imageBase64: string,
+  accessToken: string,
+  replaceOutputId?: string | null
+): Promise<SmartScanResult> {
+  return readJson<SmartScanResult>(
+    await apiFetch(buildApiUrl('/vision/scan'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ image_base64: imageBase64, replace_output_id: replaceOutputId ?? null })
     })
   );
 }

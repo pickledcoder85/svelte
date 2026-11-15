@@ -1,10 +1,12 @@
 /**
- * Full-screen live barcode viewfinder for the web app. Hold a barcode inside the band and it
- * is read automatically; "Take photo instead" falls back to the photo scan.
+ * Full-screen live viewfinder for the web app. Hold a barcode inside the band and it is read
+ * automatically. In smart mode it also captures one frame by itself once the package or label
+ * is held steady and sharp (a ring fills as it steadies); "Take a full photo" is the fallback.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { hintText, type StabilityState } from '../lib/frame-stability';
 import { startBarcodeScanner, type BarcodeScannerHandle } from '../lib/web-barcode-scanner';
 
 type Props = {
@@ -13,9 +15,15 @@ type Props = {
   onClose(): void;
   /** Called from the tap itself, so the photo camera may open (iOS requires a user gesture). */
   onTakePhoto(): void;
+  /** Smart mode: also auto-capture a package front or nutrition label. */
+  onCapture?(frame: Blob): void;
+  /** Smart mode for a nutrition label only: barcodes are ignored. */
+  labelOnly?: boolean;
 };
 
-export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto }: Props) {
+export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCapture, labelOnly }: Props) {
+  const smart = Boolean(onCapture);
+  const [stability, setStability] = useState<StabilityState | null>(null);
   // A callback ref: the Modal mounts its children in a portal, so wait for the element itself.
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const handleRef = useRef<BarcodeScannerHandle | null>(null);
@@ -29,7 +37,23 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto }: Pro
     let cancelled = false;
     setError(null);
     setStarting(true);
+    setStability(null);
     void startBarcodeScanner(video, {
+      decodeBarcodes: !labelOnly,
+      autoCapture: onCapture
+        ? {
+            onProgress: (state) => {
+              if (!cancelled) {
+                setStability(state);
+              }
+            },
+            onCapture: (frame) => {
+              if (!cancelled) {
+                onCapture(frame);
+              }
+            }
+          }
+        : undefined,
       onCode: (code) => {
         if (!cancelled) {
           onCode(code);
@@ -70,13 +94,32 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto }: Pro
         <video ref={setVideo} style={videoStyle} playsInline muted autoPlay />
         <View style={styles.overlay} pointerEvents="box-none">
           <View style={styles.header}>
-            <Text style={styles.title}>Scan a barcode</Text>
+            <Text style={styles.title}>{labelOnly ? 'Scan the nutrition label' : smart ? 'Scan' : 'Scan a barcode'}</Text>
             <Text style={styles.detail}>
-              {error ?? (starting ? 'Starting the camera…' : 'Hold the barcode inside the box. It reads by itself.')}
+              {error ??
+                (starting
+                  ? 'Starting the camera…'
+                  : smart
+                    ? stability && stability.hint !== 'steady'
+                      ? hintText(stability.hint)
+                      : labelOnly
+                        ? 'Hold the Nutrition Facts panel in the frame and keep still: it captures by itself.'
+                        : 'Barcode, package front, or nutrition label. Hold it in the frame and keep still: it captures by itself.'
+                    : 'Hold the barcode inside the box. It reads by itself.')}
             </Text>
           </View>
           <View style={styles.guideArea} pointerEvents="none">
-            <View style={styles.guide} />
+            <View
+              style={[
+                smart ? styles.smartGuide : styles.guide,
+                smart && stability && stability.progress > 0 ? { borderColor: `rgba(134,239,172,${0.4 + 0.6 * stability.progress})` } : null
+              ]}
+            />
+            {smart ? (
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${Math.round((stability?.progress ?? 0) * 100)}%` }]} />
+              </View>
+            ) : null}
           </View>
           <View style={styles.actions}>
             <Pressable
@@ -88,7 +131,7 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto }: Pro
               }}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryLabel}>Take photo instead</Text>
+              <Text style={styles.primaryLabel}>{smart ? 'Take a full photo' : 'Take photo instead'}</Text>
             </Pressable>
             <Pressable
               style={[styles.button, styles.secondaryButton]}
@@ -156,6 +199,28 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.9)'
+  },
+  // Smart mode: a label-sized frame (hold the phone about a hand's width away).
+  smartGuide: {
+    width: '86%',
+    aspectRatio: 0.8,
+    maxHeight: '78%',
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.9)'
+  },
+  progressTrack: {
+    width: '60%',
+    height: 6,
+    borderRadius: 999,
+    marginTop: 14,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#86efac'
   },
   actions: {
     gap: 10

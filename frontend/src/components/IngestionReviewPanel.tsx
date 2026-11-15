@@ -24,9 +24,10 @@ import {
   lookupBarcode,
   rejectIngestionOutput,
   saveFoodFromIngestionOutput,
-  scanFoodPackage
+  scanFoodPackage,
+  smartScan
 } from '../lib/api';
-import type { FoodItem, IngestionOutput, VisionPackageScanResult } from '../types';
+import type { FoodItem, IngestionOutput, SmartScanResult, VisionPackageScanResult } from '../types';
 import {
   buildAcceptedNutritionPayload,
   buildNutritionDraft,
@@ -47,11 +48,14 @@ interface IngestionReviewPanelProps {
   accessToken: string | null;
   /** Called after a scanned food is added to today, so the day's totals refresh. */
   onFoodLogged?(): void;
+  /** Open the scanner as soon as the screen shows (from Today's "add food" choice). */
+  autoStartScan?: boolean;
+  onAutoStartHandled?(): void;
 }
 
 type SyncTone = 'checking' | 'live';
 
-export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionReviewPanelProps) {
+export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan, onAutoStartHandled }: IngestionReviewPanelProps) {
   const cameraRef = useRef<CameraView | null>(null);
   const guidePulse = useRef(new Animated.Value(0)).current;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -68,7 +72,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
   const [labelBase64, setLabelBase64] = useState('');
   const [packageFileName, setPackageFileName] = useState<string | null>(null);
   const [labelFileName, setLabelFileName] = useState<string | null>(null);
-  const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | 'barcode' | null>(null);
+  const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | 'barcode' | 'smart' | null>(null);
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
   const [cameraStep, setCameraStep] = useState<'package' | 'label' | null>(null);
   const [lastPackageScan, setLastPackageScan] = useState<VisionPackageScanResult | null>(null);
@@ -78,6 +82,18 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
   const [editingFields, setEditingFields] = useState(false);
   const [expandedScanDates, setExpandedScanDates] = useState<Record<string, boolean>>({});
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  // The package scan the open scanner's label would replace (set when the scanner opens).
+  const smartReplaceRef = useRef<string | null>(null);
+  const [smartLabelOnly, setSmartLabelOnly] = useState(false);
+
+  useEffect(() => {
+    if (autoStartScan && accessToken && Platform.OS === 'web') {
+      openSmartScanner();
+      onAutoStartHandled?.();
+    }
+    // Once per request from Today.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartScan, accessToken]);
 
   useEffect(() => {
     setNutritionDraft(buildNutritionDraft(selectedOutput?.structured_json));
@@ -342,10 +358,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     }
   }
 
-  function scanLabelToReplace(outputId: string) {
-    void captureWebPhoto('label', outputId);
-  }
-
   async function saveSelectedFood() {
     if (!accessToken || !selectedOutput || selectedOutput.review_state !== 'accepted' || savingFoodId) {
       return;
@@ -436,7 +448,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     }
   }
 
-  async function captureWebPhoto(step: 'package' | 'label', replaceOutputId?: string) {
+  async function captureWebPhoto(step: 'package' | 'label' | 'smart', replaceOutputId?: string) {
     if (captureLoading || !accessToken) {
       if (!accessToken) {
         setQueueError('Sign in before scanning.');
@@ -447,6 +459,12 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     // Open the camera synchronously inside the tap: iOS only allows it from a user gesture.
     const file = await pickPhotoFromCamera();
     if (!file) {
+      return;
+    }
+
+    if (step === 'smart') {
+      // A full photo through the same one-read scan (package front or label).
+      await readSmartImage(file, replaceOutputId ?? null);
       return;
     }
 
@@ -486,6 +504,68 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
     }
     setQueueError(null);
     setBarcodeScannerOpen(true);
+  }
+
+  /** The smart scanner: barcode live, or a package front / label captured once it's steady. */
+  function openSmartScanner(replaceOutputId?: string) {
+    if (captureLoading) {
+      return;
+    }
+    if (!accessToken) {
+      setQueueError('Sign in before scanning.');
+      return;
+    }
+    smartReplaceRef.current = replaceOutputId ?? null;
+    // Replacing a match needs the label, not the barcode right next to it.
+    setSmartLabelOnly(Boolean(replaceOutputId));
+    setQueueError(null);
+    setBarcodeScannerOpen(true);
+  }
+
+  async function readSmartImage(image: Blob, replaceOutputId: string | null) {
+    if (!accessToken) {
+      return;
+    }
+    setCaptureLoading('smart');
+    setQueueError(null);
+    setSavedFoods([]);
+    setTone('checking');
+    setStatusLabel('Reading…');
+    setStatusDetail('Working out what the picture shows and reading it.');
+    try {
+      const prepared = await prepareScanPhoto(image);
+      const result = await smartScan(prepared.base64, accessToken, replaceOutputId);
+      await showSmartResult(result);
+    } catch (error) {
+      setTone('checking');
+      setStatusLabel('Scan failed');
+      setStatusDetail('Try again, or take a full photo.');
+      setQueueError(error instanceof Error ? error.message : 'Scan failed.');
+    } finally {
+      setCaptureLoading(null);
+    }
+  }
+
+  async function showSmartResult(result: SmartScanResult) {
+    if (result.kind === 'unreadable' || !result.output_id || !result.ingestion_job_id) {
+      setTone('checking');
+      setStatusLabel("Couldn't read that");
+      setStatusDetail(result.message ?? 'Hold the phone a little closer and steady, then scan again, or take a full photo.');
+      return;
+    }
+    const extraction = result.kind === 'nutrition_label' ? result.label : result.package;
+    const output = buildPendingOutput(result.output_id, result.ingestion_job_id, extraction?.confidence ?? 0.7, extraction);
+    setSelectedOutputId(output.id);
+    setSelectedOutput(output);
+    await refreshQueue();
+    setTone('live');
+    if (result.kind === 'nutrition_label') {
+      setStatusLabel('Nutrition label read');
+      setStatusDetail(result.replaced ? 'The label replaced the matched nutrition. Check it, then save.' : 'Check the numbers, then save.');
+    } else {
+      setStatusLabel('Package front read');
+      setStatusDetail(`Read "${result.package?.product_name ?? 'the package'}". Check the nutrition below, or scan the nutrition label for exact numbers.`);
+    }
   }
 
   async function lookUpScannedBarcode(code: string) {
@@ -569,7 +649,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
       <Text style={styles.eyebrow}>Ingestion</Text>
       <Text style={styles.title}>Camera food bank</Text>
       <Text style={styles.detail}>
-        Photograph a package front or a nutrition label, then review and save the extracted food data.
+        Scan a barcode, package front, or nutrition label, check what was read, and save it to your food bank.
       </Text>
 
       <View style={[styles.statusBanner, { borderColor: toneColor(tone) }]}>
@@ -586,51 +666,30 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
         <Text style={styles.cardLabel}>Capture</Text>
         <Text style={styles.detailText}>
           {browserViewingMode
-            ? 'Scan the barcode first. If it is not found, photograph the nutrition label or package front.'
+            ? 'Tap Scan and point at a barcode, a package front, or the nutrition label. Barcodes read instantly; for the rest, hold still and it captures by itself.'
             : 'Open the camera once, scan the package front, then scan the nutrition label or skip it if the product does not show one.'}
         </Text>
 
         <View style={styles.detailBlock}>
           {browserViewingMode ? (
             <>
-              <View style={styles.uploadSummaryCard}>
-                <Text style={styles.uploadSummaryTitle}>Camera</Text>
-                <Text style={styles.uploadSummaryDetail}>
-                  Package front: {packageFileName ? 'photographed' : 'not yet'}
-                </Text>
-                <Text style={styles.uploadSummaryDetail}>
-                  Nutrition label: {labelFileName ? 'photographed' : 'not yet'}
-                </Text>
-              </View>
               <Pressable
                 style={[styles.actionButton, styles.acceptButton]}
-                onPress={openBarcodeScanner}
+                onPress={() => openSmartScanner()}
                 disabled={captureLoading !== null}
                 accessibilityRole="button"
               >
                 <Text style={styles.actionButtonLabel}>
-                  {captureLoading === 'barcode' ? 'Looking up barcode…' : 'Scan barcode'}
+                  {captureLoading === 'barcode' ? 'Looking up barcode…' : captureLoading === 'smart' ? 'Reading…' : 'Scan'}
                 </Text>
               </Pressable>
               <Pressable
                 style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => void captureWebPhoto('package')}
+                onPress={() => void captureWebPhoto('smart')}
                 disabled={captureLoading !== null}
                 accessibilityRole="button"
               >
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {captureLoading === 'package' ? 'Scanning package…' : 'Photograph package front'}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => void captureWebPhoto('label')}
-                disabled={captureLoading !== null}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {captureLoading === 'label' ? 'Scanning label…' : 'Photograph nutrition label'}
-                </Text>
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Take a full photo</Text>
               </Pressable>
             </>
           ) : (
@@ -822,12 +881,12 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
                     {browserViewingMode ? (
                       <Pressable
                         style={[styles.actionButton, styles.secondaryButton]}
-                        onPress={() => scanLabelToReplace(displayOutput.id)}
+                        onPress={() => openSmartScanner(displayOutput.id)}
                         disabled={captureLoading !== null}
                         accessibilityRole="button"
                       >
                         <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                          {captureLoading === 'label' ? 'Reading the label…' : 'Scan the nutrition label'}
+                          {captureLoading === 'smart' ? 'Reading the label…' : 'Scan the nutrition label'}
                         </Text>
                       </Pressable>
                     ) : null}
@@ -992,10 +1051,22 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged }: IngestionRev
         <WebBarcodeScanner
           visible={barcodeScannerOpen}
           onCode={(code) => void lookUpScannedBarcode(code)}
-          onClose={() => setBarcodeScannerOpen(false)}
+          labelOnly={smartLabelOnly}
+          onCapture={(frame) => {
+            setBarcodeScannerOpen(false);
+            const replace = smartReplaceRef.current;
+            smartReplaceRef.current = null;
+            void readSmartImage(frame, replace);
+          }}
+          onClose={() => {
+            smartReplaceRef.current = null;
+            setBarcodeScannerOpen(false);
+          }}
           onTakePhoto={() => {
             setBarcodeScannerOpen(false);
-            void captureWebPhoto('label');
+            const replace = smartReplaceRef.current;
+            smartReplaceRef.current = null;
+            void captureWebPhoto('smart', replace ?? undefined);
           }}
         />
       ) : null}

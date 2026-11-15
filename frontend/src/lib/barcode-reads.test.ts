@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createReadConfirmer, guideCrop } from './barcode-reads';
+import { createReadConfirmer, guideCrop, smartGuideCrop } from './barcode-reads';
 
 describe('barcode read confirmation', () => {
   it('confirms a code after two matching reads', () => {
@@ -42,5 +42,12 @@ describe('guide crop', () => {
     expect(guideCrop(1280, 720)).toEqual({ x: 64, y: 216, width: 1152, height: 288 });
     // Portrait frames: the band is limited by width, not height.
     expect(guideCrop(720, 1280)).toEqual({ x: 36, y: 446, width: 648, height: 389 });
+  });
+});
+
+describe('smart guide crop', () => {
+  it('covers the tall frame, centred', () => {
+    expect(smartGuideCrop(1920, 1080)).toEqual({ x: 135, y: 54, width: 1651, height: 972 });
+    expect(smartGuideCrop(1080, 1920)).toEqual({ x: 76, y: 380, width: 929, height: 1161 });
   });
 });

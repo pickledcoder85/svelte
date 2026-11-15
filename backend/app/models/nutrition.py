@@ -133,3 +133,17 @@ class VisionPackageScanResult(VisionIngestionResult):
 
 class VisionLabelScanResult(VisionIngestionResult):
     extraction: VisionNutritionExtraction
+
+
+class SmartScanResult(BaseModel):
+    """The auto-capture scanner's result: a nutrition label (exact numbers), a package front
+    (matched by name), or unreadable (message says why; nothing is saved)."""
+
+    kind: Literal["nutrition_label", "package_front", "unreadable"]
+    ingestion_job_id: str | None = None
+    output_id: str | None = None
+    label: VisionNutritionExtraction | None = None
+    package: VisionPackageExtraction | None = None
+    message: str | None = None
+    # True when this label replaced a package scan's matched nutrition (that scan was discarded).
+    replaced: bool = False

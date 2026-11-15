@@ -58,3 +58,15 @@ export function guideCrop(videoWidth: number, videoHeight: number): { x: number;
     height
   };
 }
+
+/** Smart mode's taller frame (86% wide, 4:5): barcodes anywhere in it are decoded. */
+export function smartGuideCrop(videoWidth: number, videoHeight: number): { x: number; y: number; width: number; height: number } {
+  const width = Math.round(videoWidth * 0.86);
+  const height = Math.round(Math.min(videoHeight * 0.9, width / 0.8));
+  return {
+    x: Math.round((videoWidth - width) / 2),
+    y: Math.round((videoHeight - height) / 2),
+    width,
+    height
+  };
+}

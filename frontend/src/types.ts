@@ -506,6 +506,17 @@ export interface VisionLabelScanResult {
   extraction: VisionNutritionExtraction;
 }
 
+export interface SmartScanResult {
+  kind: 'nutrition_label' | 'package_front' | 'unreadable';
+  ingestion_job_id: string | null;
+  output_id: string | null;
+  label: VisionNutritionExtraction | null;
+  package: VisionPackageScanResult['extraction'] | null;
+  message: string | null;
+  /** This label replaced a package scan's matched nutrition. */
+  replaced: boolean;
+}
+
 export interface BarcodeFoodResult {
   barcode: string;
   found: boolean;

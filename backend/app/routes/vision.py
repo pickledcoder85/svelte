@@ -6,28 +6,36 @@ from pydantic import BaseModel, Field
 from backend.app.config import Settings
 from backend.app.dependencies import get_app_settings, get_required_session, get_repository
 from backend.app.models.nutrition import (
+    SmartScanResult,
     VisionLabelScanResult,
     VisionNutritionExtraction,
     VisionPackageScanResult,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
-from backend.app.services.ingestion import create_scan_output
+from backend.app.services.ingestion import create_scan_output, transition_output
 from backend.app.services.package_match import find_package_matches, package_structured_json
 from backend.app.services.vision import (
     VisionImageError,
     VisionNotConfiguredError,
     analyze_label_image,
     analyze_package_image,
+    analyze_scan_image,
 )
 
 # Hard ceiling on the request field; the configurable per-image limit is checked in the
 # vision service before any decoding.
 MAX_IMAGE_FIELD_CHARS = 16_000_000
 SCAN_FAILED_MESSAGE = "The scan could not be read right now. Try again in a moment."
+LABEL_EXPECTED_MESSAGE = "That looks like the front of the package. Point at the Nutrition Facts panel instead."
 
 
 class VisionRequest(BaseModel):
     image_base64: str = Field(min_length=1, max_length=MAX_IMAGE_FIELD_CHARS)
+
+
+class SmartScanRequest(VisionRequest):
+    # A package scan whose matched nutrition this capture replaces if it reads a label.
+    replace_output_id: str | None = Field(default=None, max_length=128)
 
 
 router = APIRouter(prefix="/vision", tags=["vision"])
@@ -64,16 +72,7 @@ async def analyze_package(
 ) -> VisionPackageScanResult:
     try:
         extraction = await analyze_package_image(payload.image_base64, repository, settings)
-        # Look the product up by name for its nutrition (real scans only: the development demo
-        # result is made up, so there is nothing real to search for).
-        matches = []
-        if settings.openai_api_key:
-            try:
-                matches = await find_package_matches(
-                    repository, extraction.product_name, extraction.brand_name, usda_api_key=settings.usda_api_key
-                )
-            except Exception:  # matching is optional: never lose a scan that already succeeded
-                logger.warning("Package match lookup failed", exc_info=False)
+        matches = await _package_matches(repository, settings, extraction)
         output = create_scan_output(
             repository,
             session.user_id,
@@ -93,6 +92,78 @@ async def analyze_package(
         )
     except Exception as exc:
         raise _scan_http_error(exc, "Vision package scan") from exc
+
+
+async def _package_matches(repository: SQLiteRepository, settings: Settings, extraction) -> list:
+    """Look the product up by name for its nutrition (real scans only: the development demo
+    result is made up). Best-effort: a lookup problem never loses the scan."""
+    if not settings.openai_api_key:
+        return []
+    try:
+        return await find_package_matches(
+            repository, extraction.product_name, extraction.brand_name, usda_api_key=settings.usda_api_key
+        )
+    except Exception:
+        logger.warning("Package match lookup failed", exc_info=False)
+        return []
+
+
+@router.post("/scan", response_model=SmartScanResult)
+async def smart_scan(
+    payload: SmartScanRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+    settings: Settings = Depends(get_app_settings),
+) -> SmartScanResult:
+    """The auto-capture scanner: one AI read that works out whether the frame is a nutrition
+    label or a package front, then saves it for review like the separate scans."""
+    try:
+        kind, extraction, message = await analyze_scan_image(payload.image_base64, repository, settings)
+        if kind == "unreadable" or extraction is None:
+            return SmartScanResult(kind="unreadable", message=message)
+        if kind == "nutrition_label":
+            output = create_scan_output(
+                repository,
+                session.user_id,
+                source_kind="camera_label",
+                source_name="nutrition-label-scan",
+                extracted_text=extraction.label_text,
+                structured_json=extraction.model_dump(),
+                confidence=extraction.confidence,
+            )
+            replaced = False
+            if payload.replace_output_id:
+                try:
+                    transition_output(repository, session.user_id, payload.replace_output_id, "rejected")
+                    replaced = True
+                except Exception:  # someone else's, already saved, or gone: leave it
+                    replaced = False
+            return SmartScanResult(
+                kind=kind,
+                ingestion_job_id=output.ingestion_job_id,
+                output_id=output.id,
+                label=extraction,
+                replaced=replaced,
+            )
+        if payload.replace_output_id:
+            # Scanning the label for a matched package: a second package front would only add a
+            # duplicate, so ask for the label instead.
+            return SmartScanResult(kind="unreadable", message=LABEL_EXPECTED_MESSAGE)
+        matches = await _package_matches(repository, settings, extraction)
+        output = create_scan_output(
+            repository,
+            session.user_id,
+            source_kind="camera_package",
+            source_name="package-scan",
+            extracted_text=extraction.package_text,
+            structured_json=package_structured_json(extraction.model_dump(), matches),
+            confidence=extraction.confidence,
+        )
+        return SmartScanResult(
+            kind=kind, ingestion_job_id=output.ingestion_job_id, output_id=output.id, package=extraction
+        )
+    except Exception as exc:
+        raise _scan_http_error(exc, "Smart scan") from exc
 
 
 @router.post("/label/ingest", response_model=VisionLabelScanResult)
