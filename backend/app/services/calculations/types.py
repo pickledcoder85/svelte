@@ -26,7 +26,8 @@ NutritionStyle = Literal["balanced", "keto", "mediterranean"]
 TargetSource = Literal["system_default", "user_custom", "agent_adjusted", "admin_override"]
 
 # v2: sex-based recommended minimum (1,200 / 1,500) that users can opt out of.
-CALCULATION_VERSION = "v2"
+# v3: BMR, maintenance, and targets rounded to the nearest 10 kcal; macro targets in whole grams.
+CALCULATION_VERSION = "v3"
 
 
 class GeneratedNutritionTargets(BaseModel):

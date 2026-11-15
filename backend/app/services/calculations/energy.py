@@ -27,6 +27,15 @@ RECOMMENDED_MINIMUM_CALORIES = {"female": 1200, "male": 1500}
 CALORIE_FLOOR_CHOICES = ("recommended", "off")
 
 
+# Estimates are shown to the nearest 10 kcal: the formula is only good to about 10%, so single
+# calories would be false precision. Logged food and exercise stay exact to the calorie.
+CALORIE_ROUNDING = 10
+
+
+def round_calories(value: float) -> int:
+    return int(round(value / CALORIE_ROUNDING) * CALORIE_ROUNDING)
+
+
 def recommended_minimum_calories(sex: str) -> int:
     return RECOMMENDED_MINIMUM_CALORIES.get(sex, RECOMMENDED_MINIMUM_CALORIES["female"])
 
@@ -47,15 +56,18 @@ def calculate_energy_targets(
     weight_kg = current_weight_lbs / 2.2046226218
     sex_adjustment = 5 if sex == "male" else -161
     resting_energy = 10 * weight_kg + 6.25 * height_cm - 5 * age_years + sex_adjustment
-    maintenance = resting_energy * NON_EXERCISE_ACTIVITY_FACTORS[activity_level]
+    # Round each estimate once, then build the target from the rounded maintenance, so the
+    # numbers on screen always add up (maintenance - 500 = target).
+    bmr = round_calories(resting_energy)
+    maintenance = round_calories(resting_energy * NON_EXERCISE_ACTIVITY_FACTORS[activity_level])
     try:
         calorie_adjustment = GOAL_CALORIE_ADJUSTMENTS[(goal_type, goal_pace)]
     except KeyError as error:
         raise ValueError(f"Pace {goal_pace!r} does not apply to goal {goal_type!r}.") from error
-    calorie_target = max(1, maintenance + calorie_adjustment)
+    calorie_target = max(CALORIE_ROUNDING, round_calories(maintenance + calorie_adjustment))
     if calorie_floor != "off":
         calorie_target = max(recommended_minimum_calories(sex), calorie_target)
-    return round(resting_energy), round(maintenance), round(calorie_target)
+    return bmr, maintenance, calorie_target
 
 
 def calculate_onboarding_energy_targets(payload) -> tuple[int, int, int]:
