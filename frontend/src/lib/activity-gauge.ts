@@ -2,27 +2,19 @@
  * The activity-level gauge on setup step 2: five levels around a half-circle dial. The arc
  * fills to the chosen level and a handle sits on it; dragging snaps to the nearest level.
  *
- * Positions run from t = 0 (left end of the dial) to t = 1 (right end). Each level owns one
- * fifth of the arc and its handle sits in the middle of that fifth.
+ * Positions run from t = 0 (left end of the dial) to t = 1 (right end). The five levels sit
+ * evenly from end to end, so Sedentary is the empty start and Extra active fills the arc.
  */
 
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
 
 /** Daily movement only; workouts are logged separately. Step counts are rough guides. */
-export const ACTIVITY_LEVELS: Array<{ id: ActivityLevel; title: string; description: string }> = [
-  { id: 'sedentary', title: 'Sedentary', description: 'Desk job, little walking (under about 5,000 steps)' },
-  { id: 'light', title: 'Light', description: 'Some walking, on your feet now and then (about 5,000–7,500 steps)' },
-  { id: 'moderate', title: 'Moderate', description: 'On your feet a good part of the day (about 7,500–10,000 steps)' },
-  {
-    id: 'very_active',
-    title: 'Very active',
-    description: 'On your feet most of the day, like retail, nursing, or teaching (about 10,000–15,000 steps)'
-  },
-  {
-    id: 'extra_active',
-    title: 'Extra active',
-    description: 'Physical work all day, like construction or farm work (15,000+ steps)'
-  }
+export const ACTIVITY_LEVELS: Array<{ id: ActivityLevel; title: string; description: string; steps: string }> = [
+  { id: 'sedentary', title: 'Sedentary', description: 'Mostly sitting', steps: '< 5,000 steps' },
+  { id: 'light', title: 'Light', description: 'Some walking', steps: '5,000–7,500 steps' },
+  { id: 'moderate', title: 'Moderate', description: 'On your feet often', steps: '7,500–10,000 steps' },
+  { id: 'very_active', title: 'Very active', description: 'On your feet most of the day', steps: '10,000–15,000 steps' },
+  { id: 'extra_active', title: 'Extra active', description: 'Physical work all day', steps: '15,000+ steps' }
 ];
 
 export function activityIndex(level: ActivityLevel): number {
@@ -30,17 +22,16 @@ export function activityIndex(level: ActivityLevel): number {
   return index < 0 ? 2 : index;
 }
 
-/** Where a level's handle sits along the arc (0 to 1). */
+/** Where a level's handle sits along the arc: 0 for the first level, 1 for the last. */
 export function positionForIndex(index: number): number {
-  const count = ACTIVITY_LEVELS.length;
-  const clamped = Math.min(count - 1, Math.max(0, index));
-  return (clamped + 0.5) / count;
+  const last = ACTIVITY_LEVELS.length - 1;
+  return Math.min(last, Math.max(0, index)) / last;
 }
 
-/** The level for a position along the arc. */
+/** The level nearest a position along the arc. */
 export function indexForPosition(t: number): number {
-  const count = ACTIVITY_LEVELS.length;
-  return Math.min(count - 1, Math.max(0, Math.floor(t * count)));
+  const last = ACTIVITY_LEVELS.length - 1;
+  return Math.min(last, Math.max(0, Math.round(t * last)));
 }
 
 export type Point = { x: number; y: number };
