@@ -505,6 +505,7 @@ export default function App(): ReactElement {
   const [openSheet, setOpenSheet] = useState<'quick' | 'account' | 'add-food' | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
+  const [scanAutoStart, setScanAutoStart] = useState(false);
   const mainScrollRef = useRef<ScrollView | null>(null);
   // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
   const weighInY = useRef(0);
@@ -6925,6 +6926,8 @@ export default function App(): ReactElement {
         {section === 'ingestion' && (
           <IngestionReviewPanel
             accessToken={foodSessionToken}
+            autoStartScan={scanAutoStart}
+            onAutoStartHandled={() => setScanAutoStart(false)}
             onFoodLogged={() => {
               const token = foodSessionToken;
               if (token) {
@@ -6987,6 +6990,7 @@ export default function App(): ReactElement {
           onClose={() => setQuickScanOpen(false)}
           onPhotographLabel={() => {
             setQuickScanOpen(false);
+            setScanAutoStart(true);
             handleSectionChange('ingestion');
           }}
           onAdded={() => {
@@ -7020,10 +7024,13 @@ export default function App(): ReactElement {
             },
             {
               id: 'package',
-              label: 'Photograph the package or label',
-              detail: 'No barcode? Read the package front or the nutrition label',
+              label: 'Scan the package or label',
+              detail: 'No barcode? Hold the package front or nutrition label steady',
               icon: '📷',
-              onPress: () => handleSectionChange('ingestion')
+              onPress: () => {
+                setScanAutoStart(true);
+                handleSectionChange('ingestion');
+              }
             },
             {
               id: 'search',

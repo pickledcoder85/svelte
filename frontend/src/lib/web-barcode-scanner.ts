@@ -7,6 +7,15 @@
  * The library loads only when the scanner opens, so it adds nothing to app start-up.
  */
 import { createReadConfirmer, guideCrop, RETAIL_BARCODE_FORMATS } from './barcode-reads';
+import {
+  ANALYSIS_WIDTH,
+  contrast,
+  createStabilityTracker,
+  motion,
+  sharpness,
+  toGray,
+  type StabilityState
+} from './frame-stability';
 
 /** Time between decode attempts, about 7 a second. */
 export const SCAN_INTERVAL_MS = 140;
@@ -18,7 +27,16 @@ export type BarcodeScannerHandle = { stop(): void };
 export type BarcodeScannerOptions = {
   onCode(code: string): void;
   onError(message: string): void;
+  /** Also capture one full frame once the view is steady and sharp (package front or label). */
+  autoCapture?: {
+    onProgress(state: StabilityState): void;
+    onCapture(frame: Blob): void;
+  };
 };
+
+/** A barcode seen this recently wins over auto-capture (let the decoder confirm it). */
+const BARCODE_GRACE_MS = 1200;
+const CAPTURE_QUALITY = 0.92;
 
 type Detector = { detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>> };
 
@@ -82,7 +100,10 @@ export async function startBarcodeScanner(
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      // Auto-capture sends a frame to be read, so ask for more detail (small label text).
+      video: options.autoCapture
+        ? { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
     });
     if (stopped) {
       stop();
@@ -110,6 +131,58 @@ export async function startBarcodeScanner(
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d', { willReadFrequently: true });
   const confirmer = createReadConfirmer();
+  const tracker = createStabilityTracker();
+  const analysis = document.createElement('canvas');
+  const analysisContext = analysis.getContext('2d', { willReadFrequently: true });
+  let previousGray: Float32Array | null = null;
+  let lastBarcodeAt = Number.NEGATIVE_INFINITY;
+  let capturing = false;
+
+  const captureFrame = () => {
+    capturing = true;
+    const full = document.createElement('canvas');
+    full.width = video.videoWidth;
+    full.height = video.videoHeight;
+    full.getContext('2d')?.drawImage(video, 0, 0, full.width, full.height);
+    full.toBlob(
+      (blob) => {
+        stop();
+        if (blob) {
+          options.autoCapture?.onCapture(blob);
+        } else {
+          options.onError("The picture couldn't be captured. Take a photo instead.");
+        }
+      },
+      'image/jpeg',
+      CAPTURE_QUALITY
+    );
+  };
+
+  const checkStability = (now: number) => {
+    if (!options.autoCapture || !analysisContext || capturing || video.videoWidth === 0) {
+      return;
+    }
+    analysis.width = ANALYSIS_WIDTH;
+    analysis.height = Math.max(1, Math.round((video.videoHeight / video.videoWidth) * ANALYSIS_WIDTH));
+    analysisContext.drawImage(video, 0, 0, analysis.width, analysis.height);
+    const gray = toGray(analysisContext.getImageData(0, 0, analysis.width, analysis.height).data);
+    const reading = {
+      motion: motion(previousGray, gray),
+      sharpness: sharpness(gray, analysis.width, analysis.height),
+      contrast: contrast(gray)
+    };
+    previousGray = gray;
+    if (now - lastBarcodeAt < BARCODE_GRACE_MS) {
+      tracker.reset();
+      options.autoCapture.onProgress({ progress: 0, ready: false, hint: 'hold-steady' });
+      return;
+    }
+    const state = tracker.update(reading);
+    options.autoCapture.onProgress(state);
+    if (state.ready) {
+      captureFrame();
+    }
+  };
 
   const tick = async () => {
     if (stopped) {
@@ -128,10 +201,18 @@ export async function startBarcodeScanner(
         code = null;
       }
     }
-    const confirmed = confirmer.push(code, performance.now());
+    const now = performance.now();
+    if (code) {
+      lastBarcodeAt = now;
+    }
+    const confirmed = confirmer.push(code, now);
     if (confirmed && !stopped) {
       stop();
       options.onCode(confirmed);
+      return;
+    }
+    checkStability(now);
+    if (capturing || stopped) {
       return;
     }
     timer = setTimeout(() => void tick(), SCAN_INTERVAL_MS);

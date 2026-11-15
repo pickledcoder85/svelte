@@ -78,24 +78,7 @@ def _require_vision(settings: Settings) -> bool:
     raise VisionNotConfiguredError("Scanning is not set up on this server.")
 
 
-async def analyze_label_image(image_base64: str, settings: Settings) -> VisionNutritionExtraction:
-    image_url = prepare_image_data_url(image_base64, settings)
-
-    if not _require_vision(settings):
-        return VisionNutritionExtraction(
-            label_text="Demo OCR output",
-            product_name="Scanned food product",
-            brand_name="Unknown brand",
-            serving_size="1 serving",
-            calories=120,
-            macros=MacroTargets(protein=8, carbs=12, fat=4),
-            confidence=0.62,
-        )
-
-    payload = await _request_vision_json(
-        settings,
-        image_url,
-        """
+LABEL_PROMPT = """
 Extract the visible nutrition-label metadata from this food package image.
 Return JSON only with this exact shape:
 {
@@ -133,9 +116,80 @@ Rules:
 - when the label includes multiple flavors or variants in one panel, set multiple_variants_detected=true and return one entry per variant in variants
 - for multi-variant labels, keep top-level product_name and brand_name for the box itself
 - if a field is unclear, make a conservative best guess rather than omitting it
-""".strip(),
-    )
+""".strip()
 
+# One call for the auto-capture scanner: say what the photo shows, then read it.
+SCAN_PROMPT = """
+This photo was captured automatically from a phone camera pointed at a food. First decide what it shows:
+- "nutrition_label": a Nutrition Facts / nutrition information panel whose numbers you can read
+- "package_front": a food package (product name, brand) without a readable nutrition panel
+- "unreadable": too blurry, too far away, cut off, too dark, or not a food
+If a nutrition panel is visible but its numbers are too small or blurry to read, use "unreadable".
+Return JSON only with this exact shape:
+{
+  "kind": "nutrition_label",
+  "problem": "short reason when kind is unreadable, else null",
+  "package_text": "main readable package text",
+  "label_text": "full readable nutrition label text",
+  "product_name": "best guess product name",
+  "brand_name": "best guess brand or null",
+  "serving_size": "serving size text exactly as printed, e.g. 2 tbsp (32g)",
+  "serving_grams": 0,
+  "servings_per_container": 0,
+  "net_weight_grams": 0,
+  "calories": 0,
+  "protein": 0,
+  "carbs": 0,
+  "fat": 0,
+  "multiple_variants_detected": false,
+  "variants": [
+    {
+      "variant_name": "flavor or variety name",
+      "serving_size": "serving size text",
+      "calories": 0,
+      "protein": 0,
+      "carbs": 0,
+      "fat": 0
+    }
+  ],
+  "confidence": 0
+}
+Rules:
+- confidence must be between 0 and 1
+- calories, protein, carbs, and fat must be numbers
+- use null for unknown brand_name
+- carbs must be total carbohydrates from the label, not net carbs
+- serving_grams is the metric weight of one serving (the grams, or ml for drinks, usually in brackets next to the serving size); use null if the label gives none
+- servings_per_container and net_weight_grams come from the label or package (convert ounces to grams); use null when not shown
+- when the label includes multiple flavors or variants in one panel, set multiple_variants_detected=true and return one entry per variant in variants
+- for multi-variant labels, keep top-level product_name and brand_name for the box itself
+- if a field is unclear, make a conservative best guess rather than omitting it
+Extra rules:
+- kind is required and must be one of the three values above
+- for package_front, fill package_text, product_name, brand_name and confidence; nutrition fields may be null
+- for unreadable, the other fields may be null
+""".strip()
+
+
+async def analyze_label_image(image_base64: str, settings: Settings) -> VisionNutritionExtraction:
+    image_url = prepare_image_data_url(image_base64, settings)
+
+    if not _require_vision(settings):
+        return VisionNutritionExtraction(
+            label_text="Demo OCR output",
+            product_name="Scanned food product",
+            brand_name="Unknown brand",
+            serving_size="1 serving",
+            calories=120,
+            macros=MacroTargets(protein=8, carbs=12, fat=4),
+            confidence=0.62,
+        )
+
+    payload = await _request_vision_json(settings, image_url, LABEL_PROMPT)
+    return _label_extraction(payload)
+
+
+def _label_extraction(payload: dict[str, Any]) -> VisionNutritionExtraction:
     return VisionNutritionExtraction(
         label_text=_as_string(payload.get("label_text"), "Vision label extraction"),
         product_name=_as_string(payload.get("product_name"), "Scanned food product"),
@@ -191,6 +245,12 @@ Rules:
         package_text = _as_string(payload.get("package_text"), product_name)
         confidence = _as_confidence(payload.get("confidence"), 0.71)
 
+    return _package_extraction(repository, package_text, product_name, brand_name, confidence)
+
+
+def _package_extraction(
+    repository: SQLiteRepository, package_text: str, product_name: str, brand_name: str | None, confidence: float
+) -> VisionPackageExtraction:
     candidates = repository.search_foods(product_name)[:3]
     match_candidates = [
         VisionFoodMatchCandidate(
@@ -227,6 +287,42 @@ def build_vision_request(settings: Settings, image_url: str, instructions: str) 
             }
         ],
     }
+
+
+SCAN_KINDS = ("nutrition_label", "package_front", "unreadable")
+UNREADABLE_MESSAGE = "Couldn't read that clearly. Hold the phone a little closer and steady, or take a full photo."
+
+
+async def analyze_scan_image(
+    image_base64: str, repository: SQLiteRepository, settings: Settings
+) -> tuple[str, VisionNutritionExtraction | VisionPackageExtraction | None, str | None]:
+    """One call for the auto-capture scanner: (kind, what was read, a message when unreadable).
+    A label that names a panel but has no calories counts as unreadable, never as a guess."""
+    image_url = prepare_image_data_url(image_base64, settings)
+    if not _require_vision(settings):
+        demo = await analyze_label_image(image_base64, settings)
+        return "nutrition_label", demo, None
+
+    payload = await _request_vision_json(settings, image_url, SCAN_PROMPT)
+    kind = payload.get("kind") if payload.get("kind") in SCAN_KINDS else "unreadable"
+    if kind == "nutrition_label" and not isinstance(payload.get("calories"), (int, float)):
+        kind = "unreadable"
+    if kind == "nutrition_label":
+        return kind, _label_extraction(payload), None
+    if kind == "package_front":
+        product_name = _as_string(payload.get("product_name"), "")
+        if not product_name.strip():
+            return "unreadable", None, UNREADABLE_MESSAGE
+        return kind, _package_extraction(
+            repository,
+            _as_string(payload.get("package_text"), product_name),
+            product_name,
+            _as_optional_string(payload.get("brand_name")),
+            _as_confidence(payload.get("confidence"), 0.71),
+        ), None
+    problem = _as_optional_string(payload.get("problem"))
+    message = UNREADABLE_MESSAGE if not problem else f"{problem[:1].upper()}{problem[1:].rstrip('.')}. {UNREADABLE_MESSAGE}"
+    return "unreadable", None, message
 
 
 async def _request_vision_json(settings: Settings, image_url: str, instructions: str) -> dict[str, Any]:
