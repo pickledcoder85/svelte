@@ -933,9 +933,9 @@ class SQLiteRepository:
     def reset_user_setup(self, user_id: str) -> dict[str, Any] | None:
         """Clear the setup answers and the "setup done" mark so setup runs again.
 
-        Also deletes the goals: setup starts over, so the new setup's goal is the only one
-        (resetting again and again no longer piles up old goals). Keeps the name, timezone, and
-        units, and everything else: foods, logs, weigh-ins, scans, and plans.
+        Also deletes the goals (the new setup's goal is the only one) and clears the meal
+        pattern, so the meal-planning guide runs again. Keeps the name, timezone, and units, and
+        everything else: foods, logged meals and workouts, weigh-ins, scans, and plans.
         """
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
@@ -950,7 +950,8 @@ class SQLiteRepository:
                     allergy_notes = NULL, bmr_calories = NULL, tdee_calories = NULL,
                     initial_calorie_target = NULL, protein_target_g = NULL, carbs_target_g = NULL,
                     fat_target_g = NULL, fiber_target_g = NULL, calculation_version = NULL,
-                    target_source = NULL, calorie_floor = 'recommended', updated_at = CURRENT_TIMESTAMP
+                    target_source = NULL, calorie_floor = 'recommended',
+                    meals_per_day = 3, meal_split = NULL, updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
                 (user_id,),
