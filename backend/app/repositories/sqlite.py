@@ -909,6 +909,8 @@ class SQLiteRepository:
         if row is None:
             return None
         identity = dict(row)
+        # Chosen in the meal-planning guide; until then the defaults apply and the guide shows.
+        identity["meal_pattern_chosen"] = identity.get("meal_split") is not None
         identity["meals_per_day"], identity["meal_split"] = resolve_split(identity.get("meals_per_day"), identity.get("meal_split"))
         return identity
 

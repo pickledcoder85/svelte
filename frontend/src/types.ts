@@ -90,6 +90,8 @@ export interface UserProfile {
   /** Meals a day (snacks between meals) and the target's split across them, in day order. */
   meals_per_day?: 3 | 4 | 5;
   meal_split?: number[];
+  /** False until a pattern is picked in the meal-planning guide. */
+  meal_pattern_chosen?: boolean;
   user_created_at?: string | null;
   profile_created_at?: string | null;
   profile_updated_at?: string | null;
@@ -560,4 +562,30 @@ export interface BarcodeLookupResult {
 
 export interface SaveFoodsResult {
   saved_foods: FoodItem[];
+}
+
+export interface SuggestNutrition {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface SuggestedMeal {
+  name: string;
+  why: string;
+  items: Array<{ name: string; grams: number; role: string; food: FoodItem; nutrition: SuggestNutrition }>;
+  totals: SuggestNutrition;
+  /** Ingredients Gus named that couldn't be matched to nutrition data (left out). */
+  missing: string[];
+}
+
+export interface SuggestResponse {
+  block: string;
+  block_label: string;
+  meal_slot: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  budget: SuggestNutrition;
+  remaining: SuggestNutrition;
+  options: SuggestedMeal[];
+  message: string | null;
 }

@@ -52,11 +52,13 @@ async def test_profile_saves_meals_per_day_and_split_without_changing_targets(cl
     headers = await _headers(client, "split@example.com")
     done = (await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)).json()
     assert (done["meals_per_day"], done["meal_split"]) == (3, [30, 35, 35])
+    assert done["meal_pattern_chosen"] is False
 
     base = {"timezone": done["timezone"], "units": done["units"]}
     five = await client.put("/api/profile", headers=headers, json={**base, "meals_per_day": 5})
     assert five.status_code == 200
     assert (five.json()["meals_per_day"], five.json()["meal_split"]) == (5, [20, 10, 30, 10, 30])
+    assert five.json()["meal_pattern_chosen"] is True
     assert five.json()["initial_calorie_target"] == done["initial_calorie_target"]
 
     custom = await client.put("/api/profile", headers=headers, json={**base, "meal_split": [25, 10, 30, 5, 30]})

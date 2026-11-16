@@ -90,13 +90,17 @@ import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
+import { MealPatternGuide } from './src/components/MealPatternGuide';
+import { SuggestMealSheet } from './src/components/SuggestMealSheet';
+import { defaultMealSlot } from './src/lib/meal-slots';
 import {
   blockBudgets,
   DEFAULT_SPLITS,
   isValidSplit,
+  MEAL_PATTERNS,
   MEAL_STYLES,
-  RECOMMENDED_MEALS_PER_DAY,
   styleForSplit,
+  type MealBlockKey,
   type MealsPerDay
 } from './src/lib/meal-split';
 import { CalorieBars } from './src/components/trends/CalorieBars';
@@ -538,6 +542,10 @@ export default function App(): ReactElement {
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
+  // The meal-planning guide, and Gus's suggestions (which need a pattern: the guide comes first).
+  const [patternGuideOpen, setPatternGuideOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestAfterGuide, setSuggestAfterGuide] = useState(false);
   const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -3161,6 +3169,40 @@ export default function App(): ReactElement {
     } finally {
       garminSyncingRef.current = false;
       setGarminSyncing(false);
+    }
+  }
+
+  /** Gus's suggestions; the first time, the meal-planning guide asks for the pattern first. */
+  function openSuggest() {
+    if (!profile || !foodSessionToken) {
+      return;
+    }
+    if (!profile.meal_pattern_chosen) {
+      setSuggestAfterGuide(true);
+      setPatternGuideOpen(true);
+      return;
+    }
+    setSuggestOpen(true);
+  }
+
+  /** The block to suggest for by default: the meal for this time of day, in the user's pattern. */
+  function defaultSuggestBlock(): MealBlockKey {
+    const keys = MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay];
+    const slot = defaultMealSlot();
+    if (slot !== 'snack') {
+      return slot;
+    }
+    return keys.includes('afternoon_snack') ? 'afternoon_snack' : 'dinner';
+  }
+
+  async function reloadMealPlan() {
+    const token = foodSessionToken;
+    if (token) {
+      try {
+        setMealPlanDays(await fetchMealPlanDays(token));
+      } catch {
+        // Plan → Meals catches up on its next load.
+      }
     }
   }
 
@@ -6396,7 +6438,27 @@ export default function App(): ReactElement {
         {section === 'meal-plan' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
-            <Text style={styles.panelTitle}>Weekly date cards</Text>
+            {profile?.meal_pattern_chosen ? (
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.panelDetail}>
+                  {(() => {
+                    const count = (profile.meals_per_day ?? 3) as MealsPerDay;
+                    const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count, profile.meal_split ?? []));
+                    return `${count === 3 ? '3 meals' : count === 4 ? '3 meals + a snack' : '3 meals + 2 snacks'} · ${style?.label ?? 'Balanced'}`;
+                  })()}
+                </Text>
+                <Pressable onPress={() => setPatternGuideOpen(true)} accessibilityRole="button">
+                  <Text style={styles.settingsLink}>Change</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.secondaryButton} onPress={() => setPatternGuideOpen(true)} accessibilityRole="button">
+                <Text style={styles.secondaryButtonLabel}>Set up meal planning</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.primaryButton} onPress={openSuggest} accessibilityRole="button">
+              <Text style={styles.primaryButtonLabel}>✨ Suggest a meal</Text>
+            </Pressable>
             <Text style={styles.panelDetail}>
               Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
             </Text>
@@ -7185,6 +7247,40 @@ export default function App(): ReactElement {
         </View>
       ) : null}
 
+      {patternGuideOpen && profile ? (
+        <MealPatternGuide
+          calorieTarget={dailyHomeTargets.calorieTarget}
+          macros={dailyHomeTargets.macroTargets}
+          initialCount={(profile.meals_per_day ?? 5) as MealsPerDay}
+          initialStyle={profile.meal_pattern_chosen ? styleForSplit((profile.meals_per_day ?? 3) as MealsPerDay, profile.meal_split ?? []) : null}
+          onClose={() => {
+            setPatternGuideOpen(false);
+            setSuggestAfterGuide(false);
+          }}
+          onSave={async (count, split) => {
+            await applyMealSplit(count, split);
+            setPatternGuideOpen(false);
+            if (suggestAfterGuide) {
+              setSuggestAfterGuide(false);
+              setSuggestOpen(true);
+            }
+          }}
+        />
+      ) : null}
+
+      {suggestOpen && foodSessionToken ? (
+        <SuggestMealSheet
+          accessToken={foodSessionToken}
+          logDate={section === 'dashboard' ? selectedHomeDate : todayKey}
+          dayName={section === 'dashboard' ? homeDayName : 'today'}
+          blocks={MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay]}
+          defaultBlock={defaultSuggestBlock()}
+          onClose={() => setSuggestOpen(false)}
+          onLogged={() => void refreshHomeFoodLog()}
+          onPlanned={() => void reloadMealPlan()}
+        />
+      ) : null}
+
       {quickScanOpen && foodSessionToken ? (
         <QuickScanAdd
           accessToken={foodSessionToken}
@@ -7256,6 +7352,13 @@ export default function App(): ReactElement {
               detail: 'Just a number, no lookup',
               icon: '✏️',
               onPress: () => setOpenSheet('quick-calories')
+            },
+            {
+              id: 'suggest',
+              label: 'Suggest a meal',
+              detail: 'Gus picks a meal that fits what you have left',
+              icon: '✨',
+              onPress: openSuggest
             }
           ]}
           onClose={() => setOpenSheet(null)}
@@ -8491,13 +8594,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999
   },
-  mealStyleHeading: { color: tc.fg_132536, fontSize: 15, fontWeight: '800', marginTop: 8 },
-  mealStyleRow: { gap: 2, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7 },
-  mealStyleRowActive: { borderColor: tc.line_0f766e, backgroundColor: tc.bg_ecfdf3 },
-  mealStyleLabel: { color: tc.fg_132536, fontSize: 15, fontWeight: '800' },
-  mealStyleLabelActive: { color: tc.fg_0f766e },
-  mealStyleDetail: { color: tc.fg_5c6d80, fontSize: 13 },
-  mealStylePreview: { color: tc.fg_6b7b90, fontSize: 12, fontWeight: '600' },
   todayMealGroup: { gap: 0, marginTop: 6 },
   todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
   todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
