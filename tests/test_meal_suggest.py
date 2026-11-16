@@ -89,20 +89,29 @@ def test_portions_fit_the_calories_and_top_up_protein():
 
 
 @pytest.mark.asyncio
-async def test_suggestions_use_the_food_bank_then_usda(repository):
+async def test_suggestions_use_the_food_bank_then_usda_and_only_complete_meals(repository):
     _onboard(repository)
     repository.save_food_item(_food("mine-chicken", "Chicken breast grilled", 165, 31, 0, 3.6))
     repository.add_to_food_bank(user_id="u1", food_id="mine-chicken")
+    prompts = []
 
     async def ask(prompt):
-        return {"options": [
-            {"name": "Chicken rice bowl", "why": "Lean and filling", "ingredients": [
-                {"name": "chicken breast grilled", "usda_query": "chicken breast roasted", "grams": 150, "role": "protein"},
-                {"name": "white rice", "usda_query": "rice white cooked", "grams": 200, "role": "carb"},
-                {"name": "dragonfruit sorbet", "usda_query": "dragonfruit sorbet", "grams": 50, "role": "other"},
-            ]},
-            {"name": "", "ingredients": []},
-        ]}
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return {"options": [
+                {"name": "Chicken rice bowl", "why": "Lean and filling", "ingredients": [
+                    {"name": "chicken breast grilled", "usda_query": "chicken breast roasted", "grams": 150, "role": "protein"},
+                    {"name": "white rice", "usda_query": "rice white cooked", "grams": 200, "role": "carb"},
+                ]},
+                {"name": "Exotic bowl", "ingredients": [
+                    {"name": "chicken breast grilled", "usda_query": "chicken breast roasted", "grams": 150, "role": "protein"},
+                    {"name": "dragonfruit sorbet", "usda_query": "dragonfruit sorbet", "grams": 50, "role": "other"},
+                ]},
+            ]}
+        return {"options": [{"name": "Chicken and rice, simple", "ingredients": [
+            {"name": "chicken breast grilled", "usda_query": "chicken breast roasted", "grams": 120, "role": "protein"},
+            {"name": "white rice", "usda_query": "rice white cooked", "grams": 150, "role": "carb"},
+        ]}]}
 
     seen = []
 
@@ -119,13 +128,27 @@ async def test_suggestions_use_the_food_bank_then_usda(repository):
         repository, settings, "u1", SuggestRequest(log_date=DAY, block="dinner"), ask=ask,
         client_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)),
     )
-    assert result.meal_slot == "dinner" and len(result.options) == 1
+    # The incomplete "Exotic bowl" is never shown; Gus is asked again, avoiding the sorbet.
+    assert [meal.name for meal in result.options] == ["Chicken rice bowl", "Chicken and rice, simple"]
+    assert all(not meal.missing for meal in result.options)
+    assert "dragonfruit sorbet" in prompts[1].split("Don't use these")[1]
     meal = result.options[0]
-    assert [item.food.id for item in meal.items][0] == "mine-chicken"  # the user's own food first
+    assert meal.items[0].food.id == "mine-chicken"  # the user's own food first
     assert meal.items[1].food.name.startswith("Rice, white")
-    assert meal.missing == ["dragonfruit sorbet"]
-    assert abs(meal.totals.calories - result.budget.calories) <= 80
     assert "chicken breast roasted" not in seen  # found in the bank, no USDA call
+    assert "dragonfruit sorbet" in seen  # searched (generic, then all of USDA) before giving up
+
+
+def test_photo_mode_keeps_only_seen_foods_and_staples():
+    from backend.app.services.meal_suggest import _photo_filter
+
+    options = [
+        {"name": "Spinach omelette", "items": [{"name": "eggs"}, {"name": "spinach"}, {"name": "olive oil"}, {"name": "feta cheese"}]},
+        {"name": "Steak dinner", "items": [{"name": "beef steak"}, {"name": "potatoes"}, {"name": "eggs"}]},
+    ]
+    kept = _photo_filter(options, ["eggs", "baby spinach", "cheddar"])
+    assert [option["name"] for option in kept] == ["Spinach omelette"]
+    assert [item["name"] for item in kept[0]["items"]] == ["eggs", "spinach", "olive oil"]  # feta wasn't in the photo
 
 
 @pytest.mark.asyncio
@@ -221,4 +244,5 @@ def test_prompt_mentions_the_photo_and_planned_meals(repository):
     _onboard(repository)
     prompt = suggestion_prompt(block_label="Lunch", budget=Nutrition(calories=500), profile=repository.get_user_identity("u1"),
                                ingredients=None, planned=[{"label": "Dinner", "title": "Salmon and potatoes"}], with_photo=True)
-    assert "foods you can see" in prompt and "Dinner: Salmon and potatoes" in prompt
+    assert "every food you can clearly see in seen_items" in prompt and "Dinner: Salmon and potatoes" in prompt
+    assert '"seen_items"' in prompt

@@ -83,6 +83,8 @@ class SuggestResponse(BaseModel):
     options: list[SuggestedMeal] = Field(default_factory=list)
     message: str | None = None
     planned_here: PlannedHere | None = None
+    # Photo mode: the foods Gus saw in the photo.
+    seen_items: list[str] = Field(default_factory=list)
 
 
 # ---- the day's numbers -------------------------------------------------------------------------
@@ -211,6 +213,8 @@ def suggestion_prompt(
     ingredients: str | None,
     planned: list[dict[str, Any]] | None = None,
     with_photo: bool = False,
+    avoid: list[str] | None = None,
+    seen: list[str] | None = None,
 ) -> str:
     """What Gus is asked. Only meal preferences go out: no name, email, or body details."""
     diet = profile.get("dietary_pattern") or "omnivore"
@@ -221,15 +225,17 @@ def suggestion_prompt(
 You are Gus, a friendly nutrition coach. Suggest exactly 2 different {block_label.lower()} options.
 Target for this meal: about {round(budget.calories)} kcal, {round(budget.protein)} g protein, {round(budget.carbs)} g carbs, {round(budget.fat)} g fat.
 Diet: {diet}. Nutrition style: {style}. Allergies and foods to avoid: {allergies}.
-{"The photo shows the user's fridge, counter, or pantry: build both options from the foods you can see (simple staples like oil, salt, and spices are fine)." if with_photo else ""}
+{("The photo shows the user's fridge, counter, or pantry. First list every food you can clearly see in seen_items. Then build both options ONLY from those foods, plus oil, butter, salt, pepper, spices, water, or vinegar. Never add a food that isn't in the photo." if not seen else "Foods in the user's photo: " + ", ".join(seen) + ". Build both options ONLY from these, plus oil, butter, salt, pepper, spices, water, or vinegar.") if with_photo else ""}
+{"Don't use these (no nutrition data for them): " + ", ".join(sorted(set(avoid))) if avoid else ""}
 {"Ingredients the user has (prefer these, you may add simple staples): " + have if have else ("" if with_photo else "Use common, easy ingredients.")}
 {"Already planned for later today (don't repeat these): " + "; ".join(f"{meal['label']}: {meal['title']}" for meal in planned) if planned else ""}
 Return JSON only:
-{{"options": [{{"name": "short appetising name", "why": "one short sentence on why it fits",
+{{{'"seen_items": ["each food you can see"], ' if with_photo else ''}"options": [{{"name": "short appetising name", "why": "one short sentence on why it fits",
   "ingredients": [{{"name": "plain food name", "usda_query": "short generic USDA search incl. cooked/raw state, e.g. rice white cooked",
                    "grams": 0, "role": "protein|carb|veg|fat|fruit|other"}}]}}]}}
 Rules:
 - never include anything the allergies or diet exclude
+- name ingredients as plain generic foods found in USDA FoodData Central (e.g. "chicken thigh", "brown rice", "broccoli")
 - at most {MAX_INGREDIENTS} ingredients per option, plain whole foods (no brands, no recipes as ingredients)
 - grams are a realistic portion near the target (the app adjusts them), for cooked weights when cooked
 - a {block_label.lower()} should look like one: {"small and simple" if "snack" in block_label.lower() else "a real meal"}
@@ -342,15 +348,63 @@ def fit_portions(items: list[dict[str, Any]], budget: Nutrition) -> list[float]:
     return [max(GRAM_STEP, round(value / GRAM_STEP) * GRAM_STEP) for value in grams]
 
 
+# Basics anyone has: allowed in photo mode even when they aren't in the picture.
+PANTRY_STAPLES = {"oil", "olive", "butter", "salt", "pepper", "spice", "spices", "seasoning", "water", "vinegar", "herbs"}
+_PREP_WORDS = {"cooked", "boiled", "roasted", "grilled", "baked", "fried", "steamed", "raw", "fresh", "chopped", "sliced", "diced"}
+
+
+def _simpler(name: str) -> str | None:
+    """A shorter search for an ingredient: its last two words without preparation words
+    ("grilled chicken thighs" → "chicken thighs")."""
+    words = [word for word in re.findall(r"[a-zA-Z]+", name.lower()) if word not in _PREP_WORDS]
+    simpler = " ".join(words[-2:])
+    return simpler if simpler and simpler != name.lower() else None
+
+
 async def _resolve(
-    repository: SQLiteRepository, user_id: str, item: dict[str, Any], usda_lookup: Callable[[str], Awaitable[list[FoodItem]]] | None
+    repository: SQLiteRepository,
+    user_id: str,
+    item: dict[str, Any],
+    generic: Callable[[str], Awaitable[list[FoodItem]]] | None,
+    any_type: Callable[[str], Awaitable[list[FoodItem]]] | None,
 ) -> FoodItem | None:
+    """The ingredient's food: the user's bank, then USDA generic foods, then all of USDA
+    (branded too), then a simpler name. Every step uses the same safe matching (cooked is not
+    raw, plain is not breaded); USDA finds are saved so they can be logged."""
     food = _bank_food(repository, user_id, item["name"], item["query"])
-    if food is not None or usda_lookup is None:
+    if food is not None or generic is None:
         return food
-    found = await usda_lookup(item["query"])
-    picked = pick_generic_food(item["query"], found) or pick_generic_food(item["name"], found)
-    return repository.save_food_item(picked) if picked is not None else None
+    attempts: list[tuple[Callable[[str], Awaitable[list[FoodItem]]], str]] = [(generic, item["query"])]
+    if any_type is not None:
+        attempts.append((any_type, item["query"]))
+    simpler = _simpler(item["name"])
+    if simpler:
+        attempts.append((generic, simpler))
+    for lookup, query in attempts:
+        found = await lookup(query)
+        picked = pick_generic_food(query, found) or pick_generic_food(item["name"], found)
+        if picked is not None:
+            return repository.save_food_item(picked)
+    return None
+
+
+def _photo_filter(options: list[dict[str, Any]], seen: list[str]) -> list[dict[str, Any]]:
+    """Photo mode: keep only ingredients that are in the photo (or pantry staples). An option
+    left without at least two real foods from the photo is dropped."""
+    seen_words = [_words(item) for item in seen]
+    kept = []
+    for option in options:
+        items = []
+        real = 0
+        for item in option["items"]:
+            words = _words(item["name"])
+            if words and (words & PANTRY_STAPLES or any(words & seen_item for seen_item in seen_words)):
+                items.append(item)
+                if not words & PANTRY_STAPLES:
+                    real += 1
+        if real >= 2 or (real >= 1 and len(seen) == 1):
+            kept.append({**option, "items": items})
+    return kept
 
 
 async def suggest_meals(
@@ -377,75 +431,102 @@ async def suggest_meals(
     all_planned = planned_meals(repository, user_id, payload.log_date)
     planned = later_planned(all_planned, label)
     planned_here = next((meal for meal in all_planned if meal["label"].lower() == label.lower()), None)
-    prompt = suggestion_prompt(
-        block_label=label,
-        budget=budget,
-        profile=profile,
-        ingredients=payload.ingredients,
-        planned=planned,
-        with_photo=bool(payload.image_base64),
-    )
-    options = _clean_options(await ask(prompt))
-    if not options:
-        return SuggestResponse(**base, message="Gus couldn't come up with anything this time. Try again, or list what you have.")
+    with_photo = bool(payload.image_base64)
 
     factory = client_factory or (lambda: httpx.AsyncClient(timeout=6))
+    meals: list[SuggestedMeal] = []
+    seen: list[str] = []
+    avoid: list[str] = []
     async with factory() as client:
-        usda_lookup = (
+        generic = (
             (lambda query: search_usda_foods(query, settings.usda_api_key, client=client, data_types=GENERIC_DATA_TYPES))
             if settings.usda_api_key
             else None
         )
-        all_items = [item for option in options for item in option["items"]]
-        resolved = await asyncio.gather(*(_resolve(repository, user_id, item, usda_lookup) for item in all_items), return_exceptions=True)
+        any_type = (lambda query: search_usda_foods(query, settings.usda_api_key, client=client)) if settings.usda_api_key else None
 
-    foods = iter(resolved)
-    meals: list[SuggestedMeal] = []
-    for option in options:
-        found = []
-        missing = []
-        for item in option["items"]:
-            food = next(foods)
-            if isinstance(food, BaseException) or food is None:
-                missing.append(item["name"])
+        # Up to two rounds: anything Gus names that can't be matched to nutrition data is
+        # avoided in a second round, so only complete meals are ever offered.
+        for _round in range(2):
+            prompt = suggestion_prompt(
+                block_label=label,
+                budget=budget,
+                profile=profile,
+                ingredients=payload.ingredients,
+                planned=planned,
+                with_photo=with_photo,
+                avoid=avoid,
+                seen=seen if _round else None,
+            )
+            reply = await ask(prompt)
+            if with_photo and not seen:
+                seen = [str(item).strip()[:40] for item in (reply.get("seen_items") or []) if str(item).strip()][:20] if isinstance(reply.get("seen_items"), list) else []
+            options = _clean_options(reply)
+            if with_photo:
+                options = _photo_filter(options, seen)
+            options = [option for option in options if option["name"] not in {meal.name for meal in meals}]
+            if not options:
                 continue
-            found.append({**item, "food": food, "rate": _per_gram(food)})
-        if not found:
-            continue
-        grams = fit_portions(found, budget)
-        items = [
-            SuggestedItem(
-                name=item["name"],
-                grams=weight,
-                role=item["role"],
-                food=item["food"],
-                nutrition=Nutrition(
-                    calories=round(weight * item["rate"].calories),
-                    protein=round(weight * item["rate"].protein, 1),
-                    carbs=round(weight * item["rate"].carbs, 1),
-                    fat=round(weight * item["rate"].fat, 1),
-                ),
+            all_items = [item for option in options for item in option["items"]]
+            resolved = await asyncio.gather(
+                *(_resolve(repository, user_id, item, generic, any_type) for item in all_items), return_exceptions=True
             )
-            for item, weight in zip(found, grams)
-        ]
-        totals = _sum([(item.grams, _per_gram(item.food)) for item in items])
-        meals.append(
-            SuggestedMeal(
-                name=option["name"],
-                why=option["why"],
-                items=items,
-                totals=Nutrition(calories=round(totals.calories), protein=round(totals.protein), carbs=round(totals.carbs), fat=round(totals.fat)),
-                missing=missing,
-            )
-        )
-    # An option that can't be shrunk to fit (5 g minimums, a small budget) isn't offered.
-    meals = [meal for meal in meals if meal.totals.calories <= max(budget.calories * 1.25, budget.calories + 40)]
+            foods = iter(resolved)
+            for option in options:
+                found, missing = [], []
+                for item in option["items"]:
+                    food = next(foods)
+                    if isinstance(food, BaseException) or food is None:
+                        missing.append(item["name"])
+                    else:
+                        found.append({**item, "food": food, "rate": _per_gram(food)})
+                if missing or not found:
+                    avoid.extend(missing)  # incomplete: not offered; avoided next round
+                    continue
+                meal = _assemble(option, found, budget)
+                if meal.totals.calories <= max(budget.calories * 1.25, budget.calories + 40):
+                    meals.append(meal)
+            if len(meals) >= 2:
+                break
+
     if not meals:
-        return SuggestResponse(**base, message="Gus's ideas didn't fit what's left. Try again, or list what you have.")
+        return SuggestResponse(
+            **base,
+            seen_items=seen,
+            message="Gus couldn't put together a complete meal that fits. Try again"
+            + (", or take the photo with the foods more visible." if with_photo else ", or say what you'd like to use."),
+        )
     return SuggestResponse(
         **base,
-        options=meals,
+        options=meals[:2],
+        seen_items=seen,
         planned_here=PlannedHere(slot_id=planned_here["id"], title=planned_here["title"], calories=planned_here["calories"])
         if planned_here and planned_here.get("id")
         else None,
+    )
+
+
+def _assemble(option: dict[str, Any], found: list[dict[str, Any]], budget: Nutrition) -> SuggestedMeal:
+    grams = fit_portions(found, budget)
+    items = [
+        SuggestedItem(
+            name=item["name"],
+            grams=weight,
+            role=item["role"],
+            food=item["food"],
+            nutrition=Nutrition(
+                calories=round(weight * item["rate"].calories),
+                protein=round(weight * item["rate"].protein, 1),
+                carbs=round(weight * item["rate"].carbs, 1),
+                fat=round(weight * item["rate"].fat, 1),
+            ),
+        )
+        for item, weight in zip(found, grams)
+    ]
+    totals = _sum([(item.grams, _per_gram(item.food)) for item in items])
+    return SuggestedMeal(
+        name=option["name"],
+        why=option["why"],
+        items=items,
+        totals=Nutrition(calories=round(totals.calories), protein=round(totals.protein), carbs=round(totals.carbs), fat=round(totals.fat)),
     )

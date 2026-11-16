@@ -1,8 +1,9 @@
 /**
  * "Suggest a meal" (Today → Meals): help filling what's left today. Pick the meal, then either
  * photograph your ingredients (fridge, counter, pantry) or let Gus choose from your remaining
- * calories and macros (meals already planned for later are held back). Gus offers two meals
- * sized to fit; Log it adds every ingredient to the day by weight.
+ * calories and macros (meals already planned for later are held back). Gus offers two complete
+ * meals sized to fit (every ingredient has nutrition data); Log it adds every ingredient to the
+ * day by weight, saving any new ones to the food bank.
  */
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -184,6 +185,9 @@ export function SuggestMealSheet({
                   {Math.round(result.budget.carbs)} · F {Math.round(result.budget.fat)}
                   {'  '}({Math.round(result.remaining.calories)} kcal left today)
                 </Text>
+                {result.seen_items.length > 0 ? (
+                  <Text style={styles.seen}>Gus sees: {result.seen_items.join(', ')}</Text>
+                ) : null}
                 {result.message ? <Text style={styles.message}>{result.message}</Text> : null}
                 {result.options.map((meal, index) => (
                   <View key={index} style={styles.card}>
@@ -298,5 +302,6 @@ const styles = StyleSheet.create({
   modeTitlePrimary: { color: tc.fg_ffffff },
   modeDetail: { color: tc.fg_5c6d80, fontSize: 12 },
   modeDetailPrimary: { color: tc.fg_ffffff, opacity: 0.85 },
-  thinking: { color: tc.fg_0f766e, fontSize: 14, fontWeight: '700', textAlign: 'center' }
+  thinking: { color: tc.fg_0f766e, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  seen: { color: tc.fg_2f6b4f, fontSize: 13, lineHeight: 18 }
 });
