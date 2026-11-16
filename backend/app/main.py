@@ -11,6 +11,7 @@ from backend.app.dependencies import get_required_session
 from backend.app.db.backup import backup_database
 from backend.app.db.database import resolve_sqlite_path
 from backend.app.routes.auth import router as auth_router
+from backend.app.routes.coach import router as coach_router
 from backend.app.routes.export import router as export_router
 from backend.app.routes.ingestion import router as ingestion_router
 from backend.app.routes.food_logs import router as food_logs_router
@@ -91,6 +92,7 @@ def create_app(
         vision_router,
         export_router,
         integrations_router,
+        coach_router,
     ):
         app.include_router(router, prefix="/api", dependencies=owner_only)
 
