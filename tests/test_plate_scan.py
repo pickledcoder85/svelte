@@ -160,6 +160,37 @@ def test_processed_or_partial_foods_are_not_matched(query, names, expected):
     assert (picked.name if picked else None) == expected
 
 
+DELI = "Chicken breast, oven-roasted, fat-free, sliced"
+PLAIN = "Chicken, broilers or fryers, breast, meat only, cooked, roasted"
+
+
+@pytest.mark.parametrize(
+    "query, names, expected",
+    [
+        # Plain chicken breast prefers the plain cooked food, even when USDA ranks deli first...
+        ("chicken breast", [DELI, PLAIN], PLAIN),
+        ("chicken breast cooked", [DELI, PLAIN], PLAIN),
+        # ...but uses deli when that's all there is.
+        ("chicken breast", [DELI], DELI),
+        # Asking for deli or a sandwich prefers it.
+        ("deli chicken breast", [PLAIN, DELI], DELI),
+        ("sliced chicken breast", [PLAIN, DELI], DELI),
+        ("chicken breast for sandwich", [PLAIN, DELI], DELI),
+        ("deli turkey", ["Turkey, sliced, prepackaged, light meat"], "Turkey, sliced, prepackaged, light meat"),
+        # Broccoli raab is a different vegetable, unless asked for (by any of its names).
+        ("broccoli cooked", ["Broccoli raab, cooked", "Broccoli, cooked, boiled, drained, without salt"],
+         "Broccoli, cooked, boiled, drained, without salt"),
+        ("broccoli", ["Broccoli raab, cooked"], None),
+        ("broccoli rabe cooked", ["Broccoli raab, cooked"], "Broccoli raab, cooked"),
+        ("rapini", ["Broccoli raab, raw"], "Broccoli raab, raw"),
+    ],
+)
+def test_deli_and_lookalike_foods_match_only_what_was_asked(query, names, expected):
+    foods = [_food(name, 100 + index) for index, name in enumerate(names)]
+    picked = pick_generic_food(query, foods)
+    assert (picked.name if picked else None) == expected
+
+
 @pytest.mark.asyncio
 async def test_generic_search_sends_food_types_in_a_json_body(repository):
     import json

@@ -37,8 +37,18 @@ DIFFERENT_FOOD_WORDS = {
     "breaded", "battered", "glazed", "candied", "sweetened", "stuffed", "coated",
     # Processed or different products from the same food (a deli roll is not a chicken breast,
     # oat bran and oat milk are not oats).
-    "roll", "loaf", "deli", "luncheon", "lunchmeat", "patty", "sausage", "bran", "milk", "flour", "powdered",
+    "roll", "loaf", "patty", "sausage", "bran", "milk", "flour", "powdered",
+    # A different vegetable that shares a name (broccoli raab is not broccoli).
+    "raab",
 }
+# Deli-style meat ("Chicken breast, oven-roasted, fat-free, sliced") is a fine food, but not what
+# "chicken breast" means: it's matched when the ingredient asks for it (a sandwich), and otherwise
+# only when no plain match is found.
+DELI_MARKERS = {"deli", "sliced", "luncheon", "lunchmeat", "prepackaged"}
+DELI_ASKS = DELI_MARKERS | {"sandwich"}
+DELI_PENALTY = 0.5
+# Other names for the same food, so a query and USDA's name meet.
+SYNONYMS = {"rabe": "raab", "rapini": "raab"}
 
 
 def _stem(word: str) -> str:
@@ -52,7 +62,8 @@ def _stem(word: str) -> str:
 
 
 def _words(text: str) -> set[str]:
-    return {_stem(word) for word in re.findall(r"[a-z]+", text.lower()) if len(word) > 1}
+    words = {_stem(word) for word in re.findall(r"[a-z]+", text.lower()) if len(word) > 1}
+    return {SYNONYMS.get(word, word) for word in words}
 
 
 def food_score(query: str, food_name: str) -> float | None:
@@ -74,14 +85,21 @@ def food_score(query: str, food_name: str) -> float | None:
     if "skin" in have and "skin" not in wanted and not re.search(r"\b(and|with)\s+skin\b", lowered):
         return None
     # Preparation words are qualifiers: USDA often says "roasted" where the photo says "grilled".
+    deli_asked = bool(wanted & DELI_ASKS)
+    deli_food = bool(have & DELI_MARKERS)
+    # Asking for deli counts as matched by any deli word ("deli turkey" → "Turkey, sliced").
+    matched = wanted & have | (wanted & DELI_ASKS if deli_asked and deli_food else set())
     core = wanted - COOKED_WORDS - RAW_WORDS or wanted
-    matched_core = len(core & have)
+    matched_core = len(core & matched)
     needed = len(core) if len(core) <= 2 else max(2, round(len(core) * 0.67))
     if matched_core < needed:
         return None
-    coverage = len(wanted & have) / len(wanted)
-    extra = len(have - wanted)
-    return coverage - 0.03 * extra
+    coverage = len(matched) / len(wanted)
+    extra = len(have - wanted - DELI_MARKERS)
+    score = coverage - 0.03 * extra
+    if deli_food and not deli_asked:
+        score -= DELI_PENALTY
+    return score
 
 
 def pick_generic_food(query: str, foods: list[FoodItem]) -> FoodItem | None:
