@@ -265,6 +265,8 @@ def complete_user_onboarding(
     profile = repository.get_user_identity(session.user_id)
     if profile is not None and profile.get("setup_completed_at") is not None:
         raise OnboardingAlreadyCompletedError("User onboarding is already complete.")
+    # Check the meal balance before saving anything (a ValueError: a 400).
+    meal_split = validate_split(3, list(payload.meal_split)) if payload.meal_split is not None else None
 
     repository.ensure_user_identity(
         user_id=session.user_id,
@@ -330,6 +332,10 @@ def complete_user_onboarding(
     # and the user builds their own (the dev seed still has sample data for testing).
     if profile is None:
         raise RuntimeError("Failed to persist onboarding profile.")
+    if meal_split is not None:
+        # Breakfast, lunch, dinner (snacks come later).
+        repository.update_user_preferences(user_id=session.user_id, meals_per_day=3, meal_split=meal_split)
+        profile = repository.get_user_identity(session.user_id) or profile
     return UserProfile.model_validate(profile)
 
 

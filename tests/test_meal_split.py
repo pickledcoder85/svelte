@@ -69,3 +69,19 @@ async def test_profile_saves_meals_per_day_and_split_without_changing_targets(cl
     after = (await client.get("/api/profile", headers=headers)).json()
     assert after["display_name"] != "Changed"  # nothing saved from a rejected update
     assert after["meal_split"] == [25, 10, 30, 5, 30]
+
+
+@pytest.mark.asyncio
+async def test_setup_saves_the_meal_balance(client):
+    headers = await _headers(client, "balance@example.com")
+    done = (await client.post("/api/profile/onboarding", headers=headers, json={**ONBOARDING_BODY, "meal_split": [25, 30, 45]})).json()
+    assert (done["meals_per_day"], done["meal_split"], done["meal_pattern_chosen"]) == (3, [25, 30, 45], True)
+
+
+@pytest.mark.asyncio
+async def test_setup_rejects_a_bad_balance_before_saving(client):
+    headers = await _headers(client, "badbalance@example.com")
+    bad = await client.post("/api/profile/onboarding", headers=headers, json={**ONBOARDING_BODY, "meal_split": [50, 50, 50]})
+    assert bad.status_code in (400, 422)
+    profile = (await client.get("/api/profile", headers=headers)).json()
+    assert profile["setup_complete"] is False

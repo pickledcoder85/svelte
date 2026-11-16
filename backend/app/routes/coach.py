@@ -8,7 +8,13 @@ from backend.app.config import Settings
 from backend.app.dependencies import get_app_settings, get_repository, get_required_session
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.meal_suggest import SuggestRequest, SuggestResponse, suggest_meals
-from backend.app.services.vision import VisionNotConfiguredError, request_text_json
+from backend.app.services.vision import (
+    VisionImageError,
+    VisionNotConfiguredError,
+    _request_vision_json,
+    prepare_image_data_url,
+    request_text_json,
+)
 
 router = APIRouter(prefix="/coach", tags=["coach"])
 logger = logging.getLogger(__name__)
@@ -23,9 +29,21 @@ async def suggest(
 ) -> SuggestResponse:
     repository.ensure_user_identity(user_id=session.user_id, email=session.email, display_name=session.display_name)
     try:
-        return await suggest_meals(
-            repository, settings, session.user_id, payload, ask=lambda prompt: request_text_json(settings, prompt)
-        )
+        if payload.image_base64:
+            if not settings.openai_api_key:
+                raise VisionNotConfiguredError("Suggestions are not set up on this server.")
+            image_url = prepare_image_data_url(payload.image_base64, settings)
+
+            async def ask(prompt: str):
+                return await _request_vision_json(settings, image_url, prompt)
+        else:
+
+            async def ask(prompt: str):
+                return await request_text_json(settings, prompt)
+
+        return await suggest_meals(repository, settings, session.user_id, payload, ask=ask)
+    except VisionImageError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except VisionNotConfiguredError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except (httpx.HTTPError, ValueError) as error:

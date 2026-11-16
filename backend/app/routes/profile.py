@@ -1,5 +1,6 @@
 from datetime import date
 
+from backend.app.services.meal_split import MealSplitError
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.dependencies import get_required_session, get_repository
@@ -130,6 +131,8 @@ async def complete_onboarding(
         return complete_user_onboarding(repository, session, payload)
     except OnboardingAlreadyCompletedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except MealSplitError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/setup/reset", response_model=UserProfile)

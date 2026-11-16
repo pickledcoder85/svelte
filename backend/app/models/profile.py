@@ -67,6 +67,8 @@ class UserOnboardingRequest(BaseModel):
     calorie_floor: Literal["recommended", "off"] = "recommended"
     # The name to greet the user by; blank keeps the signed-in name.
     display_name: str | None = Field(default=None, max_length=60)
+    # "How do you balance your meals?": breakfast / lunch / dinner percents (checked on save).
+    meal_split: list[int] | None = None
     @model_validator(mode="after")
     def _pace_matches_goal(self):
         if not is_valid_goal_pace(self.goal_type, self.goal_pace):
