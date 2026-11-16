@@ -66,6 +66,7 @@ The format should remain simple:
 ### Fixed
 
 - Ingredient matching picked deli-style sliced chicken for "chicken breast" and broccoli raab for "broccoli". Deli meats are now matched when the ingredient asks for them (deli, sliced, sandwich) and otherwise only when no plain food is found; broccoli raab (rabe, rapini) only when asked for.
+- Ingredient matching picked Chinese broccoli for broccoli, "Fried broccoli" for steamed broccoli, and fat-added versions of baked or cooked foods. Chinese broccoli is now matched only when asked for, and fried or fat-added foods only when the ingredient asks for frying or fat (otherwise only when no plain food is found), since Gus lists oil as its own ingredient.
 - USDA search stored branded foods with per-100 g values labelled as one serving, so a 32 g serving logged at about 3× its calories; results are now converted to the serving.
 - Accepting a scan dropped fields the form doesn't edit (barcode, data source, attribution, serving weight), so rescanning a barcode could save a duplicate.
 - Setup choices have emoji icons drawn by the phone's emoji font (no images shipped): How you eat 🥦 🥗 🐟 🍗 🥩, Nutrition style 🍽️ 🥑 🫒, and Avoid ✅ 🥛 🥚 🥜 🌰 🌾 🦐 ✏️.

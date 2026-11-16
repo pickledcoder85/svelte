@@ -38,9 +38,15 @@ DIFFERENT_FOOD_WORDS = {
     # Processed or different products from the same food (a deli roll is not a chicken breast,
     # oat bran and oat milk are not oats).
     "roll", "loaf", "patty", "sausage", "bran", "milk", "flour", "powdered",
-    # A different vegetable that shares a name (broccoli raab is not broccoli).
-    "raab",
+    # A different vegetable that shares a name (broccoli raab and Chinese broccoli are not broccoli).
+    "raab", "chinese",
 }
+# Fried or cooked with added fat: far more calories than steamed or baked (fried broccoli ~223
+# kcal/100 g, steamed ~35), and Gus lists any oil as its own ingredient. Matched when the
+# ingredient asks for it, otherwise only when no plain food is found.
+ADDED_FAT = re.compile(r"\bfried\b|\b(fat|oil|butter|margarine) added\b|\bwith (fat|oil|butter|margarine)\b")
+ADDED_FAT_ASKS = {"fried", "fry", "oil", "butter", "margarine", "fat"}
+ADDED_FAT_PENALTY = 0.5
 # Deli-style meat ("Chicken breast, oven-roasted, fat-free, sliced") is a fine food, but not what
 # "chicken breast" means: it's matched when the ingredient asks for it (a sandwich), and otherwise
 # only when no plain match is found.
@@ -99,6 +105,8 @@ def food_score(query: str, food_name: str) -> float | None:
     score = coverage - 0.03 * extra
     if deli_food and not deli_asked:
         score -= DELI_PENALTY
+    if ADDED_FAT.search(lowered) and not wanted & ADDED_FAT_ASKS:
+        score -= ADDED_FAT_PENALTY
     return score
 
 
