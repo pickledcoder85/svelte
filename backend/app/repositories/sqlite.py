@@ -912,11 +912,13 @@ class SQLiteRepository:
     def reset_user_setup(self, user_id: str) -> dict[str, Any] | None:
         """Clear the setup answers and the "setup done" mark so setup runs again.
 
-        Keeps the name, timezone, and units, and everything outside the profile row: foods,
-        logs, weigh-ins, scans, plans, and the dated goal history.
+        Also deletes the goals: setup starts over, so the new setup's goal is the only one
+        (resetting again and again no longer piles up old goals). Keeps the name, timezone, and
+        units, and everything else: foods, logs, weigh-ins, scans, and plans.
         """
         self._ensure_user_exists(user_id)
-        with self._connection:
+        with self._lock, self._connection:
+            self._connection.execute("DELETE FROM user_goals WHERE user_id = ?", (user_id,))
             self._connection.execute(
                 """
                 UPDATE user_profiles

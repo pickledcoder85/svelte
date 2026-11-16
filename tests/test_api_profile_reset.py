@@ -32,13 +32,17 @@ async def test_reset_profile_reopens_setup_and_keeps_history(client):
     # Preferences and everything outside the setup answers stay.
     assert (profile["units"], profile["timezone"]) == ("metric", "Europe/Berlin")
     assert len((await client.get("/api/profile/weights", headers=headers)).json()) == 1
-    assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 1
+    # Goals go with the reset: the next setup seeds the only goal.
+    assert (await client.get("/api/profile/goals", headers=headers)).json() == []
 
-    # Setup can be completed again, which adds a new dated goal.
     again = await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)
     assert again.status_code == 200
     assert again.json()["setup_complete"] is True
-    assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 2
+    assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 1
+    # Resetting and setting up again never piles up goals.
+    await client.post("/api/profile/setup/reset", headers=headers)
+    await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)
+    assert len((await client.get("/api/profile/goals", headers=headers)).json()) == 1
 
 
 @pytest.mark.asyncio

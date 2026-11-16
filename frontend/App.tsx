@@ -2927,6 +2927,7 @@ export default function App(): ReactElement {
       // A profile without setup sends the app back to the welcome card with empty fields.
       applyProfileDrafts(reset);
       setProfile(reset);
+      setProfileGoals([]); // the server deleted them; setup seeds the new one
     } catch (error) {
       setSettingsError(error instanceof Error ? error.message : 'Unable to reset the profile.');
     } finally {
@@ -6616,8 +6617,9 @@ export default function App(): ReactElement {
               <Text style={styles.panelEyebrow}>Start over</Text>
               <Text style={styles.panelTitle}>Reset profile</Text>
               <Text style={styles.panelDetail}>
-                Runs setup again from the welcome screen. Your foods, food and exercise logs, and weigh-ins are kept. To change
-                your weight or goal, edit the profile above instead.
+                Runs setup again from the welcome screen and clears your goals, so the new setup's goal is the only one. Your
+                foods, food and exercise logs, and weigh-ins are kept. To change your weight or goal, edit the profile above
+                instead.
               </Text>
               <Pressable
                 style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}
