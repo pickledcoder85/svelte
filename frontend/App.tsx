@@ -87,6 +87,7 @@ import { buildCalorieBudget } from './src/lib/calorie-budget';
 import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
+import { MacroRing } from './src/components/MacroRing';
 import { CalorieBars } from './src/components/trends/CalorieBars';
 import { DayHistory } from './src/components/trends/DayHistory';
 import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
@@ -4835,23 +4836,23 @@ export default function App(): ReactElement {
                 <Text style={styles.dailyHomeEmptyState}>Finish setup to see your daily calories.</Text>
               )}
               <View style={styles.dailyHomeMacroRingRow}>
-                <MacroSplitRing
+                <MacroRing
                   label="Protein"
-                  consumed={Math.round(homeConsumedMacros.protein)}
-                  target={Math.round(dailyHomeTargets.macroTargets.protein)}
-                  baseColor={tc.fg_0f766e}
+                  consumed={homeConsumedMacros.protein}
+                  target={dailyHomeTargets.macroTargets.protein}
+                  color={tc.fg_0f766e}
                 />
-                <MacroSplitRing
+                <MacroRing
                   label="Carbs"
-                  consumed={Math.round(homeConsumedMacros.carbs)}
-                  target={Math.round(dailyHomeTargets.macroTargets.carbs)}
-                  baseColor={tc.fg_ea580c}
+                  consumed={homeConsumedMacros.carbs}
+                  target={dailyHomeTargets.macroTargets.carbs}
+                  color={tc.fg_ea580c}
                 />
-                <MacroSplitRing
+                <MacroRing
                   label="Fat"
-                  consumed={Math.round(homeConsumedMacros.fat)}
-                  target={Math.round(dailyHomeTargets.macroTargets.fat)}
-                  baseColor={tc.fg_2563eb}
+                  consumed={homeConsumedMacros.fat}
+                  target={dailyHomeTargets.macroTargets.fat}
+                  color={tc.fg_2563eb}
                 />
               </View>
             </View>
@@ -7249,98 +7250,6 @@ function MetricTile({
   );
 }
 
-function MacroSplitRing({
-  baseColor,
-  consumed,
-  label,
-  target
-}: {
-  baseColor: string;
-  consumed: number;
-  label: string;
-  target: number;
-}): ReactElement {
-  const radius = 20;
-  const circumference = 2 * Math.PI * radius;
-  const ratio = target > 0 ? consumed / target : 0;
-  const percent = target > 0 ? Math.round(ratio * 100) : 0;
-  const clamped = Math.max(0, Math.min(percent, 100));
-  const overflowPercent = Math.max(0, percent - 100);
-  const offset = circumference - (clamped / 100) * circumference;
-  const overflowOffset = circumference - (Math.min(overflowPercent, 100) / 100) * circumference;
-
-  const pal = usePalette();
-  let accentColor = resolveColor(baseColor, pal);
-  if (ratio >= 1.2) {
-    accentColor = pal.fg_b91c1c;
-  } else if (ratio >= 0.9 && ratio <= 1.1) {
-    accentColor = pal.fg_15803d;
-  }
-
-  return (
-    <View style={styles.macroSplitRingCard}>
-      <View style={styles.macroSplitRingWrap}>
-        <Svg width={54} height={54}>
-          <Circle cx="27" cy="27" r={radius} stroke={pal.line_dbe3ec} strokeWidth="7" fill="none" />
-          <Circle
-            cx="27"
-            cy="27"
-            r={radius}
-            stroke={accentColor}
-            strokeWidth="7"
-            fill="none"
-            strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            rotation="-90"
-            origin="27,27"
-          />
-          {overflowPercent > 0 ? (
-            <Circle
-              cx="27"
-              cy="27"
-              r={radius + 4}
-              stroke={pal.fg_b91c1c}
-              strokeWidth="3"
-              fill="none"
-              strokeDasharray={`${circumference} ${circumference}`}
-              strokeDashoffset={overflowOffset}
-              strokeLinecap="round"
-              rotation="-90"
-              origin="27,27"
-            />
-          ) : null}
-        </Svg>
-        <View style={styles.macroSplitRingCenter}>
-          <Text
-            style={[
-              styles.macroSplitRingPercent,
-              ratio >= 1.2
-                ? styles.macroSplitRingPercentOver
-                : ratio >= 0.9 && ratio <= 1.1
-                  ? styles.macroSplitRingPercentNear
-                  : null
-            ]}>
-            {Math.max(percent, 0)}%
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.macroSplitRingLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.macroSplitRingValue,
-          ratio >= 1.2
-            ? styles.macroSplitRingValueOver
-            : ratio >= 0.9 && ratio <= 1.1
-              ? styles.macroSplitRingValueNear
-              : null
-        ]}>
-        {consumed}g
-      </Text>
-    </View>
-  );
-}
-
 function MacroProgress({
   label,
   consumed,
@@ -8667,56 +8576,6 @@ const styles = StyleSheet.create({
     color: tc.fg_17324d,
     fontSize: 13,
     fontWeight: '700'
-  },
-  macroSplitRingCard: {
-    minWidth: 98,
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    paddingHorizontal: 12,
-    paddingVertical: 14
-  },
-  macroSplitRingWrap: {
-    width: 62,
-    height: 62,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  macroSplitRingCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  macroSplitRingPercent: {
-    color: tc.fg_132536,
-    fontSize: 12,
-    fontWeight: '800'
-  },
-  macroSplitRingPercentNear: {
-    color: tc.fg_15803d
-  },
-  macroSplitRingPercentOver: {
-    color: tc.fg_b91c1c
-  },
-  macroSplitRingLabel: {
-    color: tc.fg_66778c,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  macroSplitRingValue: {
-    color: tc.fg_132536,
-    fontSize: 14,
-    fontWeight: '800'
-  },
-  macroSplitRingValueNear: {
-    color: tc.fg_15803d
-  },
-  macroSplitRingValueOver: {
-    color: tc.fg_b91c1c
   },
   dailyHomeEmptyState: {
     color: tc.fg_66778c,
