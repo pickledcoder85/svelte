@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockBudgets, DEFAULT_SPLITS, isValidSplit, moveHandle, SPLIT_PRESETS, type MealsPerDay } from './meal-split';
+import { blockBudgets, DEFAULT_SPLITS, isValidSplit, MEAL_STYLES, moveHandle, styleForSplit, type MealsPerDay } from './meal-split';
 
 describe('meal split', () => {
   it('has valid defaults and presets', () => {
     for (const count of [3, 4, 5] as MealsPerDay[]) {
       expect(isValidSplit(count, DEFAULT_SPLITS[count])).toBe(true);
-      for (const preset of SPLIT_PRESETS[count]) {
-        expect(isValidSplit(count, preset.split)).toBe(true);
+      for (const style of MEAL_STYLES) {
+        expect(isValidSplit(count, style.splits[count])).toBe(true);
       }
+      expect(styleForSplit(count, DEFAULT_SPLITS[count])).toBe('balanced');
     }
     expect(isValidSplit(3, [30, 30, 30])).toBe(false);
+    expect(styleForSplit(3, [40, 35, 25])).toBe('taper-down');
+    expect(styleForSplit(5, [15, 10, 25, 15, 35])).toBe('build-up');
+    expect(styleForSplit(3, [35, 30, 35])).toBeNull(); // fine-tuned: custom
     expect(isValidSplit(5, [20, 0, 40, 10, 30])).toBe(false);
   });
 

@@ -22,7 +22,7 @@ class UserProfile(BaseModel):
     # Meals a day (3-5, snacks between meals) and the daily target's split across them, in day
     # order (percent; macros follow). See services/meal_split.py.
     meals_per_day: Literal[3, 4, 5] = 3
-    meal_split: list[int] = Field(default_factory=lambda: [25, 35, 40])
+    meal_split: list[int] = Field(default_factory=lambda: [30, 35, 35])
     user_created_at: datetime | None = None
     profile_created_at: datetime | None = None
     profile_updated_at: datetime | None = None

@@ -15,7 +15,7 @@ MEAL_PATTERNS: dict[int, list[str]] = {
     5: ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"],
 }
 DEFAULT_SPLITS: dict[int, list[int]] = {
-    3: [25, 35, 40],
+    3: [30, 35, 35],
     4: [25, 30, 10, 35],
     5: [20, 10, 30, 10, 30],
 }
