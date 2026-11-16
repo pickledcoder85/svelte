@@ -209,3 +209,28 @@ async def test_generic_search_sends_food_types_in_a_json_body(repository):
     assert seen[0].method == "POST" and json.loads(seen[0].content)["dataType"] == ["Foundation", "SR Legacy", "Survey (FNDDS)"]
     assert "dataType" not in seen[0].url.params
     assert seen[1].method == "GET"
+
+
+@pytest.mark.parametrize(
+    "query, names, expected",
+    [
+        # Chinese broccoli is a different vegetable unless asked for.
+        ("broccoli cooked", ["Broccoli, Chinese, cooked", "Broccoli, cooked, boiled, drained, without salt"],
+         "Broccoli, cooked, boiled, drained, without salt"),
+        ("chinese broccoli cooked", ["Broccoli, Chinese, cooked"], "Broccoli, Chinese, cooked"),
+        # Fried or fat-added versions lose to a plain cooked one, even when USDA ranks them first...
+        ("broccoli steamed", ["Fried broccoli", "Broccoli, steamed"], "Broccoli, steamed"),
+        ("sweet potato baked", ["Sweet potato, baked, fat added", "Sweet potato, baked, no added fat"],
+         "Sweet potato, baked, no added fat"),
+        ("egg whole cooked", ["Egg, whole, cooked, fried", "Egg, whole, cooked, hard-boiled"], "Egg, whole, cooked, hard-boiled"),
+        ("rice cooked", ["Rice, white, cooked, made with oil", "Rice, white, cooked, no added fat"], "Rice, white, cooked, no added fat"),
+        # ...are used when nothing plain is found...
+        ("broccoli steamed", ["Fried broccoli"], "Fried broccoli"),
+        # ...and are preferred when asked for.
+        ("fried egg", ["Egg, whole, cooked, hard-boiled", "Egg, whole, cooked, fried"], "Egg, whole, cooked, fried"),
+    ],
+)
+def test_chinese_broccoli_and_fried_foods_match_only_what_was_asked(query, names, expected):
+    foods = [_food(name, 100 + index) for index, name in enumerate(names)]
+    picked = pick_generic_food(query, foods)
+    assert (picked.name if picked else None) == expected
