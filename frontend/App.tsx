@@ -46,6 +46,8 @@ import {
   fetchExerciseEntries,
   fetchGarminStatus,
   fetchFoodLogsBetween,
+  fetchFoodBank,
+  removeFoodFromBank,
   deleteMealPlanSlot,
   syncGarmin,
   fetchPlannedWorkoutSessions,
@@ -549,6 +551,8 @@ export default function App(): ReactElement {
   const isOwnerSession = foodSessionToken === OWNER_SESSION_TOKEN;
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([]);
   const [foodResults, setFoodResults] = useState<FoodItem[]>([]);
+  // The whole food bank (favorites first), what the Food bank screen shows before a search.
+  const [bankFoods, setBankFoods] = useState<FoodItem[]>([]);
   const [selectedFoodId, setSelectedFoodId] = useState('');
   const [foodQuantities, setFoodQuantities] = useState<Record<string, number>>({});
   const [foodTone, setFoodTone] = useState<'checking' | 'live'>('checking');
@@ -1128,14 +1132,16 @@ export default function App(): ReactElement {
       }
 
       try {
-        const favorites = await fetchFavoriteFoods(foodSessionToken);
+        const [favorites, bank] = await Promise.all([fetchFavoriteFoods(foodSessionToken), fetchFoodBank(foodSessionToken)]);
         if (cancelled) {
           return;
         }
 
         const liveFavorites = sortFoodsForPicker(favorites.map((food) => ({ ...food, favorite: true })));
+        const liveBank = sortFoodsForPicker(bank);
         setFavoriteFoods(liveFavorites);
-        setFoodResults((current) => (foodSearchTerm.trim() ? current : liveFavorites));
+        setBankFoods(liveBank);
+        setFoodResults((current) => (foodSearchTerm.trim() ? current : liveBank.length > 0 ? liveBank : liveFavorites));
         setSelectedFoodId((current) => selectFoodById(liveFavorites, current)?.id ?? liveFavorites[0]?.id ?? '');
         setFoodTone('live');
         setFoodStatus(`${liveFavorites.length} favorite foods loaded`);
@@ -1601,8 +1607,9 @@ export default function App(): ReactElement {
         );
         setFoodTone(foodSessionToken ? 'live' : 'checking');
         setFoodError(null);
-        setFoodResults(liveFavorites);
-        setSelectedFoodId((current) => selectFoodById(liveFavorites, current)?.id ?? liveFavorites[0]?.id ?? '');
+        const shown = bankFoods.length > 0 ? sortFoodsForPicker(bankFoods) : liveFavorites;
+        setFoodResults(shown);
+        setSelectedFoodId((current) => selectFoodById(shown, current)?.id ?? shown[0]?.id ?? '');
         return;
       }
 
@@ -1650,7 +1657,7 @@ export default function App(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [favoriteFoods, foodSearchTerm, foodSessionToken]);
+  }, [bankFoods, favoriteFoods, foodSearchTerm, foodSessionToken]);
 
   useEffect(() => {
     if (entryMode === null) {
@@ -2653,6 +2660,26 @@ export default function App(): ReactElement {
       }
     } catch {
       // The Meals list catches up on the next load.
+    }
+  }
+
+  /** Food bank: take a food out of your bank (tap ✕, then again). Logged days keep it. */
+  async function removeFromBank(food: FoodItem) {
+    const key = `bank:${food.id}`;
+    if (confirmDeleteKey !== key) {
+      setConfirmDeleteKey(key);
+      return;
+    }
+    setConfirmDeleteKey(null);
+    if (!foodSessionToken) {
+      return;
+    }
+    try {
+      await removeFoodFromBank(food.id, foodSessionToken);
+      setFoodResults((current) => current.filter((item) => item.id !== food.id));
+      setBankFoods((current) => current.filter((item) => item.id !== food.id));
+    } catch (error) {
+      setFoodError(error instanceof Error ? error.message : 'Unable to remove this food.');
     }
   }
 
@@ -5540,147 +5567,8 @@ export default function App(): ReactElement {
           </>
         )}
 
-        {section === 'tracker' && (
+        {section === 'workout-plan' && (
           <>
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>Tracker</Text>
-                  <Text style={styles.panelTitle}>Food eaten and exercise performed</Text>
-                </View>
-                <Text style={styles.panelDetail}>Use one home for intake and output while backend exercise persistence is still pending.</Text>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(trackerTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{trackerStatus}</Text>
-                {trackerError ? <Text style={styles.inlineStatusDetail}>{trackerError}</Text> : null}
-              </View>
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Calories" value={`${foodLog.totals.calories.toLocaleString()} kcal`} />
-                <MetricTile
-                  label="Exercise burn"
-                  value={`${exerciseEntries.reduce((sum, entry) => sum + entry.calories_burned, 0)} kcal`}
-                />
-                <MetricTile
-                  label="Macros"
-                  value={`${round1(foodLog.totals.macros.protein)}P / ${round1(foodLog.totals.macros.carbs)}C / ${round1(foodLog.totals.macros.fat)}F`}
-                />
-                <MetricTile label="Tracked items" value={`${foodLog.entries.length + exerciseEntries.length}`} />
-              </View>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Food eaten</Text>
-              <Text style={styles.panelTitle}>Search and log an item</Text>
-              <Text style={styles.panelDetail}>
-                Type a food, choose a result, enter grams, and save it to today’s log.
-              </Text>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(foodLogTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{foodLogStatus}</Text>
-                {foodLogError ? <Text style={styles.inlineStatusDetail}>{foodLogError}</Text> : null}
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={logFoodDraft}
-                  onChangeText={setLogFoodDraft}
-                  placeholder="Search yogurt, oats, blueberries..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Pressable
-                  style={styles.primaryButton}
-                  onPress={() => {
-                    setLogFoodSearchTerm(logFoodDraft);
-                  }}
-                >
-                  <Text style={styles.primaryButtonLabel}>Search</Text>
-                </Pressable>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(logSearchTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{logSearchStatus}</Text>
-                {logSearchError ? <Text style={styles.inlineStatusDetail}>{logSearchError}</Text> : null}
-              </View>
-
-              <View style={styles.foodList}>
-                {logFoodResults.length > 0 ? (
-                  logFoodResults.map((food) => {
-                    const active = food.id === selectedLogFood?.id;
-
-                    return (
-                      <Pressable
-                        key={food.id}
-                        style={[styles.foodRow, active && styles.foodRowActive]}
-                        onPress={() => setSelectedLogFoodId(food.id)}
-                      >
-                        <View style={styles.foodRowCopy}>
-                          <Text style={styles.listTitle}>{food.name}</Text>
-                          <Text style={styles.listCaption}>
-                            {(food.brand ?? 'Unbranded')} · {food.source}
-                          </Text>
-                        </View>
-                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
-                      </Pressable>
-                    );
-                  })
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No search results yet</Text>
-                    <Text style={styles.detailSubtitle}>
-                      Search for a food to load live USDA-backed matches and log one to today.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {selectedLogFood ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>{selectedLogFood.name}</Text>
-                  <Text style={styles.detailSubtitle}>
-                    {selectedLogFood.brand ?? selectedLogFood.source} · {selectedLogFood.serving_size}
-                    {selectedLogFood.serving_unit} base serving
-                  </Text>
-
-                  <View style={styles.searchRow}>
-                    <TextInput
-                      value={logGrams}
-                      onChangeText={setLogGrams}
-                      placeholder="100"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      style={styles.searchInput}
-                      keyboardType="numeric"
-                      autoCorrect={false}
-                    />
-                    <Pressable
-                      style={styles.primaryButton}
-                      onPress={submitFoodLogEntry}
-                      disabled={isSavingLogEntry}
-                    >
-                      <Text style={styles.primaryButtonLabel}>
-                        {isSavingLogEntry ? 'Saving...' : 'Add to today'}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  {logEntryPreview ? (
-                    <View style={styles.metricRow}>
-                      <MetricTile label="Preview calories" value={`${logEntryPreview.calories} kcal`} compact />
-                      <MetricTile
-                        label="Preview macros"
-                        value={`${logEntryPreview.macros.protein}P / ${logEntryPreview.macros.carbs}C / ${logEntryPreview.macros.fat}F`}
-                        compact
-                      />
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-
             <View style={styles.panel}>
               <Text style={styles.panelEyebrow}>Planned exercise</Text>
               <Text style={styles.panelTitle}>Plan a workout for the selected Home date</Text>
@@ -5878,6 +5766,150 @@ export default function App(): ReactElement {
                   </View>
                 )}
               </View>
+            </View>
+
+          </>
+        )}
+
+        {section === 'tracker' && (
+          <>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <View>
+                  <Text style={styles.panelEyebrow}>Tracker</Text>
+                  <Text style={styles.panelTitle}>Food eaten and exercise performed</Text>
+                </View>
+                <Text style={styles.panelDetail}>Use one home for intake and output while backend exercise persistence is still pending.</Text>
+              </View>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(trackerTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{trackerStatus}</Text>
+                {trackerError ? <Text style={styles.inlineStatusDetail}>{trackerError}</Text> : null}
+              </View>
+
+              <View style={styles.metricRow}>
+                <MetricTile label="Calories" value={`${foodLog.totals.calories.toLocaleString()} kcal`} />
+                <MetricTile
+                  label="Exercise burn"
+                  value={`${exerciseEntries.reduce((sum, entry) => sum + entry.calories_burned, 0)} kcal`}
+                />
+                <MetricTile
+                  label="Macros"
+                  value={`${round1(foodLog.totals.macros.protein)}P / ${round1(foodLog.totals.macros.carbs)}C / ${round1(foodLog.totals.macros.fat)}F`}
+                />
+                <MetricTile label="Tracked items" value={`${foodLog.entries.length + exerciseEntries.length}`} />
+              </View>
+            </View>
+
+            <View style={styles.panel}>
+              <Text style={styles.panelEyebrow}>Food eaten</Text>
+              <Text style={styles.panelTitle}>Search and log an item</Text>
+              <Text style={styles.panelDetail}>
+                Type a food, choose a result, enter grams, and save it to today’s log.
+              </Text>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(foodLogTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{foodLogStatus}</Text>
+                {foodLogError ? <Text style={styles.inlineStatusDetail}>{foodLogError}</Text> : null}
+              </View>
+
+              <View style={styles.searchRow}>
+                <TextInput
+                  value={logFoodDraft}
+                  onChangeText={setLogFoodDraft}
+                  placeholder="Search yogurt, oats, blueberries..."
+                  placeholderTextColor={tc.fg_7c8aa5}
+                  style={styles.searchInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => {
+                    setLogFoodSearchTerm(logFoodDraft);
+                  }}
+                >
+                  <Text style={styles.primaryButtonLabel}>Search</Text>
+                </Pressable>
+              </View>
+
+              <View style={[styles.inlineStatus, { borderColor: toneColor(logSearchTone) }]}>
+                <Text style={styles.inlineStatusLabel}>{logSearchStatus}</Text>
+                {logSearchError ? <Text style={styles.inlineStatusDetail}>{logSearchError}</Text> : null}
+              </View>
+
+              <View style={styles.foodList}>
+                {logFoodResults.length > 0 ? (
+                  logFoodResults.map((food) => {
+                    const active = food.id === selectedLogFood?.id;
+
+                    return (
+                      <Pressable
+                        key={food.id}
+                        style={[styles.foodRow, active && styles.foodRowActive]}
+                        onPress={() => setSelectedLogFoodId(food.id)}
+                      >
+                        <View style={styles.foodRowCopy}>
+                          <Text style={styles.listTitle}>{food.name}</Text>
+                          <Text style={styles.listCaption}>
+                            {(food.brand ?? 'Unbranded')} · {food.source}
+                          </Text>
+                        </View>
+                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailTitle}>No search results yet</Text>
+                    <Text style={styles.detailSubtitle}>
+                      Search for a food to load live USDA-backed matches and log one to today.
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {selectedLogFood ? (
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailTitle}>{selectedLogFood.name}</Text>
+                  <Text style={styles.detailSubtitle}>
+                    {selectedLogFood.brand ?? selectedLogFood.source} · {selectedLogFood.serving_size}
+                    {selectedLogFood.serving_unit} base serving
+                  </Text>
+
+                  <View style={styles.searchRow}>
+                    <TextInput
+                      value={logGrams}
+                      onChangeText={setLogGrams}
+                      placeholder="100"
+                      placeholderTextColor={tc.fg_7c8aa5}
+                      style={styles.searchInput}
+                      keyboardType="numeric"
+                      autoCorrect={false}
+                    />
+                    <Pressable
+                      style={styles.primaryButton}
+                      onPress={submitFoodLogEntry}
+                      disabled={isSavingLogEntry}
+                    >
+                      <Text style={styles.primaryButtonLabel}>
+                        {isSavingLogEntry ? 'Saving...' : 'Add to today'}
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  {logEntryPreview ? (
+                    <View style={styles.metricRow}>
+                      <MetricTile label="Preview calories" value={`${logEntryPreview.calories} kcal`} compact />
+                      <MetricTile
+                        label="Preview macros"
+                        value={`${logEntryPreview.macros.protein}P / ${logEntryPreview.macros.carbs}C / ${logEntryPreview.macros.fat}F`}
+                        compact
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.panel}>
@@ -6126,13 +6158,8 @@ export default function App(): ReactElement {
 
         {section === 'foods' && (
           <View style={styles.panel}>
-            <View style={styles.todaySectionHeader}>
-              <Text style={styles.panelTitle}>Your foods</Text>
-              <Pressable onPress={() => handleSectionChange('ingestion')} accessibilityRole="link">
-                <Text style={styles.settingsLink}>Recent scans ›</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.panelDetail}>Your food bank and favorites first; searching also finds USDA foods.</Text>
+            <Text style={styles.panelTitle}>Your foods</Text>
+            <Text style={styles.panelDetail}>Your food bank and favorites first; searching also finds USDA foods. ✕ removes a food from your bank.</Text>
             <View style={styles.searchRow}>
               <TextInput
                 value={foodDraft}
@@ -6237,6 +6264,21 @@ export default function App(): ReactElement {
                             {foodFavoriteSavingId === food.id ? '...' : food.favorite ? '♥' : '♡'}
                           </Text>
                         </Pressable>
+                        {food.in_bank ? (
+                          <Pressable
+                            style={[styles.todayRemoveButton, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirm]}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              void removeFromBank(food);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={confirmDeleteKey === `bank:${food.id}` ? `Confirm removing ${food.name}` : `Remove ${food.name} from your food bank`}
+                          >
+                            <Text style={[styles.todayRemoveLabel, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirmLabel]}>
+                              {confirmDeleteKey === `bank:${food.id}` ? 'Remove?' : '✕'}
+                            </Text>
+                          </Pressable>
+                        ) : null}
                       </View>
                     </View>
                   </Pressable>
@@ -6698,7 +6740,8 @@ export default function App(): ReactElement {
           </>
         )}
 
-        {section === 'meal-prep' && (
+        {/* Prep sits under the week's meal plan: it serves those meals. */}
+        {(section === 'meal-plan' || section === 'meal-prep') && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal prep</Text>
             <Text style={styles.panelTitle}>Prep the week in batches</Text>
@@ -7192,6 +7235,7 @@ export default function App(): ReactElement {
           title={profile?.display_name || 'Account'}
           actions={[
             { id: 'profile', label: 'Profile', detail: 'Body, goal, and targets', icon: '🥒', onPress: () => handleSectionChange('profile') },
+            { id: 'food-bank', label: 'Food bank', detail: 'Your foods, recipes, and recent scans', icon: '🥫', onPress: () => handleSectionChange('foods') },
             { id: 'settings', label: 'Settings', detail: 'Appearance, units, nutrition, account', icon: '⚙️', onPress: () => handleSectionChange('settings') },
             // Development sessions only: the owner never sees these.
             ...(isOwnerSession

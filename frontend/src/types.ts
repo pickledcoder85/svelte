@@ -413,7 +413,8 @@ export type AppSection =
   | 'recipes'
   | 'ingestion'
   | 'settings'
-  | 'trends';
+  | 'trends'
+  | 'workout-plan';
 
 export interface DashboardSnapshot {
   connectionLabel: string;

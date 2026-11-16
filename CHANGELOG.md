@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Plan is only for planning: Meals (the week's planned meals, with the prep checklist under it) and Workouts (planned workouts). The Log sub-tab is gone (history is in Trends; adding is on Today). The avatar sheet gains Food bank, with Foods (your whole bank, favorites first, ✕ to remove a food from your bank), Recipes, Build a meal, and Recent scans.
 - Today's macro rings show grams instead of a percentage inside ("86 g of 120"); the ring fills with the share of the target, and past 100% a deep-red second lap runs over the full ring. Below each label: the % eaten, or "⚠ +24 g" when over.
 - Reset profile now also deletes your goals, so the next setup's goal is the only one (resetting and redoing setup no longer piles up goals).
 - Trends is an analytics page with history: pick 1W, 1M, or 3M. Weight shows weigh-ins as dots and a smoothed trend line (each weigh-in moves it 10% of the way per day, so water swings don't hide the direction), the goal as a dashed line, the weekly rate, and the distance to goal. Calories shows each day's bar against that day's allowance (green on target, amber over), the average, and days logged / on target / over. Macros shows daily averages against targets. History lists every day newest first with eaten against allowance, macros, and workouts; tap a day to open its meals by meal (✕ to delete) and workouts (tap for detail). The old calorie chart and weigh-in form are gone (Weigh in is in the tab bar). Past days use the current calorie target.
