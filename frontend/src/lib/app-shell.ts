@@ -18,7 +18,8 @@ export const appShellSections: AppShellSectionMeta[] = [
   { id: 'recipes', label: 'Recipes', detail: 'Browse and favorite recipes', group: 'organize' },
   { id: 'profile', label: 'Profile', detail: 'Body stats, goals, and targets', group: 'account' },
   { id: 'settings', label: 'Settings', detail: 'Units, time zone, and account', group: 'account' },
-  { id: 'trends', label: 'Trends', detail: 'Weight, calories, and progress over time', group: 'primary' }
+  { id: 'trends', label: 'Trends', detail: 'Weight, calories, and progress over time', group: 'primary' },
+  { id: 'workout-plan', label: 'Workouts', detail: 'Planned workouts by day', group: 'organize' }
 ];
 
 /**
@@ -43,15 +44,21 @@ export const APP_TABS: Array<{
     id: 'plan',
     label: 'Plan',
     sections: [
-      { id: 'meal-plan', label: 'Meal plan' },
-      { id: 'tracker', label: 'Log' },
-      { id: 'foods', label: 'Foods' },
-      { id: 'recipes', label: 'Recipes' },
-      { id: 'meal-prep', label: 'Prep' },
-      { id: 'meals', label: 'Meals' }
-    ],
-    hiddenSections: ['ingestion']
+      { id: 'meal-plan', label: 'Meals' },
+      { id: 'workout-plan', label: 'Workouts' }
+    ]
   }
+];
+
+/**
+ * The food bank (from the avatar's account sheet, next to Profile and Settings): your foods,
+ * recipes, meals you've built, and recent scans. Its own sub-tabs; not a bottom tab.
+ */
+export const FOOD_BANK_SECTIONS: Array<{ id: AppSection; label: string }> = [
+  { id: 'foods', label: 'Foods' },
+  { id: 'recipes', label: 'Recipes' },
+  { id: 'meals', label: 'Build a meal' },
+  { id: 'ingestion', label: 'Recent scans' }
 ];
 
 /** The tab a section belongs to, or null for account screens (Profile, Settings). */
@@ -63,6 +70,9 @@ export function tabForSection(section: AppSection): AppTabId | null {
 
 /** The sub-tabs to show for a section (only when its tab has more than one). */
 export function subTabsForSection(section: AppSection): Array<{ id: AppSection; label: string }> {
+  if (FOOD_BANK_SECTIONS.some((item) => item.id === section)) {
+    return FOOD_BANK_SECTIONS;
+  }
   const tab = APP_TABS.find((item) => item.sections.some((entry) => entry.id === section) || item.hiddenSections?.includes(section));
   return tab && tab.sections.length > 1 ? tab.sections : [];
 }

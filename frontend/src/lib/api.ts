@@ -651,6 +651,17 @@ export async function addFoodToBank(foodId: string, accessToken: string): Promis
   );
 }
 
+/** Take a food out of the user's food bank (the food itself and logged days stay). */
+export async function removeFoodFromBank(foodId: string, accessToken: string): Promise<void> {
+  const response = await apiFetch(buildApiUrl(`/nutrition/bank/${encodeURIComponent(foodId)}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken)
+  });
+  if (!response.ok) {
+    await readJson<unknown>(response);
+  }
+}
+
 /** Log a food by servings or by weight; the server works out calories and macros. */
 export async function logFood(
   payload: { food_id: string; log_date: string; meal_slot?: MealSlot } & ({ servings: number } | { grams: number }),
