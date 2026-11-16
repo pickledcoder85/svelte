@@ -87,6 +87,9 @@ export interface UserProfile {
   calorie_floor?: CalorieFloor;
   /** Percent of logged workout calories added to the day's allowance (0 = off). */
   workout_calories_share?: 0 | 50 | 75 | 100;
+  /** Meals a day (snacks between meals) and the target's split across them, in day order. */
+  meals_per_day?: 3 | 4 | 5;
+  meal_split?: number[];
   user_created_at?: string | null;
   profile_created_at?: string | null;
   profile_updated_at?: string | null;
@@ -131,6 +134,8 @@ export interface UserProfileUpdate {
   allergy_notes?: string | null;
   calorie_floor?: CalorieFloor;
   workout_calories_share?: 0 | 50 | 75 | 100;
+  meals_per_day?: 3 | 4 | 5;
+  meal_split?: number[];
 }
 
 export interface UserOnboardingRequest {

@@ -20,6 +20,7 @@ from backend.app.services.calculations.types import DEFAULT_GOAL_PACE, is_valid_
 from backend.app.services.calculations.macros import generate_fiber_target
 from backend.app.services.calculations.targets import generate_nutrition_targets
 from backend.app.services.calculations.types import CALCULATION_VERSION
+from backend.app.services.meal_split import DEFAULT_SPLITS, validate_split
 
 
 class OnboardingAlreadyCompletedError(RuntimeError):
@@ -351,6 +352,18 @@ def update_user_profile(
     payload: UserProfileUpdateRequest,
 ) -> UserProfile:
     existing_profile = repository.get_user_identity(session.user_id) or {}
+    # Check a new meal split before saving anything (MealSplitError is a ValueError: a 400).
+    new_split: tuple[int, list[int]] | None = None
+    if payload.meals_per_day is not None or payload.meal_split is not None:
+        count = payload.meals_per_day or existing_profile.get("meals_per_day") or 3
+        # A new count without a split starts from that count's default split.
+        if payload.meal_split is not None:
+            split = payload.meal_split
+        elif count == existing_profile.get("meals_per_day"):
+            split = existing_profile.get("meal_split") or DEFAULT_SPLITS[count]
+        else:
+            split = DEFAULT_SPLITS[count]
+        new_split = (count, validate_split(count, list(split)))
     provided_fields = payload.model_fields_set
     repository.save_user_identity(
         user_id=session.user_id,
@@ -367,6 +380,8 @@ def update_user_profile(
         repository.update_user_preferences(
             user_id=session.user_id, workout_calories_share=payload.workout_calories_share
         )
+    if new_split is not None:
+        repository.update_user_preferences(user_id=session.user_id, meals_per_day=new_split[0], meal_split=new_split[1])
 
     resolved = {
         "sex": payload.sex if "sex" in provided_fields else existing_profile.get("sex"),
