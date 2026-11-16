@@ -6812,9 +6812,9 @@ export default function App(): ReactElement {
               <Text style={styles.panelEyebrow}>Start over</Text>
               <Text style={styles.panelTitle}>Reset profile</Text>
               <Text style={styles.panelDetail}>
-                Runs setup again from the welcome screen and clears your goals, so the new setup's goal is the only one. Your
-                foods, food and exercise logs, and weigh-ins are kept. To change your weight or goal, edit the profile above
-                instead.
+                Runs setup again from the welcome screen, and clears your goals and meal pattern (the meal-planning guide runs
+                again). Your foods, logged meals and workouts, weigh-ins, and plans are kept. To change your weight or goal, edit
+                the profile above instead.
               </Text>
               <Pressable
                 style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}

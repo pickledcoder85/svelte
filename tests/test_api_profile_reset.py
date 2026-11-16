@@ -21,6 +21,8 @@ async def test_reset_profile_reopens_setup_and_keeps_history(client):
     )
     assert weight.status_code == 200
 
+    chosen = await client.put("/api/profile", headers=headers, json={"timezone": "Europe/Berlin", "units": "metric", "meals_per_day": 5})
+    assert chosen.json()["meal_pattern_chosen"] is True
     reset = await client.post("/api/profile/setup/reset", headers=headers)
     assert reset.status_code == 200
     profile = reset.json()
@@ -34,6 +36,8 @@ async def test_reset_profile_reopens_setup_and_keeps_history(client):
     assert len((await client.get("/api/profile/weights", headers=headers)).json()) == 1
     # Goals go with the reset: the next setup seeds the only goal.
     assert (await client.get("/api/profile/goals", headers=headers)).json() == []
+    # The meal pattern too, so the meal-planning guide runs again.
+    assert profile["meal_pattern_chosen"] is False and profile["meals_per_day"] == 3
 
     again = await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)
     assert again.status_code == 200
