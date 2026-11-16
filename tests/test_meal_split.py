@@ -35,10 +35,10 @@ def test_bad_splits_are_rejected(count, split, message):
 
 
 def test_resolve_falls_back_to_the_default():
-    assert resolve_split(None, None) == (3, [25, 35, 40])
+    assert resolve_split(None, None) == (3, [30, 35, 35])
     assert resolve_split(5, "[20, 10, 30, 10, 30]") == (5, [20, 10, 30, 10, 30])
     assert resolve_split(4, "not json") == (4, [25, 30, 10, 35])
-    assert resolve_split(4, "[25, 35, 40]") == (4, [25, 30, 10, 35])  # wrong length for 4
+    assert resolve_split(4, "[30, 35, 35]") == (4, [25, 30, 10, 35])  # wrong length for 4
 
 
 def test_blocks_are_in_day_order():
@@ -51,7 +51,7 @@ def test_blocks_are_in_day_order():
 async def test_profile_saves_meals_per_day_and_split_without_changing_targets(client):
     headers = await _headers(client, "split@example.com")
     done = (await client.post("/api/profile/onboarding", headers=headers, json=ONBOARDING_BODY)).json()
-    assert (done["meals_per_day"], done["meal_split"]) == (3, [25, 35, 40])
+    assert (done["meals_per_day"], done["meal_split"]) == (3, [30, 35, 35])
 
     base = {"timezone": done["timezone"], "units": done["units"]}
     five = await client.put("/api/profile", headers=headers, json={**base, "meals_per_day": 5})

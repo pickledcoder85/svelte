@@ -91,7 +91,15 @@ import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
 import { MealSplitBar } from './src/components/MealSplitBar';
-import { blockBudgets, DEFAULT_SPLITS, isValidSplit, SPLIT_PRESETS, type MealsPerDay } from './src/lib/meal-split';
+import {
+  blockBudgets,
+  DEFAULT_SPLITS,
+  isValidSplit,
+  MEAL_STYLES,
+  RECOMMENDED_MEALS_PER_DAY,
+  styleForSplit,
+  type MealsPerDay
+} from './src/lib/meal-split';
 import { CalorieBars } from './src/components/trends/CalorieBars';
 import { DayHistory } from './src/components/trends/DayHistory';
 import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
@@ -6691,7 +6699,7 @@ export default function App(): ReactElement {
                 {(() => {
                   const count = (profile.meals_per_day ?? 3) as MealsPerDay;
                   const split = splitDraft ?? profile.meal_split ?? DEFAULT_SPLITS[count];
-                  const recommendFive = profile.nutrition_style === 'high_protein' || profile.goal_pace === 'extreme';
+                  const style = styleForSplit(count, split);
                   return (
                     <FieldGroup label="Meals per day">
                       <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Meals per day">
@@ -6703,7 +6711,9 @@ export default function App(): ReactElement {
                               style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
                               onPress={() => {
                                 if (!active) {
-                                  void applyMealSplit(option, DEFAULT_SPLITS[option]);
+                                  // Keep the chosen style at the new count (custom splits start from Balanced).
+                                  const keep = MEAL_STYLES.find((item) => item.id === style);
+                                  void applyMealSplit(option, keep ? keep.splits[option] : DEFAULT_SPLITS[option]);
                                 }
                               }}
                               accessibilityRole="radio"
@@ -6711,16 +6721,46 @@ export default function App(): ReactElement {
                             >
                               <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
                                 {option === 3 ? '3 meals' : option === 4 ? '3 + snack' : '3 + 2 snacks'}
+                                {option === RECOMMENDED_MEALS_PER_DAY ? ' ★' : ''}
                               </Text>
                             </Pressable>
                           );
                         })}
                       </View>
                       <Text style={styles.settingsHint}>
-                        How your {dailyHomeTargets.calorieTarget.toLocaleString('en-US')} kcal target is shared when Gus suggests or plans meals.
-                        Macros follow the same split. Drag a handle to move calories between the meals beside it.
-                        {recommendFive && count !== 5 ? ' Tip: with your plan, 5 smaller meals (3 + 2 snacks) can make hunger easier to manage.' : ''}
+                        ★ Recommended: 3 meals + 2 snacks. Spreading protein over 4–5 meals keeps muscle-building going through the day, and
+                        more muscle is linked to staying strong and healthy as you age.
                       </Text>
+                      <Text style={styles.mealStyleHeading}>How do you balance your meals?</Text>
+                      {MEAL_STYLES.map((option) => {
+                        const active = style === option.id;
+                        const preview = blockBudgets(count, option.splits[count], dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)
+                          .filter((block) => !block.snack)
+                          .map((block) => `${block.label} ${block.calories.toLocaleString('en-US')}`)
+                          .join(' · ');
+                        return (
+                          <Pressable
+                            key={option.id}
+                            style={[styles.mealStyleRow, active && styles.mealStyleRowActive]}
+                            onPress={() => {
+                              if (!active) {
+                                void applyMealSplit(count, option.splits[count]);
+                              }
+                            }}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: active }}
+                          >
+                            <Text style={[styles.mealStyleLabel, active && styles.mealStyleLabelActive]}>
+                              {active ? '● ' : '○ '}
+                              {option.label}
+                            </Text>
+                            <Text style={styles.mealStyleDetail}>{option.detail}</Text>
+                            <Text style={styles.mealStylePreview}>{preview} kcal</Text>
+                          </Pressable>
+                        );
+                      })}
+                      <Text style={styles.mealStyleHeading}>Fine-tune{style === null ? ' (custom)' : ''}</Text>
+                      <Text style={styles.settingsHint}>Drag a handle to move calories between the meals beside it. Macros follow the split.</Text>
                       <MealSplitBar
                         count={count}
                         split={split}
@@ -6729,21 +6769,6 @@ export default function App(): ReactElement {
                         onCommit={(next) => void applyMealSplit(count, next)}
                         onCancel={() => setSplitDraft(null)}
                       />
-                      <View style={styles.chipRow}>
-                        {SPLIT_PRESETS[count].map((preset) => {
-                          const active = preset.split.join() === split.join();
-                          return (
-                            <Pressable
-                              key={preset.id}
-                              style={[styles.splitPreset, active && styles.splitPresetActive]}
-                              onPress={() => void applyMealSplit(count, preset.split)}
-                              accessibilityRole="button"
-                            >
-                              <Text style={[styles.splitPresetLabel, active && styles.splitPresetLabelActive]}>{preset.label}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
                     </FieldGroup>
                   );
                 })()}
@@ -8552,11 +8577,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  splitPreset: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7 },
-  splitPresetActive: { backgroundColor: tc.bg_17324d, borderColor: tc.line_17324d },
-  splitPresetLabel: { color: tc.fg_132536, fontSize: 13, fontWeight: '700' },
-  splitPresetLabelActive: { color: tc.fg_ffffff },
+  mealStyleHeading: { color: tc.fg_132536, fontSize: 15, fontWeight: '800', marginTop: 8 },
+  mealStyleRow: { gap: 2, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7 },
+  mealStyleRowActive: { borderColor: tc.line_0f766e, backgroundColor: tc.bg_ecfdf3 },
+  mealStyleLabel: { color: tc.fg_132536, fontSize: 15, fontWeight: '800' },
+  mealStyleLabelActive: { color: tc.fg_0f766e },
+  mealStyleDetail: { color: tc.fg_5c6d80, fontSize: 13 },
+  mealStylePreview: { color: tc.fg_6b7b90, fontSize: 12, fontWeight: '600' },
   todayMealGroup: { gap: 0, marginTop: 6 },
   todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
   todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
