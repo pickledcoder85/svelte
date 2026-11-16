@@ -18,10 +18,10 @@ describe('app shell metadata', () => {
   });
 
   it('maps every section to a tab, except the account screens', () => {
-    expect(APP_TABS.map((tab) => tab.id)).toEqual(['today', 'log', 'trends', 'plan']);
+    expect(APP_TABS.map((tab) => tab.id)).toEqual(['today', 'trends', 'plan']);
     expect(tabForSection('dashboard')).toBe('today');
-    expect(tabForSection('foods')).toBe('log');
-    expect(tabForSection('ingestion')).toBe('log');
+    expect(tabForSection('foods')).toBe('plan');
+    expect(tabForSection('ingestion')).toBe('plan');
     expect(tabForSection('recipes')).toBe('plan');
     expect(tabForSection('trends')).toBe('trends');
     expect(tabForSection('profile')).toBeNull();
@@ -29,13 +29,14 @@ describe('app shell metadata', () => {
   });
 
   it('shows sub-tabs only for tabs with several sections', () => {
-    expect(subTabsForSection('foods').map((item) => item.label)).toEqual(['Entries', 'Foods', 'Scan']);
-    expect(subTabsForSection('meal-prep').map((item) => item.id)).toEqual(['meal-plan', 'meal-prep', 'recipes', 'meals']);
+    expect(subTabsForSection('foods').map((item) => item.label)).toEqual(['Meal plan', 'Log', 'Foods', 'Recipes', 'Prep', 'Meals']);
+    expect(subTabsForSection('ingestion').map((item) => item.id)).toContain('foods'); // Recent scans sits under Plan
+    expect(tabForSection('ingestion')).toBe('plan');
     expect(subTabsForSection('dashboard')).toEqual([]);
     expect(subTabsForSection('profile')).toEqual([]);
   });
 
-  it('names the log tab Log', () => {
-    expect(APP_TABS.map((tab) => tab.label)).toEqual(['Today', 'Log', 'Trends', 'Plan']);
+  it('has the three place tabs', () => {
+    expect(APP_TABS.map((tab) => tab.label)).toEqual(['Today', 'Trends', 'Plan']);
   });
 });

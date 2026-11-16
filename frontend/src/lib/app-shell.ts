@@ -22,54 +22,50 @@ export const appShellSections: AppShellSectionMeta[] = [
 ];
 
 /**
- * Bottom tab bar (Today · Log · 📷 · Trends · Plan). Tabs are places; the raised camera in the
- * middle is the one action: scan something and log it (search and quick calories are inside
- * it). Each tab shows one or more sections; tabs with several show sub-tabs at the top.
- * Profile and Settings belong to the avatar's account sheet, not a tab.
+ * Bottom tab bar: Today · Trends · 📷 · Weigh in · Plan. Tabs are places (Today, Trends, Plan);
+ * the camera and the scale are the two daily actions and open over whatever is showing. Each
+ * tab shows one or more sections; tabs with several show sub-tabs at the top. Profile and
+ * Settings belong to the avatar's account sheet, not a tab.
  */
-export type AppTabId = 'today' | 'log' | 'trends' | 'plan';
+export type AppTabId = 'today' | 'trends' | 'plan';
 
 export const APP_TABS: Array<{
   id: AppTabId;
   label: string;
   /** Sections under this tab, in sub-tab order; the first opens when the tab is tapped. */
   sections: Array<{ id: AppSection; label: string }>;
+  /** Sections reached from inside the tab (not sub-tabs), e.g. Recent scans from Foods. */
+  hiddenSections?: AppSection[];
 }> = [
   { id: 'today', label: 'Today', sections: [{ id: 'dashboard', label: 'Today' }] },
-  {
-    id: 'log',
-    label: 'Log',
-    sections: [
-      { id: 'tracker', label: 'Entries' },
-      { id: 'foods', label: 'Foods' },
-      { id: 'ingestion', label: 'Scan' }
-    ]
-  },
   { id: 'trends', label: 'Trends', sections: [{ id: 'trends', label: 'Trends' }] },
   {
     id: 'plan',
     label: 'Plan',
     sections: [
       { id: 'meal-plan', label: 'Meal plan' },
-      { id: 'meal-prep', label: 'Prep' },
+      { id: 'tracker', label: 'Log' },
+      { id: 'foods', label: 'Foods' },
       { id: 'recipes', label: 'Recipes' },
+      { id: 'meal-prep', label: 'Prep' },
       { id: 'meals', label: 'Meals' }
-    ]
+    ],
+    hiddenSections: ['ingestion']
   }
 ];
 
 /** The tab a section belongs to, or null for account screens (Profile, Settings). */
 export function tabForSection(section: AppSection): AppTabId | null {
-  return APP_TABS.find((tab) => tab.sections.some((item) => item.id === section))?.id ?? null;
+  return (
+    APP_TABS.find((tab) => tab.sections.some((item) => item.id === section) || tab.hiddenSections?.includes(section))?.id ?? null
+  );
 }
 
 /** The sub-tabs to show for a section (only when its tab has more than one). */
 export function subTabsForSection(section: AppSection): Array<{ id: AppSection; label: string }> {
-  const tab = APP_TABS.find((item) => item.sections.some((entry) => entry.id === section));
+  const tab = APP_TABS.find((item) => item.sections.some((entry) => entry.id === section) || item.hiddenSections?.includes(section));
   return tab && tab.sections.length > 1 ? tab.sections : [];
 }
-
-/** What the ＋ button offers, and where each goes. */
 
 export function getAppSectionMeta(section: AppSection): AppShellSectionMeta {
   return appShellSections.find((item) => item.id === section) ?? appShellSections[0];

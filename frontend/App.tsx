@@ -86,6 +86,7 @@ import { buildCalorieBudget } from './src/lib/calorie-budget';
 import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
+import { initialWeighInIndexes, weighInColumns, weighInLbs, weighInSummary } from './src/lib/weigh-in';
 import { QuickScanAdd } from './src/components/QuickScanAdd';
 import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
@@ -509,6 +510,8 @@ export default function App(): ReactElement {
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
+  const [weighInOpen, setWeighInOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const mainScrollRef = useRef<ScrollView | null>(null);
   // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
   const weighInY = useRef(0);
@@ -2514,6 +2517,26 @@ export default function App(): ReactElement {
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
+  }
+
+  /** The tab bar's scale: save today's weight, refresh progress, and say so briefly. */
+  async function saveQuickWeighIn(weightLbs: number) {
+    const token = foodSessionToken;
+    if (!token) {
+      return;
+    }
+    const units = profile?.units === 'metric' ? 'metric' : 'imperial';
+    const shown = units === 'metric' ? `${Math.round(weightLbs * 0.45359237 * 10) / 10} kg` : `${weightLbs} lb`;
+    try {
+      await createWeightEntry({ recorded_at: todayKey, weight_lbs: weightLbs }, token);
+      const [progress, weights] = await Promise.all([fetchProfileProgress(token), fetchWeightEntries(token)]);
+      setProfileProgress(progress);
+      setWeightEntries(weights);
+      setToast(`Saved ${shown} for today`);
+    } catch (error) {
+      setToast(error instanceof Error ? `Couldn't save: ${error.message}` : "Couldn't save the weigh-in");
+    }
+    setTimeout(() => setToast(null), 3000);
   }
 
   /** Reload the chosen day's food after adding to it (today's log feeds the rest of the app). */
@@ -6054,11 +6077,13 @@ export default function App(): ReactElement {
 
         {section === 'foods' && (
           <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Food search</Text>
-            <Text style={styles.panelTitle}>Favorite foods first</Text>
-            <Text style={styles.panelDetail}>
-              Start from a cached favorite-food list on app load, then narrow it as you type. When a search reaches beyond favorites, live USDA matches can be added back into favorites.
-            </Text>
+            <View style={styles.todaySectionHeader}>
+              <Text style={styles.panelTitle}>Your foods</Text>
+              <Pressable onPress={() => handleSectionChange('ingestion')} accessibilityRole="link">
+                <Text style={styles.settingsLink}>Recent scans ›</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.panelDetail}>Your food bank and favorites first; searching also finds USDA foods.</Text>
             <View style={styles.searchRow}>
               <TextInput
                 value={foodDraft}
@@ -6984,6 +7009,11 @@ export default function App(): ReactElement {
       <TabBar
         activeTab={tabForSection(section)}
         onSelect={openTab}
+        onWeighIn={() => {
+          if (foodSessionToken) {
+            setWeighInOpen(true);
+          }
+        }}
         onCamera={() => {
           if (foodSessionToken) {
             // From another tab, the camera logs to today; on Today, to the day showing.
@@ -7004,6 +7034,31 @@ export default function App(): ReactElement {
           />
         ) : null;
       })()}
+
+      {weighInOpen ? (
+        <PickerSheet
+          title="Weigh in · today"
+          note={weighInSummary(weightEntries, profile?.units === 'metric' ? 'metric' : 'imperial', todayKey)}
+          columns={weighInColumns(profile?.units === 'metric' ? 'metric' : 'imperial')}
+          initialIndexes={initialWeighInIndexes(
+            profile?.units === 'metric' ? 'metric' : 'imperial',
+            [...weightEntries].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at)).at(-1)?.weight_lbs ??
+              profile?.current_weight_lbs ??
+              null
+          )}
+          onCancel={() => setWeighInOpen(false)}
+          onDone={(indexes) => {
+            setWeighInOpen(false);
+            void saveQuickWeighIn(weighInLbs(profile?.units === 'metric' ? 'metric' : 'imperial', indexes));
+          }}
+        />
+      ) : null}
+
+      {toast ? (
+        <View style={styles.toast} pointerEvents="none" accessibilityLiveRegion="polite">
+          <Text style={styles.toastLabel}>{toast}</Text>
+        </View>
+      ) : null}
 
       {quickScanOpen && foodSessionToken ? (
         <QuickScanAdd
@@ -8373,6 +8428,23 @@ const styles = StyleSheet.create({
   },
   dashboardStack: {
     gap: 0
+  },
+  toast: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 110,
+    alignItems: 'center'
+  },
+  toastLabel: {
+    overflow: 'hidden',
+    backgroundColor: tc.bg_17324d,
+    color: tc.fg_ffffff,
+    fontSize: 15,
+    fontWeight: '700',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999
   },
   todayMealGroup: { gap: 0, marginTop: 6 },
   todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
