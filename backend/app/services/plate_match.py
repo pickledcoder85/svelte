@@ -33,6 +33,8 @@ DIFFERENT_FOOD_WORDS = {
     "cake", "nugget", "chip", "cracker", "snack", "bar", "flour", "juice", "sauce", "soup", "baby",
     "babyfood", "formula", "candy", "cereal", "pudding", "pie", "bread", "noodle", "frozen", "canned", "imitation",
     "substitute", "spread", "dressing", "gravy", "dip", "beverage", "drink", "mix",
+    # Coatings and added sugar change the calories a lot (breaded chicken is not chicken breast).
+    "breaded", "battered", "glazed", "candied", "sweetened", "stuffed", "coated",
 }
 
 

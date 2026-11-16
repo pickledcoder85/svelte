@@ -3,7 +3,7 @@
  * meals sized to that block's share of your day (capped by what's left). Log it adds every
  * ingredient to the day by weight; Add to plan saves it as a planned meal.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { addMealPlanSlot, logFood, suggestMeal } from '../lib/api';
@@ -36,15 +36,18 @@ export function SuggestMealSheet({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SuggestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  // Options already logged or planned, so a retry never adds them twice.
-  const [done, setDone] = useState<Record<string, 'logged' | 'planned'>>({});
+  const [busy, setBusy] = useState<number | null>(null);
+  // Options already logged or planned (by position), and each option's items already logged,
+  // so a retry after a failure never adds anything twice.
+  const [done, setDone] = useState<Record<number, 'logged' | 'planned'>>({});
+  const loggedItems = useRef<Map<number, Set<number>>>(new Map());
 
   async function ask() {
     setLoading(true);
     setError(null);
     setResult(null);
     setDone({});
+    loggedItems.current = new Map();
     try {
       setResult(await suggestMeal({ log_date: logDate, block, ingredients: have.trim() || undefined }, accessToken));
     } catch (askError) {
@@ -54,24 +57,38 @@ export function SuggestMealSheet({
     }
   }
 
-  async function logIt(meal: SuggestedMeal, slot: SuggestResponse['meal_slot']) {
-    setBusy(meal.name);
+  async function logIt(index: number, meal: SuggestedMeal, slot: SuggestResponse['meal_slot']) {
+    setBusy(index);
     setError(null);
+    const logged = loggedItems.current.get(index) ?? new Set<number>();
+    loggedItems.current.set(index, logged);
     try {
-      for (const item of meal.items) {
+      for (const [position, item] of meal.items.entries()) {
+        if (logged.has(position)) {
+          continue;
+        }
         await logFood({ food_id: item.food.id, log_date: logDate, grams: item.grams, meal_slot: slot }, accessToken);
+        logged.add(position);
       }
-      setDone((current) => ({ ...current, [meal.name]: 'logged' }));
-      onLogged();
+      setDone((current) => ({ ...current, [index]: 'logged' }));
     } catch (logError) {
-      setError(logError instanceof Error ? logError.message : 'Unable to log this meal.');
+      setError(
+        logged.size > 0
+          ? `Some of it was added; tap Log it again to add the rest. (${logError instanceof Error ? logError.message : 'error'})`
+          : logError instanceof Error
+            ? logError.message
+            : 'Unable to log this meal.'
+      );
     } finally {
+      if (logged.size > 0) {
+        onLogged();
+      }
       setBusy(null);
     }
   }
 
-  async function planIt(meal: SuggestedMeal, label: string) {
-    setBusy(meal.name);
+  async function planIt(index: number, meal: SuggestedMeal, label: string) {
+    setBusy(index);
     setError(null);
     try {
       await addMealPlanSlot(
@@ -90,7 +107,7 @@ export function SuggestMealSheet({
         },
         accessToken
       );
-      setDone((current) => ({ ...current, [meal.name]: 'planned' }));
+      setDone((current) => ({ ...current, [index]: 'planned' }));
       onPlanned();
     } catch (planError) {
       setError(planError instanceof Error ? planError.message : 'Unable to add this to the plan.');
@@ -144,12 +161,12 @@ export function SuggestMealSheet({
                   {'  '}({Math.round(result.remaining.calories)} kcal left today)
                 </Text>
                 {result.message ? <Text style={styles.message}>{result.message}</Text> : null}
-                {result.options.map((meal) => (
-                  <View key={meal.name} style={styles.card}>
+                {result.options.map((meal, index) => (
+                  <View key={index} style={styles.card}>
                     <Text style={styles.cardTitle}>{meal.name}</Text>
                     {meal.why ? <Text style={styles.why}>{meal.why}</Text> : null}
-                    {meal.items.map((item) => (
-                      <View key={`${meal.name}-${item.name}`} style={styles.itemRow}>
+                    {meal.items.map((item, position) => (
+                      <View key={position} style={styles.itemRow}>
                         <Text style={styles.itemName} numberOfLines={2}>
                           {item.grams} g {item.name}
                         </Text>
@@ -163,19 +180,19 @@ export function SuggestMealSheet({
                     {meal.missing.length > 0 ? (
                       <Text style={styles.missing}>Left out (no nutrition data): {meal.missing.join(', ')}</Text>
                     ) : null}
-                    {done[meal.name] ? (
-                      <Text style={styles.done}>{done[meal.name] === 'logged' ? `✓ Added to ${dayName}` : '✓ Added to your plan'}</Text>
+                    {done[index] ? (
+                      <Text style={styles.done}>{done[index] === 'logged' ? `✓ Added to ${dayName}` : '✓ Added to your plan'}</Text>
                     ) : (
                       <View style={styles.actions}>
                         <Pressable
                           style={[styles.action, styles.actionPrimary]}
-                          onPress={() => void logIt(meal, result.meal_slot)}
+                          onPress={() => void logIt(index, meal, result.meal_slot)}
                           disabled={busy !== null}
                           accessibilityRole="button"
                         >
-                          <Text style={styles.actionPrimaryLabel}>{busy === meal.name ? 'Adding…' : 'Log it'}</Text>
+                          <Text style={styles.actionPrimaryLabel}>{busy === index ? 'Adding…' : 'Log it'}</Text>
                         </Pressable>
-                        <Pressable style={styles.action} onPress={() => void planIt(meal, result.block_label)} disabled={busy !== null} accessibilityRole="button">
+                        <Pressable style={styles.action} onPress={() => void planIt(index, meal, result.block_label)} disabled={busy !== null} accessibilityRole="button">
                           <Text style={styles.actionLabel}>Add to plan</Text>
                         </Pressable>
                       </View>

@@ -24,7 +24,7 @@ from backend.app.integrations.usda import GENERIC_DATA_TYPES, search_usda_foods
 from backend.app.models.nutrition import FoodItem
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.meal_split import LABELS, MEAL_PATTERNS, resolve_split
-from backend.app.services.plate_match import pick_generic_food
+from backend.app.services.plate_match import food_score, pick_generic_food
 
 logger = logging.getLogger(__name__)
 
@@ -178,12 +178,15 @@ Rules:
 
 
 def _clean_options(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """The AI's options, checked: lists where lists belong, usable ingredients, unique names."""
     options = []
-    for raw in (payload.get("options") or [])[:2]:
+    raw_options = payload.get("options") if isinstance(payload, dict) else None
+    for raw in (raw_options if isinstance(raw_options, list) else [])[:2]:
         if not isinstance(raw, dict):
             continue
         items = []
-        for ingredient in (raw.get("ingredients") or [])[:MAX_INGREDIENTS]:
+        raw_items = raw.get("ingredients")
+        for ingredient in (raw_items if isinstance(raw_items, list) else [])[:MAX_INGREDIENTS]:
             if not isinstance(ingredient, dict):
                 continue
             name = str(ingredient.get("name") or "").strip()[:60]
@@ -202,6 +205,8 @@ def _clean_options(payload: dict[str, Any]) -> list[dict[str, Any]]:
             })
         name = str(raw.get("name") or "").strip()[:80]
         if name and items:
+            if any(option["name"] == name for option in options):
+                name = f"{name} (2)"
             options.append({"name": name, "why": str(raw.get("why") or "").strip()[:200], "items": items})
     return options
 
@@ -213,13 +218,22 @@ def _words(text: str) -> set[str]:
     return {word for word in re.findall(r"[a-z]+", text.lower()) if len(word) > 2}
 
 
-def _bank_food(repository: SQLiteRepository, user_id: str, name: str) -> FoodItem | None:
-    """A food from the user's bank whose name covers the ingredient's words, with a known weight."""
-    wanted = _words(name)
-    for food in repository.list_food_bank(user_id, name.split()[0] if name.split() else name)[:20]:
-        if food.serving_grams and food.calories > 0 and wanted and wanted <= _words(food.name):
-            return food
-    return None
+def _bank_food(repository: SQLiteRepository, user_id: str, name: str, query: str) -> FoodItem | None:
+    """The best food in the user's bank for an ingredient, using the same rules as the USDA pick:
+    the right food in the right state (cooked rice is not raw rice; chicken breast is not breaded
+    chicken), with a known weight."""
+    candidates: dict[str, FoodItem] = {}
+    for word in sorted(_words(f"{name} {query}"), key=len, reverse=True)[:4]:
+        for food in repository.list_food_bank(user_id, word)[:20]:
+            candidates[food.id] = food
+    best: tuple[float, FoodItem] | None = None
+    for food in candidates.values():
+        if not food.serving_grams or food.calories <= 0:
+            continue
+        scores = [score for score in (food_score(query, food.name), food_score(name, food.name)) if score is not None]
+        if scores and (best is None or max(scores) > best[0]):
+            best = (max(scores), food)
+    return best[1] if best else None
 
 
 def _per_gram(food: FoodItem) -> Nutrition:
@@ -245,7 +259,7 @@ def fit_portions(items: list[dict[str, Any]], budget: Nutrition) -> list[float]:
     rates = [item["rate"] for item in items]
     total = _sum(list(zip(grams, rates)))
     if total.calories > 0 and budget.calories > 0:
-        scale = min(2.5, max(0.4, budget.calories / total.calories))
+        scale = min(2.5, max(0.1, budget.calories / total.calories))
         grams = [value * scale for value in grams]
     protein_index = max(
         (index for index, item in enumerate(items) if item["role"] == "protein"),
@@ -271,7 +285,7 @@ def fit_portions(items: list[dict[str, Any]], budget: Nutrition) -> list[float]:
 async def _resolve(
     repository: SQLiteRepository, user_id: str, item: dict[str, Any], usda_lookup: Callable[[str], Awaitable[list[FoodItem]]] | None
 ) -> FoodItem | None:
-    food = _bank_food(repository, user_id, item["name"])
+    food = _bank_food(repository, user_id, item["name"], item["query"])
     if food is not None or usda_lookup is None:
         return food
     found = await usda_lookup(item["query"])
@@ -353,6 +367,8 @@ async def suggest_meals(
                 missing=missing,
             )
         )
+    # An option that can't be shrunk to fit (5 g minimums, a small budget) isn't offered.
+    meals = [meal for meal in meals if meal.totals.calories <= max(budget.calories * 1.25, budget.calories + 40)]
     if not meals:
-        return SuggestResponse(**base, message="Gus's ideas couldn't be matched to nutrition data. Try again, or list what you have.")
+        return SuggestResponse(**base, message="Gus's ideas didn't fit what's left. Try again, or list what you have.")
     return SuggestResponse(**base, options=meals)

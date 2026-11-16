@@ -159,3 +159,28 @@ async def test_add_one_planned_meal_keeps_the_rest(client, auth_headers):
         "plan_date": "2026-11-17", "slot": {"meal_label": "Dinner", "title": "Salmon and potatoes", "calories": 600,
                                              "prep_status": "Flexible", "items": []}})
     assert [slot["title"] for slot in second.json()["slots"]] == ["Chicken rice bowl", "Salmon and potatoes"]
+
+
+@pytest.mark.asyncio
+async def test_the_food_bank_never_swaps_cooked_for_raw(repository):
+    from backend.app.services.meal_suggest import _bank_food
+
+    _onboard(repository)
+    for food in (_food("raw-rice", "Rice, white, raw", 365, 7, 80, 1), _food("breaded", "Chicken breast, breaded, fried", 260, 25, 10, 13),
+                 _food("cooked-rice", "Rice, white, cooked", 130, 2.7, 28, 0.3)):
+        repository.save_food_item(food)
+        repository.add_to_food_bank(user_id="u1", food_id=food.id)
+    assert _bank_food(repository, "u1", "white rice", "rice white cooked").id == "cooked-rice"
+    assert _bank_food(repository, "u1", "chicken breast", "chicken breast roasted") is None  # breaded is a different food
+
+
+def test_odd_ai_json_is_ignored_not_a_crash():
+    from backend.app.services.meal_suggest import _clean_options
+
+    assert _clean_options({"options": {"name": "x"}}) == []
+    assert _clean_options({"options": [{"name": "Bowl", "ingredients": {"a": 1}}]}) == []
+    same = _clean_options({"options": [
+        {"name": "Bowl", "ingredients": [{"name": "rice", "grams": 100}]},
+        {"name": "Bowl", "ingredients": [{"name": "egg", "grams": 50}]},
+    ]})
+    assert [option["name"] for option in same] == ["Bowl", "Bowl (2)"]

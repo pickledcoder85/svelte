@@ -41,12 +41,17 @@ export function MealPatternGuide({
   const [count, setCount] = useState<MealsPerDay>(initialCount);
   const [style, setStyle] = useState<MealStyleId>(initialStyle ?? 'balanced');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
     const chosen = MEAL_STYLES.find((item) => item.id === style) ?? MEAL_STYLES[0];
     setSaving(true);
+    setError(null);
     try {
       await onSave(count, chosen.splits[count]);
+    } catch (saveError) {
+      // Stay open and say why; the choice is kept so Save can be tapped again.
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save your meal pattern.');
     } finally {
       setSaving(false);
     }
@@ -118,6 +123,7 @@ export function MealPatternGuide({
                   );
                 })}
                 <Text style={styles.note}>Want something else? Build your meals by hand in Plan instead.</Text>
+                {error ? <Text style={styles.error}>{error}</Text> : null}
                 <View style={styles.row}>
                   <Pressable style={styles.secondary} onPress={() => setStep(1)} accessibilityRole="button">
                     <Text style={styles.secondaryLabel}>Back</Text>
@@ -160,5 +166,6 @@ const styles = StyleSheet.create({
   primaryLabel: { color: tc.fg_ffffff, fontSize: 17, fontWeight: '800' },
   secondary: { alignItems: 'center', paddingVertical: 15, paddingHorizontal: 18 },
   secondaryLabel: { color: tc.fg_0f766e, fontSize: 16, fontWeight: '700' },
-  disabled: { opacity: 0.5 }
+  disabled: { opacity: 0.5 },
+  error: { color: tc.fg_b42318, fontSize: 14, textAlign: 'center' }
 });

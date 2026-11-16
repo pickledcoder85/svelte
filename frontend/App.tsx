@@ -99,6 +99,7 @@ import {
   isValidSplit,
   MEAL_PATTERNS,
   MEAL_STYLES,
+  RECOMMENDED_MEALS_PER_DAY,
   styleForSplit,
   type MealBlockKey,
   type MealsPerDay
@@ -3185,6 +3186,10 @@ export default function App(): ReactElement {
     setSuggestOpen(true);
   }
 
+  // The day Gus plans for: the day showing on Today, the date card chosen in Plan, else today.
+  const suggestDate =
+    section === 'dashboard' ? selectedHomeDate : section === 'meal-plan' ? selectedMealPlanDate ?? todayKey : todayKey;
+
   /** The block to suggest for by default: the meal for this time of day, in the user's pattern. */
   function defaultSuggestBlock(): MealBlockKey {
     const keys = MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay];
@@ -3206,23 +3211,29 @@ export default function App(): ReactElement {
     }
   }
 
-  /** The meal-planning guide's choice (meals per day and balance). Targets are not recalculated. */
+  /**
+   * The meal-planning guide's choice (meals per day and balance). Targets are not recalculated.
+   * Throws when it can't be saved, so the guide stays open and says why.
+   */
   async function applyMealSplit(count: MealsPerDay, split: number[]) {
-    // One settings save at a time: a split save resends the name, time zone, and units, so it
-    // must never race (and undo) another settings save.
-    if (!profile || !foodSessionToken || !isValidSplit(count, split) || settingsSaving) {
-      return;
+    if (!profile || !foodSessionToken) {
+      throw new Error('Sign in again to save your meal pattern.');
+    }
+    if (!isValidSplit(count, split)) {
+      throw new Error('That meal pattern is not valid.');
+    }
+    // One profile save at a time: this resends the name, time zone, and units, so it must never
+    // race (and undo) another settings save.
+    if (settingsSaving) {
+      throw new Error('Another change is still saving. Try again in a moment.');
     }
     setSettingsSaving(true);
-    setFloorMessage(null);
     try {
       const updated = await updateProfile(
         { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, meals_per_day: count, meal_split: split },
         foodSessionToken
       );
       setProfile(updated);
-    } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to save the meal pattern.');
     } finally {
       setSettingsSaving(false);
     }
@@ -7251,7 +7262,7 @@ export default function App(): ReactElement {
         <MealPatternGuide
           calorieTarget={dailyHomeTargets.calorieTarget}
           macros={dailyHomeTargets.macroTargets}
-          initialCount={(profile.meals_per_day ?? 5) as MealsPerDay}
+          initialCount={(profile.meal_pattern_chosen ? profile.meals_per_day ?? 3 : RECOMMENDED_MEALS_PER_DAY) as MealsPerDay}
           initialStyle={profile.meal_pattern_chosen ? styleForSplit((profile.meals_per_day ?? 3) as MealsPerDay, profile.meal_split ?? []) : null}
           onClose={() => {
             setPatternGuideOpen(false);
@@ -7271,8 +7282,12 @@ export default function App(): ReactElement {
       {suggestOpen && foodSessionToken ? (
         <SuggestMealSheet
           accessToken={foodSessionToken}
-          logDate={section === 'dashboard' ? selectedHomeDate : todayKey}
-          dayName={section === 'dashboard' ? homeDayName : 'today'}
+          logDate={suggestDate}
+          dayName={
+            suggestDate === todayKey
+              ? 'today'
+              : new Date(`${suggestDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
+          }
           blocks={MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay]}
           defaultBlock={defaultSuggestBlock()}
           onClose={() => setSuggestOpen(false)}
