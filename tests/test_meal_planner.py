@@ -116,3 +116,16 @@ async def test_plan_routes(client, auth_headers):
     propose = await client.post("/api/coach/plan/propose", headers=auth_headers, json={"meals": ["lunch"]})
     assert propose.status_code == 503  # no AI key in tests
     assert (await client.post("/api/coach/plan/propose", headers=auth_headers, json={"meals": []})).status_code == 422
+
+
+def test_planned_meals_show_counted_foods(repository):
+    _onboard(repository)
+    create_plan(repository, "u1", CreatePlanRequest(assignments=[{
+        "plan_date": "2099-11-17", "meal": "breakfast", "title": "Eggs and toast", "calories": 400,
+        "items": [
+            {"name": "eggs", "grams": 100, "calories": 155, "protein": 13, "carbs": 1, "fat": 11, "count": 2, "unit": "large egg"},
+            {"name": "spinach", "grams": 60, "calories": 14, "protein": 2, "carbs": 2, "fat": 0},
+        ],
+    }]))
+    slot = next(day for day in repository.list_meal_plan_days("u1") if day["plan_date"] == "2099-11-17")["slots"][0]
+    assert [item["quantity_label"] for item in slot["items"]] == ["2 large eggs (100 g)", "60 g"]

@@ -5133,7 +5133,7 @@ export default function App(): ReactElement {
                         <View style={styles.listRowCopyFlex}>
                           <Text style={styles.listTitle}>{entry.food_name}</Text>
                           <Text style={styles.listCaption}>
-                            P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
+                            {entry.quantity_label ? `${entry.quantity_label} · ` : ''}P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
                           </Text>
                         </View>
                         <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>

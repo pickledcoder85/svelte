@@ -1287,6 +1287,7 @@ class SQLiteRepository:
         created_at: str | None = None,
         entry_id: str | None = None,
         meal_slot: str | None = None,
+        quantity_label: str | None = None,
     ) -> str:
         identifier = entry_id or str(uuid4())
         with self._lock, self._connection:
@@ -1295,8 +1296,8 @@ class SQLiteRepository:
                 INSERT INTO food_log_entries (
                     id, food_log_id, entry_type, food_item_id, meal_template_id,
                     meal_plan_slot_id, display_name_override, grams, servings, calories, protein, carbs, fat, created_at,
-                    meal_slot
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    meal_slot, quantity_label
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     identifier,
@@ -1314,6 +1315,7 @@ class SQLiteRepository:
                     fat,
                     created_at or datetime.now(UTC).isoformat(),
                     meal_slot,
+                    quantity_label,
                 ),
             )
         return identifier
@@ -1375,7 +1377,7 @@ class SQLiteRepository:
             self._connection.execute(
                 """
                 UPDATE food_log_entries
-                SET grams = ?, servings = ?, calories = ?, protein = ?, carbs = ?, fat = ?
+                SET grams = ?, servings = ?, calories = ?, protein = ?, carbs = ?, fat = ?, quantity_label = NULL
                 WHERE id = ?
                 """,
                 (grams, servings, calories, protein, carbs, fat, entry_id),

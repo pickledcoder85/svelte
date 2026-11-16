@@ -62,6 +62,10 @@ export interface ShoppingItem {
   name: string;
   grams: number;
   role: string;
+  /** Counted foods: how many in all, and of what ("large egg" / "large eggs"). */
+  count?: number | null;
+  unit?: string | null;
+  unit_plural?: string | null;
 }
 
 const ROLE_ORDER = ['protein', 'carb', 'veg', 'fruit', 'fat', 'other'];
@@ -74,16 +78,26 @@ export const ROLE_LABELS: Record<string, string> = {
   other: 'Other'
 };
 
-/** Every ingredient in the plan, totalled (grams × how many times the meal appears). */
+/** Every ingredient in the plan, totalled (grams × how many times the meal appears). Counted
+ * foods add up their counts too ("12 large eggs"), kept apart from the same food by weight. */
 export function shoppingList(
-  meals: Array<{ times: number; items: Array<{ name: string; grams: number; role: string }> }>
+  meals: Array<{ times: number; items: ShoppingItem[] }>
 ): Array<{ role: string; label: string; items: ShoppingItem[] }> {
   const totals = new Map<string, ShoppingItem>();
   for (const meal of meals) {
     for (const item of meal.items) {
-      const key = item.name.trim().toLowerCase();
-      const current = totals.get(key) ?? { name: item.name.trim(), grams: 0, role: item.role || 'other' };
+      const counted = Boolean(item.count && item.unit);
+      const key = `${item.name.trim().toLowerCase()}|${counted ? item.unit!.trim().toLowerCase() : ''}`;
+      const current: ShoppingItem = totals.get(key) ?? {
+        name: item.name.trim(),
+        grams: 0,
+        role: item.role || 'other',
+        ...(counted ? { count: 0, unit: item.unit, unit_plural: item.unit_plural } : {})
+      };
       current.grams += item.grams * meal.times;
+      if (counted) {
+        current.count = (current.count ?? 0) + item.count! * meal.times;
+      }
       totals.set(key, current);
     }
   }
@@ -97,6 +111,15 @@ export function shoppingList(
     label: ROLE_LABELS[role],
     items: (groups.get(role) ?? []).sort((a, b) => a.name.localeCompare(b.name))
   }));
+}
+
+/** "12 large eggs (600 g)", or the weight for weighed foods. Counts round up to whole items. */
+export function shoppingAmount(item: ShoppingItem): string {
+  if (item.count && item.unit) {
+    const count = Math.ceil(item.count - 1e-9);
+    return `${count} ${count === 1 ? item.unit : item.unit_plural || item.unit} (${formatGrams(item.grams)})`;
+  }
+  return formatGrams(item.grams);
 }
 
 /** "1.2 kg" over 1,000 g, else "350 g". */

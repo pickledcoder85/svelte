@@ -38,6 +38,8 @@ class LogFoodRequest(BaseModel):
     servings: float | None = Field(default=None, gt=0)
     grams: float | None = Field(default=None, gt=0)
     meal_slot: MealSlot | None = None
+    # How it was counted, e.g. "2 large eggs (100 g)" from a Gus suggestion.
+    quantity_label: str | None = Field(default=None, max_length=80)
 
     @model_validator(mode="after")
     def _one_amount(self):
@@ -174,6 +176,7 @@ def log_food(repository: SQLiteRepository, user_id: str, payload: LogFoodRequest
         carbs=round(food.macros.carbs * servings, 1),
         fat=round(food.macros.fat * servings, 1),
         meal_slot=payload.meal_slot,
+        quantity_label=(payload.quantity_label or "").strip() or None,
     )
     repository.add_to_food_bank(user_id=user_id, food_id=food.id, used=True)
     return get_food_log(repository, user_id, log["id"])

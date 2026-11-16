@@ -13,6 +13,7 @@ import { pickPhotoFromCamera, prepareScanPhoto } from '../lib/web-photo';
 import { BLOCK_LABELS, type MealBlockKey } from '../lib/meal-split';
 import { tc } from '../theme/palette';
 import type { SuggestedMeal, SuggestResponse } from '../types';
+import { countLabel, ingredientLine } from '../lib/portions';
 
 export function SuggestMealSheet({
   accessToken,
@@ -91,7 +92,17 @@ export function SuggestMealSheet({
         if (logged.has(position)) {
           continue;
         }
-        await logFood({ food_id: item.food.id, log_date: logDate, grams: item.grams, meal_slot: slot }, accessToken);
+        const counted = countLabel(item);
+        await logFood(
+          {
+            food_id: item.food.id,
+            log_date: logDate,
+            grams: item.grams,
+            meal_slot: slot,
+            ...(counted ? { quantity_label: `${counted} (${Math.round(item.grams)} g)` } : {})
+          },
+          accessToken
+        );
         logged.add(position);
       }
       setDone((current) => ({ ...current, [index]: 'logged' }));
@@ -196,7 +207,7 @@ export function SuggestMealSheet({
                     {meal.items.map((item, position) => (
                       <View key={position} style={styles.itemRow}>
                         <Text style={styles.itemName} numberOfLines={2}>
-                          {item.grams} g {item.name}
+                          {ingredientLine(item)}
                         </Text>
                         <Text style={styles.itemKcal}>{Math.round(item.nutrition.calories)} kcal</Text>
                       </View>

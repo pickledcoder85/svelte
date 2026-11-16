@@ -25,11 +25,17 @@ from backend.app.models.nutrition import FoodItem
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.meal_split import LABELS, MEAL_PATTERNS, resolve_split
 from backend.app.services.plate_match import food_score, pick_generic_food
+from backend.app.services.portions import MAX_COUNT, counted_unit, plural, quantity_label, round_count
 
 logger = logging.getLogger(__name__)
 
 BlockKey = Literal["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner", "snack"]
 MAX_INGREDIENTS = 6
+COUNT_RULE = (
+    "for foods people count rather than weigh (eggs, fruit, potatoes, bread, tortillas, wraps), give how many as count "
+    'and one in singular as unit, e.g. 2 and "large egg", 1 and "medium sweet potato", 2 and "slice of whole wheat bread"; '
+    "grams is still the total weight; for weighed foods (meat, rice, oil, vegetables by weight) count is 0 and unit is empty"
+)
 MIN_BUDGET_CALORIES = 80
 GRAM_STEP = 5
 ROLES = ("protein", "carb", "veg", "fat", "fruit", "other")
@@ -56,6 +62,12 @@ class SuggestedItem(BaseModel):
     role: str = "other"
     food: FoodItem
     nutrition: Nutrition
+    # Counted foods: how many of what ("large egg"); None when weighed.
+    count: float | None = None
+    unit: str | None = None
+    unit_plural: str | None = None
+    # "2 large eggs (100 g)" or "150 g".
+    quantity_label: str = ""
 
 
 class SuggestedMeal(BaseModel):
@@ -232,9 +244,10 @@ Diet: {diet}. Nutrition style: {style}. Allergies and foods to avoid: {allergies
 Return JSON only:
 {{{'"seen_items": ["each food you can see"], ' if with_photo else ''}"options": [{{"name": "short appetising name", "why": "one short sentence on why it fits",
   "ingredients": [{{"name": "plain food name", "usda_query": "short generic USDA search incl. cooked/raw state, e.g. rice white cooked",
-                   "grams": 0, "role": "protein|carb|veg|fat|fruit|other"}}]}}]}}
+                   "grams": 0, "count": 0, "unit": "", "role": "protein|carb|veg|fat|fruit|other"}}]}}]}}
 Rules:
 - never include anything the allergies or diet exclude
+- {COUNT_RULE}
 - name ingredients as plain generic foods found in USDA FoodData Central (e.g. "chicken thigh", "brown rice", "broccoli")
 - at most {MAX_INGREDIENTS} ingredients per option, plain whole foods (no brands, no recipes as ingredients)
 - grams are a realistic portion near the target (the app adjusts them), for cooked weights when cooked
@@ -257,11 +270,19 @@ def clean_ingredients(raw_items: Any) -> list[dict[str, Any]]:
         if not name or not math.isfinite(grams) or grams <= 0:
             continue
         role = str(ingredient.get("role") or "other").lower()
+        try:
+            count = float(ingredient.get("count") or 0)
+        except (TypeError, ValueError):
+            count = 0.0
+        unit = str(ingredient.get("unit") or "").strip()[:40]
+        counted = math.isfinite(count) and 0 < count <= MAX_COUNT and bool(unit)
         items.append({
             "name": name,
             "query": (str(ingredient.get("usda_query") or "").strip() or name)[:80],
             "grams": min(grams, 1000.0),
             "role": role if role in ROLES else "other",
+            "count": count if counted else None,
+            "unit": unit if counted else None,
         })
     return items
 
@@ -533,8 +554,34 @@ async def suggest_meals(
     )
 
 
+def snap_counts(
+    items: list[dict[str, Any]], grams: list[float], budget: Nutrition
+) -> tuple[list[float], list[tuple[str, float] | None]]:
+    """Counted foods to whole items (halves for big ones), then the weighed foods rescaled so the
+    meal still fits its calories. Returns the grams and each item's (unit, count) or None."""
+    grams = list(grams)
+    units = [counted_unit(item, item["food"]) for item in items]
+    counts: list[tuple[str, float] | None] = [None] * len(items)
+    for index, found in enumerate(units):
+        if found:
+            unit, each = found
+            count = min(float(MAX_COUNT), round_count(grams[index] / each, each))
+            counts[index] = (unit, count)
+            grams[index] = round(count * each)
+    flexible = [index for index, found in enumerate(units) if not found]
+    if flexible and any(units) and budget.calories > 0:
+        rates = [item["rate"] for item in items]
+        fixed = sum(grams[index] * rates[index].calories for index, found in enumerate(units) if found)
+        flex = sum(grams[index] * rates[index].calories for index in flexible)
+        if flex > 0:
+            scale = min(2.0, max(0.5, (budget.calories - fixed) / flex))
+            for index in flexible:
+                grams[index] = max(GRAM_STEP, round(grams[index] * scale / GRAM_STEP) * GRAM_STEP)
+    return grams, counts
+
+
 def _assemble(option: dict[str, Any], found: list[dict[str, Any]], budget: Nutrition) -> SuggestedMeal:
-    grams = fit_portions(found, budget)
+    grams, counts = snap_counts(found, fit_portions(found, budget), budget)
     items = [
         SuggestedItem(
             name=item["name"],
@@ -547,8 +594,12 @@ def _assemble(option: dict[str, Any], found: list[dict[str, Any]], budget: Nutri
                 carbs=round(weight * item["rate"].carbs, 1),
                 fat=round(weight * item["rate"].fat, 1),
             ),
+            count=counted[1] if counted else None,
+            unit=counted[0] if counted else None,
+            unit_plural=plural(counted[0]) if counted else None,
+            quantity_label=quantity_label(weight, counted[1], counted[0]) if counted else quantity_label(weight),
         )
-        for item, weight in zip(found, grams)
+        for item, weight, counted in zip(found, grams, counts)
     ]
     totals = _sum([(item.grams, _per_gram(item.food)) for item in items])
     return SuggestedMeal(
