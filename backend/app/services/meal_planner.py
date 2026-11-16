@@ -20,7 +20,7 @@ from datetime import date
 from typing import Any, Literal
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.app.config import Settings
 from backend.app.integrations.usda import GENERIC_DATA_TYPES, search_usda_foods
@@ -50,8 +50,15 @@ TIME_GUIDANCE = {
 class ProposeRequest(BaseModel):
     meals: list[MealType] = Field(min_length=1, max_length=3)
     cooking_time: CookingTime = "some"
-    # Titles already kept in this plan (or rejected), so Gus doesn't repeat them.
-    avoid_titles: list[str] = Field(default_factory=list, max_length=60)
+    # Titles already kept in this plan (or rejected), so Gus doesn't repeat them. Long lists are
+    # trimmed (de-duplicated, most recent 60) rather than refused.
+    avoid_titles: list[str] = Field(default_factory=list)
+
+    @field_validator("avoid_titles")
+    @classmethod
+    def _trim_avoid(cls, value: list[str]) -> list[str]:
+        unique = list(dict.fromkeys(title.strip()[:80] for title in value if title.strip()))
+        return unique[-60:]
     # e.g. "day 3 of 7" or "meal 2 of 3 in the rotation", to vary ideas.
     step_note: str | None = Field(default=None, max_length=80)
 
@@ -71,7 +78,7 @@ class ProposeResponse(BaseModel):
 
 class PlanItem(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    grams: float = Field(gt=0, le=2000)
+    grams: float = Field(gt=0, le=5000)
     calories: float = Field(ge=0, le=10000)
     protein: float = Field(ge=0, le=1000)
     carbs: float = Field(ge=0, le=1000)
@@ -235,9 +242,16 @@ def create_plan(repository: SQLiteRepository, user_id: str, payload: CreatePlanR
     created = replaced = kept = 0
     days = {str(day.get("plan_date", ""))[:10]: day for day in repository.list_meal_plan_days(user_id)}
     for assignment in payload.assignments:
+        if assignment.plan_date < date.today():
+            continue  # never plan days that have gone
         label = LABELS[assignment.meal]
         day = days.get(assignment.plan_date.isoformat())
-        existing = [slot for slot in (day or {}).get("slots", []) if str(slot.get("meal_label") or "").lower() == label.lower()]
+        # A meal already eaten from the plan isn't in the way: the new one goes beside it.
+        existing = [
+            slot
+            for slot in (day or {}).get("slots", [])
+            if str(slot.get("meal_label") or "").lower() == label.lower() and not slot.get("eaten_at")
+        ]
         if existing:
             if assignment.on_conflict == "keep":
                 kept += 1

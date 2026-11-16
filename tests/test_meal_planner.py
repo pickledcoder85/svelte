@@ -73,27 +73,45 @@ def _assignment(day, meal, title, on_conflict="keep"):
             "items": [{"name": "rice", "grams": 150, "calories": 195, "protein": 4, "carbs": 42, "fat": 0.5}]}
 
 
+def test_avoid_list_is_trimmed_not_refused():
+    request = ProposeRequest(meals=["lunch"], avoid_titles=[f"Meal {n}" for n in range(100)] + ["Meal 99", " "])
+    assert len(request.avoid_titles) == 60 and request.avoid_titles[-1] == "Meal 99"
+
+
+def test_create_plan_skips_past_days_and_ignores_eaten_slots(repository):
+    _onboard(repository)
+    tomorrow = (date.today().fromordinal(date.today().toordinal() + 1)).isoformat()
+    day = repository.add_meal_plan_slot(user_id="u1", plan_date=date.fromisoformat(tomorrow), slot={
+        "meal_label": "Breakfast", "title": "Eaten already", "calories": 400, "prep_status": "Flexible", "items": []})
+    repository.update_meal_plan_slot_eaten_at("u1", day["slots"][0]["id"], __import__("datetime").datetime.now())
+    result = create_plan(repository, "u1", CreatePlanRequest(assignments=[
+        _assignment(tomorrow, "breakfast", "New breakfast"),
+        _assignment("2020-01-01", "lunch", "Long ago"),
+    ]))
+    assert (result.created, result.kept) == (1, 0)
+
+
 def test_create_plan_replaces_or_keeps_existing_meals(repository):
     _onboard(repository)
-    repository.add_meal_plan_slot(user_id="u1", plan_date=date(2026, 11, 17), slot={
+    repository.add_meal_plan_slot(user_id="u1", plan_date=date(2099, 11, 17), slot={
         "meal_label": "Dinner", "title": "Old dinner", "calories": 600, "prep_status": "Flexible", "items": []})
-    repository.add_meal_plan_slot(user_id="u1", plan_date=date(2026, 11, 18), slot={
+    repository.add_meal_plan_slot(user_id="u1", plan_date=date(2099, 11, 18), slot={
         "meal_label": "Dinner", "title": "Keep me", "calories": 600, "prep_status": "Flexible", "items": []})
     result = create_plan(repository, "u1", CreatePlanRequest(assignments=[
-        _assignment("2026-11-17", "dinner", "New dinner", "replace"),
-        _assignment("2026-11-18", "dinner", "Skipped dinner", "keep"),
-        _assignment("2026-11-17", "lunch", "New lunch"),
+        _assignment("2099-11-17", "dinner", "New dinner", "replace"),
+        _assignment("2099-11-18", "dinner", "Skipped dinner", "keep"),
+        _assignment("2099-11-17", "lunch", "New lunch"),
     ]))
     assert (result.created, result.replaced, result.kept) == (2, 1, 1)
     days = {day["plan_date"]: [slot["title"] for slot in day["slots"]] for day in repository.list_meal_plan_days("u1")}
-    assert days["2026-11-17"] == ["New dinner", "New lunch"]
-    assert days["2026-11-18"] == ["Keep me"]
+    assert days["2099-11-17"] == ["New dinner", "New lunch"]
+    assert days["2099-11-18"] == ["Keep me"]
 
 
 @pytest.mark.asyncio
 async def test_plan_routes(client, auth_headers):
     response = await client.post("/api/coach/plan/create", headers=auth_headers, json={"assignments": [
-        _assignment("2026-11-20", "breakfast", "Porridge")]})
+        _assignment("2099-11-20", "breakfast", "Porridge")]})
     assert response.status_code == 200 and response.json()["created"] == 1
     propose = await client.post("/api/coach/plan/propose", headers=auth_headers, json={"meals": ["lunch"]})
     assert propose.status_code == 503  # no AI key in tests

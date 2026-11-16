@@ -80,6 +80,8 @@ export function CreateMealPlan({
   const [start, setStart] = useState(addDaysToDateKey(localDateKey(), 1));
   const [conflictChoice, setConflictChoice] = useState<Record<string, 'replace' | 'keep'>>({});
   const [result, setResult] = useState<{ created: number; replaced: number; kept: number } | null>(null);
+  // The meals actually created (a "Keep planned" slot wasn't): the shopping list's source.
+  const [createdMeals, setCreatedMeals] = useState<Array<{ name: string; items: Array<{ name: string; grams: number; role: string }> }>>([]);
 
   const steps = stepCount(variety, dayCount(days));
   const stepIndex = chosen.length;
@@ -88,7 +90,11 @@ export function CreateMealPlan({
   const keptTitles = () =>
     chosen.flatMap((kept) => Object.values(kept).filter(Boolean).map((meal) => meal!.option?.name ?? '')).filter(Boolean);
 
-  async function propose(only: PlanMeal[], keep: ProposedPlanMeal[] = []) {
+  /** Meals to avoid: everything kept so far comes first; rejected ones fill the rest (max 60). */
+  const avoidList = (kept: string[], turnedDown: string[]) =>
+    [...new Set([...kept.filter(Boolean), ...turnedDown.filter(Boolean).slice(-40)])].slice(0, 60);
+
+  async function propose(only: PlanMeal[], keep: ProposedPlanMeal[] = [], turnedDown: string[] = rejected, atStep = stepIndex) {
     setLoading(true);
     setError(null);
     try {
@@ -96,8 +102,8 @@ export function CreateMealPlan({
         {
           meals: only,
           cooking_time: time,
-          avoid_titles: [...keptTitles(), ...keep.map((meal) => meal.option?.name ?? ''), ...rejected].filter(Boolean),
-          step_note: stepNote(variety, stepIndex, steps)
+          avoid_titles: avoidList([...keptTitles(), ...keep.map((meal) => meal.option?.name ?? '')], turnedDown),
+          step_note: stepNote(variety, atStep, steps)
         },
         accessToken
       );
@@ -123,10 +129,13 @@ export function CreateMealPlan({
   function tryAgain() {
     const keep = current.filter((meal) => checked[meal.meal] && meal.option);
     const again = current.filter((meal) => !checked[meal.meal] || !meal.option);
-    setRejected((list) => [...list, ...again.map((meal) => meal.option?.name ?? '').filter(Boolean)]);
+    // Pass the new list straight in: the state update isn't visible until the next render.
+    const nextRejected = [...rejected, ...again.map((meal) => meal.option?.name ?? '').filter(Boolean)];
+    setRejected(nextRejected);
     void propose(
       again.map((meal) => meal.meal),
-      keep
+      keep,
+      nextRejected
     );
   }
 
@@ -146,7 +155,7 @@ export function CreateMealPlan({
         {
           meals,
           cooking_time: time,
-          avoid_titles: [...all.flatMap((k) => Object.values(k).map((m) => m?.option?.name ?? '')), ...rejected].filter(Boolean),
+          avoid_titles: avoidList(all.flatMap((k) => Object.values(k).map((m) => m?.option?.name ?? '')), rejected),
           step_note: stepNote(variety, all.length, steps)
         },
         accessToken
@@ -175,6 +184,13 @@ export function CreateMealPlan({
     setLoading(true);
     setError(null);
     try {
+      const sent = assignments.map(({ date, meal, proposal }) => ({
+        date,
+        meal,
+        proposal: proposal!,
+        onConflict: conflictChoice[conflictKey(date, meal)] ?? ('keep' as const),
+        conflicted: conflicts.some((c) => c.date === date && c.meal === meal)
+      }));
       const response = await createMealPlan(
         assignments.map(({ date, meal, proposal }) => ({
           plan_date: date,
@@ -194,6 +210,14 @@ export function CreateMealPlan({
         accessToken
       );
       setResult(response);
+      setCreatedMeals(
+        sent
+          .filter((entry) => !entry.conflicted || entry.onConflict === 'replace')
+          .map((entry) => ({
+            name: `${entry.meal}:${entry.proposal.option!.name}`,
+            items: entry.proposal.option!.items.map((item) => ({ name: item.name, grams: item.grams, role: item.role }))
+          }))
+      );
       setStep('done');
       onCreated();
     } catch (createError) {
@@ -203,21 +227,16 @@ export function CreateMealPlan({
     }
   }
 
-  // Shopping list: each kept meal × the days it lands on (meals kept as "Keep planned" excluded).
+  // Shopping list: each created meal × the days it landed on (a "Keep planned" slot wasn't created).
   const shopping = useMemo(() => {
     const counts = new Map<string, { times: number; items: Array<{ name: string; grams: number; role: string }> }>();
-    for (const { date, meal, proposal } of assignments) {
-      if (conflicts.some((c) => c.date === date && c.meal === meal) && (conflictChoice[conflictKey(date, meal)] ?? 'keep') === 'keep') {
-        continue;
-      }
-      const key = `${meal}:${proposal!.option!.name}`;
-      const entry = counts.get(key) ?? { times: 0, items: proposal!.option!.items.map((item) => ({ name: item.name, grams: item.grams, role: item.role })) };
+    for (const meal of createdMeals) {
+      const entry = counts.get(meal.name) ?? { times: 0, items: meal.items };
       entry.times += 1;
-      counts.set(key, entry);
+      counts.set(meal.name, entry);
     }
     return shoppingList([...counts.values()]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments.length, chosen, conflictChoice]);
+  }, [createdMeals]);
 
   const setupStepIndex = { days: 1, meals: 2, time: 3, variety: 4 } as Record<Step, number>;
 
@@ -397,7 +416,12 @@ export function CreateMealPlan({
                   );
                 })}
               {error ? <Text style={styles.error}>{error}</Text> : null}
-              {!loading ? (
+              {!loading && current.length === 0 ? (
+                <Pressable style={styles.primary} onPress={() => void propose(meals)} accessibilityRole="button">
+                  <Text style={styles.primaryLabel}>Ask Gus again</Text>
+                </Pressable>
+              ) : null}
+              {!loading && current.length > 0 ? (
                 <View style={styles.nav}>
                   <Pressable
                     style={[styles.secondary, current.every((p) => checked[p.meal]) && styles.disabled]}
@@ -426,7 +450,12 @@ export function CreateMealPlan({
                 type="date"
                 value={start}
                 min={localDateKey()}
-                onChange={(event) => event.target.value && setStart(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value) {
+                    setStart(value < localDateKey() ? localDateKey() : value); // never a day that's gone
+                  }
+                }}
                 style={{ fontSize: 17, padding: 10, borderRadius: 10, border: '1px solid #cbd5e1' }}
                 aria-label="Start date"
               />
