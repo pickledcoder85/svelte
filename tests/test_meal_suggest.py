@@ -184,3 +184,41 @@ def test_odd_ai_json_is_ignored_not_a_crash():
         {"name": "Bowl", "ingredients": [{"name": "egg", "grams": 50}]},
     ]})
     assert [option["name"] for option in same] == ["Bowl", "Bowl (2)"]
+
+
+def test_planned_meals_hold_their_budget(repository):
+    _onboard(repository)
+    repository.add_meal_plan_slot(user_id="u1", plan_date=DAY, slot={
+        "meal_label": "Dinner", "title": "Salmon and potatoes", "calories": 600, "prep_status": "Flexible",
+        "items": [{"name": "salmon", "quantity_label": "150 g", "calories": 300, "macros": {"protein": 30, "carbs": 0, "fat": 18}}]})
+    # Lunch: 35% of 1,500 = 525, and dinner's planned 600 (later) is held back: 900 left.
+    key, budget, remaining = meal_budget(repository, "u1", DAY, "lunch")
+    assert round(remaining.calories) == 900 and round(budget.calories) == 525
+    # Asking about dinner itself doesn't subtract dinner's own plan.
+    _, _, dinner_left = meal_budget(repository, "u1", DAY, "dinner")
+    assert round(dinner_left.calories) == 1500
+
+
+def test_earlier_or_already_logged_plans_are_not_held_back(repository):
+    _onboard(repository)
+    repository.add_meal_plan_slot(user_id="u1", plan_date=DAY, slot={
+        "meal_label": "Lunch", "title": "Chicken bowl", "calories": 600, "prep_status": "Flexible", "items": []})
+    # An unticked planned lunch doesn't shrink dinner (it was skipped or eaten off-plan).
+    _, _, left = meal_budget(repository, "u1", DAY, "dinner")
+    assert round(left.calories) == 1500
+    # A planned dinner whose slot already has food logged isn't held back from lunch either.
+    repository.add_meal_plan_slot(user_id="u1", plan_date=DAY, slot={
+        "meal_label": "Dinner", "title": "Salmon", "calories": 600, "prep_status": "Flexible", "items": []})
+    repository.create_food_log(user_id="u1", log_date=DAY)
+    log = repository.get_food_log_for_date("u1", DAY)
+    repository.add_food_log_entry(food_log_id=log["id"], entry_type="meal", display_name_override="Takeaway",
+                                  calories=700, protein=30, carbs=80, fat=25, meal_slot="dinner")
+    _, _, lunch_left = meal_budget(repository, "u1", DAY, "lunch")
+    assert round(lunch_left.calories) == 800
+
+
+def test_prompt_mentions_the_photo_and_planned_meals(repository):
+    _onboard(repository)
+    prompt = suggestion_prompt(block_label="Lunch", budget=Nutrition(calories=500), profile=repository.get_user_identity("u1"),
+                               ingredients=None, planned=[{"label": "Dinner", "title": "Salmon and potatoes"}], with_photo=True)
+    assert "foods you can see" in prompt and "Dinner: Salmon and potatoes" in prompt

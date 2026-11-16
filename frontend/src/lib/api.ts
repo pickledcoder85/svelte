@@ -680,7 +680,7 @@ export async function logFood(
 
 /** Gus suggests two meals for a block, sized to its share of the day (what's left caps it). */
 export async function suggestMeal(
-  payload: { log_date: string; block: string; ingredients?: string },
+  payload: { log_date: string; block: string; ingredients?: string; image_base64?: string },
   accessToken: string
 ): Promise<SuggestResponse> {
   return readJson<SuggestResponse>(

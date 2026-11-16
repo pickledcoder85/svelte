@@ -90,20 +90,14 @@ import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
-import { MealPatternGuide } from './src/components/MealPatternGuide';
 import { SuggestMealSheet } from './src/components/SuggestMealSheet';
 import { defaultMealSlot } from './src/lib/meal-slots';
-import {
-  blockBudgets,
-  DEFAULT_SPLITS,
-  isValidSplit,
-  MEAL_PATTERNS,
-  MEAL_STYLES,
-  RECOMMENDED_MEALS_PER_DAY,
-  styleForSplit,
-  type MealBlockKey,
-  type MealsPerDay
-} from './src/lib/meal-split';
+import { MEAL_STYLES, styleForSplit, type MealBlockKey, type MealStyleId } from './src/lib/meal-split';
+
+/** The breakfast / lunch / dinner split for a meal balance style. */
+function mealStyleSplit(style: MealStyleId): number[] {
+  return (MEAL_STYLES.find((option) => option.id === style) ?? MEAL_STYLES[0]).splits[3];
+}
 import { CalorieBars } from './src/components/trends/CalorieBars';
 import { DayHistory } from './src/components/trends/DayHistory';
 import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
@@ -329,7 +323,7 @@ const exercisePresets: Array<{
 type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
 type NutritionStyle = 'balanced' | 'high_protein' | 'low_carb' | 'keto' | 'mediterranean' | 'paleo';
 // 'welcome' is the intro card before the numbered steps; it is not in onboardingSteps.
-type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'allergies' | 'review';
+type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'balance' | 'allergies' | 'review';
 
 // Activity comes before the goal so the goal screens can show real calorie numbers.
 const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
@@ -339,6 +333,7 @@ const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
   { id: 'pace', label: 'Pace or focus' },
   { id: 'diet', label: 'Diet' },
   { id: 'style', label: 'Nutrition style' },
+  { id: 'balance', label: 'Meal balance' },
   { id: 'allergies', label: 'Allergies' },
   { id: 'review', label: 'Review' }
 ];
@@ -543,10 +538,8 @@ export default function App(): ReactElement {
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
-  // The meal-planning guide, and Gus's suggestions (which need a pattern: the guide comes first).
-  const [patternGuideOpen, setPatternGuideOpen] = useState(false);
+  // Gus's single-meal suggestion (Today → Meals).
   const [suggestOpen, setSuggestOpen] = useState(false);
-  const [suggestAfterGuide, setSuggestAfterGuide] = useState(false);
   const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -630,6 +623,10 @@ export default function App(): ReactElement {
   >('sedentary');
   const [onboardingDietaryPatternDraft, setOnboardingDietaryPatternDraft] = useState<DietaryPattern | null>(null);
   const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle | null>(null);
+  // "How do you balance your meals?" (breakfast / lunch / dinner). Balanced is preselected.
+  const [onboardingMealStyleDraft, setOnboardingMealStyleDraft] = useState<MealStyleId>('balanced');
+  // The style as saved (null: custom or not chosen), to tell whether Profile changed it.
+  const savedMealStyleRef = useRef<MealStyleId | null>(null);
   const [onboardingAllergySelectionsDraft, setOnboardingAllergySelectionsDraft] = useState<AllergyChoice[]>(['none']);
   const [onboardingAllergyOtherDraft, setOnboardingAllergyOtherDraft] = useState('');
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('welcome');
@@ -887,6 +884,7 @@ export default function App(): ReactElement {
     setOnboardingAllergySelectionsDraft(['none']);
     setOnboardingAllergyOtherDraft('');
     setOnboardingCalorieFloorDraft('recommended');
+    setOnboardingMealStyleDraft('balanced');
     setFloorAnsweredPaces([]);
     setActiveExplainer(null);
     setExplainersSeen([]);
@@ -942,6 +940,12 @@ export default function App(): ReactElement {
     setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'sedentary');
     setOnboardingDietaryPatternDraft(loadedProfile.dietary_pattern ?? null);
     setOnboardingNutritionStyleDraft(loadedProfile.nutrition_style ?? null);
+    const savedStyle =
+      loadedProfile.meal_pattern_chosen && (loadedProfile.meals_per_day ?? 3) === 3
+        ? styleForSplit(3, loadedProfile.meal_split ?? [])
+        : null;
+    savedMealStyleRef.current = savedStyle;
+    setOnboardingMealStyleDraft(savedStyle ?? 'balanced');
     const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
     setOnboardingAllergySelectionsDraft(parsedAllergies.selected);
     setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
@@ -2418,6 +2422,7 @@ export default function App(): ReactElement {
           dietary_pattern: onboardingDietaryPatternDraft,
           nutrition_style: onboardingNutritionStyleDraft,
           allergy_notes,
+          meal_split: mealStyleSplit(onboardingMealStyleDraft),
           calorie_floor: onboardingCalorieFloorDraft,
           display_name: profileDisplayNameDraft.trim() || null
         },
@@ -3173,71 +3178,22 @@ export default function App(): ReactElement {
     }
   }
 
-  /** Gus's suggestions; the first time, the meal-planning guide asks for the pattern first. */
+  /** Gus's single-meal suggestion: help filling what's left today (Today → Meals). */
   function openSuggest() {
-    if (!profile || !foodSessionToken) {
-      return;
+    if (profile && foodSessionToken) {
+      setSuggestOpen(true);
     }
-    if (!profile.meal_pattern_chosen) {
-      setSuggestAfterGuide(true);
-      setPatternGuideOpen(true);
-      return;
-    }
-    setSuggestOpen(true);
   }
 
-  // The day Gus plans for: the day showing on Today, the date card chosen in Plan, else today.
-  const suggestDate =
-    section === 'dashboard' ? selectedHomeDate : section === 'meal-plan' ? selectedMealPlanDate ?? todayKey : todayKey;
+  // The day Gus suggests for: the day showing on Today.
+  const suggestDate = selectedHomeDate;
 
-  /** The block to suggest for by default: the meal for this time of day, in the user's pattern. */
+  /** The meal to suggest for by default: the next meal for this time of day (snacks come later). */
   function defaultSuggestBlock(): MealBlockKey {
-    const keys = MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay];
     const slot = defaultMealSlot();
-    if (slot !== 'snack') {
-      return slot;
-    }
-    return keys.includes('afternoon_snack') ? 'afternoon_snack' : 'dinner';
+    return slot === 'snack' ? 'dinner' : slot;
   }
 
-  async function reloadMealPlan() {
-    const token = foodSessionToken;
-    if (token) {
-      try {
-        setMealPlanDays(await fetchMealPlanDays(token));
-      } catch {
-        // Plan → Meals catches up on its next load.
-      }
-    }
-  }
-
-  /**
-   * The meal-planning guide's choice (meals per day and balance). Targets are not recalculated.
-   * Throws when it can't be saved, so the guide stays open and says why.
-   */
-  async function applyMealSplit(count: MealsPerDay, split: number[]) {
-    if (!profile || !foodSessionToken) {
-      throw new Error('Sign in again to save your meal pattern.');
-    }
-    if (!isValidSplit(count, split)) {
-      throw new Error('That meal pattern is not valid.');
-    }
-    // One profile save at a time: this resends the name, time zone, and units, so it must never
-    // race (and undo) another settings save.
-    if (settingsSaving) {
-      throw new Error('Another change is still saving. Try again in a moment.');
-    }
-    setSettingsSaving(true);
-    try {
-      const updated = await updateProfile(
-        { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, meals_per_day: count, meal_split: split },
-        foodSessionToken
-      );
-      setProfile(updated);
-    } finally {
-      setSettingsSaving(false);
-    }
-  }
 
 
   /** Settings > Workout calories. A preference only: targets are not recalculated. */
@@ -3347,7 +3303,12 @@ export default function App(): ReactElement {
       activity_level: onboardingActivityLevelDraft,
       dietary_pattern: onboardingDietaryPatternDraft,
       nutrition_style: onboardingNutritionStyleDraft,
-      allergy_notes: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)
+      allergy_notes: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft),
+      // Only when the user picked a different meal balance: saving a weight change never
+      // rewrites a pattern they didn't touch (e.g. an older 5-meal one).
+      ...(onboardingMealStyleDraft !== savedMealStyleRef.current
+        ? { meals_per_day: 3 as const, meal_split: mealStyleSplit(onboardingMealStyleDraft) }
+        : {})
     } satisfies Parameters<typeof updateProfile>[0];
 
     setProfileSaving(true);
@@ -4713,6 +4674,42 @@ export default function App(): ReactElement {
                 </View>
               ) : null}
 
+              {onboardingStep === 'balance' ? (
+                <View style={styles.setupPanel}>
+                  <Text style={styles.panelTitle}>How do you balance your meals?</Text>
+                  <Text style={styles.setupIntroText}>
+                    How your day's calories split across breakfast, lunch, and dinner. Gus uses it to size the meals he plans. You can
+                    change it any time in Profile.
+                  </Text>
+                  <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
+                    {MEAL_STYLES.map((option) => {
+                      const active = onboardingMealStyleDraft === option.id;
+                      const [breakfast, lunch, dinner] = option.splits[3];
+                      return (
+                        <Pressable
+                          key={option.id}
+                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
+                          onPress={() => setOnboardingMealStyleDraft(option.id)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                        >
+                          <View style={styles.setupIconRowCopy}>
+                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                              {option.label}
+                              {option.id === 'balanced' ? ' (default)' : ''}
+                            </Text>
+                            <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
+                            <Text style={styles.setupChoiceDetail}>
+                              Breakfast {breakfast}% · Lunch {lunch}% · Dinner {dinner}%
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
               {onboardingStep === 'allergies' ? (
                 <View style={styles.setupPanel}>
                   <Text style={styles.panelTitle}>Allergies and foods to avoid</Text>
@@ -4834,6 +4831,11 @@ export default function App(): ReactElement {
                           step: 'style' as const,
                           label: 'Nutrition style',
                           value: nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Not chosen'
+                        },
+                        {
+                          step: 'balance' as const,
+                          label: 'Meal balance',
+                          value: MEAL_STYLES.find((option) => option.id === onboardingMealStyleDraft)?.label ?? 'Balanced'
                         },
                         {
                           step: 'allergies' as const,
@@ -5466,6 +5468,24 @@ export default function App(): ReactElement {
                               onPress={() => setOnboardingNutritionStyleDraft(option.id)}
                             >
                               <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.profileField}>
+                      <Text style={styles.profileFieldLabel}>Meal balance</Text>
+                      <View style={styles.profileToggleRow}>
+                        {MEAL_STYLES.map((option) => {
+                          const active = onboardingMealStyleDraft === option.id;
+                          return (
+                            <Pressable
+                              key={option.id}
+                              style={[styles.profileToggle, active && styles.profileToggleActive]}
+                              onPress={() => setOnboardingMealStyleDraft(option.id)}
+                            >
+                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.label}</Text>
                             </Pressable>
                           );
                         })}
@@ -6449,27 +6469,19 @@ export default function App(): ReactElement {
         {section === 'meal-plan' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
-            {profile?.meal_pattern_chosen ? (
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.panelDetail}>
-                  {(() => {
-                    const count = (profile.meals_per_day ?? 3) as MealsPerDay;
-                    const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count, profile.meal_split ?? []));
-                    return `${count === 3 ? '3 meals' : count === 4 ? '3 meals + a snack' : '3 meals + 2 snacks'} · ${style?.label ?? 'Balanced'}`;
-                  })()}
-                </Text>
-                <Pressable onPress={() => setPatternGuideOpen(true)} accessibilityRole="button">
-                  <Text style={styles.settingsLink}>Change</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable style={styles.secondaryButton} onPress={() => setPatternGuideOpen(true)} accessibilityRole="button">
-                <Text style={styles.secondaryButtonLabel}>Set up meal planning</Text>
-              </Pressable>
-            )}
-            <Pressable style={styles.primaryButton} onPress={openSuggest} accessibilityRole="button">
-              <Text style={styles.primaryButtonLabel}>✨ Suggest a meal</Text>
-            </Pressable>
+            <Text style={styles.panelDetail}>
+              Meal balance:{' '}
+              {(() => {
+                // The saved pattern, not an unsaved Profile tap.
+                const count = profile?.meals_per_day ?? 3;
+                const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count as 3 | 4 | 5, profile?.meal_split ?? []));
+                if (!profile?.meal_pattern_chosen) {
+                  return 'Balanced';
+                }
+                return style ? `${style.label}${count === 3 ? '' : ` (${count} meals a day)`}` : `Custom (${count} meals a day)`;
+              })()}{' '}
+              (change it in Profile).
+            </Text>
             <Text style={styles.panelDetail}>
               Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
             </Text>
@@ -7258,27 +7270,6 @@ export default function App(): ReactElement {
         </View>
       ) : null}
 
-      {patternGuideOpen && profile ? (
-        <MealPatternGuide
-          calorieTarget={dailyHomeTargets.calorieTarget}
-          macros={dailyHomeTargets.macroTargets}
-          initialCount={(profile.meal_pattern_chosen ? profile.meals_per_day ?? 3 : RECOMMENDED_MEALS_PER_DAY) as MealsPerDay}
-          initialStyle={profile.meal_pattern_chosen ? styleForSplit((profile.meals_per_day ?? 3) as MealsPerDay, profile.meal_split ?? []) : null}
-          onClose={() => {
-            setPatternGuideOpen(false);
-            setSuggestAfterGuide(false);
-          }}
-          onSave={async (count, split) => {
-            await applyMealSplit(count, split);
-            setPatternGuideOpen(false);
-            if (suggestAfterGuide) {
-              setSuggestAfterGuide(false);
-              setSuggestOpen(true);
-            }
-          }}
-        />
-      ) : null}
-
       {suggestOpen && foodSessionToken ? (
         <SuggestMealSheet
           accessToken={foodSessionToken}
@@ -7288,11 +7279,19 @@ export default function App(): ReactElement {
               ? 'today'
               : new Date(`${suggestDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
           }
-          blocks={MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay]}
+          blocks={['breakfast', 'lunch', 'dinner']}
           defaultBlock={defaultSuggestBlock()}
           onClose={() => setSuggestOpen(false)}
-          onLogged={() => void refreshHomeFoodLog()}
-          onPlanned={() => void reloadMealPlan()}
+          onLogged={() => {
+            void refreshHomeFoodLog();
+            // A replaced planned meal disappears from Today.
+            const token = foodSessionToken;
+            if (token) {
+              void fetchMealPlanDays(token)
+                .then(setMealPlanDays)
+                .catch(() => undefined);
+            }
+          }}
         />
       ) : null}
 

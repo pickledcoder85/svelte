@@ -39,6 +39,8 @@ class SuggestRequest(BaseModel):
     log_date: date
     block: BlockKey
     ingredients: str | None = Field(default=None, max_length=300)
+    # A photo of the fridge, counter, or pantry: Gus suggests from what he can see.
+    image_base64: str | None = Field(default=None, max_length=16_000_000)
 
 
 class Nutrition(BaseModel):
@@ -64,6 +66,14 @@ class SuggestedMeal(BaseModel):
     missing: list[str] = Field(default_factory=list)
 
 
+class PlannedHere(BaseModel):
+    """A meal already planned for this block: logging a suggestion offers to replace it."""
+
+    slot_id: str
+    title: str
+    calories: float
+
+
 class SuggestResponse(BaseModel):
     block: str
     block_label: str
@@ -72,6 +82,7 @@ class SuggestResponse(BaseModel):
     remaining: Nutrition
     options: list[SuggestedMeal] = Field(default_factory=list)
     message: str | None = None
+    planned_here: PlannedHere | None = None
 
 
 # ---- the day's numbers -------------------------------------------------------------------------
@@ -124,18 +135,59 @@ def _block(profile: dict[str, Any], requested: str) -> tuple[str, int]:
     return requested, split[keys.index(requested)]
 
 
+MEAL_ORDER = {"breakfast": 0, "lunch": 1, "dinner": 2}
+
+
+def planned_meals(repository: SQLiteRepository, user_id: str, on: date) -> list[dict[str, Any]]:
+    """Meals planned for that day and not eaten yet: slot id, label, title, calories, macros.
+    A planned meal whose slot already has food logged (eaten some other way) is left out."""
+    log = repository.get_food_log_for_date(user_id, on)
+    logged_slots = {entry.get("meal_slot") for entry in (repository.list_food_log_entries(log["id"]) if log else [])}
+    planned = []
+    for day in repository.list_meal_plan_days(user_id):
+        if str(day.get("plan_date", ""))[:10] != on.isoformat():
+            continue
+        for slot in day.get("slots", []):
+            if slot.get("eaten_at"):
+                continue
+            items = slot.get("items") or []
+            label = str(slot.get("meal_label") or "")
+            if label.lower() in logged_slots:
+                continue
+            planned.append({
+                "id": slot.get("id"),
+                "label": label,
+                "title": str(slot.get("title") or ""),
+                "calories": float(slot.get("calories") or 0),
+                "protein": sum(float((item.get("macros") or {}).get("protein") or 0) for item in items),
+                "carbs": sum(float((item.get("macros") or {}).get("carbs") or 0) for item in items),
+                "fat": sum(float((item.get("macros") or {}).get("fat") or 0) for item in items),
+            })
+    return planned
+
+
+def later_planned(planned: list[dict[str, Any]], block_label: str) -> list[dict[str, Any]]:
+    """Planned meals later in the day than this one: their calories are held back. (An earlier
+    planned meal that's still unticked was most likely skipped or eaten off-plan.)"""
+    here = MEAL_ORDER.get(block_label.lower(), 1)
+    return [meal for meal in planned if MEAL_ORDER.get(meal["label"].lower(), 3) > here]
+
+
 def meal_budget(repository: SQLiteRepository, user_id: str, on: date, requested: str) -> tuple[str, Nutrition, Nutrition]:
     """(block key, the meal's budget, what's left today). The budget is the block's share of
-    the day's targets, capped by what's left (allowance with workouts, minus eaten)."""
+    the day's targets, capped by what's left: the allowance (with workouts), minus what's eaten,
+    minus other meals already planned for that day (so dinner's planned budget isn't spent)."""
     profile = repository.get_user_identity(user_id) or {}
     targets = _targets(repository, user_id, on)
     eaten = _eaten(repository, user_id, on)
     bonus = _workout_bonus(repository, user_id, on, int(profile.get("workout_calories_share") or 0))
+    key_label = LABELS.get(requested, requested).lower()
+    others = later_planned(planned_meals(repository, user_id, on), key_label)
     remaining = Nutrition(
-        calories=max(0.0, targets.calories + bonus - eaten.calories),
-        protein=max(0.0, targets.protein - eaten.protein),
-        carbs=max(0.0, targets.carbs - eaten.carbs),
-        fat=max(0.0, targets.fat - eaten.fat),
+        calories=max(0.0, targets.calories + bonus - eaten.calories - sum(meal["calories"] for meal in others)),
+        protein=max(0.0, targets.protein - eaten.protein - sum(meal["protein"] for meal in others)),
+        carbs=max(0.0, targets.carbs - eaten.carbs - sum(meal["carbs"] for meal in others)),
+        fat=max(0.0, targets.fat - eaten.fat - sum(meal["fat"] for meal in others)),
     )
     key, percent = _block(profile, requested)
     share = percent / 100
@@ -152,7 +204,13 @@ def meal_budget(repository: SQLiteRepository, user_id: str, on: date, requested:
 
 
 def suggestion_prompt(
-    *, block_label: str, budget: Nutrition, profile: dict[str, Any], ingredients: str | None
+    *,
+    block_label: str,
+    budget: Nutrition,
+    profile: dict[str, Any],
+    ingredients: str | None,
+    planned: list[dict[str, Any]] | None = None,
+    with_photo: bool = False,
 ) -> str:
     """What Gus is asked. Only meal preferences go out: no name, email, or body details."""
     diet = profile.get("dietary_pattern") or "omnivore"
@@ -163,7 +221,9 @@ def suggestion_prompt(
 You are Gus, a friendly nutrition coach. Suggest exactly 2 different {block_label.lower()} options.
 Target for this meal: about {round(budget.calories)} kcal, {round(budget.protein)} g protein, {round(budget.carbs)} g carbs, {round(budget.fat)} g fat.
 Diet: {diet}. Nutrition style: {style}. Allergies and foods to avoid: {allergies}.
-{"Ingredients the user has (prefer these, you may add simple staples): " + have if have else "Use common, easy ingredients."}
+{"The photo shows the user's fridge, counter, or pantry: build both options from the foods you can see (simple staples like oil, salt, and spices are fine)." if with_photo else ""}
+{"Ingredients the user has (prefer these, you may add simple staples): " + have if have else ("" if with_photo else "Use common, easy ingredients.")}
+{"Already planned for later today (don't repeat these): " + "; ".join(f"{meal['label']}: {meal['title']}" for meal in planned) if planned else ""}
 Return JSON only:
 {{"options": [{{"name": "short appetising name", "why": "one short sentence on why it fits",
   "ingredients": [{{"name": "plain food name", "usda_query": "short generic USDA search incl. cooked/raw state, e.g. rice white cooked",
@@ -314,7 +374,18 @@ async def suggest_meals(
         )
 
     profile = repository.get_user_identity(user_id) or {}
-    options = _clean_options(await ask(suggestion_prompt(block_label=label, budget=budget, profile=profile, ingredients=payload.ingredients)))
+    all_planned = planned_meals(repository, user_id, payload.log_date)
+    planned = later_planned(all_planned, label)
+    planned_here = next((meal for meal in all_planned if meal["label"].lower() == label.lower()), None)
+    prompt = suggestion_prompt(
+        block_label=label,
+        budget=budget,
+        profile=profile,
+        ingredients=payload.ingredients,
+        planned=planned,
+        with_photo=bool(payload.image_base64),
+    )
+    options = _clean_options(await ask(prompt))
     if not options:
         return SuggestResponse(**base, message="Gus couldn't come up with anything this time. Try again, or list what you have.")
 
@@ -371,4 +442,10 @@ async def suggest_meals(
     meals = [meal for meal in meals if meal.totals.calories <= max(budget.calories * 1.25, budget.calories + 40)]
     if not meals:
         return SuggestResponse(**base, message="Gus's ideas didn't fit what's left. Try again, or list what you have.")
-    return SuggestResponse(**base, options=meals)
+    return SuggestResponse(
+        **base,
+        options=meals,
+        planned_here=PlannedHere(slot_id=planned_here["id"], title=planned_here["title"], calories=planned_here["calories"])
+        if planned_here and planned_here.get("id")
+        else None,
+    )

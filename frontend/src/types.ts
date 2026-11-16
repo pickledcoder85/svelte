@@ -156,6 +156,8 @@ export interface UserOnboardingRequest {
   display_name?: string | null;
   units?: 'imperial' | 'metric';
   timezone?: string;
+  /** Breakfast / lunch / dinner percents from "How do you balance your meals?". */
+  meal_split?: number[];
 }
 
 export interface UserGoal {
@@ -588,4 +590,6 @@ export interface SuggestResponse {
   remaining: SuggestNutrition;
   options: SuggestedMeal[];
   message: string | null;
+  /** A meal already planned for this block: Log it offers to replace it. */
+  planned_here: { slot_id: string; title: string; calories: number } | null;
 }
