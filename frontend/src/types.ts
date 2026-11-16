@@ -592,4 +592,6 @@ export interface SuggestResponse {
   message: string | null;
   /** A meal already planned for this block: Log it offers to replace it. */
   planned_here: { slot_id: string; title: string; calories: number } | null;
+  /** Photo mode: the foods Gus saw. */
+  seen_items: string[];
 }
