@@ -150,3 +150,21 @@ async def test_bank_foods_keep_their_favorite_flag(client, repository, auth_head
     assert bank[0]["favorite"] is True
     results = (await client.get("/api/nutrition/foods/search?q=favorite", headers=auth_headers)).json()
     assert results[0]["id"] == "fav" and results[0]["favorite"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_counted_food_keeps_its_label_until_the_amount_changes(client, repository, auth_headers):
+    _save(repository, "egg", name="Egg, boiled", serving_text="100 g", serving_grams=100, serving_basis="g")
+    logged = await client.post(
+        "/api/nutrition/log-food", headers=auth_headers,
+        json={"food_id": "egg", "log_date": DAY, "grams": 100, "quantity_label": "2 large eggs (100 g)"},
+    )
+    log = logged.json()
+    assert log["entries"][-1]["quantity_label"] == "2 large eggs (100 g)"
+    # Editing the amount drops the label (it would no longer be true).
+    entry = log["entries"][-1]
+    user_id = await _user_id(client, auth_headers)
+    assert repository.update_food_log_entry(
+        user_id=user_id, food_log_id=log["id"], entry_id=entry["id"], grams=150, servings=1.5, calories=300, protein=12, carbs=9, fat=24
+    )
+    assert repository.list_food_log_entries(log["id"])[-1]["quantity_label"] is None

@@ -32,9 +32,11 @@ from backend.app.services.meal_suggest import (
     _assemble,
     _per_gram,
     _resolve,
+    COUNT_RULE,
     _targets,
     clean_ingredients,
 )
+from backend.app.services.portions import quantity_label
 
 MealType = Literal["breakfast", "lunch", "dinner"]
 CookingTime = Literal["very_little", "some", "enjoy"]
@@ -83,6 +85,9 @@ class PlanItem(BaseModel):
     protein: float = Field(ge=0, le=1000)
     carbs: float = Field(ge=0, le=1000)
     fat: float = Field(ge=0, le=1000)
+    # Counted foods ("2 large eggs"); both or neither.
+    count: float | None = Field(default=None, gt=0, le=24)
+    unit: str | None = Field(default=None, max_length=40)
 
 
 class PlanAssignment(BaseModel):
@@ -155,9 +160,10 @@ Return JSON only:
 {{"meals": [{{"meal": "breakfast|lunch|dinner", "name": "short appetising name", "why": "one short sentence",
   "prep": "one or two short sentences on how to make it (batch notes if cooked once for several days)",
   "ingredients": [{{"name": "plain generic food, e.g. chicken thigh", "usda_query": "short generic USDA search incl. cooked/raw state",
-                   "grams": 0, "role": "protein|carb|veg|fat|fruit|other"}}]}}]}}
+                   "grams": 0, "count": 0, "unit": "", "role": "protein|carb|veg|fat|fruit|other"}}]}}]}}
 Rules:
 - never include anything the allergies or diet exclude
+- {COUNT_RULE}
 - at most 6 ingredients per meal, plain whole foods (no brands), grams for one serving (cooked weights when cooked)
 - each meal must fit its meal type and its cooking time
 """.strip()
@@ -270,7 +276,7 @@ def create_plan(repository: SQLiteRepository, user_id: str, payload: CreatePlanR
                 "items": [
                     {
                         "name": item.name,
-                        "quantity_label": f"{round(item.grams)} g",
+                        "quantity_label": quantity_label(item.grams, item.count, (item.unit or "").strip() or None),
                         "calories": round(item.calories),
                         "macros": {"protein": item.protein, "carbs": item.carbs, "fat": item.fat},
                     }

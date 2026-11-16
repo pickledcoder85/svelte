@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatGrams, planDates, shoppingList, stepCount, stepForDay, stepNote } from './meal-plan-builder';
+import { formatGrams, planDates, shoppingAmount, shoppingList, stepCount, stepForDay, stepNote } from './meal-plan-builder';
 
 describe('meal plan builder', () => {
   it('picks the dates', () => {
@@ -33,5 +33,24 @@ describe('meal plan builder', () => {
     expect(formatGrams(1200)).toBe('1.2 kg');
     expect(formatGrams(2000)).toBe('2 kg');
     expect(formatGrams(350)).toBe('350 g');
+  });
+});
+
+describe('shopping list counts', () => {
+  it('adds up counted foods across days and keeps them apart from weighed ones', () => {
+    const egg = { name: 'Eggs', grams: 100, role: 'protein', count: 2, unit: 'large egg', unit_plural: 'large eggs' };
+    const list = shoppingList([
+      { times: 5, items: [egg, { name: 'Oats', grams: 60, role: 'carb' }] },
+      { times: 1, items: [{ ...egg, grams: 150, count: 3 }, { name: 'Eggs', grams: 40, role: 'protein' }] },
+      { times: 2, items: [{ name: 'Sweet potato', grams: 75, role: 'carb', count: 0.5, unit: 'medium sweet potato', unit_plural: 'medium sweet potatoes' }] }
+    ]);
+    const protein = list.find((group) => group.role === 'protein')!.items;
+    expect(protein.map(shoppingAmount)).toEqual(['13 large eggs (650 g)', '40 g']);
+    const carbs = list.find((group) => group.role === 'carb')!.items;
+    expect(carbs.map((item) => `${item.name}: ${shoppingAmount(item)}`)).toEqual(['Oats: 300 g', 'Sweet potato: 1 medium sweet potato (150 g)']);
+  });
+
+  it('rounds half items up to whole ones to buy', () => {
+    expect(shoppingAmount({ name: 'Avocado', grams: 225, role: 'fat', count: 1.5, unit: 'avocado', unit_plural: 'avocados' })).toBe('2 avocados (225 g)');
   });
 });

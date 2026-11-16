@@ -54,6 +54,8 @@ class FoodLogEntry(BaseModel):
     created_at: datetime
     # breakfast, lunch, dinner, snack; None when not given.
     meal_slot: Literal["breakfast", "lunch", "dinner", "snack"] | None = None
+    # How it was counted, e.g. "2 large eggs (100 g)"; None for weighed foods.
+    quantity_label: str | None = None
 
 
 class FoodLog(BaseModel):

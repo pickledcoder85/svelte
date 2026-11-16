@@ -62,6 +62,8 @@ export interface FoodLogEntry {
   meal_plan_slot_id?: string | null;
   /** breakfast, lunch, dinner, snack; null when not given. */
   meal_slot?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
+  /** How it was counted, e.g. "2 large eggs (100 g)"; null for weighed foods. */
+  quantity_label?: string | null;
 }
 
 export interface FoodLogSummary {
@@ -573,10 +575,24 @@ export interface SuggestNutrition {
   fat: number;
 }
 
+export interface SuggestedItem {
+  name: string;
+  grams: number;
+  role: string;
+  food: FoodItem;
+  nutrition: SuggestNutrition;
+  /** Counted foods ("2 large eggs"); null when weighed. */
+  count?: number | null;
+  unit?: string | null;
+  unit_plural?: string | null;
+  /** "2 large eggs (100 g)" or "150 g". */
+  quantity_label?: string;
+}
+
 export interface SuggestedMeal {
   name: string;
   why: string;
-  items: Array<{ name: string; grams: number; role: string; food: FoodItem; nutrition: SuggestNutrition }>;
+  items: SuggestedItem[];
   totals: SuggestNutrition;
   /** Ingredients Gus named that couldn't be matched to nutrition data (left out). */
   missing: string[];

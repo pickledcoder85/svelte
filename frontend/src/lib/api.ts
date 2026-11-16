@@ -44,6 +44,7 @@ interface ApiFoodLogEntry {
   meal_template_id: string | null;
   meal_plan_slot_id?: string | null;
   meal_slot?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
+  quantity_label?: string | null;
   display_name: string | null;
   brand: string | null;
   source: 'USDA' | 'LABEL_SCAN' | 'CUSTOM' | 'OPEN_FOOD_FACTS' | null;
@@ -198,7 +199,8 @@ function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
     logged_at: entry.created_at,
     servings: entry.servings,
     meal_plan_slot_id: entry.meal_plan_slot_id ?? null,
-    meal_slot: entry.meal_slot ?? null
+    meal_slot: entry.meal_slot ?? null,
+    quantity_label: entry.quantity_label ?? null
   }));
 
   return {
@@ -669,7 +671,7 @@ export async function removeFoodFromBank(foodId: string, accessToken: string): P
 
 /** Log a food by servings or by weight; the server works out calories and macros. */
 export async function logFood(
-  payload: { food_id: string; log_date: string; meal_slot?: MealSlot } & ({ servings: number } | { grams: number }),
+  payload: { food_id: string; log_date: string; meal_slot?: MealSlot; quantity_label?: string } & ({ servings: number } | { grams: number }),
   accessToken: string
 ): Promise<unknown> {
   return readJson<unknown>(
@@ -732,7 +734,7 @@ export async function createMealPlan(
     title: string;
     calories: number;
     on_conflict: 'replace' | 'keep';
-    items: Array<{ name: string; grams: number; calories: number; protein: number; carbs: number; fat: number }>;
+    items: Array<{ name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; count?: number; unit?: string }>;
   }>,
   accessToken: string
 ): Promise<{ created: number; replaced: number; kept: number }> {

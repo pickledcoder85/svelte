@@ -15,8 +15,8 @@ import { createMealPlan, proposePlanMeals } from '../lib/api';
 import { addDaysToDateKey, localDateKey } from '../lib/dates';
 import {
   dayCount,
-  formatGrams,
   planDates,
+  shoppingAmount,
   shoppingList,
   stepCount,
   stepForDay,
@@ -25,8 +25,10 @@ import {
   type CookingTime,
   type DayChoice,
   type PlanMeal,
-  type PlanVariety
+  type PlanVariety,
+  type ShoppingItem
 } from '../lib/meal-plan-builder';
+import { ingredientLine } from '../lib/portions';
 import { tc } from '../theme/palette';
 import type { MealPlanDay, ProposedPlanMeal } from '../types';
 
@@ -81,7 +83,7 @@ export function CreateMealPlan({
   const [conflictChoice, setConflictChoice] = useState<Record<string, 'replace' | 'keep'>>({});
   const [result, setResult] = useState<{ created: number; replaced: number; kept: number } | null>(null);
   // The meals actually created (a "Keep planned" slot wasn't): the shopping list's source.
-  const [createdMeals, setCreatedMeals] = useState<Array<{ name: string; items: Array<{ name: string; grams: number; role: string }> }>>([]);
+  const [createdMeals, setCreatedMeals] = useState<Array<{ name: string; items: ShoppingItem[] }>>([]);
 
   const steps = stepCount(variety, dayCount(days));
   const stepIndex = chosen.length;
@@ -204,7 +206,8 @@ export function CreateMealPlan({
             calories: item.nutrition.calories,
             protein: item.nutrition.protein,
             carbs: item.nutrition.carbs,
-            fat: item.nutrition.fat
+            fat: item.nutrition.fat,
+            ...(item.count && item.unit ? { count: item.count, unit: item.unit } : {})
           }))
         })),
         accessToken
@@ -215,7 +218,14 @@ export function CreateMealPlan({
           .filter((entry) => !entry.conflicted || entry.onConflict === 'replace')
           .map((entry) => ({
             name: `${entry.meal}:${entry.proposal.option!.name}`,
-            items: entry.proposal.option!.items.map((item) => ({ name: item.name, grams: item.grams, role: item.role }))
+            items: entry.proposal.option!.items.map((item) => ({
+              name: item.name,
+              grams: item.grams,
+              role: item.role,
+              count: item.count,
+              unit: item.unit,
+              unit_plural: item.unit_plural
+            }))
           }))
       );
       setStep('done');
@@ -229,7 +239,7 @@ export function CreateMealPlan({
 
   // Shopping list: each created meal × the days it landed on (a "Keep planned" slot wasn't created).
   const shopping = useMemo(() => {
-    const counts = new Map<string, { times: number; items: Array<{ name: string; grams: number; role: string }> }>();
+    const counts = new Map<string, { times: number; items: ShoppingItem[] }>();
     for (const meal of createdMeals) {
       const entry = counts.get(meal.name) ?? { times: 0, items: meal.items };
       entry.times += 1;
@@ -400,7 +410,7 @@ export function CreateMealPlan({
                           {meal.why ? <Text style={styles.cardDetail}>{meal.why}</Text> : null}
                           {meal.items.map((item, index) => (
                             <Text key={index} style={styles.item}>
-                              {Math.round(item.grams)} g {item.name} · {Math.round(item.nutrition.calories)} kcal
+                              {ingredientLine(item)} · {Math.round(item.nutrition.calories)} kcal
                             </Text>
                           ))}
                           <Text style={styles.totals}>
@@ -530,8 +540,8 @@ export function CreateMealPlan({
                 <View key={group.role} style={styles.dayCard}>
                   <Text style={styles.dayTitle}>{group.label}</Text>
                   {group.items.map((item) => (
-                    <Text key={item.name} style={styles.item}>
-                      ☐ {item.name} · {formatGrams(item.grams)}
+                    <Text key={`${item.name}|${item.unit ?? ''}`} style={styles.item}>
+                      ☐ {item.name} · {shoppingAmount(item)}
                     </Text>
                   ))}
                 </View>
@@ -540,7 +550,7 @@ export function CreateMealPlan({
                 style={styles.primary}
                 onPress={() => {
                   const text = shopping
-                    .map((group) => `${group.label}\n${group.items.map((item) => `- ${item.name}: ${formatGrams(item.grams)}`).join('\n')}`)
+                    .map((group) => `${group.label}\n${group.items.map((item) => `- ${item.name}: ${shoppingAmount(item)}`).join('\n')}`)
                     .join('\n\n');
                   if (typeof navigator !== 'undefined' && navigator.share) {
                     void navigator.share({ title: 'Shopping list', text }).catch(() => undefined);
