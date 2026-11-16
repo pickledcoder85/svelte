@@ -308,3 +308,46 @@ async def test_quick_add_not_found_says_to_photograph_the_label(repository):
 async def test_quick_add_route_rejects_a_bad_code(client, auth_headers):
     response = await client.post("/api/nutrition/barcode-foods", headers=auth_headers, json={"code": "036000291453"})
     assert response.status_code == 400
+
+
+# --- implausible database nutrition ------------------------------------------------------------
+
+
+def test_corrupted_nutrition_counts_as_not_found():
+    from backend.app.integrations.open_food_facts import plausible_nutrition
+
+    broken = {**OFF_PRODUCT, "nutriments": {"energy-kcal_serving": 3.7e-23, "proteins_serving": 1e-24,
+                                            "carbohydrates_serving": 1e-24, "fat_serving": 3e-24}}
+    assert product_to_label(broken, GTIN) is None
+    assert plausible_nutrition(0, 0, 0, 0)  # water, diet soda
+    assert not plausible_nutrition(0, 5, 10, 2)  # no calories but real macros
+    assert plausible_nutrition(30, 1, 1, 3)
+
+
+@pytest.mark.asyncio
+async def test_a_label_scanned_for_a_barcode_updates_that_product(app, client, auth_headers, monkeypatch, repository):
+    from backend.app.models.nutrition import FoodItem, MacroTargets
+    from backend.app.services import vision
+    from tests.conftest import TINY_PNG_BASE64
+
+    repository.save_food_item(FoodItem(id="bad-almond", name="Almond Beverage Vanilla", brand="Kirkland", calories=0,
+                                       serving_size=1, serving_unit="cup", macros=MacroTargets(protein=0, carbs=0, fat=0),
+                                       source="OPEN_FOOD_FACTS", barcode=GTIN))
+
+    async def fake(settings, image_url, instructions):
+        return {"kind": "nutrition_label", "label_text": "Calories 30", "product_name": None, "brand_name": None,
+                "serving_size": "1 cup (240mL)", "serving_grams": 240, "calories": 30, "protein": 1, "carbs": 1, "fat": 3,
+                "confidence": 0.95}
+
+    monkeypatch.setattr(vision, "_request_vision_json", fake)
+    app.state.settings = app.state.settings.model_copy(update={"openai_api_key": "test"})
+    scan = (await client.post("/api/vision/scan", headers=auth_headers,
+                              json={"image_base64": TINY_PNG_BASE64, "barcode": UPC_A})).json()
+    assert scan["kind"] == "nutrition_label"
+    accepted = await client.post(f"/api/ingestion/outputs/{scan['output_id']}/accept", headers=auth_headers)
+    assert accepted.status_code == 200
+    saved = (await client.post(f"/api/ingestion/outputs/{scan['output_id']}/save-food", headers=auth_headers)).json()
+    [food] = saved["saved_foods"]
+    assert food["id"] == "bad-almond" and food["calories"] == 30  # the same product, fixed
+    assert food["name"] == "Almond Beverage Vanilla"  # the name from the barcode lookup is kept
+    assert repository.get_food_by_barcode(GTIN).calories == 30

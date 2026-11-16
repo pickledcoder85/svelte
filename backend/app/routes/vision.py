@@ -11,6 +11,7 @@ from backend.app.models.nutrition import (
     VisionNutritionExtraction,
     VisionPackageScanResult,
 )
+from backend.app.integrations.barcodes import InvalidBarcodeError, normalize_barcode
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.ingestion import create_scan_output, get_output, transition_output
 from backend.app.services.package_match import find_package_matches, package_structured_json
@@ -37,6 +38,9 @@ class VisionRequest(BaseModel):
 class SmartScanRequest(VisionRequest):
     # A package scan whose matched nutrition this capture replaces if it reads a label.
     replace_output_id: str | None = Field(default=None, max_length=128)
+    # The barcode just scanned that had no (usable) nutrition: a label read for it updates
+    # that product, so the barcode finds the right numbers next time.
+    barcode: str | None = Field(default=None, max_length=32)
 
 
 router = APIRouter(prefix="/vision", tags=["vision"])
@@ -109,6 +113,15 @@ async def _package_matches(repository: SQLiteRepository, settings: Settings, ext
         return []
 
 
+def _valid_barcode(code: str | None) -> str | None:
+    if not code:
+        return None
+    try:
+        return normalize_barcode(code)
+    except InvalidBarcodeError:
+        return None
+
+
 def _keep_package_identity(repository: SQLiteRepository, user_id: str, output_id: str, label):
     """The package front names the product best; the label gives the numbers. Keep the name and
     brand read off the front when a label replaces a package scan."""
@@ -152,13 +165,22 @@ async def smart_scan(
         if kind == "nutrition_label":
             if payload.replace_output_id:
                 extraction = _keep_package_identity(repository, session.user_id, payload.replace_output_id, extraction)
+            structured = extraction.model_dump()
+            gtin = _valid_barcode(payload.barcode)
+            if gtin:
+                structured["barcode"] = gtin
+                # Keep the product's name and brand from the barcode lookup when the label has none.
+                known = repository.get_food_by_barcode(gtin)
+                if known is not None and not str(structured.get("product_name") or "").strip():
+                    structured["product_name"] = known.name
+                    structured["brand_name"] = structured.get("brand_name") or known.brand
             output = create_scan_output(
                 repository,
                 session.user_id,
                 source_kind="camera_label",
                 source_name="nutrition-label-scan",
                 extracted_text=extraction.label_text,
-                structured_json=extraction.model_dump(),
+                structured_json=structured,
                 confidence=extraction.confidence,
             )
             replaced = False

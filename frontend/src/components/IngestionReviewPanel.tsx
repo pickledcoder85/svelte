@@ -84,6 +84,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   // The package scan the open scanner's label would replace (set when the scanner opens).
   const smartReplaceRef = useRef<string | null>(null);
+  // A barcode that came back without nutrition: the next label read updates that product.
+  const missingBarcodeRef = useRef<string | null>(null);
   const [smartLabelOnly, setSmartLabelOnly] = useState(false);
 
   useEffect(() => {
@@ -534,7 +536,10 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setStatusDetail('Working out what the picture shows and reading it.');
     try {
       const prepared = await prepareScanPhoto(image);
-      const result = await smartScan(prepared.base64, accessToken, replaceOutputId);
+      const result = await smartScan(prepared.base64, accessToken, replaceOutputId, missingBarcodeRef.current);
+      if (result.kind === 'nutrition_label') {
+        missingBarcodeRef.current = null;
+      }
       await showSmartResult(result);
     } catch (error) {
       setTone('checking');
@@ -576,6 +581,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
 
   async function lookUpScannedBarcode(code: string) {
     setBarcodeScannerOpen(false);
+    missingBarcodeRef.current = null;
     if (!accessToken) {
       return;
     }
@@ -605,6 +611,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         );
       } else {
         setTone('checking');
+        missingBarcodeRef.current = code;
         setStatusLabel('Barcode not found');
         setStatusDetail(result.message ?? "We couldn't find this barcode. Photograph the nutrition label instead.");
       }

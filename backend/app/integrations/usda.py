@@ -156,6 +156,15 @@ def branded_food_to_label(food: dict[str, Any], barcode: str) -> dict[str, Any] 
     serving_size = food.get("servingSize")
     unit = food.get("servingSizeUnit")
     calories = _per_serving(_nutrient_value(nutrients, "Energy"), serving_size, unit)
+    from backend.app.integrations.open_food_facts import plausible_nutrition
+
+    if not plausible_nutrition(
+        calories,
+        _per_serving(_nutrient_value(nutrients, "Protein"), serving_size, unit),
+        _per_serving(_nutrient_value(nutrients, "Carbohydrate, by difference"), serving_size, unit),
+        _per_serving(_nutrient_value(nutrients, "Total lipid (fat)"), serving_size, unit),
+    ):
+        return None
     serving_text = f"{serving_size:g} {unit}" if serving_size and unit else "100 g"
     household = (food.get("householdServingFullText") or "").strip()
     return {

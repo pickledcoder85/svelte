@@ -26,6 +26,17 @@ def _number(value: Any) -> float | None:
     return number if number >= 0 else None
 
 
+def plausible_nutrition(calories: float | None, protein: float | None, carbs: float | None, fat: float | None) -> bool:
+    """False for numbers that can't be real: near-zero values that aren't zero (corrupted data
+    such as 3.7e-23 kcal), or no calories alongside real protein, carbs, or fat. Honest zeros
+    (water, diet soda) pass."""
+    values = [value for value in (calories, protein, carbs, fat) if value is not None]
+    if any(0 < value < 0.01 for value in values):
+        return False
+    macros = sum(value or 0 for value in (protein, carbs, fat))
+    return not ((calories or 0) < 0.5 and macros > 1)
+
+
 def product_to_label(product: dict[str, Any], barcode: str) -> dict[str, Any] | None:
     """Turn an OFF product into the label-scan shape the review screen already understands.
 
@@ -60,6 +71,8 @@ def product_to_label(product: dict[str, Any], barcode: str) -> dict[str, Any] | 
         per_100g_only = True
     if values["calories"] is None:
         return None
+    if not plausible_nutrition(values["calories"], values["protein"], values["carbs"], values["fat"]):
+        return None  # treated as not found: the app asks for the nutrition label
 
     brand = (product.get("brands") or "").split(",")[0].strip() or None
     return {

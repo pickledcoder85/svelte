@@ -10,7 +10,7 @@
  *
  * Every path ends on the add sheet: amount, meal, ☆, Add to the day or Save to the food bank.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -36,11 +36,11 @@ import { WebBarcodeScanner } from './WebBarcodeScanner';
 type Pending = { outputId: string; structuredJson: unknown; kind: 'nutrition_label' | 'package_front' };
 
 type Phase =
-  | { kind: 'scanning'; labelFor?: string }
+  | { kind: 'scanning'; labelFor?: string; labelOnly?: boolean }
   | { kind: 'looking'; text: string }
   | { kind: 'confirm'; foods: FoodItem[]; fromBank: boolean; pending?: Pending; note?: string | null }
   | { kind: 'plate'; items: PlateItem[] }
-  | { kind: 'missing'; message: string; packageOutputId?: string };
+  | { kind: 'missing'; message: string; packageOutputId?: string; barcode?: string };
 
 export function QuickScanAdd({
   accessToken,
@@ -64,15 +64,23 @@ export function QuickScanAdd({
   const [phase, setPhase] = useState<Phase>({ kind: 'scanning' });
   // Remounts the viewfinder (restarting the live camera), e.g. after the photo camera was cancelled.
   const [scannerKey, setScannerKey] = useState(0);
+  // A barcode that came back without nutrition: the label scanned next updates that product.
+  const missingBarcode = useRef<string | null>(null);
 
   async function lookUpBarcode(code: string) {
+    missingBarcode.current = null;
     setPhase({ kind: 'looking', text: 'Looking up the barcode…' });
     try {
       const result = await foodForBarcode(code, accessToken);
       if (result.found && result.foods.length > 0) {
         setPhase({ kind: 'confirm', foods: result.foods, fromBank: result.source === 'food_bank' });
       } else {
-        setPhase({ kind: 'missing', message: result.message ?? "We couldn't find this barcode. Scan the nutrition label instead." });
+        missingBarcode.current = code;
+        setPhase({
+          kind: 'missing',
+          message: result.message ?? "We couldn't find this product's nutrition. Scan the nutrition label: it'll be saved with the barcode for next time.",
+          barcode: code
+        });
       }
     } catch (error) {
       setPhase({ kind: 'missing', message: error instanceof Error ? error.message : 'Barcode lookup failed.' });
@@ -83,7 +91,7 @@ export function QuickScanAdd({
     setPhase({ kind: 'looking', text: 'Reading…' });
     try {
       const prepared = await prepareScanPhoto(image);
-      await showResult(await smartScan(prepared.base64, accessToken, labelFor ?? null), labelFor);
+      await showResult(await smartScan(prepared.base64, accessToken, labelFor ?? null, missingBarcode.current), labelFor);
     } catch (error) {
       setPhase({ kind: 'missing', message: error instanceof Error ? error.message : 'Scan failed.', packageOutputId: labelFor });
     }
@@ -173,7 +181,7 @@ export function QuickScanAdd({
       <WebBarcodeScanner
         key={scannerKey}
         visible
-        labelOnly={Boolean(phase.labelFor)}
+        labelOnly={Boolean(phase.labelFor || phase.labelOnly)}
         footerActions={
           phase.labelFor
             ? undefined
@@ -242,14 +250,14 @@ export function QuickScanAdd({
               </View>
             ) : (
               <>
-                <Text style={styles.title}>{phase.packageOutputId ? 'Scan the label' : 'Not found'}</Text>
+                <Text style={styles.title}>{phase.packageOutputId || phase.barcode ? 'Scan the label' : 'Not found'}</Text>
                 <Text style={styles.muted}>{phase.message}</Text>
                 <Pressable
                   style={styles.primary}
-                  onPress={() => setPhase({ kind: 'scanning', labelFor: phase.packageOutputId })}
+                  onPress={() => setPhase({ kind: 'scanning', labelFor: phase.packageOutputId, labelOnly: Boolean(phase.barcode) })}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.primaryLabel}>{phase.packageOutputId ? 'Scan the nutrition label' : 'Scan again'}</Text>
+                  <Text style={styles.primaryLabel}>{phase.packageOutputId || phase.barcode ? 'Scan the nutrition label' : 'Scan again'}</Text>
                 </Pressable>
                 <Pressable style={styles.secondary} onPress={() => void takeFullPhoto(phase.packageOutputId)} accessibilityRole="button">
                   <Text style={styles.secondaryLabel}>Take a full photo</Text>

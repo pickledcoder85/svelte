@@ -609,13 +609,15 @@ export async function scanFoodPackage(
 export async function smartScan(
   imageBase64: string,
   accessToken: string,
-  replaceOutputId?: string | null
+  replaceOutputId?: string | null,
+  /** A barcode that just came back without nutrition: a label read for it updates that product. */
+  barcode?: string | null
 ): Promise<SmartScanResult> {
   return readJson<SmartScanResult>(
     await apiFetch(buildApiUrl('/vision/scan'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
-      body: JSON.stringify({ image_base64: imageBase64, replace_output_id: replaceOutputId ?? null })
+      body: JSON.stringify({ image_base64: imageBase64, replace_output_id: replaceOutputId ?? null, barcode: barcode ?? null })
     })
   );
 }
