@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatServings, logPayload, previewNutrition, servingsFor, stepServings } from './quick-add';
+import { defaultAmountFor, formatServings, isPer100Only, logPayload, previewNutrition, servingsFor, stepServings } from './quick-add';
 
 const bar = { calories: 190, macros: { protein: 4, carbs: 29, fat: 7 }, serving_grams: 40 };
 
@@ -30,5 +30,20 @@ describe('quick add amount', () => {
     expect(logPayload('f', '2026-11-15', { mode: 'grams', grams: 55 })).toEqual({ food_id: 'f', log_date: '2026-11-15', grams: 55 });
     expect(formatServings(1)).toBe('1 serving');
     expect(formatServings(1.5)).toBe('1.5 servings');
+  });
+
+  it('logs per-100 g-only foods by weight, never as a 100 g "serving"', () => {
+    const offMix = { serving_grams: 100, serving_text: '100 g', source: 'OPEN_FOOD_FACTS' as const };
+    expect(isPer100Only(offMix)).toBe(true);
+    expect(defaultAmountFor(offMix)).toEqual({ mode: 'grams', grams: 0 });
+    // The Jell-O case: 300 kcal per 100 g, 10 g used = 30 kcal.
+    expect(previewNutrition({ calories: 300, macros: { protein: 5, carbs: 70, fat: 0 }, serving_grams: 100 }, { mode: 'grams', grams: 10 })).toEqual({
+      calories: 30,
+      macros: { protein: 1, carbs: 7, fat: 0 }
+    });
+    expect(isPer100Only({ serving_grams: 100, serving_text: '100 g', source: 'LABEL_SCAN' })).toBe(false);
+    expect(isPer100Only({ serving_grams: 10, serving_text: '1/4 package (10g)', source: 'OPEN_FOOD_FACTS' })).toBe(false);
+    expect(isPer100Only({ serving_grams: 10, serving_text: '1/4 package (10g)', source: 'LABEL_SCAN', per_100g_only: false })).toBe(false);
+    expect(defaultAmountFor(null)).toEqual({ mode: 'servings', servings: 1 });
   });
 });

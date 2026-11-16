@@ -364,6 +364,8 @@ export interface FoodItem {
   portions?: Array<{ label: string; grams: number }>;
   /** In the signed-in user's food bank. */
   in_bank?: boolean;
+  /** Nutrition is per 100 g only (no real serving known): log it by weight. */
+  per_100g_only?: boolean;
 }
 
 export interface MealPlanSlot {

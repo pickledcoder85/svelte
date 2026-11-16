@@ -302,8 +302,9 @@ export function previewFoodFromScan(value: unknown): FoodItem | null {
     serving_grams: grams,
     serving_basis: grams ? (payload.serving_basis === 'ml' ? 'ml' : 'g') : null,
     macros: { protein: Number(draft.protein) || 0, carbs: Number(draft.carbs) || 0, fat: Number(draft.fat) || 0 },
-    source: 'LABEL_SCAN',
+    source: payload.data_source === 'open_food_facts' ? 'OPEN_FOOD_FACTS' : payload.data_source === 'usda' ? 'USDA' : 'LABEL_SCAN',
     favorite: false,
-    in_bank: false
+    in_bank: false,
+    per_100g_only: payload.per_100g_only === true
   };
 }

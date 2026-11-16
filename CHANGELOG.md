@@ -19,6 +19,7 @@ The format should remain simple:
 
 ### Added
 
+- Fixed: a match whose database only lists nutrition per 100 g (no real serving) was offered as "1 serving = 100 g", 10× a real serving of a pudding mix. Such foods now open the add sheet by weight only ("Nutrition listed per 100 g · How many grams did you use?"), and matches with a real serving size rank first (a product listed both ways keeps the real serving). Diet claims must now agree: Sugar Free / Zero Sugar, Fat Free, Reduced or Low Fat, Light, and Diet on the package and the match, or it's a different product; the package reading keeps those claims and the flavour exactly as printed.
 - Gherkin's launch splash stays at least 1.8 seconds from launch (even when the app is ready sooner) and fades out over half a second instead of a fifth.
 - Better package-front matching: Open Food Facts is searched with its newer ranked, typo-tolerant search service (the old word-for-word search is the fallback), and both Open Food Facts and USDA are now searched with up to three queries at once: brand + the name as read, brand + key words (sizes, counts and marketing words such as "Reduced Calorie" or "Family Size" dropped), and the key words alone.
 - Plan is only for planning: Meals (the week's planned meals, with the prep checklist under it) and Workouts (planned workouts). The Log sub-tab is gone (history is in Trends; adding is on Today). The avatar sheet gains Food bank, with Foods (your whole bank, favorites first, ✕ to remove a food from your bank), Recipes, Build a meal, and Recent scans.
