@@ -97,8 +97,9 @@ async def test_each_item_is_looked_up_in_usda_generic_foods(repository):
 
     def handle(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        assert request.url.params["dataType"] == "Foundation,SR Legacy,Survey (FNDDS)"
-        query = request.url.params["query"]
+        body = __import__("json").loads(request.content)
+        assert body["dataType"] == ["Foundation", "SR Legacy", "Survey (FNDDS)"]
+        query = body["query"]
         if "chicken" in query:
             foods = [{"fdcId": 1, "description": "Chicken, broiler, breast, meat only, roasted",
                       "foodNutrients": [{"nutrientName": "Energy", "value": 165}]}]
@@ -136,3 +137,44 @@ async def test_scan_route_returns_plate_items_and_saves_no_scan(app, client, aut
     assert body["kind"] == "meal_plate" and body["output_id"] is None
     assert [item["estimated_grams"] for item in body["items"]] == [150, 180]
     assert body["items"][1]["estimate"]["carbs"] == 50
+
+
+@pytest.mark.parametrize(
+    "query, names, expected",
+    [
+        ("chicken thigh roasted", ["Chicken, skin (drumsticks and thighs), cooked, roasted",
+                                   "Chicken, broilers or fryers, thigh, meat only, cooked, roasted"],
+         "Chicken, broilers or fryers, thigh, meat only, cooked, roasted"),
+        ("chicken breast roasted", ["Chicken breast, roll, oven-roasted", "Chicken, broilers or fryers, breast, meat only, cooked, roasted"],
+         "Chicken, broilers or fryers, breast, meat only, cooked, roasted"),
+        ("oats cooked", ["Oat bran, cooked", "Oat milk", "Cereals, oats, regular and quick, not fortified, cooked with water, without salt"],
+         "Cereals, oats, regular and quick, not fortified, cooked with water, without salt"),
+        ("potato baked", ["Potatoes, baked, flesh and skin, without salt"], "Potatoes, baked, flesh and skin, without salt"),
+        ("apple", ["Apples, raw, with skin"], "Apples, raw, with skin"),
+        ("milk", ["Milk, whole, 3.25% milkfat"], "Milk, whole, 3.25% milkfat"),
+    ],
+)
+def test_processed_or_partial_foods_are_not_matched(query, names, expected):
+    foods = [_food(name, 100 + index) for index, name in enumerate(names)]
+    picked = pick_generic_food(query, foods)
+    assert (picked.name if picked else None) == expected
+
+
+@pytest.mark.asyncio
+async def test_generic_search_sends_food_types_in_a_json_body(repository):
+    import json
+
+    from backend.app.integrations.usda import GENERIC_DATA_TYPES, search_usda_foods
+
+    seen = []
+
+    def handle(request):
+        seen.append(request)
+        return httpx.Response(200, json={"foods": []})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        await search_usda_foods("oats cooked", "k", client=client, data_types=GENERIC_DATA_TYPES)
+        await search_usda_foods("oats", "k", client=client)
+    assert seen[0].method == "POST" and json.loads(seen[0].content)["dataType"] == ["Foundation", "SR Legacy", "Survey (FNDDS)"]
+    assert "dataType" not in seen[0].url.params
+    assert seen[1].method == "GET"

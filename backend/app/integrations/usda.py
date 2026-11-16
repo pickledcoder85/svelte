@@ -140,7 +140,8 @@ def parse_usda_search_response(payload: dict[str, Any]) -> list[FoodItem]:
     return [_search_food_to_item(food) for food in payload.get("foods", [])]
 
 
-# Generic foods (per 100 g) rather than branded products: for foods seen on a plate.
+# Generic foods (per 100 g) rather than branded products: for foods seen on a plate. Split on
+# commas into a list for the request body.
 GENERIC_DATA_TYPES = "Foundation,SR Legacy,Survey (FNDDS)"
 
 
@@ -155,15 +156,19 @@ async def search_usda_foods(
         async with (
             httpx.AsyncClient(timeout=15.0) if owns_client else _client_context(client)
         ) as http_client:
-            response = await http_client.get(
-                USDA_SEARCH_URL,
-                params={
-                    "query": query,
-                    "pageSize": 10,
-                    "api_key": api_key,
-                    **({"dataType": data_types} if data_types else {}),
-                },
-            )
+            if data_types:
+                # The food-type filter goes in a JSON body: in the URL, its commas and brackets
+                # ("Survey (FNDDS)") get some searches refused by USDA's gateway (HTTP 400).
+                response = await http_client.post(
+                    USDA_SEARCH_URL,
+                    params={"api_key": api_key},
+                    json={"query": query, "pageSize": 10, "dataType": [part.strip() for part in data_types.split(",")]},
+                )
+            else:
+                response = await http_client.get(
+                    USDA_SEARCH_URL,
+                    params={"query": query, "pageSize": 10, "api_key": api_key},
+                )
     except httpx.RequestError as exc:  # pragma: no cover - network error path
         raise UsdaSearchError("USDA search request failed.") from exc
 

@@ -116,8 +116,9 @@ async def test_suggestions_use_the_food_bank_then_usda_and_only_complete_meals(r
     seen = []
 
     def handle(request: httpx.Request) -> httpx.Response:
-        seen.append(request.url.params["query"])
-        if "rice" in request.url.params["query"]:
+        query = request.url.params.get("query") or __import__("json").loads(request.content)["query"]
+        seen.append(query)
+        if "rice" in query:
             return httpx.Response(200, json={"foods": [{"fdcId": 2, "description": "Rice, white, long-grain, cooked",
                 "foodNutrients": [{"nutrientName": "Energy", "value": 130}, {"nutrientName": "Protein", "value": 2.7},
                                   {"nutrientName": "Carbohydrate, by difference", "value": 28}]}]})
