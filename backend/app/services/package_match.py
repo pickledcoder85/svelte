@@ -84,6 +84,25 @@ def search_queries(product_name: str, brand_name: str | None) -> list[str]:
     return queries[:MAX_QUERIES]
 
 
+# Claims that change the nutrition of the same product ("Sugar Free" vs regular): a package and a
+# match must make the same claims, or it's a different product.
+_DIET_CLAIMS = {
+    "sugar_free": re.compile(r"\b(sugar[\s-]*free|zero[\s-]*sugar|no[\s-]*sugar|sugarless|0\s*g?\s*sugar)\b", re.I),
+    "fat_free": re.compile(r"\b(fat[\s-]*free|non[\s-]*fat|nonfat|zero[\s-]*fat|0\s*%?\s*fat)\b", re.I),
+    "reduced_fat": re.compile(r"\b(reduced[\s-]*fat|low[\s-]*fat|lowfat|less[\s-]*fat)\b", re.I),
+    "light": re.compile(r"\b(light|lite)\b", re.I),
+    "diet": re.compile(r"\b(diet)\b", re.I),
+}
+
+
+def diet_claims(text: str | None) -> set[str]:
+    return {claim for claim, pattern in _DIET_CLAIMS.items() if pattern.search(text or "")}
+
+
+# A match that only has per-100 g numbers (no real serving) ranks below one with a serving.
+PER_100G_ONLY_PENALTY = 0.1
+
+
 def match_score(product_name: str, brand: str | None, candidate_name: str, candidate_brand: str | None) -> float:
     """0–1: how well a candidate's name fits the package's, with a brand bonus or penalty.
 
@@ -92,6 +111,8 @@ def match_score(product_name: str, brand: str | None, candidate_name: str, candi
     candidate's words being on the package counts most (60%), and covering the package's words
     less (40%). A candidate word the package doesn't have usually means another flavour or food.
     """
+    if diet_claims(product_name) != diet_claims(candidate_name):
+        return 0.0  # sugar-free vs regular (or fat-free, light, diet): a different product
     wanted = _words(product_name)
     package_brand = _words(brand)
     candidate = _words(candidate_name) - package_brand
@@ -184,14 +205,17 @@ async def find_package_matches(
         else:
             found.extend(result)
 
-    seen: set[tuple[str, str]] = set()
-    scored = []
+    # One entry per product; when it appears twice, keep the one with a real serving size.
+    unique: dict[tuple[str, str], dict[str, Any]] = {}
     for label in found:
         key = (str(label.get("product_name", "")).lower(), str(label.get("brand_name") or "").lower())
-        if key in seen:
-            continue
-        seen.add(key)
+        if key not in unique or (unique[key].get("per_100g_only") and not label.get("per_100g_only")):
+            unique[key] = label
+    scored = []
+    for label in unique.values():
         score = match_score(product_name, brand_name, label.get("product_name", ""), label.get("brand_name"))
+        if score >= MIN_MATCH_SCORE and label.get("per_100g_only"):
+            score = round(score - PER_100G_ONLY_PENALTY, 3)
         if score >= MIN_MATCH_SCORE:
             scored.append({**label, "barcode": None, "match_score": score})
     # Best score first; on a tie prefer your own bank, then Open Food Facts, then USDA.
@@ -230,6 +254,8 @@ def package_structured_json(extraction: dict[str, Any], matches: list[dict[str, 
         "attribution": best.get("attribution"),
         "nutrition_from": "match",
         "matched_food_id": best.get("food_id"),
+        # Nutrition is per 100 g, not per serving: the app asks for a weight.
+        "per_100g_only": bool(best.get("per_100g_only")),
         "nutrition_found": True,
         "match_note": f"Matched to {best['product_name']} from {source}. Check it against the label, or scan the nutrition label for the exact numbers.",
         "alternatives": others,

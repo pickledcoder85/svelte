@@ -48,13 +48,16 @@ def product_to_label(product: dict[str, Any], barcode: str) -> dict[str, Any] | 
     serving_text = (product.get("serving_size") or "").strip()
     if serving["calories"] is not None and serving_text:
         values, serving_size = serving, serving_text
+        per_100g_only = False
         # OFF's numeric serving weight; the unit is grams unless it says ml.
         unit = str(product.get("serving_quantity_unit") or "g").lower()
         serving_grams = _number(product.get("serving_quantity")) or None
         serving_basis = "ml" if unit == "ml" else "g"
     else:
+        # No per-serving numbers: these are per 100 g, NOT a serving (the app asks for a weight).
         values, serving_size = per("100g"), "100 g"
         serving_grams, serving_basis = 100.0, "g"
+        per_100g_only = True
     if values["calories"] is None:
         return None
 
@@ -73,6 +76,7 @@ def product_to_label(product: dict[str, Any], barcode: str) -> dict[str, Any] | 
         "serving_grams": serving_grams,
         "serving_basis": serving_basis if serving_grams else None,
         "data_source": "open_food_facts",
+        "per_100g_only": per_100g_only,
         "attribution": "Data from Open Food Facts (ODbL)",
     }
 

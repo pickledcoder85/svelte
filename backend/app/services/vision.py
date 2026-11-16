@@ -171,6 +171,7 @@ Extra rules:
 - a branded or sealed package (a frozen meal tray, boxed salad, wrapped sandwich), even with food visible through it, is package_front, not meal_plate
 - for nutrition_label, read only what the nutrition panel shows: product_name and brand_name only if the product's own name is printed on it; never use a "distributed by" or "manufactured by" line as the brand, and never guess a name; otherwise use null for both
 - for package_front, fill package_text, product_name, brand_name and confidence; nutrition fields may be null
+- product_name must keep the package's diet claims and flavour exactly as printed (Sugar Free, Zero Sugar, Fat Free, Reduced Fat, Light, Diet, and the flavour such as Chocolate Fudge): they decide which product it is
 - for unreadable, the other fields may be null
 - for meal_plate, also return "items": one entry per separate food you can see, at most 8, each
   {"name": "what it is, e.g. grilled chicken breast", "usda_query": "a short generic USDA search, e.g. chicken breast roasted",
@@ -247,6 +248,7 @@ Rules:
 - confidence must be between 0 and 1
 - use null for unknown brand_name
 - focus on the front-of-package identity, not nutrition facts
+- product_name must keep diet claims (Sugar Free, Zero Sugar, Fat Free, Reduced Fat, Light, Diet) and the flavour exactly as printed
 """.strip(),
         )
         product_name = _as_string(payload.get("product_name"), "Scanned package")

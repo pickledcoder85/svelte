@@ -197,3 +197,40 @@ async def test_falls_back_to_the_older_search_when_the_new_one_fails(repository)
         client_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)),
     )
     assert matches and matches[0]["brand_name"] == "Quaker"
+
+
+@pytest.mark.parametrize(
+    "package, candidate",
+    [
+        ("Sugar Free Chocolate Fudge Instant Pudding", "Chocolate Fudge Instant Pudding & Pie Filling"),
+        ("Chocolate Fudge Instant Pudding", "Zero Sugar Chocolate Fudge Instant Pudding"),
+        ("Fat Free Greek Yogurt", "Greek Yogurt"),
+        ("Light Mayonnaise", "Mayonnaise"),
+    ],
+)
+def test_diet_claims_must_match(package, candidate):
+    assert match_score(package, "Jell-O", candidate, "Jell-O") == 0.0
+
+
+def test_matching_diet_claims_still_match():
+    assert match_score("Sugar Free Chocolate Fudge Instant Pudding", "Jell-O", "Zero Sugar Chocolate Fudge Instant Pudding", "Jell-O") >= 0.6
+
+
+@pytest.mark.asyncio
+async def test_a_real_serving_beats_per_100g_only(repository):
+    per_100 = {**OATS, "code": "9", "product_name": "Old Fashioned Rolled Oats",
+               "nutriments": {"energy-kcal_100g": 375, "proteins_100g": 12, "carbohydrates_100g": 68, "fat_100g": 7}}
+    per_100.pop("serving_size")
+    matches = await find_package_matches(repository, "Old Fashioned Oats", "Quaker", client_factory=_factory([per_100, OATS]))
+    assert matches[0]["serving_size"] == "1/2 cup (40 g)" and not matches[0]["per_100g_only"]
+    assert matches[1]["serving_size"] == "100 g" and matches[1]["per_100g_only"] is True
+    structured = package_structured_json({"product_name": "Old Fashioned Oats", "brand_name": "Quaker"}, matches[1:])
+    assert structured["per_100g_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_the_same_product_twice_keeps_the_real_serving(repository):
+    per_100 = {**OATS, "code": "9", "nutriments": {"energy-kcal_100g": 375, "proteins_100g": 12, "carbohydrates_100g": 68, "fat_100g": 7}}
+    per_100.pop("serving_size")
+    matches = await find_package_matches(repository, "Old Fashioned Oats", "Quaker", client_factory=_factory([per_100, OATS]))
+    assert [m["serving_size"] for m in matches] == ["1/2 cup (40 g)"]

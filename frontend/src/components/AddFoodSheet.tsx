@@ -9,7 +9,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { addFavoriteFood, addFoodToBank, logFood, unfavoriteFood } from '../lib/api';
 import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, MEAL_SLOT_LABELS, type MealSlot } from '../lib/meal-slots';
 import {
-  defaultAmount,
+  defaultAmountFor,
+  isPer100Only,
   formatServings,
   logPayload,
   previewNutrition,
@@ -57,8 +58,10 @@ export function AddFoodSheet({
   const loggedRef = useRef(false);
   const [mealSlot, setMealSlot] = useState<MealSlot>(() => defaultMealSlot());
   const [foodIndex, setFoodIndex] = useState(0);
-  const [amount, setAmount] = useState<QuickAmount>(defaultAmount);
-  const [gramsDraft, setGramsDraft] = useState(foods[0]?.serving_grams ? String(Math.round(foods[0].serving_grams)) : '');
+  const [amount, setAmount] = useState<QuickAmount>(() => defaultAmountFor(foods[0] ?? null));
+  const [gramsDraft, setGramsDraft] = useState(
+    foods[0]?.serving_grams && !isPer100Only(foods[0]) ? String(Math.round(foods[0].serving_grams)) : ''
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,7 +132,9 @@ export function AddFoodSheet({
 
   const food = foods[Math.min(foodIndex, foods.length - 1)] ?? null;
   const preview = food ? previewNutrition(food, amount) : null;
-  const canWeigh = Boolean(food?.serving_grams);
+  const per100 = food ? isPer100Only(food) : false;
+  // Per-100 g-only foods are logged by weight only: "1 serving" would mean 100 g.
+  const canWeigh = Boolean(food?.serving_grams) && !per100;
   const unit = food?.serving_basis === 'ml' ? 'ml' : 'g';
 
   return (
@@ -155,7 +160,12 @@ export function AddFoodSheet({
                     <Text style={styles.title}>{food.name}</Text>
                   </View>
                   <Text style={styles.muted}>
-                    {[food.brand, food.serving_text ? `1 serving = ${food.serving_text}` : null].filter(Boolean).join(' · ')}
+                    {[
+                      food.brand,
+                      per100 ? 'Nutrition listed per 100 g' : food.serving_text ? `1 serving = ${food.serving_text}` : null
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </Text>
                   <Text style={styles.source}>{fromBank ? 'From your food bank' : prepare ? 'New: saved to your food bank when you add or save it' : 'New: saved to your food bank'}</Text>
                   {note ? <Text style={styles.note}>{note}</Text> : null}
@@ -247,7 +257,7 @@ export function AddFoodSheet({
                     </Text>
                   </View>
                 ) : (
-                  <Text style={styles.muted}>Enter a weight.</Text>
+                  <Text style={styles.muted}>{per100 ? 'How many grams did you use? Check the package for the serving weight.' : 'Enter a weight.'}</Text>
                 )}
 
                 <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Meal">
