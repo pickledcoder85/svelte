@@ -15,6 +15,7 @@ from backend.app.models.nutrition import FoodItem, FoodPortion, MacroTargets, We
 from backend.app.services.servings import parse_serving_text
 from backend.app.models.recipes import RecipeAsset, RecipeDefinition
 from backend.app.db.database import apply_pending_migrations, json_text
+from backend.app.services.meal_split import resolve_split
 
 
 DEFAULT_FOOD_CATALOG_SEEDS: list[dict[str, Any]] = [
@@ -700,8 +701,11 @@ class SQLiteRepository:
         timezone: str | None = None,
         units: str | None = None,
         workout_calories_share: int | None = None,
+        meals_per_day: int | None = None,
+        meal_split: list[int] | None = None,
     ) -> None:
-        """Set timezone, units, and/or the workout calories share; None keeps the saved value."""
+        """Set timezone, units, the workout calories share, and/or the meals a day and their
+        split (already validated); None keeps the saved value."""
         with self._lock, self._connection:
             self._connection.execute(
                 """
@@ -709,10 +713,19 @@ class SQLiteRepository:
                 SET timezone = COALESCE(?, timezone),
                     units = COALESCE(?, units),
                     workout_calories_share = COALESCE(?, workout_calories_share),
+                    meals_per_day = COALESCE(?, meals_per_day),
+                    meal_split = COALESCE(?, meal_split),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
-                (timezone, units, workout_calories_share, user_id),
+                (
+                    timezone,
+                    units,
+                    workout_calories_share,
+                    meals_per_day,
+                    json.dumps(meal_split) if meal_split is not None else None,
+                    user_id,
+                ),
             )
 
     def update_display_name(self, *, user_id: str, display_name: str) -> None:
@@ -884,14 +897,20 @@ class SQLiteRepository:
                 p.calculation_version,
                 p.target_source,
                 COALESCE(p.calorie_floor, 'recommended') AS calorie_floor,
-                COALESCE(p.workout_calories_share, 75) AS workout_calories_share
+                COALESCE(p.workout_calories_share, 75) AS workout_calories_share,
+                p.meals_per_day,
+                p.meal_split
             FROM users u
             LEFT JOIN user_profiles p ON p.user_id = u.id
             WHERE u.id = ?
             """,
             (user_id,),
         ).fetchone()
-        return dict(row) if row is not None else None
+        if row is None:
+            return None
+        identity = dict(row)
+        identity["meals_per_day"], identity["meal_split"] = resolve_split(identity.get("meals_per_day"), identity.get("meal_split"))
+        return identity
 
     @_synchronized
     def get_user_identity_by_email(self, email: str) -> dict[str, Any] | None:
