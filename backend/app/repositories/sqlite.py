@@ -909,6 +909,8 @@ class SQLiteRepository:
         if row is None:
             return None
         identity = dict(row)
+        # Chosen in the meal-planning guide; until then the defaults apply and the guide shows.
+        identity["meal_pattern_chosen"] = identity.get("meal_split") is not None
         identity["meals_per_day"], identity["meal_split"] = resolve_split(identity.get("meals_per_day"), identity.get("meal_split"))
         return identity
 
@@ -2872,6 +2874,52 @@ class SQLiteRepository:
                     ),
                 )
             return self.get_meal_plan_day(row["meal_plan_day_id"])
+
+    def add_meal_plan_slot(
+        self,
+        *,
+        user_id: str,
+        plan_date: date,
+        slot: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Add one planned meal to a day, creating the day if needed. Never touches the day's
+        other meals (re-saving a whole day would drop what was already eaten from it)."""
+        self._ensure_user_exists(user_id)
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO meal_plan_days (id, user_id, plan_date, label, focus)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, plan_date) DO NOTHING
+                """,
+                (f"meal-plan-{user_id}-{plan_date.isoformat()}", user_id, plan_date.isoformat(), plan_date.strftime("%A"), "Planned"),
+            )
+            day = self._connection.execute(
+                "SELECT id FROM meal_plan_days WHERE user_id = ? AND plan_date = ?",
+                (user_id, plan_date.isoformat()),
+            ).fetchone()
+            position = self._connection.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM meal_plan_slots WHERE meal_plan_day_id = ?",
+                (day["id"],),
+            ).fetchone()[0]
+            self._connection.execute(
+                """
+                INSERT INTO meal_plan_slots (
+                    id, meal_plan_day_id, position, meal_label, title, calories, items_json, eaten_at, prep_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
+                """,
+                (
+                    str(uuid4()),
+                    day["id"],
+                    position,
+                    slot["meal_label"],
+                    slot["title"],
+                    slot["calories"],
+                    json.dumps(slot.get("items", [])),
+                    slot.get("prep_status", "Flexible"),
+                ),
+            )
+            return self.get_meal_plan_day(day["id"])
 
     def delete_meal_plan_slot(self, user_id: str, slot_id: str) -> dict[str, Any] | None:
         """Remove one planned meal ("plans changed"). Anything already logged from it stays in

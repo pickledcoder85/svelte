@@ -90,14 +90,18 @@ import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
-import { MealSplitBar } from './src/components/MealSplitBar';
+import { MealPatternGuide } from './src/components/MealPatternGuide';
+import { SuggestMealSheet } from './src/components/SuggestMealSheet';
+import { defaultMealSlot } from './src/lib/meal-slots';
 import {
   blockBudgets,
   DEFAULT_SPLITS,
   isValidSplit,
+  MEAL_PATTERNS,
   MEAL_STYLES,
   RECOMMENDED_MEALS_PER_DAY,
   styleForSplit,
+  type MealBlockKey,
   type MealsPerDay
 } from './src/lib/meal-split';
 import { CalorieBars } from './src/components/trends/CalorieBars';
@@ -539,8 +543,10 @@ export default function App(): ReactElement {
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
-  // Settings > Meals per day: the split while dragging (saved when the finger lifts).
-  const [splitDraft, setSplitDraft] = useState<number[] | null>(null);
+  // The meal-planning guide, and Gus's suggestions (which need a pattern: the guide comes first).
+  const [patternGuideOpen, setPatternGuideOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestAfterGuide, setSuggestAfterGuide] = useState(false);
   const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -3167,35 +3173,72 @@ export default function App(): ReactElement {
     }
   }
 
-  /** Settings > Meals per day and split. A preference only: targets are not recalculated. */
-  async function applyMealSplit(count: MealsPerDay, split: number[]) {
-    // One settings save at a time: a split save resends the name, time zone, and units, so it
-    // must never race (and undo) another settings save.
-    if (!profile || !foodSessionToken || !isValidSplit(count, split) || settingsSaving) {
-      setSplitDraft(null);
+  /** Gus's suggestions; the first time, the meal-planning guide asks for the pattern first. */
+  function openSuggest() {
+    if (!profile || !foodSessionToken) {
       return;
     }
+    if (!profile.meal_pattern_chosen) {
+      setSuggestAfterGuide(true);
+      setPatternGuideOpen(true);
+      return;
+    }
+    setSuggestOpen(true);
+  }
+
+  // The day Gus plans for: the day showing on Today, the date card chosen in Plan, else today.
+  const suggestDate =
+    section === 'dashboard' ? selectedHomeDate : section === 'meal-plan' ? selectedMealPlanDate ?? todayKey : todayKey;
+
+  /** The block to suggest for by default: the meal for this time of day, in the user's pattern. */
+  function defaultSuggestBlock(): MealBlockKey {
+    const keys = MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay];
+    const slot = defaultMealSlot();
+    if (slot !== 'snack') {
+      return slot;
+    }
+    return keys.includes('afternoon_snack') ? 'afternoon_snack' : 'dinner';
+  }
+
+  async function reloadMealPlan() {
+    const token = foodSessionToken;
+    if (token) {
+      try {
+        setMealPlanDays(await fetchMealPlanDays(token));
+      } catch {
+        // Plan → Meals catches up on its next load.
+      }
+    }
+  }
+
+  /**
+   * The meal-planning guide's choice (meals per day and balance). Targets are not recalculated.
+   * Throws when it can't be saved, so the guide stays open and says why.
+   */
+  async function applyMealSplit(count: MealsPerDay, split: number[]) {
+    if (!profile || !foodSessionToken) {
+      throw new Error('Sign in again to save your meal pattern.');
+    }
+    if (!isValidSplit(count, split)) {
+      throw new Error('That meal pattern is not valid.');
+    }
+    // One profile save at a time: this resends the name, time zone, and units, so it must never
+    // race (and undo) another settings save.
+    if (settingsSaving) {
+      throw new Error('Another change is still saving. Try again in a moment.');
+    }
     setSettingsSaving(true);
-    setFloorMessage(null);
     try {
       const updated = await updateProfile(
         { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, meals_per_day: count, meal_split: split },
         foodSessionToken
       );
       setProfile(updated);
-      setSplitDraft(null);
-    } catch (error) {
-      setSplitDraft(null);
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to save the meal split.');
     } finally {
       setSettingsSaving(false);
     }
   }
 
-  // A draft never outlives the profile it was made from (sign-out, another account, a reload).
-  useEffect(() => {
-    setSplitDraft(null);
-  }, [profile?.user_id, profile?.meals_per_day, profile?.meal_split?.join()]);
 
   /** Settings > Workout calories. A preference only: targets are not recalculated. */
   async function applyWorkoutCaloriesShare(share: WorkoutCaloriesShare) {
@@ -6406,7 +6449,27 @@ export default function App(): ReactElement {
         {section === 'meal-plan' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
-            <Text style={styles.panelTitle}>Weekly date cards</Text>
+            {profile?.meal_pattern_chosen ? (
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.panelDetail}>
+                  {(() => {
+                    const count = (profile.meals_per_day ?? 3) as MealsPerDay;
+                    const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count, profile.meal_split ?? []));
+                    return `${count === 3 ? '3 meals' : count === 4 ? '3 meals + a snack' : '3 meals + 2 snacks'} · ${style?.label ?? 'Balanced'}`;
+                  })()}
+                </Text>
+                <Pressable onPress={() => setPatternGuideOpen(true)} accessibilityRole="button">
+                  <Text style={styles.settingsLink}>Change</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.secondaryButton} onPress={() => setPatternGuideOpen(true)} accessibilityRole="button">
+                <Text style={styles.secondaryButtonLabel}>Set up meal planning</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.primaryButton} onPress={openSuggest} accessibilityRole="button">
+              <Text style={styles.primaryButtonLabel}>✨ Suggest a meal</Text>
+            </Pressable>
             <Text style={styles.panelDetail}>
               Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
             </Text>
@@ -6696,82 +6759,6 @@ export default function App(): ReactElement {
                       : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
                   </Text>
                 </FieldGroup>
-                {(() => {
-                  const count = (profile.meals_per_day ?? 3) as MealsPerDay;
-                  const split = splitDraft ?? profile.meal_split ?? DEFAULT_SPLITS[count];
-                  const style = styleForSplit(count, split);
-                  return (
-                    <FieldGroup label="Meals per day">
-                      <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Meals per day">
-                        {([3, 4, 5] as MealsPerDay[]).map((option) => {
-                          const active = count === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                              onPress={() => {
-                                if (!active) {
-                                  // Keep the chosen style at the new count (custom splits start from Balanced).
-                                  const keep = MEAL_STYLES.find((item) => item.id === style);
-                                  void applyMealSplit(option, keep ? keep.splits[option] : DEFAULT_SPLITS[option]);
-                                }
-                              }}
-                              accessibilityRole="radio"
-                              accessibilityState={{ checked: active }}
-                            >
-                              <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
-                                {option === 3 ? '3 meals' : option === 4 ? '3 + snack' : '3 + 2 snacks'}
-                                {option === RECOMMENDED_MEALS_PER_DAY ? ' ★' : ''}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                      <Text style={styles.settingsHint}>
-                        ★ Recommended: 3 meals + 2 snacks. Spreading protein over 4–5 meals keeps muscle-building going through the day, and
-                        more muscle is linked to staying strong and healthy as you age.
-                      </Text>
-                      <Text style={styles.mealStyleHeading}>How do you balance your meals?</Text>
-                      {MEAL_STYLES.map((option) => {
-                        const active = style === option.id;
-                        const preview = blockBudgets(count, option.splits[count], dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)
-                          .filter((block) => !block.snack)
-                          .map((block) => `${block.label} ${block.calories.toLocaleString('en-US')}`)
-                          .join(' · ');
-                        return (
-                          <Pressable
-                            key={option.id}
-                            style={[styles.mealStyleRow, active && styles.mealStyleRowActive]}
-                            onPress={() => {
-                              if (!active) {
-                                void applyMealSplit(count, option.splits[count]);
-                              }
-                            }}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: active }}
-                          >
-                            <Text style={[styles.mealStyleLabel, active && styles.mealStyleLabelActive]}>
-                              {active ? '● ' : '○ '}
-                              {option.label}
-                            </Text>
-                            <Text style={styles.mealStyleDetail}>{option.detail}</Text>
-                            <Text style={styles.mealStylePreview}>{preview} kcal</Text>
-                          </Pressable>
-                        );
-                      })}
-                      <Text style={styles.mealStyleHeading}>Fine-tune{style === null ? ' (custom)' : ''}</Text>
-                      <Text style={styles.settingsHint}>Drag a handle to move calories between the meals beside it. Macros follow the split.</Text>
-                      <MealSplitBar
-                        count={count}
-                        split={split}
-                        budgets={blockBudgets(count, split, dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)}
-                        onChange={setSplitDraft}
-                        onCommit={(next) => void applyMealSplit(count, next)}
-                        onCancel={() => setSplitDraft(null)}
-                      />
-                    </FieldGroup>
-                  );
-                })()}
                 <FieldGroup label="Garmin">
                   <Text style={styles.settingsHint}>{garminStatusText(garminStatus, new Date())}</Text>
                   {garminStatus?.configured ? (
@@ -7271,6 +7258,44 @@ export default function App(): ReactElement {
         </View>
       ) : null}
 
+      {patternGuideOpen && profile ? (
+        <MealPatternGuide
+          calorieTarget={dailyHomeTargets.calorieTarget}
+          macros={dailyHomeTargets.macroTargets}
+          initialCount={(profile.meal_pattern_chosen ? profile.meals_per_day ?? 3 : RECOMMENDED_MEALS_PER_DAY) as MealsPerDay}
+          initialStyle={profile.meal_pattern_chosen ? styleForSplit((profile.meals_per_day ?? 3) as MealsPerDay, profile.meal_split ?? []) : null}
+          onClose={() => {
+            setPatternGuideOpen(false);
+            setSuggestAfterGuide(false);
+          }}
+          onSave={async (count, split) => {
+            await applyMealSplit(count, split);
+            setPatternGuideOpen(false);
+            if (suggestAfterGuide) {
+              setSuggestAfterGuide(false);
+              setSuggestOpen(true);
+            }
+          }}
+        />
+      ) : null}
+
+      {suggestOpen && foodSessionToken ? (
+        <SuggestMealSheet
+          accessToken={foodSessionToken}
+          logDate={suggestDate}
+          dayName={
+            suggestDate === todayKey
+              ? 'today'
+              : new Date(`${suggestDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
+          }
+          blocks={MEAL_PATTERNS[(profile?.meals_per_day ?? 3) as MealsPerDay]}
+          defaultBlock={defaultSuggestBlock()}
+          onClose={() => setSuggestOpen(false)}
+          onLogged={() => void refreshHomeFoodLog()}
+          onPlanned={() => void reloadMealPlan()}
+        />
+      ) : null}
+
       {quickScanOpen && foodSessionToken ? (
         <QuickScanAdd
           accessToken={foodSessionToken}
@@ -7342,6 +7367,13 @@ export default function App(): ReactElement {
               detail: 'Just a number, no lookup',
               icon: '✏️',
               onPress: () => setOpenSheet('quick-calories')
+            },
+            {
+              id: 'suggest',
+              label: 'Suggest a meal',
+              detail: 'Gus picks a meal that fits what you have left',
+              icon: '✨',
+              onPress: openSuggest
             }
           ]}
           onClose={() => setOpenSheet(null)}
@@ -8577,13 +8609,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999
   },
-  mealStyleHeading: { color: tc.fg_132536, fontSize: 15, fontWeight: '800', marginTop: 8 },
-  mealStyleRow: { gap: 2, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7 },
-  mealStyleRowActive: { borderColor: tc.line_0f766e, backgroundColor: tc.bg_ecfdf3 },
-  mealStyleLabel: { color: tc.fg_132536, fontSize: 15, fontWeight: '800' },
-  mealStyleLabelActive: { color: tc.fg_0f766e },
-  mealStyleDetail: { color: tc.fg_5c6d80, fontSize: 13 },
-  mealStylePreview: { color: tc.fg_6b7b90, fontSize: 12, fontWeight: '600' },
   todayMealGroup: { gap: 0, marginTop: 6 },
   todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
   todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },

@@ -404,6 +404,31 @@ async def _request_vision_json(settings: Settings, image_url: str, instructions:
     return parsed
 
 
+async def request_text_json(settings: Settings, instructions: str) -> dict[str, Any]:
+    """A text-only JSON call (no image), for Gus's suggestions. Same model and parsing as scans."""
+    if not settings.openai_api_key:
+        raise VisionNotConfiguredError("Suggestions are not set up on this server.")
+    async with httpx.AsyncClient(timeout=VISION_TIMEOUT_SECONDS) as client:
+        response = await client.post(
+            OPENAI_RESPONSES_URL,
+            headers={"Authorization": f"Bearer {settings.openai_api_key}", "Content-Type": "application/json"},
+            json={
+                "model": settings.vision_model,
+                "reasoning": {"effort": settings.vision_reasoning_effort},
+                "text": {"format": {"type": "json_object"}},
+                "input": [{"role": "user", "content": [{"type": "input_text", "text": instructions}]}],
+            },
+        )
+    response.raise_for_status()
+    output_text = _extract_output_text(response.json())
+    if not isinstance(output_text, str) or not output_text.strip():
+        raise ValueError("The response did not include structured text output.")
+    parsed = _parse_json_object(output_text)
+    if not isinstance(parsed, dict):
+        raise ValueError("The response JSON was not an object.")
+    return parsed
+
+
 def _extract_output_text(payload: dict[str, Any]) -> str | None:
     direct_output = payload.get("output_text")
     if isinstance(direct_output, str) and direct_output.strip():

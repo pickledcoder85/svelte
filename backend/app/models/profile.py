@@ -23,6 +23,8 @@ class UserProfile(BaseModel):
     # order (percent; macros follow). See services/meal_split.py.
     meals_per_day: Literal[3, 4, 5] = 3
     meal_split: list[int] = Field(default_factory=lambda: [30, 35, 35])
+    # False until the user picks a pattern in the meal-planning guide.
+    meal_pattern_chosen: bool = False
     user_created_at: datetime | None = None
     profile_created_at: datetime | None = None
     profile_updated_at: datetime | None = None

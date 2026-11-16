@@ -1,4 +1,7 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from backend.app.dependencies import get_required_session, get_repository
 from backend.app.models.tracker import (
@@ -6,6 +9,7 @@ from backend.app.models.tracker import (
     ExerciseEntryCreateRequest,
     MealPlanDay,
     MealPlanDayCreateRequest,
+    MealPlanSlotCreateRequest,
     MealPlanSlotEatenAtUpdateRequest,
     PlannedExerciseEntryCompletionRequest,
     PlannedExerciseEntry,
@@ -243,6 +247,25 @@ async def update_meal_plan_slot(
     if day is None:
         raise HTTPException(status_code=404, detail="Meal plan slot not found.")
     return day
+
+
+class MealPlanSlotAddRequest(BaseModel):
+    plan_date: date
+    slot: MealPlanSlotCreateRequest
+
+
+@router.post("/meal-plan/slots", response_model=MealPlanDay)
+async def add_meal_plan_slot(
+    payload: MealPlanSlotAddRequest,
+    session=Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> MealPlanDay:
+    """Add one planned meal to a day (the day's other meals are untouched)."""
+    repository.ensure_user_identity(user_id=session.user_id, email=session.email, display_name=session.display_name)
+    day = repository.add_meal_plan_slot(user_id=session.user_id, plan_date=payload.plan_date, slot=payload.slot.model_dump())
+    if day is None:
+        raise HTTPException(status_code=500, detail="Unable to add the meal to the plan.")
+    return MealPlanDay.model_validate(day)
 
 
 @router.delete("/meal-plan/slots/{slot_id}", response_model=MealPlanDay)

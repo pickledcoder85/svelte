@@ -13,9 +13,11 @@ import type {
   GarminStatus,
   BarcodeFoodResult,
   SmartScanResult,
+  SuggestResponse,
   FoodLogEntryInput,
   FoodLogSummary,
   MealInput,
+  MacroTargets,
   MealPlanDay,
   MealPlanSlot,
   MealPrepTask,
@@ -672,6 +674,35 @@ export async function logFood(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
       body: JSON.stringify(payload)
+    })
+  );
+}
+
+/** Gus suggests two meals for a block, sized to its share of the day (what's left caps it). */
+export async function suggestMeal(
+  payload: { log_date: string; block: string; ingredients?: string },
+  accessToken: string
+): Promise<SuggestResponse> {
+  return readJson<SuggestResponse>(
+    await apiFetch(buildApiUrl('/coach/suggest'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+/** Add one planned meal to a day (the day's other meals are untouched). */
+export async function addMealPlanSlot(
+  planDate: string,
+  slot: { meal_label: string; title: string; calories: number; prep_status: 'Flexible'; items: Array<{ name: string; quantity_label: string; calories: number; macros: MacroTargets }> },
+  accessToken: string
+): Promise<MealPlanDay> {
+  return readJson<MealPlanDay>(
+    await apiFetch(buildApiUrl('/tracker/meal-plan/slots'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ plan_date: planDate, slot })
     })
   );
 }
