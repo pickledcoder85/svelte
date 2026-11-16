@@ -91,6 +91,7 @@ import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
 import { SuggestMealSheet } from './src/components/SuggestMealSheet';
+import { CreateMealPlan } from './src/components/CreateMealPlan';
 import { defaultMealSlot } from './src/lib/meal-slots';
 import { MEAL_STYLES, styleForSplit, type MealBlockKey, type MealStyleId } from './src/lib/meal-split';
 
@@ -540,6 +541,7 @@ export default function App(): ReactElement {
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
   // Gus's single-meal suggestion (Today → Meals).
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -6469,6 +6471,13 @@ export default function App(): ReactElement {
         {section === 'meal-plan' && (
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => foodSessionToken && setCreatePlanOpen(true)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryButtonLabel}>✨ Create a meal plan</Text>
+            </Pressable>
             <Text style={styles.panelDetail}>
               Meal balance:{' '}
               {(() => {
@@ -7268,6 +7277,20 @@ export default function App(): ReactElement {
         <View style={styles.toast} pointerEvents="none" accessibilityLiveRegion="polite">
           <Text style={styles.toastLabel}>{toast}</Text>
         </View>
+      ) : null}
+
+      {createPlanOpen && foodSessionToken ? (
+        <CreateMealPlan
+          accessToken={foodSessionToken}
+          existingPlans={mealPlanDays}
+          onClose={() => setCreatePlanOpen(false)}
+          onCreated={() => {
+            const token = foodSessionToken;
+            void fetchMealPlanDays(token)
+              .then(setMealPlanDays)
+              .catch(() => undefined);
+          }}
+        />
       ) : null}
 
       {suggestOpen && foodSessionToken ? (

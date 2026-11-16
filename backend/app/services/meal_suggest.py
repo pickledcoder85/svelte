@@ -243,6 +243,29 @@ Rules:
 """.strip()
 
 
+def clean_ingredients(raw_items: Any) -> list[dict[str, Any]]:
+    """An AI ingredient list, checked: plain names, positive grams, a known role."""
+    items = []
+    for ingredient in (raw_items if isinstance(raw_items, list) else [])[:MAX_INGREDIENTS]:
+        if not isinstance(ingredient, dict):
+            continue
+        name = str(ingredient.get("name") or "").strip()[:60]
+        try:
+            grams = float(ingredient.get("grams"))
+        except (TypeError, ValueError):
+            grams = 0.0
+        if not name or not math.isfinite(grams) or grams <= 0:
+            continue
+        role = str(ingredient.get("role") or "other").lower()
+        items.append({
+            "name": name,
+            "query": (str(ingredient.get("usda_query") or "").strip() or name)[:80],
+            "grams": min(grams, 1000.0),
+            "role": role if role in ROLES else "other",
+        })
+    return items
+
+
 def _clean_options(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """The AI's options, checked: lists where lists belong, usable ingredients, unique names."""
     options = []
@@ -250,25 +273,7 @@ def _clean_options(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for raw in (raw_options if isinstance(raw_options, list) else [])[:2]:
         if not isinstance(raw, dict):
             continue
-        items = []
-        raw_items = raw.get("ingredients")
-        for ingredient in (raw_items if isinstance(raw_items, list) else [])[:MAX_INGREDIENTS]:
-            if not isinstance(ingredient, dict):
-                continue
-            name = str(ingredient.get("name") or "").strip()[:60]
-            try:
-                grams = float(ingredient.get("grams"))
-            except (TypeError, ValueError):
-                grams = 0.0
-            if not name or not math.isfinite(grams) or grams <= 0:
-                continue
-            role = str(ingredient.get("role") or "other").lower()
-            items.append({
-                "name": name,
-                "query": (str(ingredient.get("usda_query") or "").strip() or name)[:80],
-                "grams": min(grams, 1000.0),
-                "role": role if role in ROLES else "other",
-            })
+        items = clean_ingredients(raw.get("ingredients"))
         name = str(raw.get("name") or "").strip()[:80]
         if name and items:
             if any(option["name"] == name for option in options):

@@ -14,6 +14,7 @@ import type {
   BarcodeFoodResult,
   SmartScanResult,
   SuggestResponse,
+  ProposedPlanMeal,
   FoodLogEntryInput,
   FoodLogSummary,
   MealInput,
@@ -705,6 +706,41 @@ export async function addMealPlanSlot(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
       body: JSON.stringify({ plan_date: planDate, slot })
+    })
+  );
+}
+
+/** Create a Meal Plan: Gus proposes one complete meal for each meal type. */
+export async function proposePlanMeals(
+  payload: { meals: Array<'breakfast' | 'lunch' | 'dinner'>; cooking_time: string; avoid_titles: string[]; step_note?: string },
+  accessToken: string
+): Promise<{ proposals: ProposedPlanMeal[] }> {
+  return readJson<{ proposals: ProposedPlanMeal[] }>(
+    await apiFetch(buildApiUrl('/coach/plan/propose'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+/** Add the accepted meals to their days (replace or keep meals already planned). */
+export async function createMealPlan(
+  assignments: Array<{
+    plan_date: string;
+    meal: 'breakfast' | 'lunch' | 'dinner';
+    title: string;
+    calories: number;
+    on_conflict: 'replace' | 'keep';
+    items: Array<{ name: string; grams: number; calories: number; protein: number; carbs: number; fat: number }>;
+  }>,
+  accessToken: string
+): Promise<{ created: number; replaced: number; kept: number }> {
+  return readJson<{ created: number; replaced: number; kept: number }>(
+    await apiFetch(buildApiUrl('/coach/plan/create'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ assignments })
     })
   );
 }

@@ -595,3 +595,12 @@ export interface SuggestResponse {
   /** Photo mode: the foods Gus saw. */
   seen_items: string[];
 }
+
+export interface ProposedPlanMeal {
+  meal: 'breakfast' | 'lunch' | 'dinner';
+  label: string;
+  budget: SuggestNutrition;
+  option: SuggestedMeal | null;
+  message: string | null;
+  prep: string;
+}
