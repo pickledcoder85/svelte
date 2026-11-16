@@ -45,6 +45,7 @@ import {
   getApiBaseUrl,
   fetchExerciseEntries,
   fetchGarminStatus,
+  fetchFoodLogsBetween,
   deleteMealPlanSlot,
   syncGarmin,
   fetchPlannedWorkoutSessions,
@@ -86,6 +87,19 @@ import { buildCalorieBudget } from './src/lib/calorie-budget';
 import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
+import { CalorieBars } from './src/components/trends/CalorieBars';
+import { DayHistory } from './src/components/trends/DayHistory';
+import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
+import {
+  averageMacros,
+  buildDaySeries,
+  calorieSummary,
+  rangeStart,
+  TREND_RANGES,
+  weeklyRate,
+  weightTrend,
+  type TrendRange
+} from './src/lib/trends';
 import { initialWeighInIndexes, weighInColumns, weighInLbs, weighInSummary } from './src/lib/weigh-in';
 import { QuickScanAdd } from './src/components/QuickScanAdd';
 import { FoodSearchSheet } from './src/components/FoodSearchSheet';
@@ -511,6 +525,9 @@ export default function App(): ReactElement {
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
+  const [trendRange, setTrendRange] = useState<TrendRange>('1M');
+  const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const mainScrollRef = useRef<ScrollView | null>(null);
   // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
@@ -1453,6 +1470,14 @@ export default function App(): ReactElement {
     };
   }, [entryMode, foodSessionToken]);
 
+  // Trends: load the range's food logs when the page shows, the range changes, or today's log changes.
+  useEffect(() => {
+    if (section === 'trends') {
+      void loadTrendLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, trendRange, foodSessionToken, foodLog]);
+
   // Garmin: check on open and whenever the app comes back to the screen; sync if stale.
   useEffect(() => {
     if (!foodSessionToken) {
@@ -1947,6 +1972,35 @@ export default function App(): ReactElement {
       ? 'today'
       : new Date(`${selectedHomeDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
   const homeMealGroups = useMemo(() => groupByMeal(homeFoodLog.entries), [homeFoodLog.entries]);
+  const trendStart = rangeStart(todayKey, trendRange);
+  const trendUnit = profile?.units === 'metric' ? 'kg' : 'lb';
+  const trendDays = useMemo(
+    () =>
+      buildDaySeries({
+        start: trendStart,
+        today: todayKey,
+        logs: trendLogs,
+        exercise: exerciseEntries,
+        calorieTarget: dailyHomeTargets.calorieTarget,
+        sharePercent: profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE
+      }),
+    [trendStart, todayKey, trendLogs, exerciseEntries, dailyHomeTargets.calorieTarget, profile?.workout_calories_share]
+  );
+  const trendCalories = useMemo(() => calorieSummary(trendDays), [trendDays]);
+  const trendMacros = useMemo(() => averageMacros(trendDays), [trendDays]);
+  const trendWeightPoints = useMemo(() => weightTrend(weightEntries), [weightEntries]);
+  const trendWeight = useMemo(() => {
+    const toUnit = (lbs: number) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : Math.round(lbs * 10) / 10);
+    const inRange = trendWeightPoints.filter((point) => point.date >= trendStart);
+    const last = trendWeightPoints.at(-1) ?? null;
+    const rate = weeklyRate(inRange.length >= 2 ? inRange : trendWeightPoints);
+    const goal = profile?.target_weight_lbs ?? null;
+    return {
+      latest: last ? toUnit(last.trend) : null,
+      rate: rate === null ? null : toUnit(rate),
+      toGoal: last && goal ? Math.abs(Math.round((toUnit(last.trend) - toUnit(goal)) * 10) / 10) : null
+    };
+  }, [trendWeightPoints, trendStart, trendUnit, profile?.target_weight_lbs]);
   const homeOpenPlannedMeals = useMemo(
     () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
     [homeMealPlanDay, homeMealPlanEatenSlots]
@@ -2516,6 +2570,40 @@ export default function App(): ReactElement {
       setTrackerError(error instanceof Error ? error.message : 'Unable to update this exercise.');
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
+  async function loadTrendLogs() {
+    const token = foodSessionToken;
+    if (!token) {
+      return;
+    }
+    try {
+      setTrendLogs(await fetchFoodLogsBetween(rangeStart(todayKey, trendRange), todayKey, token));
+      setTrendsError(null);
+    } catch (error) {
+      setTrendsError(error instanceof Error ? error.message : 'Unable to load your history.');
+    }
+  }
+
+  async function deleteTrendFood(log: FoodLogSummary, entry: FoodLogEntry) {
+    const token = foodSessionToken;
+    if (!token || !log.log_id) {
+      return;
+    }
+    try {
+      const updated = await deleteFoodLogEntry(log.log_id, entry.id, token);
+      setTrendLogs((current) => current.map((item) => (item.date === log.date ? updated : item)));
+      if (log.date === todayKey) {
+        setFoodLog(updated);
+      } else if (log.date === selectedHomeDate) {
+        setHomeFoodLog(updated);
+      }
+      if (entry.meal_plan_slot_id) {
+        unmarkMealPlanSlot(entry.meal_plan_slot_id);
+      }
+    } catch (error) {
+      setTrendsError(error instanceof Error ? error.message : 'Unable to delete this entry.');
     }
   }
 
@@ -4941,162 +5029,110 @@ export default function App(): ReactElement {
         )}
 
         {section === 'trends' && (
-          <View
-            style={styles.dashboardStack}
-            onLayout={(event) => {
-              if (scrollToWeighIn) {
-                const top = event.nativeEvent.layout.y;
-                // Wait a frame so the cards inside have laid out.
-                setTimeout(() => {
-                  mainScrollRef.current?.scrollTo({ y: top + trendsPanelY.current + weighInY.current - 12, animated: true });
-                  setScrollToWeighIn(false);
-                }, 60);
-              }
-            }}
-          >
-              <DashboardHeroChart
-                controls={
-                  <DashboardTimeRangeTabs
-                    activeRange={activeRange}
-                    onChange={setActiveRange}
-                    ranges={rangeTabs}
-                  />
-                }
-                caption={null}
-                detail={null}
-                legendLabel="Consumed calories"
-                plannedLabel="Planned calories"
-                plannedValue={dailyMealPlanSummary.hasPlan ? dailyMealPlanSummary.plannedCalories : null}
-                points={homeChartPoints}
-                range={activeRange}
-                targetLabel="Target calories"
-                targetValue={homeChartTargetValue}
-                title="Calories"
-                flat
+          <View style={styles.dashboardStack}>
+            <View style={styles.homeSection}>
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.detailTitle}>Trends</Text>
+                <View style={styles.trendRangeRow} accessibilityRole="tablist">
+                  {TREND_RANGES.map((range) => (
+                    <Pressable
+                      key={range}
+                      style={[styles.trendRange, trendRange === range && styles.trendRangeActive]}
+                      onPress={() => setTrendRange(range)}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: trendRange === range }}
+                    >
+                      <Text style={[styles.trendRangeLabel, trendRange === range && styles.trendRangeLabelActive]}>{range}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              {trendsError ? <Text style={styles.settingsError}>{trendsError}</Text> : null}
+            </View>
+
+            {/* Weight: weigh-ins and the smoothed trend, with the goal. */}
+            <View style={styles.homeSection}>
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.detailTitle}>Weight</Text>
+                <Text style={styles.trendHeadline}>
+                  {trendWeight.latest !== null ? `${trendWeight.latest} ${trendUnit}` : '—'}
+                </Text>
+              </View>
+              <Text style={styles.todayHint}>
+                {[
+                  trendWeight.rate !== null
+                    ? `Trend ${trendWeight.rate > 0 ? '+' : trendWeight.rate < 0 ? '−' : '±'}${Math.abs(trendWeight.rate)} ${trendUnit} a week`
+                    : 'Weigh in a few more days to see your weekly trend',
+                  trendWeight.toGoal !== null ? `${trendWeight.toGoal} ${trendUnit} to goal` : null
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+              <WeightTrendChart
+                points={trendWeightPoints}
+                start={trendStart}
+                end={todayKey}
+                goal={profile?.target_weight_lbs ?? null}
+                unit={trendUnit}
+                toUnit={(lbs) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : lbs)}
               />
+            </View>
 
-            <View
-              style={styles.panel}
-              onLayout={(event) => {
-                trendsPanelY.current = event.nativeEvent.layout.y;
-              }}
-            >
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.panelEyebrow}>Progress snapshot</Text>
-                    <Text style={styles.detailTitle}>Weight, goal, and adherence</Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    Live progress is pulled from the profile, goal, and weight history APIs.
-                  </Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <MetricTile
-                    label="Goal"
-                    value={formatGoalTypeLabel(profile?.goal_type)}
-                  />
-                  <MetricTile
-                    label="Current weight"
-                    value={
-                      weightProgress.currentWeightLbs !== null
-                        ? `${weightProgress.currentWeightLbs.toLocaleString()} lb`
-                        : '—'
-                    }
-                  />
-                  <MetricTile
-                    label="Target"
-                    value={
-                      weightProgress.targetWeightLbs !== null
-                        ? `${weightProgress.targetWeightLbs.toLocaleString()} lb`
-                        : '—'
-                    }
-                  />
-                  <MetricTile label="Adherence" value={`${profileProgress?.adherence_score ?? 0}%`} />
-                </View>
-                <View style={styles.metricRow}>
-                  <MetricTile
-                    label="Initial target"
-                    value={
-                      profile?.initial_calorie_target !== null && profile?.initial_calorie_target !== undefined
-                        ? `${profile.initial_calorie_target.toLocaleString()} kcal`
-                        : '—'
-                    }
-                  />
-                  <MetricTile
-                    label="Goals"
-                    value={`${profileGoals.length} saved`}
-                  />
-                  <MetricTile
-                    label="Weights"
-                    value={`${weightProgress.weightEntryCount} entries`}
-                  />
-                  <MetricTile
-                    label="Weekly change"
-                    value={`${weightProgress.weeklyWeightChange > 0 ? '+' : ''}${weightProgress.weeklyWeightChange} lb`}
-                  />
-                </View>
+            {/* Calories: each day against its allowance. */}
+            <View style={styles.homeSection}>
+              <View style={styles.todaySectionHeader}>
+                <Text style={styles.detailTitle}>Calories</Text>
+                <Text style={styles.trendHeadline}>
+                  {trendCalories.loggedDays > 0 ? `${trendCalories.averageEaten.toLocaleString('en-US')} avg` : '—'}
+                </Text>
               </View>
+              <Text style={styles.todayHint}>
+                {trendCalories.loggedDays > 0
+                  ? `${trendCalories.loggedDays} of ${trendDays.length} days logged · allowance avg ${trendCalories.averageAllowance.toLocaleString('en-US')} · ${trendCalories.daysOnTarget} on target${trendCalories.daysOver ? ` · ${trendCalories.daysOver} over` : ''}`
+                  : 'Nothing logged in this range yet.'}
+              </Text>
+              <CalorieBars days={trendDays} average={trendCalories.averageEaten} />
+            </View>
 
-              <View
-                style={styles.detailCard}
-                onLayout={(event) => {
-                  // Relative to the Trends panel; the panel's own offset is added when scrolling.
-                  weighInY.current = event.nativeEvent.layout.y;
-                }}
-              >
-                {profileStatus && section === 'trends' && /weight/i.test(`${profileStatus} ${profileError ?? ''}`) ? (
-                  <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
-                    <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
-                    {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
+            {/* Macros: averages on logged days against the targets. */}
+            <View style={styles.homeSection}>
+              <Text style={styles.detailTitle}>Macros (daily average)</Text>
+              {(['protein', 'carbs', 'fat'] as const).map((macro) => {
+                const average = trendMacros[macro];
+                const target = Math.round(dailyHomeTargets.macroTargets[macro]);
+                const share = target > 0 ? Math.min(1, average / target) : 0;
+                return (
+                  <View key={macro} style={styles.trendMacro}>
+                    <View style={styles.todaySectionHeader}>
+                      <Text style={styles.trendMacroLabel}>{macro[0].toUpperCase() + macro.slice(1)}</Text>
+                      <Text style={styles.trendMacroValue}>
+                        {average} g{target > 0 ? ` of ${target} g` : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.trendMacroTrack}>
+                      <View
+                        style={[
+                          styles.trendMacroFill,
+                          { width: `${Math.round(share * 100)}%`, backgroundColor: macro === 'protein' ? tc.fg_0f766e : macro === 'carbs' ? tc.fg_ea580c : tc.fg_2563eb }
+                        ]}
+                      />
+                    </View>
                   </View>
-                ) : null}
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.panelEyebrow}>Weight history</Text>
-                    <Text style={styles.detailTitle}>Add a live weigh-in</Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    Save a dated weight entry, then refresh the progress snapshot from the backend.
-                  </Text>
-                </View>
+                );
+              })}
+            </View>
 
-                <View style={styles.profileFieldRow}>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Recorded date</Text>
-                    <TextInput
-                      value={weightRecordedAtDraft}
-                      onChangeText={setWeightRecordedAtDraft}
-                      placeholder="2026-03-29"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Weight, lb</Text>
-                    <TextInput
-                      value={weightValueDraft}
-                      onChangeText={setWeightValueDraft}
-                      placeholder="181.2"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      inputMode="decimal"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                </View>
-
-                <Pressable
-                  style={styles.primaryButton}
-                  onPress={() => void addWeightRecord()}
-                  disabled={weightSaving}
-                >
-                  <Text style={styles.primaryButtonLabel}>
-                    {weightSaving ? 'Saving...' : 'Add weight entry'}
-                  </Text>
-                </Pressable>
-              </View>
-
+            {/* History: every day in the range, newest first. */}
+            <View style={styles.homeSection}>
+              <Text style={styles.detailTitle}>History</Text>
+              <DayHistory
+                days={[...trendDays].reverse()}
+                logs={trendLogs}
+                exercise={exerciseEntries}
+                today={todayKey}
+                onDeleteFood={deleteTrendFood}
+                onOpenWorkout={setWorkoutDetailId}
+              />
             </View>
           </View>
         )}
@@ -8429,6 +8465,17 @@ const styles = StyleSheet.create({
   dashboardStack: {
     gap: 0
   },
+  trendRangeRow: { flexDirection: 'row', gap: 6 },
+  trendRange: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7 },
+  trendRangeActive: { backgroundColor: tc.bg_17324d, borderColor: tc.line_17324d },
+  trendRangeLabel: { color: tc.fg_132536, fontSize: 13, fontWeight: '700' },
+  trendRangeLabelActive: { color: tc.fg_ffffff },
+  trendHeadline: { color: tc.fg_132536, fontSize: 20, fontWeight: '800' },
+  trendMacro: { gap: 6, marginTop: 6 },
+  trendMacroLabel: { color: tc.fg_132536, fontSize: 14, fontWeight: '700' },
+  trendMacroValue: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '700' },
+  trendMacroTrack: { height: 8, borderRadius: 999, backgroundColor: tc.bg_e2e8f0, overflow: 'hidden' },
+  trendMacroFill: { height: '100%', borderRadius: 999 },
   toast: {
     position: 'absolute',
     left: 24,

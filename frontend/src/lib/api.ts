@@ -1111,6 +1111,14 @@ export async function updateFoodLogEntry(
   return summarizeFoodLog(log);
 }
 
+/** Every day's food log between two days (inclusive), newest first. */
+export async function fetchFoodLogsBetween(start: string, end: string, accessToken: string): Promise<FoodLogSummary[]> {
+  const logs = await readJson<ApiFoodLog[]>(
+    await apiFetch(buildApiUrl(`/nutrition/logs?week_start=${start}&week_end=${end}`), { headers: authHeaders(accessToken) })
+  );
+  return logs.map(summarizeFoodLog);
+}
+
 export async function deleteFoodLogEntry(logId: string, entryId: string, accessToken: string): Promise<FoodLogSummary> {
   const log = await readJson<ApiFoodLog>(
     await apiFetch(buildApiUrl(`/nutrition/logs/${logId}/entries/${entryId}`), {
