@@ -16,7 +16,8 @@ export function PickerSheet({
   onDone,
   onCancel,
   clearLabel,
-  onClear
+  onClear,
+  note
 }: {
   title: string;
   columns: WheelColumn[];
@@ -26,6 +27,8 @@ export function PickerSheet({
   /** For optional fields: a button that empties the field. */
   clearLabel?: string;
   onClear?(): void;
+  /** A line under the toolbar, e.g. the last weigh-in. */
+  note?: string | null;
 }) {
   const [indexes, setIndexes] = useState(initialIndexes);
   // 0 = open, 1 = closed. The dim fades while the opaque sheet slides, both ways, as on iOS.
@@ -77,6 +80,7 @@ export function PickerSheet({
               </Pressable>
             </View>
           </View>
+          {note ? <Text style={styles.note}>{note}</Text> : null}
           <View style={styles.wheels}>
             <WheelPicker
               columns={columns}
@@ -153,6 +157,13 @@ const styles = StyleSheet.create({
   },
   wheels: {
     paddingVertical: 12
+  },
+  note: {
+    color: tc.fg_5c6d80,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingTop: 12,
+    paddingHorizontal: 18
   },
   clear: {
     alignSelf: 'center',

@@ -1,7 +1,7 @@
 /**
- * The bottom tab bar: Today · Log · 📷 · Trends · Plan. The raised camera in the middle opens
- * the scanner straight away (scan and log a food). Sits under the thumb; the page keeps it clear
- * of the iPhone home indicator.
+ * The bottom tab bar: Today · Trends · 📷 · Weigh in · Plan. The raised camera opens the scanner
+ * straight away (scan and log a food); the scale opens the quick weigh-in. Sits under the
+ * thumb; the page keeps it clear of the iPhone home indicator.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
@@ -10,7 +10,7 @@ import { APP_TABS, type AppTabId } from '../lib/app-shell';
 import { usePalette } from '../theme/appearance';
 import { tc } from '../theme/palette';
 
-function TabIcon({ tab, color }: { tab: AppTabId; color: string }) {
+function TabIcon({ tab, color }: { tab: AppTabId | 'scale'; color: string }) {
   const common = { stroke: color, strokeWidth: 2, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24">
@@ -19,10 +19,11 @@ function TabIcon({ tab, color }: { tab: AppTabId; color: string }) {
           <Circle cx={12} cy={12} r={4} {...common} />
           <Path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" {...common} />
         </>
-      ) : tab === 'log' ? (
+      ) : tab === 'scale' ? (
+        // A digital bathroom scale (after assets/bathroom-scale.svg): the platform and its readout.
         <>
-          <Rect x={5} y={3} width={14} height={18} rx={2} {...common} />
-          <Path d="M9 8h6M9 12h6M9 16h4" {...common} />
+          <Rect x={3} y={3} width={18} height={18} rx={4.5} {...common} />
+          <Rect x={8} y={6.5} width={8} height={4.5} rx={1.2} {...common} />
         </>
       ) : tab === 'trends' ? (
         <Path d="M3 17l5-5 4 4 8-8M15 8h5v5" {...common} />
@@ -39,14 +40,17 @@ function TabIcon({ tab, color }: { tab: AppTabId; color: string }) {
 export function TabBar({
   activeTab,
   onSelect,
-  onCamera
+  onCamera,
+  onWeighIn
 }: {
   activeTab: AppTabId | null;
   onSelect(tab: AppTabId): void;
   onCamera(): void;
+  onWeighIn(): void;
 }) {
   const pal = usePalette();
   const [first, second, ...rest] = APP_TABS;
+  const idle = pal.fg_7a8797;
   const renderTab = (tab: (typeof APP_TABS)[number]) => {
     const active = tab.id === activeTab;
     const color = active ? pal.fg_17324d : pal.fg_7a8797;
@@ -82,6 +86,10 @@ export function TabBar({
               <Circle cx={12} cy={13} r={3.5} stroke="#ffffff" strokeWidth={2} fill="none" />
             </Svg>
           </View>
+        </Pressable>
+        <Pressable style={styles.tab} onPress={onWeighIn} accessibilityRole="button" accessibilityLabel="Weigh in">
+          <TabIcon tab="scale" color={idle} />
+          <Text style={styles.label}>Weigh in</Text>
         </Pressable>
         {rest.map(renderTab)}
       </View>
