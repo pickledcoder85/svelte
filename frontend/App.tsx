@@ -1476,7 +1476,7 @@ export default function App(): ReactElement {
       void loadTrendLogs();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, trendRange, foodSessionToken, foodLog]);
+  }, [section, trendRange, foodSessionToken, foodLog, todayKey]);
 
   // Garmin: check on open and whenever the app comes back to the screen; sync if stale.
   useEffect(() => {
@@ -1993,7 +1993,8 @@ export default function App(): ReactElement {
     const toUnit = (lbs: number) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : Math.round(lbs * 10) / 10);
     const inRange = trendWeightPoints.filter((point) => point.date >= trendStart);
     const last = trendWeightPoints.at(-1) ?? null;
-    const rate = weeklyRate(inRange.length >= 2 ? inRange : trendWeightPoints);
+    // From about a week before the last weigh-in, using the whole history when the range is short.
+    const rate = (inRange.length >= 2 ? weeklyRate(inRange) : null) ?? weeklyRate(trendWeightPoints);
     const goal = profile?.target_weight_lbs ?? null;
     return {
       latest: last ? toUnit(last.trend) : null,
@@ -2573,16 +2574,26 @@ export default function App(): ReactElement {
     }
   }
 
+  // Only the latest request may set the logs (switching ranges quickly fires several).
+  const trendRequestRef = useRef(0);
+
   async function loadTrendLogs() {
     const token = foodSessionToken;
+    const request = ++trendRequestRef.current;
     if (!token) {
+      setTrendLogs([]); // signed out: never show the previous account's history
       return;
     }
     try {
-      setTrendLogs(await fetchFoodLogsBetween(rangeStart(todayKey, trendRange), todayKey, token));
-      setTrendsError(null);
+      const logs = await fetchFoodLogsBetween(rangeStart(todayKey, trendRange), todayKey, token);
+      if (request === trendRequestRef.current) {
+        setTrendLogs(logs);
+        setTrendsError(null);
+      }
     } catch (error) {
-      setTrendsError(error instanceof Error ? error.message : 'Unable to load your history.');
+      if (request === trendRequestRef.current) {
+        setTrendsError(error instanceof Error ? error.message : 'Unable to load your history.');
+      }
     }
   }
 

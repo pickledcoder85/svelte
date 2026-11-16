@@ -79,7 +79,9 @@ export function WeightTrendChart({
           ))}
           <View style={styles.footer}>
             <Text style={styles.axisDate}>{new Date(`${start}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-            <Text style={styles.legend}>● weigh-ins  — trend{goalValue !== null ? '  - - goal' : ''} ({unit})</Text>
+            <Text style={styles.legend}>
+              ● weigh-ins  — trend{goalValue !== null && goalValue >= min && goalValue <= max ? '  - - goal' : ''} ({unit})
+            </Text>
             <Text style={styles.axisDate}>{new Date(`${end}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
           </View>
         </>
