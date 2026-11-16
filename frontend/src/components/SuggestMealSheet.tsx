@@ -7,7 +7,7 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { logFood, suggestMeal } from '../lib/api';
+import { deleteMealPlanSlot, logFood, suggestMeal } from '../lib/api';
 import { pickPhotoFromCamera, prepareScanPhoto } from '../lib/web-photo';
 import { BLOCK_LABELS, type MealBlockKey } from '../lib/meal-split';
 import { tc } from '../theme/palette';
@@ -41,30 +41,51 @@ export function SuggestMealSheet({
   // after a failure never adds anything twice.
   const [done, setDone] = useState<Record<number, 'logged'>>({});
   const loggedItems = useRef<Map<number, Set<number>>>(new Map());
+  // Only the latest request may show its result (a photo can still be preparing).
+  const requestId = useRef(0);
+  // Log it was tapped while this meal already has something planned: replace it, or keep it.
+  const [askReplace, setAskReplace] = useState<number | null>(null);
 
-  async function ask(imageBase64?: string) {
+  async function ask(imageBase64?: string, id = ++requestId.current) {
     setLoading(true);
     setError(null);
     setResult(null);
     setDone({});
+    setAskReplace(null);
     loggedItems.current = new Map();
     try {
-      setResult(
-        await suggestMeal({ log_date: logDate, block, ingredients: have.trim() || undefined, image_base64: imageBase64 }, accessToken)
+      const response = await suggestMeal(
+        { log_date: logDate, block, ingredients: have.trim() || undefined, image_base64: imageBase64 },
+        accessToken
       );
+      if (id === requestId.current) {
+        setResult(response);
+      }
     } catch (askError) {
-      setError(askError instanceof Error ? askError.message : 'Gus is stuck. Try again.');
+      if (id === requestId.current) {
+        setError(askError instanceof Error ? askError.message : 'Gus is stuck. Try again.');
+      }
     } finally {
-      setLoading(false);
+      if (id === requestId.current) {
+        setLoading(false);
+      }
     }
   }
 
-  async function logIt(index: number, meal: SuggestedMeal, slot: SuggestResponse['meal_slot']) {
+  async function logIt(index: number, meal: SuggestedMeal, slot: SuggestResponse['meal_slot'], replacePlanned?: string) {
     setBusy(index);
+    setAskReplace(null);
     setError(null);
     const logged = loggedItems.current.get(index) ?? new Set<number>();
     loggedItems.current.set(index, logged);
     try {
+      if (replacePlanned) {
+        try {
+          await deleteMealPlanSlot(replacePlanned, accessToken);
+        } catch {
+          // Already removed (a retry) or gone: log the meal anyway.
+        }
+      }
       for (const [position, item] of meal.items.entries()) {
         if (logged.has(position)) {
           continue;
@@ -95,11 +116,17 @@ export function SuggestMealSheet({
     if (!file) {
       return;
     }
+    const id = ++requestId.current;
+    setLoading(true); // preparing the photo counts as thinking: no second request meanwhile
+    setError(null);
     try {
       const prepared = await prepareScanPhoto(file);
-      await ask(prepared.base64);
+      await ask(prepared.base64, id);
     } catch (photoError) {
-      setError(photoError instanceof Error ? photoError.message : 'That photo could not be used.');
+      if (id === requestId.current) {
+        setLoading(false);
+        setError(photoError instanceof Error ? photoError.message : 'That photo could not be used.');
+      }
     }
   }
 
@@ -177,13 +204,37 @@ export function SuggestMealSheet({
                     {meal.missing.length > 0 ? (
                       <Text style={styles.missing}>Left out (no nutrition data): {meal.missing.join(', ')}</Text>
                     ) : null}
+                    {askReplace === index && result.planned_here ? (
+                      <View style={styles.replaceBox}>
+                        <Text style={styles.replaceText}>
+                          You planned “{result.planned_here.title}” ({Math.round(result.planned_here.calories)} kcal) for{' '}
+                          {result.block_label.toLowerCase()}.
+                        </Text>
+                        <View style={styles.actions}>
+                          <Pressable
+                            style={[styles.action, styles.actionPrimary]}
+                            onPress={() => void logIt(index, meal, result.meal_slot, result.planned_here?.slot_id)}
+                            accessibilityRole="button"
+                          >
+                            <Text style={styles.actionPrimaryLabel}>Replace planned</Text>
+                          </Pressable>
+                          <Pressable style={styles.action} onPress={() => void logIt(index, meal, result.meal_slot)} accessibilityRole="button">
+                            <Text style={styles.keepLabel}>Keep planned</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : null}
                     {done[index] ? (
                       <Text style={styles.done}>✓ Added to {dayName}</Text>
                     ) : (
                       <View style={styles.actions}>
                         <Pressable
                           style={[styles.action, styles.actionPrimary]}
-                          onPress={() => void logIt(index, meal, result.meal_slot)}
+                          onPress={() =>
+                            result.planned_here && !loggedItems.current.get(index)?.size
+                              ? setAskReplace(index)
+                              : void logIt(index, meal, result.meal_slot)
+                          }
                           disabled={busy !== null}
                           accessibilityRole="button"
                         >
@@ -235,7 +286,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   action: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7, backgroundColor: tc.bg_ffffff },
   actionPrimary: { backgroundColor: tc.brand_primary, borderColor: tc.brand_primary },
-  actionLabel: { color: tc.fg_0f766e, fontSize: 15, fontWeight: '700' },
+  keepLabel: { color: tc.fg_0f766e, fontSize: 15, fontWeight: '700' },
+  replaceBox: { gap: 8, padding: 10, borderRadius: 12, backgroundColor: tc.bg_fff8ea },
+  replaceText: { color: tc.fg_7a4e16, fontSize: 13, lineHeight: 18 },
   actionPrimaryLabel: { color: tc.fg_ffffff, fontSize: 15, fontWeight: '800' },
   modes: { flexDirection: 'row', gap: 10 },
   mode: { flex: 1, gap: 2, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: tc.line_d7dee7, backgroundColor: tc.bg_ffffff },

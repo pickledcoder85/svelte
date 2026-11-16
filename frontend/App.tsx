@@ -625,6 +625,8 @@ export default function App(): ReactElement {
   const [onboardingNutritionStyleDraft, setOnboardingNutritionStyleDraft] = useState<NutritionStyle | null>(null);
   // "How do you balance your meals?" (breakfast / lunch / dinner). Balanced is preselected.
   const [onboardingMealStyleDraft, setOnboardingMealStyleDraft] = useState<MealStyleId>('balanced');
+  // The style as saved (null: custom or not chosen), to tell whether Profile changed it.
+  const savedMealStyleRef = useRef<MealStyleId | null>(null);
   const [onboardingAllergySelectionsDraft, setOnboardingAllergySelectionsDraft] = useState<AllergyChoice[]>(['none']);
   const [onboardingAllergyOtherDraft, setOnboardingAllergyOtherDraft] = useState('');
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('welcome');
@@ -938,11 +940,12 @@ export default function App(): ReactElement {
     setOnboardingActivityLevelDraft(loadedProfile.activity_level ?? 'sedentary');
     setOnboardingDietaryPatternDraft(loadedProfile.dietary_pattern ?? null);
     setOnboardingNutritionStyleDraft(loadedProfile.nutrition_style ?? null);
-    setOnboardingMealStyleDraft(
-      (loadedProfile.meal_pattern_chosen && (loadedProfile.meals_per_day ?? 3) === 3
+    const savedStyle =
+      loadedProfile.meal_pattern_chosen && (loadedProfile.meals_per_day ?? 3) === 3
         ? styleForSplit(3, loadedProfile.meal_split ?? [])
-        : null) ?? 'balanced'
-    );
+        : null;
+    savedMealStyleRef.current = savedStyle;
+    setOnboardingMealStyleDraft(savedStyle ?? 'balanced');
     const parsedAllergies = parseAllergySelection(loadedProfile.allergy_notes);
     setOnboardingAllergySelectionsDraft(parsedAllergies.selected);
     setOnboardingAllergyOtherDraft(parsedAllergies.otherText);
@@ -3191,16 +3194,7 @@ export default function App(): ReactElement {
     return slot === 'snack' ? 'dinner' : slot;
   }
 
-  async function reloadMealPlan() {
-    const token = foodSessionToken;
-    if (token) {
-      try {
-        setMealPlanDays(await fetchMealPlanDays(token));
-      } catch {
-        // Plan → Meals catches up on its next load.
-      }
-    }
-  }
+
 
   /** Settings > Workout calories. A preference only: targets are not recalculated. */
   async function applyWorkoutCaloriesShare(share: WorkoutCaloriesShare) {
@@ -3310,8 +3304,11 @@ export default function App(): ReactElement {
       dietary_pattern: onboardingDietaryPatternDraft,
       nutrition_style: onboardingNutritionStyleDraft,
       allergy_notes: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft),
-      meals_per_day: 3 as const,
-      meal_split: mealStyleSplit(onboardingMealStyleDraft)
+      // Only when the user picked a different meal balance: saving a weight change never
+      // rewrites a pattern they didn't touch (e.g. an older 5-meal one).
+      ...(onboardingMealStyleDraft !== savedMealStyleRef.current
+        ? { meals_per_day: 3 as const, meal_split: mealStyleSplit(onboardingMealStyleDraft) }
+        : {})
     } satisfies Parameters<typeof updateProfile>[0];
 
     setProfileSaving(true);
@@ -6473,7 +6470,17 @@ export default function App(): ReactElement {
           <View style={styles.panel}>
             <Text style={styles.panelEyebrow}>Meal plan</Text>
             <Text style={styles.panelDetail}>
-              Meal balance: {MEAL_STYLES.find((item) => item.id === onboardingMealStyleDraft)?.label ?? 'Balanced'} (change it in Profile).
+              Meal balance:{' '}
+              {(() => {
+                // The saved pattern, not an unsaved Profile tap.
+                const count = profile?.meals_per_day ?? 3;
+                const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count as 3 | 4 | 5, profile?.meal_split ?? []));
+                if (!profile?.meal_pattern_chosen) {
+                  return 'Balanced';
+                }
+                return style ? `${style.label}${count === 3 ? '' : ` (${count} meals a day)`}` : `Custom (${count} meals a day)`;
+              })()}{' '}
+              (change it in Profile).
             </Text>
             <Text style={styles.panelDetail}>
               Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
@@ -7275,7 +7282,16 @@ export default function App(): ReactElement {
           blocks={['breakfast', 'lunch', 'dinner']}
           defaultBlock={defaultSuggestBlock()}
           onClose={() => setSuggestOpen(false)}
-          onLogged={() => void refreshHomeFoodLog()}
+          onLogged={() => {
+            void refreshHomeFoodLog();
+            // A replaced planned meal disappears from Today.
+            const token = foodSessionToken;
+            if (token) {
+              void fetchMealPlanDays(token)
+                .then(setMealPlanDays)
+                .catch(() => undefined);
+            }
+          }}
         />
       ) : null}
 
