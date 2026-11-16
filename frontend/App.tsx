@@ -90,6 +90,8 @@ import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
+import { MealSplitBar } from './src/components/MealSplitBar';
+import { blockBudgets, DEFAULT_SPLITS, isValidSplit, SPLIT_PRESETS, type MealsPerDay } from './src/lib/meal-split';
 import { CalorieBars } from './src/components/trends/CalorieBars';
 import { DayHistory } from './src/components/trends/DayHistory';
 import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
@@ -529,6 +531,8 @@ export default function App(): ReactElement {
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
+  // Settings > Meals per day: the split while dragging (saved when the finger lifts).
+  const [splitDraft, setSplitDraft] = useState<number[] | null>(null);
   const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -3152,6 +3156,25 @@ export default function App(): ReactElement {
     } finally {
       garminSyncingRef.current = false;
       setGarminSyncing(false);
+    }
+  }
+
+  /** Settings > Meals per day and split. A preference only: targets are not recalculated. */
+  async function applyMealSplit(count: MealsPerDay, split: number[]) {
+    if (!profile || !foodSessionToken || !isValidSplit(count, split)) {
+      return;
+    }
+    setFloorMessage(null);
+    try {
+      const updated = await updateProfile(
+        { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, meals_per_day: count, meal_split: split },
+        foodSessionToken
+      );
+      setProfile(updated);
+      setSplitDraft(null);
+    } catch (error) {
+      setSplitDraft(null);
+      setFloorMessage(error instanceof Error ? error.message : 'Unable to save the meal split.');
     }
   }
 
@@ -6654,6 +6677,64 @@ export default function App(): ReactElement {
                       : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
                   </Text>
                 </FieldGroup>
+                {(() => {
+                  const count = (profile.meals_per_day ?? 3) as MealsPerDay;
+                  const split = splitDraft ?? profile.meal_split ?? DEFAULT_SPLITS[count];
+                  const recommendFive = profile.nutrition_style === 'high_protein' || profile.goal_pace === 'extreme';
+                  return (
+                    <FieldGroup label="Meals per day">
+                      <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Meals per day">
+                        {([3, 4, 5] as MealsPerDay[]).map((option) => {
+                          const active = count === option;
+                          return (
+                            <Pressable
+                              key={option}
+                              style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                              onPress={() => {
+                                if (!active) {
+                                  void applyMealSplit(option, DEFAULT_SPLITS[option]);
+                                }
+                              }}
+                              accessibilityRole="radio"
+                              accessibilityState={{ checked: active }}
+                            >
+                              <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
+                                {option === 3 ? '3 meals' : option === 4 ? '3 + snack' : '3 + 2 snacks'}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <Text style={styles.settingsHint}>
+                        How your {dailyHomeTargets.calorieTarget.toLocaleString('en-US')} kcal target is shared when Gus suggests or plans meals.
+                        Macros follow the same split. Drag a handle to move calories between the meals beside it.
+                        {recommendFive && count !== 5 ? ' Tip: with your plan, 5 smaller meals (3 + 2 snacks) can make hunger easier to manage.' : ''}
+                      </Text>
+                      <MealSplitBar
+                        count={count}
+                        split={split}
+                        budgets={blockBudgets(count, split, dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)}
+                        onChange={setSplitDraft}
+                        onCommit={(next) => void applyMealSplit(count, next)}
+                      />
+                      <View style={styles.chipRow}>
+                        {SPLIT_PRESETS[count].map((preset) => {
+                          const active = preset.split.join() === split.join();
+                          return (
+                            <Pressable
+                              key={preset.id}
+                              style={[styles.splitPreset, active && styles.splitPresetActive]}
+                              onPress={() => void applyMealSplit(count, preset.split)}
+                              accessibilityRole="button"
+                            >
+                              <Text style={[styles.splitPresetLabel, active && styles.splitPresetLabelActive]}>{preset.label}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </FieldGroup>
+                  );
+                })()}
                 <FieldGroup label="Garmin">
                   <Text style={styles.settingsHint}>{garminStatusText(garminStatus, new Date())}</Text>
                   {garminStatus?.configured ? (
@@ -8459,6 +8540,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999
   },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  splitPreset: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7 },
+  splitPresetActive: { backgroundColor: tc.bg_17324d, borderColor: tc.line_17324d },
+  splitPresetLabel: { color: tc.fg_132536, fontSize: 13, fontWeight: '700' },
+  splitPresetLabelActive: { color: tc.fg_ffffff },
   todayMealGroup: { gap: 0, marginTop: 6 },
   todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
   todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
