@@ -26,8 +26,10 @@ def _factory(off_products, usda_foods=None, calls=None):
     def handle(request: httpx.Request) -> httpx.Response:
         if calls is not None:
             calls.append(request)
-        if request.url.host == "world.openfoodfacts.org":
-            return httpx.Response(200, json={"products": off_products})
+        if request.url.host == "search.openfoodfacts.org":
+            # The search service returns brands as a list.
+            hits = [{**product, "brands": [b.strip() for b in product["brands"].split(",")]} for product in off_products]
+            return httpx.Response(200, json={"hits": hits})
         return httpx.Response(200, json={"foods": usda_foods or []})
 
     return lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle))
@@ -49,9 +51,9 @@ async def test_best_match_first_and_only_the_name_is_sent(repository):
     assert [m["brand_name"] for m in matches] == ["Quaker", "Great Value"]  # granola filtered out
     assert matches[0]["calories"] == 150 and matches[0]["serving_grams"] == 40
     assert matches[0]["barcode"] is None  # a name match never claims the product's barcode
-    [search] = calls
-    assert search.url.params["search_terms"] == "Quaker Old Fashioned Oats"
-    assert "Relish" in search.headers["User-Agent"]
+    off_calls = [call for call in calls if call.url.host == "search.openfoodfacts.org"]
+    assert [call.url.params["q"] for call in off_calls] == ["Quaker Old Fashioned Oats", "Quaker Old Fashioned Oats".replace("Quaker ", "")]
+    assert all("Relish" in call.headers["User-Agent"] for call in off_calls)
 
 
 @pytest.mark.asyncio
@@ -129,8 +131,8 @@ def test_other_foods_and_flavours_do_not_pass(package, brand, candidate, candida
 @pytest.mark.asyncio
 async def test_a_broken_usda_reply_still_returns_open_food_facts_matches(repository):
     def handle(request):
-        if request.url.host == "world.openfoodfacts.org":
-            return httpx.Response(200, json={"products": [OATS]})
+        if request.url.host == "search.openfoodfacts.org":
+            return httpx.Response(200, json={"hits": [OATS]})
         return httpx.Response(200, text="<html>oops</html>")
 
     matches = await find_package_matches(
@@ -167,3 +169,31 @@ def test_a_wordy_package_matches_the_short_database_name():
     package = "Zero Sugar Chocolate Instant Reduced Calorie Pudding & Pie Filling"
     assert match_score(package, "Jell-O", "Sugar Free Chocolate Instant Pudding", "Jell-O") >= 0.9
     assert match_score(package, "Jell-O", "Vanilla Instant Pudding", "Jell-O") < 0.6
+
+
+def test_search_queries_drop_sizes_and_marketing_words():
+    from backend.app.services.package_match import search_queries
+
+    assert search_queries("Zero Sugar Chocolate Instant Reduced Calorie Pudding & Pie Filling 1.4 oz", "Jell-O") == [
+        "Jell-O Zero Sugar Chocolate Instant Reduced Calorie Pudding & Pie Filling 1.4 oz",
+        "Jell-O Zero Sugar Chocolate Instant",
+        "Zero Sugar Chocolate Instant",
+    ]
+    assert search_queries("Old Fashioned Oats", "Quaker") == ["Quaker Old Fashioned Oats", "Old Fashioned Oats"]
+    assert search_queries("Granola", None) == ["Granola"]
+
+
+@pytest.mark.asyncio
+async def test_falls_back_to_the_older_search_when_the_new_one_fails(repository):
+    def handle(request):
+        if request.url.host == "search.openfoodfacts.org":
+            return httpx.Response(503)
+        if request.url.host == "world.openfoodfacts.org":
+            return httpx.Response(200, json={"products": [OATS]})
+        return httpx.Response(200, json={"foods": []})
+
+    matches = await find_package_matches(
+        repository, "Old Fashioned Oats", "Quaker",
+        client_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    )
+    assert matches and matches[0]["brand_name"] == "Quaker"

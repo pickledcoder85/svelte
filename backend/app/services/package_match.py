@@ -48,6 +48,42 @@ def _words(text: str | None) -> set[str]:
     }
 
 
+# Words on package fronts that describe the pack, not the food; they make searches miss.
+_PACKAGING_WORDS = {
+    "new", "improved", "original", "family", "size", "value", "pack", "packs", "count", "ct", "net", "wt", "weight",
+    "oz", "fl", "lb", "lbs", "g", "kg", "ml", "l", "servings", "serving", "per", "box", "bag", "jar", "can", "bottle",
+    "reduced", "calorie", "calories", "naturally", "flavored", "flavoured", "artificially", "contains", "made",
+    "classic", "premium", "deluxe", "style", "brand", "real", "natural", "organic",
+}
+MAX_QUERIES = 3
+
+
+def search_queries(product_name: str, brand_name: str | None) -> list[str]:
+    """What to search for a package front, most specific first (each source tries them all):
+    1. brand + the full name as read;
+    2. brand + up to four key words (no sizes, counts, or marketing words);
+    3. the key words alone (stores and databases often list a brand differently)."""
+    brand = (brand_name or "").strip()
+    words = re.findall(r"[A-Za-z][A-Za-z'-]*", product_name)
+    brand_words = {word.lower() for word in re.findall(r"[A-Za-z][A-Za-z'-]*", brand)}
+    key_words = [
+        word
+        for word in words
+        if word.lower() not in _STOPWORDS and word.lower() not in _PACKAGING_WORDS and word.lower() not in brand_words
+    ][:4]
+    candidates = [
+        " ".join(part for part in (brand, product_name.strip()) if part),
+        " ".join(part for part in (brand, " ".join(key_words)) if part),
+        " ".join(key_words),
+    ]
+    queries: list[str] = []
+    for text in candidates:
+        text = re.sub(r"\s+", " ", text).strip()
+        if text and len(text) >= 3 and text.lower() not in (query.lower() for query in queries):
+            queries.append(text)
+    return queries[:MAX_QUERIES]
+
+
 def match_score(product_name: str, brand: str | None, candidate_name: str, candidate_brand: str | None) -> float:
     """0–1: how well a candidate's name fits the package's, with a brand bonus or penalty.
 
@@ -105,8 +141,7 @@ async def find_package_matches(
     query = " ".join(part for part in (brand_name, product_name) if part).strip()
     if not query:
         return []
-    key_words = [word for word in re.findall(r"[A-Za-z0-9'-]+", product_name) if word.lower() not in _STOPWORDS][:4]
-    short_query = " ".join(part for part in (brand_name, " ".join(key_words)) if part).strip()
+    queries = search_queries(product_name, brand_name)
     found: list[dict[str, Any]] = []
 
     for food in repository.search_foods(product_name)[:10]:
@@ -115,10 +150,12 @@ async def find_package_matches(
 
     async def off_labels(client: httpx.AsyncClient) -> list[dict[str, Any]]:
         labels = []
-        products = await search_products(query, client, timeout=SEARCH_TIMEOUT_SECONDS)
-        if len(products) < 3 and short_query != query:
-            # A long package name can match nothing word for word; try the brand and key words.
-            products += await search_products(short_query, client, timeout=SEARCH_TIMEOUT_SECONDS)
+        found_lists = await asyncio.gather(
+            *(search_products(text, client, timeout=SEARCH_TIMEOUT_SECONDS) for text in queries), return_exceptions=True
+        )
+        products = [product for result in found_lists if isinstance(result, list) for product in result]
+        if not products and found_lists and isinstance(found_lists[0], BaseException):
+            raise found_lists[0]
         for product in products:
             label = product_to_label(product, barcode="")
             if label:
@@ -129,7 +166,13 @@ async def find_package_matches(
     async def usda_labels(client: httpx.AsyncClient) -> list[dict[str, Any]]:
         if not usda_api_key:
             return []
-        return [_food_label(food, "usda") for food in (await search_usda_foods(query, usda_api_key, client=client))[:10]]
+        found_lists = await asyncio.gather(
+            *(search_usda_foods(text, usda_api_key, client=client) for text in queries), return_exceptions=True
+        )
+        foods = [food for result in found_lists if isinstance(result, list) for food in result[:10]]
+        if not foods and found_lists and isinstance(found_lists[0], BaseException):
+            raise found_lists[0]
+        return [_food_label(food, "usda") for food in foods]
 
     # Both searches at once, each best-effort: a slow or broken source just adds nothing.
     factory = client_factory or (lambda: httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS))

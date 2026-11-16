@@ -98,28 +98,27 @@ async def fetch_product(code: str, client: httpx.AsyncClient) -> dict[str, Any] 
     return payload["product"]
 
 
-OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
+# Open Food Facts' search service ("search-a-licious"): ranked, typo-tolerant product search.
+OFF_SEARCH_URL = "https://search.openfoodfacts.org/search"
+# The older word-for-word search, used only if the newer service fails.
+OFF_LEGACY_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
+OFF_SEARCH_FIELDS = (
+    "code,product_name,product_name_en,brands,serving_size,serving_quantity,serving_quantity_unit,nutriments"
+)
 
 
-async def search_products(
-    query: str, client: httpx.AsyncClient, page_size: int = 10, timeout: float = TIMEOUT_SECONDS
-) -> list[dict[str, Any]]:
-    """Products whose name or brand matches the text read off a package front. Only that text is
-    sent (no photo, no personal details)."""
+def _normalise_hit(hit: dict[str, Any]) -> dict[str, Any]:
+    """The search service returns brands as a list; the rest of Relish expects the classic
+    comma-separated string."""
+    brands = hit.get("brands")
+    if isinstance(brands, list):
+        hit = {**hit, "brands": ", ".join(str(brand) for brand in brands if brand)}
+    return hit
+
+
+async def _search(url: str, params: dict[str, Any], client: httpx.AsyncClient, timeout: float, key: str) -> list[dict[str, Any]]:
     try:
-        response = await client.get(
-            OFF_SEARCH_URL,
-            params={
-                "search_terms": query,
-                "search_simple": 1,
-                "action": "process",
-                "json": 1,
-                "page_size": page_size,
-                "fields": OFF_FIELDS,
-            },
-            headers={"User-Agent": OFF_USER_AGENT},
-            timeout=timeout,
-        )
+        response = await client.get(url, params=params, headers={"User-Agent": OFF_USER_AGENT}, timeout=timeout)
     except httpx.RequestError as error:
         raise OpenFoodFactsError("Open Food Facts could not be reached.") from error
     if response.status_code != 200:
@@ -128,5 +127,28 @@ async def search_products(
         payload = response.json()
     except ValueError as error:
         raise OpenFoodFactsError("Open Food Facts search returned an unexpected response.") from error
-    products = payload.get("products") if isinstance(payload, dict) else None
-    return [product for product in products or [] if isinstance(product, dict)]
+    items = payload.get(key) if isinstance(payload, dict) else None
+    return [_normalise_hit(item) for item in items or [] if isinstance(item, dict)]
+
+
+async def search_products(
+    query: str, client: httpx.AsyncClient, page_size: int = 15, timeout: float = TIMEOUT_SECONDS
+) -> list[dict[str, Any]]:
+    """Products whose name or brand matches the text read off a package front, best first. Only
+    that text is sent (no photo, no personal details)."""
+    try:
+        return await _search(
+            OFF_SEARCH_URL,
+            {"q": query, "page_size": page_size, "langs": "en", "fields": OFF_SEARCH_FIELDS},
+            client,
+            timeout,
+            "hits",
+        )
+    except OpenFoodFactsError:
+        return await _search(
+            OFF_LEGACY_SEARCH_URL,
+            {"search_terms": query, "search_simple": 1, "action": "process", "json": 1, "page_size": page_size, "fields": OFF_FIELDS},
+            client,
+            timeout,
+            "products",
+        )

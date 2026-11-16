@@ -19,6 +19,8 @@ The format should remain simple:
 
 ### Added
 
+- Gherkin's launch splash stays at least 1.8 seconds from launch (even when the app is ready sooner) and fades out over half a second instead of a fifth.
+- Better package-front matching: Open Food Facts is searched with its newer ranked, typo-tolerant search service (the old word-for-word search is the fallback), and both Open Food Facts and USDA are now searched with up to three queries at once: brand + the name as read, brand + key words (sizes, counts and marketing words such as "Reduced Calorie" or "Family Size" dropped), and the key words alone.
 - Plan is only for planning: Meals (the week's planned meals, with the prep checklist under it) and Workouts (planned workouts). The Log sub-tab is gone (history is in Trends; adding is on Today). The avatar sheet gains Food bank, with Foods (your whole bank, favorites first, ✕ to remove a food from your bank), Recipes, Build a meal, and Recent scans.
 - Today's macro rings show grams instead of a percentage inside ("86 g of 120"); the ring fills with the share of the target, and past 100% a deep-red second lap runs over the full ring. Below each label: the % eaten, or "⚠ +24 g" when over.
 - Reset profile now also deletes your goals, so the next setup's goal is the only one (resetting and redoing setup no longer piles up goals).
