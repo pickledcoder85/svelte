@@ -3161,9 +3161,13 @@ export default function App(): ReactElement {
 
   /** Settings > Meals per day and split. A preference only: targets are not recalculated. */
   async function applyMealSplit(count: MealsPerDay, split: number[]) {
-    if (!profile || !foodSessionToken || !isValidSplit(count, split)) {
+    // One settings save at a time: a split save resends the name, time zone, and units, so it
+    // must never race (and undo) another settings save.
+    if (!profile || !foodSessionToken || !isValidSplit(count, split) || settingsSaving) {
+      setSplitDraft(null);
       return;
     }
+    setSettingsSaving(true);
     setFloorMessage(null);
     try {
       const updated = await updateProfile(
@@ -3175,8 +3179,15 @@ export default function App(): ReactElement {
     } catch (error) {
       setSplitDraft(null);
       setFloorMessage(error instanceof Error ? error.message : 'Unable to save the meal split.');
+    } finally {
+      setSettingsSaving(false);
     }
   }
+
+  // A draft never outlives the profile it was made from (sign-out, another account, a reload).
+  useEffect(() => {
+    setSplitDraft(null);
+  }, [profile?.user_id, profile?.meals_per_day, profile?.meal_split?.join()]);
 
   /** Settings > Workout calories. A preference only: targets are not recalculated. */
   async function applyWorkoutCaloriesShare(share: WorkoutCaloriesShare) {
@@ -6716,6 +6727,7 @@ export default function App(): ReactElement {
                         budgets={blockBudgets(count, split, dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)}
                         onChange={setSplitDraft}
                         onCommit={(next) => void applyMealSplit(count, next)}
+                        onCancel={() => setSplitDraft(null)}
                       />
                       <View style={styles.chipRow}>
                         {SPLIT_PRESETS[count].map((preset) => {

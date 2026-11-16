@@ -97,21 +97,37 @@ export interface BlockBudget {
   macros: MacroTargets;
 }
 
-/** Calories (to the nearest 10) and macros (whole grams) for each block. */
+/**
+ * Split a whole into parts proportional to the shares, rounded to `unit`, so the parts add up
+ * exactly to the whole rounded to `unit` (largest remainder: leftovers go to the parts that
+ * lost most to rounding).
+ */
+export function apportion(whole: number, shares: number[], unit = 1): number[] {
+  const total = Math.round(whole / unit);
+  const raw = shares.map((share) => (whole * share) / 100 / unit);
+  const parts = raw.map(Math.floor);
+  let left = total - parts.reduce((sum, part) => sum + part, 0);
+  const order = raw.map((value, index) => ({ index, rest: value - Math.floor(value) })).sort((a, b) => b.rest - a.rest);
+  for (let i = 0; left > 0 && order.length > 0; i = (i + 1) % order.length, left -= 1) {
+    parts[order[i].index] += 1;
+  }
+  return parts.map((part) => part * unit);
+}
+
+/** Calories (steps of 10) and macros (whole grams) for each block, adding up to the day's. */
 export function blockBudgets(count: MealsPerDay, split: number[], calorieTarget: number, macros: MacroTargets): BlockBudget[] {
-  return MEAL_PATTERNS[count].map((key, index) => {
-    const share = (split[index] ?? 0) / 100;
-    return {
-      key,
-      label: BLOCK_LABELS[key],
-      snack: isSnack(key),
-      percent: split[index] ?? 0,
-      calories: Math.round((calorieTarget * share) / 10) * 10,
-      macros: {
-        protein: Math.round(macros.protein * share),
-        carbs: Math.round(macros.carbs * share),
-        fat: Math.round(macros.fat * share)
-      }
-    };
-  });
+  const keys = MEAL_PATTERNS[count];
+  const shares = keys.map((_, index) => split[index] ?? 0);
+  const calories = apportion(calorieTarget, shares, 10);
+  const protein = apportion(macros.protein, shares);
+  const carbs = apportion(macros.carbs, shares);
+  const fat = apportion(macros.fat, shares);
+  return keys.map((key, index) => ({
+    key,
+    label: BLOCK_LABELS[key],
+    snack: isSnack(key),
+    percent: shares[index],
+    calories: calories[index],
+    macros: { protein: protein[index], carbs: carbs[index], fat: fat[index] }
+  }));
 }

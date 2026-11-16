@@ -18,7 +18,8 @@ export function MealSplitBar({
   split,
   budgets,
   onChange,
-  onCommit
+  onCommit,
+  onCancel
 }: {
   count: MealsPerDay;
   split: number[];
@@ -27,6 +28,8 @@ export function MealSplitBar({
   onChange(split: number[]): void;
   /** When the finger lifts (save then). */
   onCommit(split: number[]): void;
+  /** The touch became a scroll: drop the draft. */
+  onCancel(): void;
 }) {
   const pal = usePalette();
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -83,9 +86,9 @@ export function MealSplitBar({
           setActive(null);
         }}
         onPointerCancel={() => {
-          // The browser took the touch for scrolling: put the split back.
+          // The browser took the touch for scrolling: drop the draft (the saved split shows).
           if (dragging.current) {
-            onChange(dragging.current.start);
+            onCancel();
           }
           dragging.current = null;
           setActive(null);
