@@ -31,10 +31,13 @@ RAW_WORDS = {"raw", "dry", "dried", "dehydrated", "powder", "uncooked", "unprepa
 # Words that make a different food from the same ingredient (rice cakes, chicken nuggets).
 DIFFERENT_FOOD_WORDS = {
     "cake", "nugget", "chip", "cracker", "snack", "bar", "flour", "juice", "sauce", "soup", "baby",
-    "babyfood", "formula", "candy", "cereal", "pudding", "pie", "bread", "noodle", "frozen", "canned", "imitation",
+    "babyfood", "formula", "candy", "pudding", "pie", "bread", "noodle", "frozen", "canned", "imitation",
     "substitute", "spread", "dressing", "gravy", "dip", "beverage", "drink", "mix",
     # Coatings and added sugar change the calories a lot (breaded chicken is not chicken breast).
     "breaded", "battered", "glazed", "candied", "sweetened", "stuffed", "coated",
+    # Processed or different products from the same food (a deli roll is not a chicken breast,
+    # oat bran and oat milk are not oats).
+    "roll", "loaf", "deli", "luncheon", "lunchmeat", "patty", "sausage", "bran", "milk", "flour", "powdered",
 }
 
 
@@ -62,7 +65,13 @@ def food_score(query: str, food_name: str) -> float | None:
         return None
     if (have & DIFFERENT_FOOD_WORDS) - wanted:
         return None
-    if "skin only" in food_name.lower() and "skin" not in wanted:
+    # Skin is a different food ("Chicken, skin (drumsticks and thighs)"), but "flesh and skin"
+    # or "with skin" is the whole food (baked potatoes, apples).
+    lowered = food_name.lower()
+    # Breakfast cereal is a different food from the grain ("Cereals, oats, … cooked" is oats).
+    if "ready-to-eat" in lowered and "cereal" not in wanted:
+        return None
+    if "skin" in have and "skin" not in wanted and not re.search(r"\b(and|with)\s+skin\b", lowered):
         return None
     # Preparation words are qualifiers: USDA often says "roasted" where the photo says "grilled".
     core = wanted - COOKED_WORDS - RAW_WORDS or wanted
