@@ -1,12 +1,14 @@
 /**
- * "Suggest a meal": pick the meal or snack, optionally say what you have, and Gus offers two
- * meals sized to that block's share of your day (capped by what's left). Log it adds every
- * ingredient to the day by weight; Add to plan saves it as a planned meal.
+ * "Suggest a meal" (Today → Meals): help filling what's left today. Pick the meal, then either
+ * photograph your ingredients (fridge, counter, pantry) or let Gus choose from your remaining
+ * calories and macros (meals already planned for later are held back). Gus offers two meals
+ * sized to fit; Log it adds every ingredient to the day by weight.
  */
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { addMealPlanSlot, logFood, suggestMeal } from '../lib/api';
+import { logFood, suggestMeal } from '../lib/api';
+import { pickPhotoFromCamera, prepareScanPhoto } from '../lib/web-photo';
 import { BLOCK_LABELS, type MealBlockKey } from '../lib/meal-split';
 import { tc } from '../theme/palette';
 import type { SuggestedMeal, SuggestResponse } from '../types';
@@ -18,7 +20,6 @@ export function SuggestMealSheet({
   blocks,
   defaultBlock,
   onLogged,
-  onPlanned,
   onClose
 }: {
   accessToken: string;
@@ -28,7 +29,6 @@ export function SuggestMealSheet({
   blocks: MealBlockKey[];
   defaultBlock: MealBlockKey;
   onLogged(): void;
-  onPlanned(): void;
   onClose(): void;
 }) {
   const [block, setBlock] = useState<MealBlockKey>(defaultBlock);
@@ -37,19 +37,21 @@ export function SuggestMealSheet({
   const [result, setResult] = useState<SuggestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
-  // Options already logged or planned (by position), and each option's items already logged,
-  // so a retry after a failure never adds anything twice.
-  const [done, setDone] = useState<Record<number, 'logged' | 'planned'>>({});
+  // Options already logged (by position), and each option's items already logged, so a retry
+  // after a failure never adds anything twice.
+  const [done, setDone] = useState<Record<number, 'logged'>>({});
   const loggedItems = useRef<Map<number, Set<number>>>(new Map());
 
-  async function ask() {
+  async function ask(imageBase64?: string) {
     setLoading(true);
     setError(null);
     setResult(null);
     setDone({});
     loggedItems.current = new Map();
     try {
-      setResult(await suggestMeal({ log_date: logDate, block, ingredients: have.trim() || undefined }, accessToken));
+      setResult(
+        await suggestMeal({ log_date: logDate, block, ingredients: have.trim() || undefined, image_base64: imageBase64 }, accessToken)
+      );
     } catch (askError) {
       setError(askError instanceof Error ? askError.message : 'Gus is stuck. Try again.');
     } finally {
@@ -87,32 +89,17 @@ export function SuggestMealSheet({
     }
   }
 
-  async function planIt(index: number, meal: SuggestedMeal, label: string) {
-    setBusy(index);
-    setError(null);
+  /** Opened from the tap itself: iOS only allows the photo camera from a user gesture. */
+  async function askWithPhoto() {
+    const file = await pickPhotoFromCamera();
+    if (!file) {
+      return;
+    }
     try {
-      await addMealPlanSlot(
-        logDate,
-        {
-          meal_label: label,
-          title: meal.name,
-          calories: Math.round(meal.totals.calories),
-          prep_status: 'Flexible',
-          items: meal.items.map((item) => ({
-            name: item.name,
-            quantity_label: `${item.grams} g`,
-            calories: Math.round(item.nutrition.calories),
-            macros: { protein: item.nutrition.protein, carbs: item.nutrition.carbs, fat: item.nutrition.fat }
-          }))
-        },
-        accessToken
-      );
-      setDone((current) => ({ ...current, [index]: 'planned' }));
-      onPlanned();
-    } catch (planError) {
-      setError(planError instanceof Error ? planError.message : 'Unable to add this to the plan.');
-    } finally {
-      setBusy(null);
+      const prepared = await prepareScanPhoto(file);
+      await ask(prepared.base64);
+    } catch (photoError) {
+      setError(photoError instanceof Error ? photoError.message : 'That photo could not be used.');
     }
   }
 
@@ -141,14 +128,24 @@ export function SuggestMealSheet({
               style={styles.input}
               value={have}
               onChangeText={setHave}
-              placeholder="What do you have? (optional) e.g. chicken, rice, spinach"
+              placeholder="Anything you'd like to use? (optional) e.g. chicken, rice"
               placeholderTextColor={tc.fg_8a97a8}
               maxLength={300}
               accessibilityLabel="Ingredients you have"
             />
-            <Pressable style={[styles.primary, loading && styles.disabled]} onPress={() => void ask()} disabled={loading} accessibilityRole="button">
-              <Text style={styles.primaryLabel}>{loading ? 'Gus is thinking…' : result ? 'Ask again' : 'Ask Gus'}</Text>
-            </Pressable>
+            <View style={styles.modes}>
+              <Pressable style={[styles.mode, loading && styles.disabled]} onPress={() => void askWithPhoto()} disabled={loading} accessibilityRole="button">
+                <Text style={styles.modeIcon}>📷</Text>
+                <Text style={styles.modeTitle}>Photo of my ingredients</Text>
+                <Text style={styles.modeDetail}>Fridge, counter, or pantry</Text>
+              </Pressable>
+              <Pressable style={[styles.mode, styles.modePrimary, loading && styles.disabled]} onPress={() => void ask()} disabled={loading} accessibilityRole="button">
+                <Text style={styles.modeIcon}>✨</Text>
+                <Text style={[styles.modeTitle, styles.modeTitlePrimary]}>Let Gus choose</Text>
+                <Text style={[styles.modeDetail, styles.modeDetailPrimary]}>From what's left today</Text>
+              </Pressable>
+            </View>
+            {loading ? <Text style={styles.thinking}>Gus is thinking…</Text> : null}
 
             {loading ? <ActivityIndicator color={tc.brand_primary} /> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -181,7 +178,7 @@ export function SuggestMealSheet({
                       <Text style={styles.missing}>Left out (no nutrition data): {meal.missing.join(', ')}</Text>
                     ) : null}
                     {done[index] ? (
-                      <Text style={styles.done}>{done[index] === 'logged' ? `✓ Added to ${dayName}` : '✓ Added to your plan'}</Text>
+                      <Text style={styles.done}>✓ Added to {dayName}</Text>
                     ) : (
                       <View style={styles.actions}>
                         <Pressable
@@ -192,9 +189,7 @@ export function SuggestMealSheet({
                         >
                           <Text style={styles.actionPrimaryLabel}>{busy === index ? 'Adding…' : 'Log it'}</Text>
                         </Pressable>
-                        <Pressable style={styles.action} onPress={() => void planIt(index, meal, result.block_label)} disabled={busy !== null} accessibilityRole="button">
-                          <Text style={styles.actionLabel}>Add to plan</Text>
-                        </Pressable>
+
                       </View>
                     )}
                   </View>
@@ -241,5 +236,14 @@ const styles = StyleSheet.create({
   action: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7, backgroundColor: tc.bg_ffffff },
   actionPrimary: { backgroundColor: tc.brand_primary, borderColor: tc.brand_primary },
   actionLabel: { color: tc.fg_0f766e, fontSize: 15, fontWeight: '700' },
-  actionPrimaryLabel: { color: tc.fg_ffffff, fontSize: 15, fontWeight: '800' }
+  actionPrimaryLabel: { color: tc.fg_ffffff, fontSize: 15, fontWeight: '800' },
+  modes: { flexDirection: 'row', gap: 10 },
+  mode: { flex: 1, gap: 2, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: tc.line_d7dee7, backgroundColor: tc.bg_ffffff },
+  modePrimary: { backgroundColor: tc.brand_primary, borderColor: tc.brand_primary },
+  modeIcon: { fontSize: 22 },
+  modeTitle: { color: tc.fg_132536, fontSize: 15, fontWeight: '800' },
+  modeTitlePrimary: { color: tc.fg_ffffff },
+  modeDetail: { color: tc.fg_5c6d80, fontSize: 12 },
+  modeDetailPrimary: { color: tc.fg_ffffff, opacity: 0.85 },
+  thinking: { color: tc.fg_0f766e, fontSize: 14, fontWeight: '700', textAlign: 'center' }
 });

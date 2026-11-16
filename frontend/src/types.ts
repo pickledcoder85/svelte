@@ -156,6 +156,8 @@ export interface UserOnboardingRequest {
   display_name?: string | null;
   units?: 'imperial' | 'metric';
   timezone?: string;
+  /** Breakfast / lunch / dinner percents from "How do you balance your meals?". */
+  meal_split?: number[];
 }
 
 export interface UserGoal {
