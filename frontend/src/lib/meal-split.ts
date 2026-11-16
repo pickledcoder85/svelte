@@ -1,7 +1,7 @@
 /**
  * How the daily target is shared across the day's meals and snacks (mirrors
- * backend/app/services/meal_split.py). A bar with one segment per block and a handle between
- * each pair; moving a handle trades percent between the two blocks beside it.
+ * backend/app/services/meal_split.py). Chosen in the meal-planning guide: meals per day, then a
+ * named balance style. No manual split: anyone wanting something else builds meals by hand.
  */
 import type { MacroTargets } from '../types';
 
@@ -95,26 +95,6 @@ export function isValidSplit(count: MealsPerDay, split: number[]): boolean {
     split.every((part, index) => Number.isInteger(part) && part % STEP === 0 && part >= minimumFor(keys[index])) &&
     split.reduce((sum, part) => sum + part, 0) === 100
   );
-}
-
-/**
- * Move the handle between block `handle` and block `handle + 1` so the boundary sits at
- * `boundary` percent along the bar (snapped to 5). Only those two blocks change, and neither
- * goes below its minimum.
- */
-export function moveHandle(count: MealsPerDay, split: number[], handle: number, boundary: number): number[] {
-  const keys = MEAL_PATTERNS[count];
-  if (handle < 0 || handle >= split.length - 1) {
-    return split;
-  }
-  const before = split.slice(0, handle).reduce((sum, part) => sum + part, 0);
-  const pair = split[handle] + split[handle + 1];
-  const snapped = Math.round(boundary / STEP) * STEP;
-  const left = Math.min(pair - minimumFor(keys[handle + 1]), Math.max(minimumFor(keys[handle]), snapped - before));
-  const next = [...split];
-  next[handle] = left;
-  next[handle + 1] = pair - left;
-  return next;
 }
 
 export interface BlockBudget {

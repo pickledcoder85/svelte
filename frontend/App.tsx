@@ -90,7 +90,6 @@ import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
 import { DayHeader } from './src/components/DayHeader';
 import { MacroRing } from './src/components/MacroRing';
-import { MealSplitBar } from './src/components/MealSplitBar';
 import {
   blockBudgets,
   DEFAULT_SPLITS,
@@ -539,8 +538,6 @@ export default function App(): ReactElement {
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
-  // Settings > Meals per day: the split while dragging (saved when the finger lifts).
-  const [splitDraft, setSplitDraft] = useState<number[] | null>(null);
   const [trendLogs, setTrendLogs] = useState<FoodLogSummary[]>([]);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -3167,12 +3164,11 @@ export default function App(): ReactElement {
     }
   }
 
-  /** Settings > Meals per day and split. A preference only: targets are not recalculated. */
+  /** The meal-planning guide's choice (meals per day and balance). Targets are not recalculated. */
   async function applyMealSplit(count: MealsPerDay, split: number[]) {
     // One settings save at a time: a split save resends the name, time zone, and units, so it
     // must never race (and undo) another settings save.
     if (!profile || !foodSessionToken || !isValidSplit(count, split) || settingsSaving) {
-      setSplitDraft(null);
       return;
     }
     setSettingsSaving(true);
@@ -3183,19 +3179,13 @@ export default function App(): ReactElement {
         foodSessionToken
       );
       setProfile(updated);
-      setSplitDraft(null);
     } catch (error) {
-      setSplitDraft(null);
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to save the meal split.');
+      setFloorMessage(error instanceof Error ? error.message : 'Unable to save the meal pattern.');
     } finally {
       setSettingsSaving(false);
     }
   }
 
-  // A draft never outlives the profile it was made from (sign-out, another account, a reload).
-  useEffect(() => {
-    setSplitDraft(null);
-  }, [profile?.user_id, profile?.meals_per_day, profile?.meal_split?.join()]);
 
   /** Settings > Workout calories. A preference only: targets are not recalculated. */
   async function applyWorkoutCaloriesShare(share: WorkoutCaloriesShare) {
@@ -6696,82 +6686,6 @@ export default function App(): ReactElement {
                       : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
                   </Text>
                 </FieldGroup>
-                {(() => {
-                  const count = (profile.meals_per_day ?? 3) as MealsPerDay;
-                  const split = splitDraft ?? profile.meal_split ?? DEFAULT_SPLITS[count];
-                  const style = styleForSplit(count, split);
-                  return (
-                    <FieldGroup label="Meals per day">
-                      <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Meals per day">
-                        {([3, 4, 5] as MealsPerDay[]).map((option) => {
-                          const active = count === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                              onPress={() => {
-                                if (!active) {
-                                  // Keep the chosen style at the new count (custom splits start from Balanced).
-                                  const keep = MEAL_STYLES.find((item) => item.id === style);
-                                  void applyMealSplit(option, keep ? keep.splits[option] : DEFAULT_SPLITS[option]);
-                                }
-                              }}
-                              accessibilityRole="radio"
-                              accessibilityState={{ checked: active }}
-                            >
-                              <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
-                                {option === 3 ? '3 meals' : option === 4 ? '3 + snack' : '3 + 2 snacks'}
-                                {option === RECOMMENDED_MEALS_PER_DAY ? ' ★' : ''}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                      <Text style={styles.settingsHint}>
-                        ★ Recommended: 3 meals + 2 snacks. Spreading protein over 4–5 meals keeps muscle-building going through the day, and
-                        more muscle is linked to staying strong and healthy as you age.
-                      </Text>
-                      <Text style={styles.mealStyleHeading}>How do you balance your meals?</Text>
-                      {MEAL_STYLES.map((option) => {
-                        const active = style === option.id;
-                        const preview = blockBudgets(count, option.splits[count], dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)
-                          .filter((block) => !block.snack)
-                          .map((block) => `${block.label} ${block.calories.toLocaleString('en-US')}`)
-                          .join(' · ');
-                        return (
-                          <Pressable
-                            key={option.id}
-                            style={[styles.mealStyleRow, active && styles.mealStyleRowActive]}
-                            onPress={() => {
-                              if (!active) {
-                                void applyMealSplit(count, option.splits[count]);
-                              }
-                            }}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: active }}
-                          >
-                            <Text style={[styles.mealStyleLabel, active && styles.mealStyleLabelActive]}>
-                              {active ? '● ' : '○ '}
-                              {option.label}
-                            </Text>
-                            <Text style={styles.mealStyleDetail}>{option.detail}</Text>
-                            <Text style={styles.mealStylePreview}>{preview} kcal</Text>
-                          </Pressable>
-                        );
-                      })}
-                      <Text style={styles.mealStyleHeading}>Fine-tune{style === null ? ' (custom)' : ''}</Text>
-                      <Text style={styles.settingsHint}>Drag a handle to move calories between the meals beside it. Macros follow the split.</Text>
-                      <MealSplitBar
-                        count={count}
-                        split={split}
-                        budgets={blockBudgets(count, split, dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets)}
-                        onChange={setSplitDraft}
-                        onCommit={(next) => void applyMealSplit(count, next)}
-                        onCancel={() => setSplitDraft(null)}
-                      />
-                    </FieldGroup>
-                  );
-                })()}
                 <FieldGroup label="Garmin">
                   <Text style={styles.settingsHint}>{garminStatusText(garminStatus, new Date())}</Text>
                   {garminStatus?.configured ? (
