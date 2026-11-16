@@ -366,6 +366,26 @@ def _simpler(name: str) -> str | None:
     return simpler if simpler and simpler != name.lower() else None
 
 
+# At most this many USDA lookups at once (a plan step can name up to 18 ingredients, each with up
+# to three searches); more at once gets requests refused.
+USDA_CONCURRENCY = 4
+_usda_slots = asyncio.Semaphore(USDA_CONCURRENCY)
+
+
+async def _lookup(lookup: Callable[[str], Awaitable[list[FoodItem]]], query: str) -> list[FoodItem]:
+    """One USDA search, a few at a time, retried once after a short pause if it fails."""
+    for attempt in range(2):
+        try:
+            async with _usda_slots:
+                return await lookup(query)
+        except Exception as error:  # noqa: BLE001 - network or USDA errors: retry once, then give up
+            if attempt:
+                logger.warning("USDA lookup failed for %r: %s", query, type(error).__name__)
+                return []
+            await asyncio.sleep(0.5)
+    return []
+
+
 async def _resolve(
     repository: SQLiteRepository,
     user_id: str,
@@ -386,10 +406,12 @@ async def _resolve(
     if simpler:
         attempts.append((generic, simpler))
     for lookup, query in attempts:
-        found = await lookup(query)
+        found = await _lookup(lookup, query)
         picked = pick_generic_food(query, found) or pick_generic_food(item["name"], found)
         if picked is not None:
             return repository.save_food_item(picked)
+    # Food names only (no personal data): so failures can be diagnosed from the server log.
+    logger.warning("No nutrition match for ingredient %r (searched %s)", item["name"], [query for _, query in attempts])
     return None
 
 

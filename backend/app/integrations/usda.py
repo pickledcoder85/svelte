@@ -15,10 +15,62 @@ class UsdaSearchError(RuntimeError):
     pass
 
 
+KJ_PER_KCAL = 4.184
+# USDA FoodData Central nutrient numbers: 208 energy (kcal), 268 energy (kJ), 203 protein,
+# 204 total fat, 205 carbohydrate by difference.
+NUTRIENT_NUMBERS = {"Protein": "203", "Total lipid (fat)": "204", "Carbohydrate, by difference": "205"}
+
+
+def _energy_kcal(nutrients: list[dict[str, Any]]) -> float:
+    """Energy in kcal. USDA lists energy several ways (kcal and kJ, sometimes Atwater factors) and
+    not always kcal first: take a kcal value, else convert kJ. Never return kJ as kcal."""
+    kcal = None
+    kj = None
+    for nutrient in nutrients:
+        name = str(nutrient.get("nutrientName") or "")
+        if not name.startswith("Energy"):
+            continue
+        unit = str(nutrient.get("unitName") or "").lower()
+        number = str(nutrient.get("nutrientNumber") or "")
+        try:
+            value = float(nutrient.get("value", 0))
+        except (TypeError, ValueError):
+            continue
+        if unit == "kcal" or number in ("208", "957", "958"):
+            # Plain "Energy" (208) wins over the Atwater variants.
+            if kcal is None or (name == "Energy" and number in ("208", "")):
+                kcal = value
+        elif unit == "kj" or number == "268":
+            kj = value
+        elif not unit and kcal is None and name == "Energy":
+            kcal = value  # no unit given (older test data): assume kcal
+    if kcal is not None:
+        return kcal
+    return kj / KJ_PER_KCAL if kj is not None else 0.0
+
+
+def kcal_guard(calories: float, protein: float, carbs: float, fat: float) -> float:
+    """A safety net for energy in the wrong unit: calories about 4.2x what the macros give
+    (4 / 4 / 9 kcal per gram) can only be kilojoules, so they're converted. Real foods stay well
+    away from that ratio (fibre and alcohol move it by far less)."""
+    from_macros = 4 * protein + 4 * carbs + 9 * fat
+    if from_macros >= 20 and 3.9 <= calories / from_macros <= 4.5:
+        return calories / KJ_PER_KCAL
+    return calories
+
+
 def _nutrient_value(nutrients: list[dict[str, Any]] | None, nutrient_name: str) -> float:
     if not nutrients:
         return 0.0
+    if nutrient_name == "Energy":
+        return _energy_kcal(nutrients)
 
+    # By USDA's nutrient number first (a stable ID), then by name for data without numbers.
+    number = NUTRIENT_NUMBERS.get(nutrient_name)
+    if number:
+        for nutrient in nutrients:
+            if str(nutrient.get("nutrientNumber") or "") == number:
+                return float(nutrient.get("value", 0))
     for nutrient in nutrients:
         if nutrient.get("nutrientName") == nutrient_name:
             return float(nutrient.get("value", 0))
@@ -40,6 +92,7 @@ def _search_food_to_item(food: dict[str, Any]) -> FoodItem:
         "carbs": _nutrient_value(nutrients, "Carbohydrate, by difference"),
         "fat": _nutrient_value(nutrients, "Total lipid (fat)"),
     }
+    per_100["calories"] = kcal_guard(per_100["calories"], per_100["protein"], per_100["carbs"], per_100["fat"])
     size = food.get("servingSize")
     basis = _WEIGHT_UNITS.get(str(food.get("servingSizeUnit") or "").lower())
     household = (food.get("householdServingFullText") or "").strip()
