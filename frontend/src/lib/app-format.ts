@@ -105,3 +105,16 @@ export function createEmptyFoodLog(date = localDateKey()): FoodLogSummary {
     }
   };
 }
+
+/** A workout time stored as "7:05 AM" shown in the language's format ("7:05 a. m."); other text unchanged. */
+export function formatStoredClock(text: string, locale: string): string {
+  const match = /^(\d{1,2}):(\d{2})\s*([AaPp])\.?\s*[Mm]\.?$/.exec(text.trim());
+  if (!match || locale.startsWith('en')) {
+    return text;
+  }
+  let hours = Number(match[1]) % 12;
+  if (match[3].toLowerCase() === 'p') {
+    hours += 12;
+  }
+  return new Date(2000, 0, 1, hours, Number(match[2])).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+}

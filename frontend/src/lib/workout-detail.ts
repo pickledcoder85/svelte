@@ -5,6 +5,7 @@
  */
 import { formatNumber, type TFunction } from '../i18n/translate';
 import type { ExerciseEntry } from '../types';
+import { formatStoredClock } from './app-format';
 import { workoutSourceLabel } from './garmin';
 
 export interface DetailRow {
@@ -47,7 +48,7 @@ export function buildWorkoutDetail(entry: ExerciseEntry, sharePercent: number, m
   if (entry.distance_m) {
     facts.push(formatDistance(entry.distance_m, metric, t));
   }
-  facts.push(entry.logged_at);
+  facts.push(formatStoredClock(entry.logged_at, t.locale));
 
   const added = addedToday(entry.calories_burned, sharePercent);
   const addedRow: DetailRow = {

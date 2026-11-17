@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime, time, timedelta, timezone
+from collections.abc import Callable
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -43,10 +44,21 @@ def is_due(local_time: str, last_sent_on: str | None, now_local: datetime) -> bo
     return last_sent_on != now_local.date().isoformat() and at <= now_local < at + WINDOW
 
 
-def water_message(drunk_ml: int, goal_ml: int) -> dict[str, Any]:
+def water_message(drunk_ml: int, goal_ml: int, language: str = "en") -> dict[str, Any]:
     glasses = round(drunk_ml / GLASS_ML, 1)
     goal = round(goal_ml / GLASS_ML, 1)
-    count = lambda value: str(int(value)) if float(value).is_integer() else f"{value:.1f}"  # noqa: E731
+
+    def count(value: float) -> str:
+        text = str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+        return text.replace(".", ",") if language == "es" else text
+
+    if language == "es":
+        return {
+            "title": "💧 Hora de tomar agua",
+            "body": f"Lleva {count(glasses)} de {count(goal)} vasos hoy. Toque para abrir Relish.",
+            "url": "/?water=1",
+            "tag": "relish-water",
+        }
     return {
         "title": "💧 Time for some water",
         "body": f"{count(glasses)} of {count(goal)} glasses so far today. Tap to open Relish.",
@@ -55,15 +67,34 @@ def water_message(drunk_ml: int, goal_ml: int) -> dict[str, Any]:
     }
 
 
+def reminder_test_message(language: str = "en") -> dict[str, Any]:
+    if language == "es":
+        return {"title": "💧 Los recordatorios de Relish están activos", "body": "Así se verá un recordatorio de agua.", "url": "/", "tag": "relish-test"}
+    return {"title": "💧 Relish reminders are on", "body": "This is how a water reminder will look.", "url": "/", "tag": "relish-test"}
+
+
+def subscription_language(profile: dict[str, Any] | None, subscription: dict[str, Any]) -> str:
+    """The profile's chosen language, else the language the app showed when the phone subscribed."""
+    if profile and profile.get("language_chosen"):
+        return "es" if profile.get("language") == "es" else "en"
+    return "es" if subscription.get("language") == "es" else "en"
+
+
 async def send_to_user(
-    repository: SQLiteRepository, settings: Settings, user_id: str, message: dict[str, Any], client: httpx.AsyncClient
+    repository: SQLiteRepository,
+    settings: Settings,
+    user_id: str,
+    message: Callable[[str], dict[str, Any]],
+    client: httpx.AsyncClient,
 ) -> int:
-    """Send to each of the user's subscriptions; drop the ones the push service says are gone."""
+    """Send to each of the user's subscriptions, each in its language (`message(language)`);
+    drop the ones the push service says are gone."""
     sent = 0
+    profile = repository.get_user_identity(user_id)
     for row in repository.list_push_subscriptions(user_id):
         result = await send_push(
             Subscription(endpoint=row["endpoint"], p256dh=row["p256dh"], auth=row["auth"]),
-            message,
+            message(subscription_language(profile, row)),
             private_key=settings.vapid_private_key,
             subject=settings.vapid_subject,
             client=client,
@@ -94,7 +125,9 @@ async def run_due_reminders(
             goal = int(profile.get("water_goal_ml") or 2000)
             if drunk >= goal:
                 continue  # goal met: no reminder needed
-            sent += await send_to_user(repository, settings, reminder["user_id"], water_message(drunk, goal), client)
+            sent += await send_to_user(
+                repository, settings, reminder["user_id"], lambda language: water_message(drunk, goal, language), client
+            )
     return sent
 
 

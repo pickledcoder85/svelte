@@ -94,15 +94,30 @@ export const RELISH_REQUEST_HEADER = 'X-Relish-Request';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+// The app's display language, sent so the server answers in it (messages, Gus). English is the
+// server's default, so nothing is sent for it.
+let requestLanguage: 'en' | 'es' = 'en';
+
+export function setRequestLanguage(language: 'en' | 'es'): void {
+  requestLanguage = language;
+}
+
+function withLanguage(headers: Record<string, string> | undefined): Record<string, string> | undefined {
+  return requestLanguage === 'es' ? { ...headers, 'Accept-Language': 'es-CO' } : headers;
+}
+
 /** fetch wrapper that marks writes as coming from the Relish app. */
 export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   const method = (init?.method ?? 'GET').toUpperCase();
   if (SAFE_METHODS.has(method)) {
+    if (requestLanguage === 'es') {
+      return fetch(input, { ...init, headers: withLanguage(init?.headers as Record<string, string> | undefined) });
+    }
     return init === undefined ? fetch(input) : fetch(input, init);
   }
   return fetch(input, {
     ...init,
-    headers: { ...(init?.headers as Record<string, string> | undefined), [RELISH_REQUEST_HEADER]: '1' }
+    headers: { ...withLanguage(init?.headers as Record<string, string> | undefined), [RELISH_REQUEST_HEADER]: '1' }
   });
 }
 
@@ -641,7 +656,7 @@ export async function createMealPlan(
     title: string;
     calories: number;
     on_conflict: 'replace' | 'keep';
-    items: Array<{ name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; count?: number; unit?: string }>;
+    items: Array<{ name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; count?: number; unit?: string; unit_plural?: string }>;
   }>,
   accessToken: string
 ): Promise<{ created: number; replaced: number; kept: number }> {

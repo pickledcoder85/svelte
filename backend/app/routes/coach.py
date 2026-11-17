@@ -2,10 +2,11 @@
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.app.config import Settings
 from backend.app.dependencies import get_app_settings, get_repository, get_required_session
+from backend.app.i18n import meal_label, request_language, translate
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.meal_planner import (
     CreatePlanRequest,
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 @router.post("/suggest", response_model=SuggestResponse)
 async def suggest(
     payload: SuggestRequest,
+    request: Request,
     session=Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
     settings: Settings = Depends(get_app_settings),
@@ -49,7 +51,11 @@ async def suggest(
             async def ask(prompt: str):
                 return await request_text_json(settings, prompt)
 
-        return await suggest_meals(repository, settings, session.user_id, payload, ask=ask)
+        language = request_language(request)
+        result = await suggest_meals(repository, settings, session.user_id, payload, ask=ask, language=language)
+        return result.model_copy(
+            update={"block_label": meal_label(result.block_label, language), "message": translate(result.message, language)}
+        )
     except VisionImageError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except VisionNotConfiguredError as error:
@@ -62,6 +68,7 @@ async def suggest(
 @router.post("/plan/propose", response_model=ProposeResponse)
 async def plan_propose(
     payload: ProposeRequest,
+    request: Request,
     session=Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
     settings: Settings = Depends(get_app_settings),
@@ -69,8 +76,17 @@ async def plan_propose(
     """Create a Meal Plan: Gus proposes one complete meal for each requested meal type."""
     repository.ensure_user_identity(user_id=session.user_id, email=session.email, display_name=session.display_name)
     try:
-        return await propose_meals(
-            repository, settings, session.user_id, payload, ask=lambda prompt: request_text_json(settings, prompt)
+        language = request_language(request)
+        result = await propose_meals(
+            repository, settings, session.user_id, payload, ask=lambda prompt: request_text_json(settings, prompt), language=language
+        )
+        return result.model_copy(
+            update={
+                "proposals": [
+                    proposal.model_copy(update={"label": meal_label(proposal.label, language), "message": translate(proposal.message, language)})
+                    for proposal in result.proposals
+                ]
+            }
         )
     except VisionNotConfiguredError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error

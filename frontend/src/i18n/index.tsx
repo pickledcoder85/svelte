@@ -6,6 +6,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import { createContext, useContext, useMemo, useState } from 'react';
 
+import { setRequestLanguage } from '../lib/api';
+
 import { translatorFor } from './dictionaries';
 import { deviceLanguage, localeFor, type Language, type Locale, type TFunction } from './translate';
 
@@ -25,6 +27,8 @@ const LanguageContext = createContext<LanguageContextValue>({
 
 export function LanguageProvider({ children, initialLanguage }: { children: ReactNode; initialLanguage?: Language }): ReactElement {
   const [language, setLanguage] = useState<Language>(() => initialLanguage ?? deviceLanguage());
+  // The server answers in the same language (set during render so the next request has it).
+  setRequestLanguage(language);
   const value = useMemo(() => ({ language, setLanguage }), [language]);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

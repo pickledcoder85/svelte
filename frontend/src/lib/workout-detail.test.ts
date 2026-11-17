@@ -100,7 +100,7 @@ describe('workout detail', () => {
 
   it('speaks Spanish with Colombian numbers', () => {
     const detail = buildWorkoutDetail(ride, 75, false, es);
-    expect(detail.subtitle).toBe('106 min · 30,0 mi · 7:15 AM');
+    expect(detail.subtitle).toBe('106 min · 30,0 mi · 7:15 a. m.');
     expect(detail.recorded?.[0]).toEqual({ label: 'Total quemado', value: '1.051 kcal' });
     expect(detail.relish.at(-1)).toEqual({ label: 'Sumado a hoy (75 %)', value: '+696 kcal', strong: true });
     expect(detail.notes[0]).toMatch(/^Relish cuenta 26 kcal más que el número activo de Garmin/);

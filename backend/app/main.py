@@ -2,11 +2,14 @@ import asyncio
 import contextlib
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.app.config import Settings, get_settings
+from backend.app.i18n import request_language, translate
 from backend.app.dependencies import get_required_session
 from backend.app.db.backup import backup_database
 from backend.app.db.database import resolve_sqlite_path
@@ -70,6 +73,13 @@ def create_app(
     if settings.backup_dir.strip():
         backup_database(db_path, settings.backup_dir, keep=settings.backup_keep, label="startup")
     app.state.repository = SQLiteRepository(db_path)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def translated_http_error(request: Request, error: StarletteHTTPException):
+        """Error messages in the app's language (Accept-Language); see backend/app/i18n.py."""
+        if isinstance(error.detail, str):
+            error.detail = translate(error.detail, request_language(request))
+        return await http_exception_handler(request, error)
 
     # Compress responses (the web bundle shrinks from ~890 KB to ~240 KB); Tailscale Serve
     # passes responses through without compressing them.

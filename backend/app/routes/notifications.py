@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from backend.app.dependencies import get_repository, get_required_session
 from backend.app.repositories.sqlite import SQLiteRepository
-from backend.app.services.reminders import REMINDER_KINDS, reminders_configured, send_to_user
+from backend.app.i18n import request_language
+from backend.app.services.reminders import REMINDER_KINDS, reminders_configured, send_to_user, reminder_test_message
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -86,7 +87,10 @@ async def read_notifications(request: Request, session = Depends(get_required_se
 
 @router.post("/subscription", response_model=NotificationStatus)
 async def subscribe(payload: SubscriptionPayload, request: Request, session = Depends(get_required_session), repository: SQLiteRepository = Depends(get_repository)):
-    repository.save_push_subscription(user_id=session.user_id, endpoint=payload.endpoint, p256dh=payload.keys.p256dh, auth=payload.keys.auth)
+    repository.save_push_subscription(
+        user_id=session.user_id, endpoint=payload.endpoint, p256dh=payload.keys.p256dh, auth=payload.keys.auth,
+        language=request_language(request),
+    )
     return _status(request, repository, session.user_id)
 
 
@@ -107,9 +111,9 @@ async def send_test(request: Request, session = Depends(get_required_session), r
     settings = request.app.state.settings
     if not reminders_configured(settings):
         raise HTTPException(status_code=409, detail="Reminders aren't set up on the server yet.")
-    message = {"title": "💧 Relish reminders are on", "body": "This is how a water reminder will look.", "url": "/", "tag": "relish-test"}
+
     async with httpx.AsyncClient(timeout=15) as client:
-        sent = await send_to_user(repository, settings, session.user_id, message, client)
+        sent = await send_to_user(repository, settings, session.user_id, reminder_test_message, client)
     if sent == 0:
         raise HTTPException(status_code=409, detail="No phone could be reached. Turn reminders off and on again.")
     return {"sent": sent}
