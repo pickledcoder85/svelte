@@ -590,7 +590,7 @@ export const es: Dictionary = {
   setup: {
     welcome: {
       title: '¡Le damos la bienvenida a Relish!',
-      intro: 'Soy Gherkin. Configuremos sus metas de nutrición y actividad para que sus objetivos diarios se ajusten a usted.',
+      intro: 'Soy Gus. Configuremos sus metas de nutrición y actividad para que sus objetivos diarios se ajusten a usted.',
       sections: {
         aboutYou: { title: 'Sobre usted', detail: 'Estatura, peso, edad y actividad' },
         goal: { title: 'Su meta', detail: 'Bajar, mantener o subir de peso, y a qué ritmo' },
@@ -603,7 +603,7 @@ export const es: Dictionary = {
       activity: {
         title: 'Su día, no sus entrenamientos',
         intro: 'Ahora cuénteme cuánto se mueve en un día normal: caminar, oficios de la casa, diligencias y su trabajo.',
-        workouts: 'No cuente los entrenamientos. Esos los registra en Tracker y se suman a lo que puede comer ese día.',
+        workouts: 'No cuente los entrenamientos. Esos los registra en Hoy y se suman a lo que puede comer ese día.',
         baseline: 'Esto define su base: lo que gasta en un día común.',
         action: 'Entendido'
       },
@@ -638,7 +638,7 @@ export const es: Dictionary = {
       back: 'Atrás',
       next: 'Siguiente',
       create: 'Crear perfil',
-      saving: 'Guardando...'
+      saving: 'Guardando…'
     },
     kcalPerDay: '{value} kcal al día',
     weeklyRate: 'unos {value} {unit} por semana',
@@ -783,7 +783,7 @@ export const es: Dictionary = {
     balance: {
       title: '¿Cómo reparte sus comidas?',
       intro:
-        'Cómo se reparten las calorías del día entre el desayuno, el almuerzo y la cena. Gus lo usa para calcular el tamaño de las comidas que planea. Puede cambiarlo cuando quiera en Perfil.',
+        'Cómo se reparten las calorías del día entre el desayuno, el almuerzo y la cena. Gus lo usa para calcular el tamaño de las comidas que le planea. Puede cambiarlo cuando quiera en Perfil.',
       defaultSuffix: ' (predeterminado)',
       split: 'Desayuno {breakfast} % · Almuerzo {lunch} % · Cena {dinner} %',
       styles: {
@@ -863,7 +863,7 @@ export const es: Dictionary = {
     yesterday: 'Ayer',
     weight: 'Peso',
     trendRate: 'Tendencia {rate} {unit} por semana',
-    weighMore: 'Regístrese unos días más para ver su tendencia semanal',
+    weighMore: 'Registre su peso unos días más para ver su tendencia semanal',
     toGoal: 'Faltan {value} {unit} para la meta',
     projection: 'Proyección',
     projectAhead: { one: 'Proyectar {count} mes hacia adelante', other: 'Proyectar {count} meses hacia adelante' },
@@ -874,13 +874,13 @@ export const es: Dictionary = {
     weighWeek: 'Registre su peso durante una semana para ver hacia dónde va su tendencia',
     plannedGoalBy: ' · a su ritmo planeado, meta para el {date}',
     rates: '{trend} frente a {pace} {unit} por semana',
-    onPace: 'Al ritmo ({rates})',
+    onPace: 'Al ritmo planeado ({rates})',
     ahead: 'Adelantado al ritmo ({rates})',
-    behind: 'Atrasado frente al ritmo ({rates})',
-    drifting: 'Variando {rate} {unit} por semana (planeado: estable)',
+    behind: 'Por detrás del ritmo ({rates})',
+    drifting: 'Desviándose {rate} {unit} por semana (planeado: estable)',
     calories: 'Calorías',
     average: '{value} en promedio',
-    calorieSummary: '{logged} de {total} días registrados · disponible en promedio {allowance} · {onTarget} en el objetivo',
+    calorieSummary: '{logged} de {total} días registrados · disponible en promedio {allowance} · {onTarget} dentro del objetivo',
     calorieOver: ' · {count} por encima',
     nothingInRange: 'Aún no hay nada registrado en este período.',
     macros: 'Macros',
@@ -925,7 +925,7 @@ export const es: Dictionary = {
     balance: 'Distribución de comidas: {style} (cámbiela en Perfil).',
     styleMeals: '{style} ({count} comidas al día)',
     custom: 'Personalizada ({count} comidas al día)',
-    hint: 'Toque una fecha para cambiar el plan que ve y luego marque como comidas las que ya consumió ese día.',
+    hint: 'Toque una fecha para cambiar el plan que ve y luego marque como consumidas las comidas planeadas de ese día.',
     showing: 'Plan del {date}',
     todaySuffix: ' · Hoy',
     plannedMeals: { one: '{count} comida planeada', other: '{count} comidas planeadas' },
@@ -972,9 +972,9 @@ export const es: Dictionary = {
     creating: 'Creando…',
     create: 'Crear plan',
     created: 'Plan creado ✓',
-    summary: '{count} comidas planeadas',
-    replaced: ' · {count} reemplazadas',
-    kept: ' · {count} se dejaron como estaban',
+    summary: { one: '{count} comida planeada', other: '{count} comidas planeadas' },
+    replaced: { one: ' · {count} reemplazada', other: ' · {count} reemplazadas' },
+    kept: { one: ' · {count} se dejó como estaba', other: ' · {count} se dejaron como estaban' },
     summaryEnd: '. Aparecen en Hoy como Planeado: toque ✓ Me lo comí para registrar una.',
     makeList: '🛒 Hacer una lista de mercado',
     errors: {
@@ -1001,7 +1001,7 @@ export const es: Dictionary = {
     },
     presetMeta: '{minutes} min · aprox. {calories} kcal',
     titlePlaceholder: 'Nadar, caminar, pesas...',
-    saving: 'Guardando...',
+    saving: 'Guardando…',
     update: 'Actualizar plan',
     plan: 'Planear ejercicio',
     minutesPlaceholder: 'Minutos de la parte principal',
@@ -1031,7 +1031,7 @@ export const es: Dictionary = {
     eyebrow: 'Preparación de comidas',
     title: 'Prepare la semana por tandas',
     detail: 'Lleve la cuenta de qué cocinar, porcionar y armar para que el plan de comidas sea realista.',
-    saving: 'Guardando...',
+    saving: 'Guardando…',
     tapToCycle: 'Toque para cambiar',
     categories: {
       Protein: 'Proteína',
@@ -1046,6 +1046,19 @@ export const es: Dictionary = {
     }
   },
   profile: {
+    loadStatus: {
+      loading: 'Cargando el perfil',
+      preview: 'Perfil de vista previa cargado',
+      unavailable: 'Perfil no disponible',
+      noSessionPreview: 'No hay una sesión activa. Se muestran datos de vista previa.',
+      noSession: 'No hay una sesión activa. Inicie sesión de nuevo.',
+      loaded: '{goals}, {weights} y {adherence} % de cumplimiento cargados',
+      goals: { one: '{count} objetivo', other: '{count} objetivos' },
+      weights: { one: '{count} registro de peso', other: '{count} registros de peso' },
+      loadFailed: 'No se pudo cargar el perfil.',
+      loadFailedHint: 'Revise su conexión e inténtelo de nuevo.',
+      setupDone: 'Configuración completada'
+    },
     eyebrow: 'Perfil',
     title: 'Su cuerpo y sus metas',
     detail:
@@ -1060,7 +1073,7 @@ export const es: Dictionary = {
     targetWeightLb: 'Meta de peso, lb',
     activityLevel: 'Nivel de actividad',
     save: 'Guardar perfil y recalcular objetivos',
-    saving: 'Guardando...',
+    saving: 'Guardando…',
     goalsEyebrow: 'Metas',
     targetTitle: 'Manejo de objetivos',
     targetDetail:
@@ -1101,7 +1114,7 @@ export const es: Dictionary = {
     searchMatch: 'Resultado de búsqueda',
     base: 'Base {amount}',
     quantity: 'Cant. {amount}',
-    saving: 'Guardando...',
+    saving: 'Guardando…',
     addToToday: 'Agregar {amount} a hoy',
     confirmRemove: 'Confirmar que desea quitar {name}',
     removeFromBank: 'Quitar {name} de su despensa',
@@ -1123,7 +1136,7 @@ export const es: Dictionary = {
     fetching: 'Cargando recetas...',
     noMatchTitle: 'Aún no hay recetas que coincidan',
     noMatchDetail: 'Pruebe con otro título o ingrediente para acotar la lista.',
-    saving: 'Guardando...',
+    saving: 'Guardando…',
     counts: '{steps} pasos · {ingredients} ingredientes · {assets} archivos',
     servings: '{count} porciones',
     loadingDetail: 'Cargando el detalle de la receta...',

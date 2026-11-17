@@ -594,7 +594,7 @@ export const en = {
   setup: {
     welcome: {
       title: 'Welcome to Relish!',
-      intro: "I'm Gherkin. Let's set up your nutrition and activity goals so your daily targets fit you.",
+      intro: "I'm Gus. Let's set up your nutrition and activity goals so your daily targets fit you.",
       sections: {
         aboutYou: { title: 'About you', detail: 'Height, weight, age, and activity' },
         goal: { title: 'Your goal', detail: 'Lose, stay, or gain, and how fast' },
@@ -607,7 +607,7 @@ export const en = {
       activity: {
         title: 'Your day, not your workouts',
         intro: 'Next, tell me how much you move on a normal day: walking, chores, errands, and your job.',
-        workouts: "Don't count workouts. You'll log those in Tracker, and they add to that day's allowance.",
+        workouts: "Don't count workouts. You'll log those on Today, and they add to that day's allowance.",
         baseline: 'This sets your baseline: what you burn on an ordinary day.',
         action: 'Got it'
       },
@@ -979,9 +979,9 @@ export const en = {
     creating: 'Creating…',
     create: 'Create plan',
     created: 'Plan created ✓',
-    summary: '{count} meals planned',
-    replaced: ' · {count} replaced',
-    kept: ' · {count} kept as they were',
+    summary: { one: '{count} meal planned', other: '{count} meals planned' },
+    replaced: { one: ' · {count} replaced', other: ' · {count} replaced' },
+    kept: { one: ' · {count} kept as it was', other: ' · {count} kept as they were' },
     summaryEnd: '. They show on Today as Planned: tick ✓ Ate it to log one.',
     makeList: '🛒 Make a shopping list',
     errors: {
@@ -1054,6 +1054,19 @@ export const en = {
     }
   },
   profile: {
+    loadStatus: {
+      loading: 'Loading profile settings',
+      preview: 'Preview profile loaded',
+      unavailable: 'Profile unavailable',
+      noSessionPreview: 'No active profile session. Showing preview progress data.',
+      noSession: 'No active profile session. Sign in again.',
+      loaded: '{goals}, {weights}, and {adherence}% adherence loaded',
+      goals: { one: '{count} goal', other: '{count} goals' },
+      weights: { one: '{count} weight entry', other: '{count} weight entries' },
+      loadFailed: 'Profile could not be loaded.',
+      loadFailedHint: 'Check your connection and try again.',
+      setupDone: 'Onboarding completed'
+    },
     eyebrow: 'Profile',
     title: 'Your body and goals',
     detail:

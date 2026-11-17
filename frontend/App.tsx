@@ -4,6 +4,7 @@ import {
   formatNumber,
   LanguageProvider,
   parseLanguage,
+  translatorFor,
   useLanguage,
   useT,
   type Language,
@@ -1089,15 +1090,13 @@ function RelishApp(): ReactElement {
         setWeightEntries(fallbackForMode(entryMode, demoWeightEntries, []));
         resetPreviewProfileDrafts();
         setProfileTone('checking');
-        setProfileStatus(isPreview ? 'Preview profile loaded' : 'Profile unavailable');
-        setProfileError(
-          isPreview ? 'No active profile session. Showing preview progress data.' : 'No active profile session. Sign in again.'
-        );
+        setProfileStatus(isPreview ? t('profile.loadStatus.preview') : t('profile.loadStatus.unavailable'));
+        setProfileError(isPreview ? t('profile.loadStatus.noSessionPreview') : t('profile.loadStatus.noSession'));
         return;
       }
 
       setProfileTone('checking');
-      setProfileStatus('Loading profile settings');
+      setProfileStatus(t('profile.loadStatus.loading'));
       setProfileError(null);
 
       try {
@@ -1117,10 +1116,14 @@ function RelishApp(): ReactElement {
         setWeightEntries(weights);
         applyProfileDrafts(loadedProfile, goals);
         setProfileTone('live');
+        // In the profile's own language (it may differ from the phone's).
+        const tp = translatorFor(loadedProfile.language_chosen ? parseLanguage(loadedProfile.language) ?? language : language);
         setProfileStatus(
-          `${goals.length} goal${goals.length === 1 ? '' : 's'}, ${progress.weight_entries} weight entr${
-            progress.weight_entries === 1 ? 'y' : 'ies'
-          }, and ${progress.adherence_score}% adherence loaded`
+          tp('profile.loadStatus.loaded', {
+            goals: tp('profile.loadStatus.goals', { count: goals.length }),
+            weights: tp('profile.loadStatus.weights', { count: progress.weight_entries }),
+            adherence: progress.adherence_score
+          })
         );
       } catch (error) {
         if (cancelled) {
@@ -1132,8 +1135,9 @@ function RelishApp(): ReactElement {
         setWeightEntries([]);
         resetPreviewProfileDrafts();
         setProfileTone('checking');
-        setProfileStatus('Profile unavailable');
-        setProfileError(liveLoadErrorMessage(error, 'Profile'));
+        setProfileStatus(t('profile.loadStatus.unavailable'));
+        const detail = error instanceof Error && error.message.trim() ? error.message.trim() : t('profile.loadStatus.loadFailedHint');
+        setProfileError(`${t('profile.loadStatus.loadFailed')} ${detail}`);
       } finally {
         if (!cancelled) {
           setProfileLoaded(true);
@@ -2046,7 +2050,7 @@ function RelishApp(): ReactElement {
 
       setProfileLoaded(true);
       setProfileTone('live');
-      setProfileStatus('Onboarding completed');
+      setProfileStatus(t('profile.loadStatus.setupDone'));
       setOnboardingStep('review');
       setSection('dashboard');
     } catch (error) {
@@ -2683,7 +2687,11 @@ function RelishApp(): ReactElement {
       );
     } catch (error) {
       setLanguage(previous);
-      setSettingsError(error instanceof Error ? error.message : t('settings.language.error'));
+      const message = error instanceof Error ? error.message : t('settings.language.error');
+      setSettingsError(message);
+      if (!profile.setup_complete) {
+        setOnboardingError(message); // the setup screens show this one
+      }
     } finally {
       setSettingsSaving(false);
     }
