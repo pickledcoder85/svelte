@@ -23,6 +23,7 @@ from backend.app.config import Settings
 from backend.app.integrations.usda import GENERIC_DATA_TYPES, search_usda_foods
 from backend.app.models.nutrition import FoodItem
 from backend.app.repositories.sqlite import SQLiteRepository
+from backend.app.services.calculations.macros import fat_share_for, macros_for_allowance
 from backend.app.services.meal_split import LABELS, MEAL_PATTERNS, resolve_split
 from backend.app.services.plate_match import food_score, pick_generic_food
 from backend.app.services.portions import MAX_COUNT, counted_unit, plural, quantity_label, round_count
@@ -197,11 +198,16 @@ def meal_budget(repository: SQLiteRepository, user_id: str, on: date, requested:
     bonus = _workout_bonus(repository, user_id, on, int(profile.get("workout_calories_share") or 0))
     key_label = LABELS.get(requested, requested).lower()
     others = later_planned(planned_meals(repository, user_id, on), key_label)
+    # A workout day's macros grow with its allowance, the same way as Today's rings.
+    protein, carbs, fat = macros_for_allowance(
+        base_calories=targets.calories, protein=targets.protein, carbs=targets.carbs, fat=targets.fat,
+        allowance=targets.calories + bonus, fat_share=fat_share_for(profile.get("goal_type"), profile.get("goal_pace")),
+    )
     remaining = Nutrition(
         calories=max(0.0, targets.calories + bonus - eaten.calories - sum(meal["calories"] for meal in others)),
-        protein=max(0.0, targets.protein - eaten.protein - sum(meal["protein"] for meal in others)),
-        carbs=max(0.0, targets.carbs - eaten.carbs - sum(meal["carbs"] for meal in others)),
-        fat=max(0.0, targets.fat - eaten.fat - sum(meal["fat"] for meal in others)),
+        protein=max(0.0, protein - eaten.protein - sum(meal["protein"] for meal in others)),
+        carbs=max(0.0, carbs - eaten.carbs - sum(meal["carbs"] for meal in others)),
+        fat=max(0.0, fat - eaten.fat - sum(meal["fat"] for meal in others)),
     )
     key, percent = _block(profile, requested)
     share = percent / 100

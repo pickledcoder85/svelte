@@ -289,6 +289,21 @@ Setup order (2026-11-14): **About you → Activity → Your goal → How fast? /
 - Only logged (completed) workouts count; planned workouts do not.
 - Today shows the remaining calories as the headline, with a breakdown (`buildCalorieBudget` in `frontend/src/lib/calorie-budget.ts`): Target + Workouts (share) = Allowance − Eaten = Remaining, and where the target comes from: BMR + daily activity (maintenance − BMR) + today's active workout calories, with pace = target − maintenance. Workout calories not added back (100% − share) are shown as the extra deficit on workout days.
 
+### Workout days' macros (macro allowance)
+
+- On a workout day the macro targets grow with the allowance, by the same rules setup uses (`macros_for_allowance` in `backend/app/services/calculations/macros.py`, mirrored by `macroAllowance` in `frontend/src/lib/macro-allowance.ts`, with shared test examples):
+  - protein stays the same (it comes from body weight, not calories);
+  - fat = the larger of the base fat (which already covers the per-kg floor) and the goal's fat share of the allowance (25% losing or gaining, 30% maintaining; 27% / 22% for the build-muscle / fuel-training focus), growing by at most that share of the extra calories (so custom goals with less fat don't jump on a short workout, and the macros never exceed the allowance);
+  - carbs get the rest of the extra calories.
+- Example: 1,500 kcal with 150 g protein, 102 g carbs, 42 g fat, losing; a workout adds 300 → 1,800 kcal: protein 150, fat 50 (25% of 1,800), carbs 159.
+- Used by the Today macro rings, Trends → Macros (each day's bar is that day's target), and Gus's meal budgets (what's left today). Days with no workout calories keep the base targets.
+
+### Workouts added by hand (MET estimate, met1)
+
+- Active calories = (MET − 1) × kg × hours (`backend/app/services/calculations/met.py`). The 1 MET at rest is left out because the target already counts resting calories. MET values are from the Compendium of Physical Activities (2024 adult update): by activity and effort, or by speed when a distance is given for walking, running, or cycling (implausible speeds fall back to the effort). Weight: the weigh-in on or before that day, else the profile weight.
+- "My watch says": the total is counted like an import (total − Relish's resting calories for the minutes; workout calc w1).
+- Each workout records `calories_method` ('estimated' or 'device'), `met`, and `calc_version` (`met1:pace`, `met1:effort`, or `w1:…`), frozen when saved (migration 010).
+
 ### Workouts from other apps (workout calc w1)
 
 Watches report a workout's **total** calories, which include the resting calories you would have burned anyway; each app estimates that part with its own BMR. Relish keeps three layers apart (migration 006):

@@ -101,7 +101,8 @@ function mealStyleSplit(style: MealStyleId): number[] {
 }
 import { CalorieBars } from './src/components/trends/CalorieBars';
 import { DayHistory } from './src/components/trends/DayHistory';
-import { MacroDeviationChart } from './src/components/trends/MacroDeviationChart';
+import { MacroBars } from './src/components/trends/MacroBars';
+import { fatShareFor } from './src/lib/macro-allowance';
 import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
 import {
   buildDaySeries,
@@ -2024,18 +2025,20 @@ export default function App(): ReactElement {
         logs: trendLogs,
         exercise: exerciseEntries,
         calorieTarget: dailyHomeTargets.calorieTarget,
-        sharePercent: profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE
+        sharePercent: profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE,
+        macroTargets: dailyHomeTargets.macroTargets,
+        fatShare: fatShareFor(profile?.goal_type, profile?.goal_pace)
       }),
-    [trendStart, todayKey, trendLogs, exerciseEntries, dailyHomeTargets.calorieTarget, profile?.workout_calories_share]
+    [trendStart, todayKey, trendLogs, exerciseEntries, dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets, profile?.workout_calories_share, profile?.goal_type, profile?.goal_pace]
   );
   const trendCalories = useMemo(() => calorieSummary(trendDays), [trendDays]);
   const trendMacroDays = useMemo(
     () => ({
-      protein: macroDays(trendDays, 'protein', dailyHomeTargets.macroTargets.protein),
-      carbs: macroDays(trendDays, 'carbs', dailyHomeTargets.macroTargets.carbs),
-      fat: macroDays(trendDays, 'fat', dailyHomeTargets.macroTargets.fat)
+      protein: macroDays(trendDays, 'protein'),
+      carbs: macroDays(trendDays, 'carbs'),
+      fat: macroDays(trendDays, 'fat')
     }),
-    [trendDays, dailyHomeTargets.macroTargets]
+    [trendDays]
   );
   const trendWeightPoints = useMemo(() => weightTrend(weightEntries), [weightEntries]);
   const trendWeight = useMemo(() => {
@@ -5049,19 +5052,19 @@ export default function App(): ReactElement {
                 <MacroRing
                   label="Protein"
                   consumed={homeConsumedMacros.protein}
-                  target={dailyHomeTargets.macroTargets.protein}
+                  target={dailyHomeTargets.macroAllowance.protein}
                   color={tc.fg_0f766e}
                 />
                 <MacroRing
                   label="Carbs"
                   consumed={homeConsumedMacros.carbs}
-                  target={dailyHomeTargets.macroTargets.carbs}
+                  target={dailyHomeTargets.macroAllowance.carbs}
                   color={tc.fg_ea580c}
                 />
                 <MacroRing
                   label="Fat"
                   consumed={homeConsumedMacros.fat}
-                  target={dailyHomeTargets.macroTargets.fat}
+                  target={dailyHomeTargets.macroAllowance.fat}
                   color={tc.fg_2563eb}
                 />
               </View>
@@ -5392,9 +5395,9 @@ export default function App(): ReactElement {
             {/* Macros: each day above or below its target. */}
             <View style={styles.homeSection}>
               <Text style={styles.detailTitle}>Macros</Text>
-              <Text style={styles.todayHint}>Each day against its target: bars up when over, down when under; ±10% counts as on target.</Text>
+              <Text style={styles.todayHint}>Each day’s bar is its target (bigger on workout days), filled with what you ate. Tap a day for its grams.</Text>
               {(['protein', 'carbs', 'fat'] as const).map((macro) => (
-                <MacroDeviationChart key={macro} macro={macro} days={trendMacroDays[macro]} target={dailyHomeTargets.macroTargets[macro]} />
+                <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} />
               ))}
             </View>
 

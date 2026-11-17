@@ -1,4 +1,5 @@
 import type { FoodLogSummary, MacroTargets, MealPlanDay, UserGoal, UserProfile } from '../types';
+import { fatShareFor, macroAllowance } from './macro-allowance';
 
 type ExerciseLike = {
   duration_minutes: number;
@@ -18,7 +19,10 @@ export interface DailyTargetSummary {
   allowanceCalories: number;
   /** Allowance minus food eaten. */
   remainingCalories: number;
+  /** The base macro targets (no workouts). */
   macroTargets: MacroTargets;
+  /** Today's macro targets at the allowance: protein stays, fat gets its share, carbs the rest. */
+  macroAllowance: MacroTargets;
   macroPercentages: MacroTargets;
   fiberTarget: number;
 }
@@ -114,6 +118,7 @@ export function buildDailyTargetSummary({
     allowanceCalories: allowance,
     remainingCalories: allowance - intakeCalories,
     macroTargets,
+    macroAllowance: macroAllowance(macroTargets, calorieTarget, allowance, fatShareFor(profile?.goal_type, profile?.goal_pace)),
     macroPercentages: calculateMacroPercentages(macroTargets),
     fiberTarget: Math.round(goal?.fiber_goal ?? profile?.fiber_target_g ?? 0)
   };
