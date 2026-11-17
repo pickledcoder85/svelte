@@ -341,8 +341,8 @@ function RelishApp(): ReactElement {
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  // The profile's language once loaded (the device's until then).
-  const profileLanguage = parseLanguage(profile?.language);
+  // The profile's language once the user has picked one in Settings; until then the phone's.
+  const profileLanguage = profile?.language_chosen ? parseLanguage(profile.language) : null;
   useEffect(() => {
     if (profileLanguage) {
       setLanguage(profileLanguage);

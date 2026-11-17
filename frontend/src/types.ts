@@ -88,6 +88,8 @@ export interface UserProfile {
   water_goal_ml?: number;
   /** Display language: English or (Colombian) Spanish. */
   language?: 'en' | 'es';
+  /** False until the user picks a language in Settings; until then the app follows the phone. */
+  language_chosen?: boolean;
   /** Meals a day (snacks between meals) and the target's split across them, in day order. */
   meals_per_day?: 3 | 4 | 5;
   meal_split?: number[];
