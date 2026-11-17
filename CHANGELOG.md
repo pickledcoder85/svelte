@@ -19,6 +19,8 @@ The format should remain simple:
 
 ### Added
 
+- Water tracking: Today has a water row ("💧 5 of 8 glasses · 1.25 L", a filling bar, ＋ Glass (250 ml; press and hold for a bottle), ＋ Bottle (500 ml), and Undo last) for the day shown; Trends has a water chart (one see-through bar per day as tall as the goal, filled with what was drunk, glasses on 1W bars); Settings → Water goal offers 6, 8 (default, 2 L), 10, or 12 glasses. Migration 011 adds `user_profiles.water_goal_ml` and `water_entries`; routes `GET/POST /api/water`, `DELETE /api/water/{id}`; water is included in the data export.
+
 - The installed app picks up new deploys by itself: on returning to it (and hourly while open) it fetches a fresh index.html, compares the app script it names with the one running, and reloads when they differ, but only on Today or Trends with no sheet or editor open and nothing being typed (other screens can hold unsaved edits, so it waits until you're back). iOS resumes home-screen apps from memory, so before this a deploy needed the app closed and reopened. The service worker never caches the check (`?relish-update-check`).
 
 ### Changed

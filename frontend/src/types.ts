@@ -89,6 +89,8 @@ export interface UserProfile {
   calorie_floor?: CalorieFloor;
   /** Percent of logged workout calories added to the day's allowance (0 = off). */
   workout_calories_share?: 0 | 50 | 75 | 100;
+  /** Daily water goal in ml (2,000 = 8 glasses by default). */
+  water_goal_ml?: number;
   /** Meals a day (snacks between meals) and the target's split across them, in day order. */
   meals_per_day?: 3 | 4 | 5;
   meal_split?: number[];
@@ -138,6 +140,8 @@ export interface UserProfileUpdate {
   allergy_notes?: string | null;
   calorie_floor?: CalorieFloor;
   workout_calories_share?: 0 | 50 | 75 | 100;
+  /** Daily water goal in ml (2,000 = 8 glasses by default). */
+  water_goal_ml?: number;
   meals_per_day?: 3 | 4 | 5;
   meal_split?: number[];
 }
@@ -637,4 +641,12 @@ export interface ProposedPlanMeal {
   option: SuggestedMeal | null;
   message: string | null;
   prep: string;
+}
+
+/** One drink logged (a glass is 250 ml). */
+export interface WaterEntry {
+  id: string;
+  logged_on: string;
+  amount_ml: number;
+  created_at: string;
 }

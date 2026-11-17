@@ -703,6 +703,7 @@ class SQLiteRepository:
         workout_calories_share: int | None = None,
         meals_per_day: int | None = None,
         meal_split: list[int] | None = None,
+        water_goal_ml: int | None = None,
     ) -> None:
         """Set timezone, units, the workout calories share, and/or the meals a day and their
         split (already validated); None keeps the saved value."""
@@ -715,6 +716,7 @@ class SQLiteRepository:
                     workout_calories_share = COALESCE(?, workout_calories_share),
                     meals_per_day = COALESCE(?, meals_per_day),
                     meal_split = COALESCE(?, meal_split),
+                    water_goal_ml = COALESCE(?, water_goal_ml),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
@@ -724,6 +726,7 @@ class SQLiteRepository:
                     workout_calories_share,
                     meals_per_day,
                     json.dumps(meal_split) if meal_split is not None else None,
+                    water_goal_ml,
                     user_id,
                 ),
             )
@@ -898,6 +901,7 @@ class SQLiteRepository:
                 p.target_source,
                 COALESCE(p.calorie_floor, 'recommended') AS calorie_floor,
                 COALESCE(p.workout_calories_share, 75) AS workout_calories_share,
+                COALESCE(p.water_goal_ml, 2000) AS water_goal_ml,
                 p.meals_per_day,
                 p.meal_split
             FROM users u
@@ -1588,6 +1592,34 @@ class SQLiteRepository:
             (user_id,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def add_water_entry(self, *, user_id: str, logged_on: date, amount_ml: int) -> dict[str, Any]:
+        self._ensure_user_exists(user_id)
+        identifier = str(uuid4())
+        with self._lock, self._connection:
+            self._connection.execute(
+                "INSERT INTO water_entries (id, user_id, logged_on, amount_ml, created_at) VALUES (?, ?, ?, ?, ?)",
+                (identifier, user_id, logged_on.isoformat(), amount_ml, datetime.now(UTC).isoformat()),
+            )
+            row = self._connection.execute("SELECT * FROM water_entries WHERE id = ?", (identifier,)).fetchone()
+        return dict(row)
+
+    @_synchronized
+    def list_water_entries(self, user_id: str, start: date, end: date) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM water_entries
+            WHERE user_id = ? AND logged_on BETWEEN ? AND ?
+            ORDER BY logged_on, created_at, id
+            """,
+            (user_id, start.isoformat(), end.isoformat()),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_water_entry(self, *, user_id: str, entry_id: str) -> bool:
+        with self._lock, self._connection:
+            cursor = self._connection.execute("DELETE FROM water_entries WHERE id = ? AND user_id = ?", (entry_id, user_id))
+            return cursor.rowcount > 0
 
     def save_manual_exercise(self, *, user_id: str, entry: dict[str, Any]) -> dict[str, Any]:
         """Save a workout added by hand, with how its calories were counted."""

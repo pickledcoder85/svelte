@@ -388,6 +388,8 @@ def update_user_profile(
         )
     if new_split is not None:
         repository.update_user_preferences(user_id=session.user_id, meals_per_day=new_split[0], meal_split=new_split[1])
+    if payload.water_goal_ml is not None:
+        repository.update_user_preferences(user_id=session.user_id, water_goal_ml=payload.water_goal_ml)
 
     resolved = {
         "sex": payload.sex if "sex" in provided_fields else existing_profile.get("sex"),

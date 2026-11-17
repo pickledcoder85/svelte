@@ -34,6 +34,7 @@ import type {
   WeightEntry,
   UserProfile,
   UserProfileUpdate,
+  WaterEntry,
   WeeklyMetrics,
   WorkoutActivity,
   WorkoutEffort,
@@ -924,6 +925,32 @@ export async function fetchExerciseEntries(accessToken: string): Promise<Exercis
       headers: authHeaders(accessToken)
     })
   );
+}
+
+/** Drinks logged between two dates (inclusive), oldest first. */
+export async function fetchWater(start: string, end: string, accessToken: string): Promise<WaterEntry[]> {
+  const query = new URLSearchParams({ start, end });
+  return readJson<WaterEntry[]>(await apiFetch(buildApiUrl(`/water?${query.toString()}`), { headers: authHeaders(accessToken) }));
+}
+
+export async function addWater(loggedOn: string, amountMl: number, accessToken: string): Promise<WaterEntry> {
+  return readJson<WaterEntry>(
+    await apiFetch(buildApiUrl('/water'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ logged_on: loggedOn, amount_ml: amountMl })
+    })
+  );
+}
+
+export async function deleteWater(entryId: string, accessToken: string): Promise<void> {
+  const response = await apiFetch(buildApiUrl(`/water/${encodeURIComponent(entryId)}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken)
+  });
+  if (!response.ok && response.status !== 404) {
+    await readJson<unknown>(response);
+  }
 }
 
 /** Relish's calorie estimate for a workout being added (nothing is saved). */
