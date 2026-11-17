@@ -34,7 +34,10 @@ import type {
   WeightEntry,
   UserProfile,
   UserProfileUpdate,
-  WeeklyMetrics
+  WeeklyMetrics,
+  WorkoutActivity,
+  WorkoutEffort,
+  WorkoutEstimate
 } from '../types';
 
 interface ApiFoodLogEntry {
@@ -919,6 +922,43 @@ export async function fetchExerciseEntries(accessToken: string): Promise<Exercis
   return readJson<ExerciseEntry[]>(
     await apiFetch(buildApiUrl('/tracker/exercise'), {
       headers: authHeaders(accessToken)
+    })
+  );
+}
+
+/** Relish's calorie estimate for a workout being added (nothing is saved). */
+export async function estimateWorkout(
+  payload: { activity: WorkoutActivity; duration_minutes: number; effort: WorkoutEffort; distance_m?: number; logged_on: string },
+  accessToken: string
+): Promise<WorkoutEstimate> {
+  return readJson<WorkoutEstimate>(
+    await apiFetch(buildApiUrl('/tracker/workouts/estimate'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+/** Add a workout by hand: Relish's estimate, or the watch's total (resting calories removed). */
+export async function addManualWorkout(
+  payload: {
+    activity: WorkoutActivity;
+    duration_minutes: number;
+    effort: WorkoutEffort;
+    distance_m?: number;
+    logged_on: string;
+    logged_at: string;
+    title?: string;
+    device_calories_total?: number;
+  },
+  accessToken: string
+): Promise<ExerciseEntry> {
+  return readJson<ExerciseEntry>(
+    await apiFetch(buildApiUrl('/tracker/workouts'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify(payload)
     })
   );
 }

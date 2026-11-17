@@ -4,6 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.app.dependencies import get_required_session, get_repository
+from backend.app.services.manual_workout import (
+    ManualWorkoutRequest,
+    WorkoutEstimate,
+    WorkoutEstimateRequest,
+    estimate_workout,
+    save_manual_workout,
+)
 from backend.app.models.tracker import (
     ExerciseEntry,
     ExerciseEntryCreateRequest,
@@ -65,6 +72,26 @@ async def create_exercise(
     repository: SQLiteRepository = Depends(get_repository),
 ) -> ExerciseEntry:
     return create_exercise_entry(repository, session, payload)
+
+
+@router.post("/workouts/estimate", response_model=WorkoutEstimate)
+async def preview_workout_calories(
+    payload: WorkoutEstimateRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> WorkoutEstimate:
+    """Relish's calorie estimate for a workout being added; nothing is saved."""
+    return estimate_workout(repository, session.user_id, payload)
+
+
+@router.post("/workouts", response_model=ExerciseEntry)
+async def add_manual_workout(
+    payload: ManualWorkoutRequest,
+    session = Depends(get_required_session),
+    repository: SQLiteRepository = Depends(get_repository),
+) -> ExerciseEntry:
+    """Add a workout by hand: Relish's estimate, or the watch's total minus resting calories."""
+    return save_manual_workout(repository, session.user_id, payload)
 
 
 @router.put("/exercise/{exercise_entry_id}", response_model=ExerciseEntry)

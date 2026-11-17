@@ -47,6 +47,37 @@ describe('workout detail', () => {
     expect(detail.subtitle).toBe('30 min · 7:00 AM');
   });
 
+  it('a Relish estimate explains its MET', () => {
+    const detail = buildWorkoutDetail(
+      { id: 'e', title: 'Run', duration_minutes: 30, calories_burned: 359, logged_on: '2026-11-16', logged_at: '7:05 AM', intensity: 'Moderate',
+        source: 'manual', calories_method: 'estimated', met: 9.8, weight_lbs_at_time: 180 },
+      75
+    );
+    expect(detail.relish[0]).toEqual({ label: 'Estimated by Relish', value: '359 kcal' });
+    expect(detail.notes[0]).toBe('Moderate, MET 9.8 at 180 lb.');
+  });
+
+  it('says the pace set the MET only when it did, in the chosen units', () => {
+    const base: ExerciseEntry = {
+      id: 'p', title: 'Run', duration_minutes: 30, calories_burned: 400, logged_on: '2026-11-16', logged_at: '7:05 AM', intensity: 'Moderate',
+      source: 'manual', calories_method: 'estimated', met: 9.8, weight_lbs_at_time: 180, distance_m: 5000
+    };
+    expect(buildWorkoutDetail({ ...base, calc_version: 'met1:pace' }, 75).notes[0]).toBe('From your pace, MET 9.8 at 180 lb.');
+    expect(buildWorkoutDetail({ ...base, calc_version: 'met1:effort' }, 75).notes[0]).toBe('Moderate, MET 9.8 at 180 lb.');
+    const metric = buildWorkoutDetail({ ...base, calc_version: 'met1:pace' }, 75, true);
+    expect(metric.notes[0]).toBe('From your pace, MET 9.8 at 82 kg.');
+    expect(metric.subtitle).toBe('30 min · 5.00 km · 7:05 AM');
+  });
+
+  it('a watch total entered by hand shows the resting calories taken off', () => {
+    const detail = buildWorkoutDetail(
+      { id: 'd', title: 'Hill ride', duration_minutes: 60, calories_burned: 630, logged_on: '2026-11-16', logged_at: '6:00 PM', intensity: 'Moderate',
+        source: 'manual', calories_method: 'device', source_calories_total: 700, relish_resting_calories: 70 },
+      100
+    );
+    expect(detail.relish.map((r) => r.value)).toEqual(['700 kcal', '−70 kcal', '630 kcal', '+630 kcal']);
+  });
+
   it('notices an edited import', () => {
     const detail = buildWorkoutDetail({ ...ride, relish_resting_calories: null, calories_burned: 800 }, 100);
     expect(detail.notes[0]).toBe('You edited the calories for this workout; your number is used.');

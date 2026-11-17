@@ -1589,6 +1589,41 @@ class SQLiteRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def save_manual_exercise(self, *, user_id: str, entry: dict[str, Any]) -> dict[str, Any]:
+        """Save a workout added by hand, with how its calories were counted."""
+        self._ensure_user_exists(user_id)
+        identifier = str(uuid4())
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO exercise_entries (
+                    id, user_id, title, duration_minutes, calories_burned, logged_on, logged_at,
+                    intensity, source, activity_type, distance_m, source_calories_total,
+                    relish_resting_calories, weight_lbs_at_time, calc_version, calories_method, met
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    identifier,
+                    user_id,
+                    entry["title"],
+                    entry["duration_minutes"],
+                    entry["calories_burned"],
+                    entry["logged_on"].isoformat(),
+                    entry["logged_at"],
+                    entry["intensity"],
+                    entry.get("activity_type"),
+                    entry.get("distance_m"),
+                    entry.get("source_calories_total"),
+                    entry.get("relish_resting_calories"),
+                    entry.get("weight_lbs_at_time"),
+                    entry.get("calc_version"),
+                    entry.get("calories_method"),
+                    entry.get("met"),
+                ),
+            )
+            row = self._connection.execute("SELECT * FROM exercise_entries WHERE id = ?", (identifier,)).fetchone()
+        return dict(row)
+
     def save_imported_exercise(
         self,
         *,
