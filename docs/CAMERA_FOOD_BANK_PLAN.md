@@ -43,8 +43,8 @@ The repo now includes the main `v1` camera-food flow end to end:
 - The vision service uses the configured OpenAI multimodal endpoint when `OPENAI_API_KEY` is present, with deterministic fallback responses for local development in [backend/app/services/vision.py](/home/brianminer/workspace/svelte/backend/app/services/vision.py).
 - Ingestion review queue routes already exist in [backend/app/routes/ingestion.py](/home/brianminer/workspace/svelte/backend/app/routes/ingestion.py).
 - Ingestion output models already support extracted text, structured JSON, confidence, and review state in [backend/app/models/ingestion.py](/home/brianminer/workspace/svelte/backend/app/models/ingestion.py).
-- SQLite already persists `ingestion_jobs` and `ingestion_outputs` in [backend/app/repositories/sqlite.py](/home/brianminer/workspace/svelte/backend/app/repositories/sqlite.py).
-- SQLite already persists foods in `food_catalog` via `save_food_item` in [backend/app/repositories/sqlite.py](/home/brianminer/workspace/svelte/backend/app/repositories/sqlite.py).
+- SQLite already persists `ingestion_jobs` and `ingestion_outputs` in [backend/app/repositories/sqlite/](/home/brianminer/workspace/svelte/backend/app/repositories/sqlite/__init__.py).
+- SQLite already persists foods in `food_catalog` via `save_food_item` in [backend/app/repositories/sqlite/](/home/brianminer/workspace/svelte/backend/app/repositories/sqlite/__init__.py).
 - The frontend already has ingestion review UI and ingestion API helpers in [frontend/src/components/IngestionReviewPanel.tsx](/home/brianminer/workspace/svelte/frontend/src/components/IngestionReviewPanel.tsx) and [frontend/src/lib/api.ts](/home/brianminer/workspace/svelte/frontend/src/lib/api.ts).
 
 The `v1` UX now includes:
