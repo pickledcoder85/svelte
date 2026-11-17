@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { explainerBefore, ONBOARDING_EXPLAINERS } from './onboarding-explainers';
+import { translatorFor } from '../i18n/dictionaries';
+import { explainerBefore, onboardingExplainer } from './onboarding-explainers';
 
 describe('onboarding explainers', () => {
   it('shows each explainer once, only before Daily activity and Your goal', () => {
@@ -12,7 +13,11 @@ describe('onboarding explainers', () => {
   });
 
   it('says workouts are separate from daily activity', () => {
-    expect(ONBOARDING_EXPLAINERS.activity.points.join(' ')).toMatch(/workouts/i);
-    expect(ONBOARDING_EXPLAINERS.goal.points.join(' ')).toMatch(/workouts/i);
+    const en = translatorFor('en');
+    const es = translatorFor('es');
+    expect(onboardingExplainer('activity', en).points.join(' ')).toMatch(/workouts/i);
+    expect(onboardingExplainer('goal', en).points.join(' ')).toMatch(/workouts/i);
+    expect(onboardingExplainer('activity', es).points.join(' ')).toMatch(/entrenamientos/i);
+    expect(onboardingExplainer('goal', es).points.join(' ')).toMatch(/entrenamientos/i);
   });
 });

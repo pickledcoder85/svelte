@@ -1,6 +1,6 @@
 import type { ImageSourcePropType } from 'react-native';
 
-import { ACTIVITY_LEVELS } from '../../lib/activity-level';
+import { en } from '../../i18n/en';
 import type { AllergyChoice } from '../../lib/allergies';
 import { tc } from '../../theme/palette';
 
@@ -71,17 +71,10 @@ export type NutritionStyle = 'balanced' | 'high_protein' | 'low_carb' | 'keto' |
 export type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'balance' | 'allergies' | 'review';
 
 // Activity comes before the goal so the goal screens can show real calorie numbers.
-export const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
-  { id: 'basics', label: 'About you' },
-  { id: 'activity', label: 'Activity' },
-  { id: 'goal', label: 'Your goal' },
-  { id: 'pace', label: 'Pace or focus' },
-  { id: 'diet', label: 'Diet' },
-  { id: 'style', label: 'Nutrition style' },
-  { id: 'balance', label: 'Meal balance' },
-  { id: 'allergies', label: 'Allergies' },
-  { id: 'review', label: 'Review' }
-];
+// English labels come from the dictionary (setup.steps); setup shows them with t().
+export const onboardingSteps: Array<{ id: Exclude<OnboardingStep, 'welcome'>; label: string }> = (
+  ['basics', 'activity', 'goal', 'pace', 'diet', 'style', 'balance', 'allergies', 'review'] as const
+).map((id) => ({ id, label: en.setup.steps[id] }));
 
 export const dietaryPatternOptions: Array<{
   id: DietaryPattern;
@@ -89,13 +82,15 @@ export const dietaryPatternOptions: Array<{
   icon: string;
   title: string;
   subtitle: string;
-}> = [
-  { id: 'vegan', icon: '🥦', title: 'Vegan', subtitle: 'Plants only' },
-  { id: 'vegetarian', icon: '🥗', title: 'Vegetarian', subtitle: 'No meat or fish' },
-  { id: 'pescatarian', icon: '🐟', title: 'Pescatarian', subtitle: 'Fish, dairy, and plants' },
-  { id: 'omnivore', icon: '🍗', title: 'Omnivore', subtitle: 'Balanced mixed diet' },
-  { id: 'carnivore', icon: '🥩', title: 'Carnivore', subtitle: 'Animal-based focus' }
-];
+}> = (
+  [
+    { id: 'vegan', icon: '🥦' },
+    { id: 'vegetarian', icon: '🥗' },
+    { id: 'pescatarian', icon: '🐟' },
+    { id: 'omnivore', icon: '🍗' },
+    { id: 'carnivore', icon: '🥩' }
+  ] as const
+).map((option) => ({ ...option, ...en.setup.diet.options[option.id] }));
 
 export const nutritionStyleOptions: Array<{
   id: NutritionStyle;
@@ -103,14 +98,16 @@ export const nutritionStyleOptions: Array<{
   icon: string;
   title: string;
   subtitle: string;
-}> = [
-  { id: 'balanced', icon: '🍽️', title: 'Balanced', subtitle: 'Flexible mixed approach' },
-  { id: 'high_protein', icon: '🍳', title: 'High protein', subtitle: 'Protein at every meal, for strength and keeping muscle' },
-  { id: 'low_carb', icon: '🥬', title: 'Low carb', subtitle: 'Fewer carbs: about 50–130 g a day' },
-  { id: 'keto', icon: '🥑', title: 'Keto', subtitle: 'Very low carb: under about 50 g a day, higher fat' },
-  { id: 'mediterranean', icon: '🫒', title: 'Mediterranean', subtitle: 'Whole foods, olive oil, fish, plants' },
-  { id: 'paleo', icon: '🍖', title: 'Paleo', subtitle: 'Meat, fish, vegetables, fruit, and nuts; no grains or dairy' }
-];
+}> = (
+  [
+    { id: 'balanced', icon: '🍽️' },
+    { id: 'high_protein', icon: '🍳' },
+    { id: 'low_carb', icon: '🥬' },
+    { id: 'keto', icon: '🥑' },
+    { id: 'mediterranean', icon: '🫒' },
+    { id: 'paleo', icon: '🍖' }
+  ] as const
+).map((option) => ({ ...option, ...en.setup.style.options[option.id] }));
 
 export const allergyOptions: Array<{
   id: AllergyChoice;
@@ -118,23 +115,18 @@ export const allergyOptions: Array<{
   icon: string;
   title: string;
   subtitle: string;
-}> = [
-  { id: 'none', icon: '✅', title: 'None', subtitle: 'No major food allergies' },
-  { id: 'milk', icon: '🥛', title: 'Milk', subtitle: 'Avoid dairy milk proteins' },
-  { id: 'egg', icon: '🥚', title: 'Egg', subtitle: 'Avoid eggs and egg ingredients' },
-  { id: 'peanut', icon: '🥜', title: 'Peanut', subtitle: 'Avoid peanuts' },
-  { id: 'tree_nuts', icon: '🌰', title: 'Tree nuts', subtitle: 'Avoid almonds, cashews, walnuts' },
-  { id: 'wheat', icon: '🌾', title: 'Wheat', subtitle: 'Avoid wheat-based foods' },
-  { id: 'shellfish', icon: '🦐', title: 'Shellfish', subtitle: 'Avoid shrimp, crab, lobster' },
-  { id: 'other', icon: '✏️', title: 'Other', subtitle: 'Add a custom restriction' }
-];
-
-// Titles and descriptions live with the setup step (src/lib/activity-level.ts).
-export const activityLevelCards = ACTIVITY_LEVELS.map((level) => ({
-  id: level.id,
-  title: level.title,
-  subtitle: `${level.description} · ${level.steps}`
-}));
+}> = (
+  [
+    { id: 'none', icon: '✅' },
+    { id: 'milk', icon: '🥛' },
+    { id: 'egg', icon: '🥚' },
+    { id: 'peanut', icon: '🥜' },
+    { id: 'tree_nuts', icon: '🌰' },
+    { id: 'wheat', icon: '🌾' },
+    { id: 'shellfish', icon: '🦐' },
+    { id: 'other', icon: '✏️' }
+  ] as const
+).map((option) => ({ ...option, ...en.setup.allergies.options[option.id] }));
 
 export function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
   const normalized = title.trim().toLowerCase();

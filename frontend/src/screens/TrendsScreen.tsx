@@ -6,6 +6,7 @@ import { DayHistory } from '../components/trends/DayHistory';
 import { MacroBars } from '../components/trends/MacroBars';
 import { WaterBars } from '../components/trends/WaterBars';
 import { WeightTrendChart } from '../components/trends/WeightTrendChart';
+import { formatNumber, useT } from '../i18n';
 import type { DailyTargetSummary } from '../lib/daily-home';
 import {
   PROJECTION_HORIZONS,
@@ -76,11 +77,13 @@ export function TrendsScreen({
   deleteTrendFood,
   setWorkoutDetailId
 }: TrendsScreenProps): ReactElement {
+  const t = useT();
+  const number = (value: number) => formatNumber(value, undefined, t.locale);
   return (
     <View style={styles.dashboardStack}>
       <View style={styles.homeSection}>
         <View style={styles.todaySectionHeader}>
-          <Text style={styles.detailTitle}>Trends</Text>
+          <Text style={styles.detailTitle}>{t('trends.title')}</Text>
           <View style={styles.trendRangeRow} accessibilityRole="tablist">
             {TREND_RANGES.map((range) => (
               <Pressable
@@ -90,7 +93,7 @@ export function TrendsScreen({
                 accessibilityRole="tab"
                 accessibilityState={{ selected: trendRange === range }}
               >
-                <Text style={[styles.trendRangeLabel, trendRange === range && styles.trendRangeLabelActive]}>{range}</Text>
+                <Text style={[styles.trendRangeLabel, trendRange === range && styles.trendRangeLabelActive]}>{t(`trends.ranges.${range}`)}</Text>
               </Pressable>
             ))}
           </View>
@@ -101,17 +104,20 @@ export function TrendsScreen({
       {/* Weight: weigh-ins and the smoothed trend, with the goal. */}
       <View style={styles.homeSection}>
         <View style={styles.todaySectionHeader}>
-          <Text style={styles.detailTitle}>Weight</Text>
+          <Text style={styles.detailTitle}>{t('trends.weight')}</Text>
           <Text style={styles.trendHeadline}>
-            {trendWeight.latest !== null ? `${trendWeight.latest} ${trendUnit}` : '—'}
+            {trendWeight.latest !== null ? `${number(trendWeight.latest)} ${trendUnit}` : '—'}
           </Text>
         </View>
         <Text style={styles.todayHint}>
           {[
             trendWeight.rate !== null
-              ? `Trend ${trendWeight.rate > 0 ? '+' : trendWeight.rate < 0 ? '−' : '±'}${Math.abs(trendWeight.rate)} ${trendUnit} a week`
-              : 'Weigh in a few more days to see your weekly trend',
-            trendWeight.toGoal !== null ? `${trendWeight.toGoal} ${trendUnit} to goal` : null
+              ? t('trends.trendRate', {
+                  rate: `${trendWeight.rate > 0 ? '+' : trendWeight.rate < 0 ? '−' : '±'}${number(Math.abs(trendWeight.rate))}`,
+                  unit: trendUnit
+                })
+              : t('trends.weighMore'),
+            trendWeight.toGoal !== null ? t('trends.toGoal', { value: number(trendWeight.toGoal), unit: trendUnit }) : null
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -126,7 +132,7 @@ export function TrendsScreen({
           projection={{ days: trendProjection.days, trendRate: trendProjection.trendRate, paceRate: trendProjection.paceRate }}
         />
         <View style={styles.trendProjectionRow}>
-          <Text style={styles.trendProjectionLabel}>Projection</Text>
+          <Text style={styles.trendProjectionLabel}>{t('trends.projection')}</Text>
           <View style={styles.trendRangeRow} accessibilityRole="tablist">
             {PROJECTION_HORIZONS.map((horizon) => (
               <Pressable
@@ -135,7 +141,7 @@ export function TrendsScreen({
                 onPress={() => setWeightHorizon(horizon)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: weightHorizon === horizon }}
-                accessibilityLabel={`Project ${horizon.replace('M', '')} month${horizon === '1M' ? '' : 's'} ahead`}
+                accessibilityLabel={t('trends.projectAhead', { count: Number(horizon.replace('M', '')) })}
               >
                 <Text style={[styles.trendRangeLabel, weightHorizon === horizon && styles.trendRangeLabelActive]}>{horizon}</Text>
               </Pressable>
@@ -159,23 +165,28 @@ export function TrendsScreen({
       {/* Calories: each day against its allowance. */}
       <View style={styles.homeSection}>
         <View style={styles.todaySectionHeader}>
-          <Text style={styles.detailTitle}>Calories</Text>
+          <Text style={styles.detailTitle}>{t('trends.calories')}</Text>
           <Text style={styles.trendHeadline}>
-            {trendCalories.loggedDays > 0 ? `${trendCalories.averageEaten.toLocaleString('en-US')} avg` : '—'}
+            {trendCalories.loggedDays > 0 ? t('trends.average', { value: number(trendCalories.averageEaten) }) : '—'}
           </Text>
         </View>
         <Text style={styles.todayHint}>
           {trendCalories.loggedDays > 0
-            ? `${trendCalories.loggedDays} of ${trendDays.length} days logged · allowance avg ${trendCalories.averageAllowance.toLocaleString('en-US')} · ${trendCalories.daysOnTarget} on target${trendCalories.daysOver ? ` · ${trendCalories.daysOver} over` : ''}`
-            : 'Nothing logged in this range yet.'}
+            ? t('trends.calorieSummary', {
+                logged: trendCalories.loggedDays,
+                total: trendDays.length,
+                allowance: number(trendCalories.averageAllowance),
+                onTarget: trendCalories.daysOnTarget
+              }) + (trendCalories.daysOver ? t('trends.calorieOver', { count: trendCalories.daysOver }) : '')
+            : t('trends.nothingInRange')}
         </Text>
         <CalorieBars days={trendDays} />
       </View>
 
       {/* Macros: each day above or below its target. */}
       <View style={styles.homeSection}>
-        <Text style={styles.detailTitle}>Macros</Text>
-        <Text style={styles.todayHint}>Each day’s bar is its target (bigger on workout days), filled with what you ate. Tap a day for its grams and %.</Text>
+        <Text style={styles.detailTitle}>{t('trends.macros')}</Text>
+        <Text style={styles.todayHint}>{t('trends.macrosHint')}</Text>
         {(['protein', 'carbs', 'fat'] as const).map((macro) => (
           <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} today={todayKey} />
         ))}
@@ -183,7 +194,7 @@ export function TrendsScreen({
 
       {/* Water: each day against the goal. */}
       <View style={styles.homeSection}>
-        <Text style={styles.detailTitle}>Water</Text>
+        <Text style={styles.detailTitle}>{t('trends.water')}</Text>
         <WaterBars
           days={trendWaterDays}
           goalMl={profile?.water_goal_ml ?? DEFAULT_WATER_GOAL_ML}
@@ -194,7 +205,7 @@ export function TrendsScreen({
 
       {/* History: every day in the range, newest first. */}
       <View style={styles.homeSection}>
-        <Text style={styles.detailTitle}>History</Text>
+        <Text style={styles.detailTitle}>{t('trends.history')}</Text>
         <DayHistory
           days={[...trendDays].reverse()}
           logs={trendLogs}

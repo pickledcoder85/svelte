@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { formatDate, useT, type Locale } from '../i18n';
 import { createMealPlan, createShoppingList, proposePlanMeals } from '../lib/api';
 import { isShoppingRole, planListTitle } from '../lib/shopping';
 import { addDaysToDateKey, localDateKey } from '../lib/dates';
@@ -22,7 +23,7 @@ import {
   stepCount,
   stepForDay,
   stepNote,
-  WEEKDAY_LABELS,
+  weekdayLabel,
   type CookingTime,
   type DayChoice,
   type PlanMeal,
@@ -33,27 +34,16 @@ import { ingredientLine } from '../lib/portions';
 import { tc } from '../theme/palette';
 import type { MealPlanDay, ProposedPlanMeal } from '../types';
 
-const MEALS: Array<{ id: PlanMeal; label: string }> = [
-  { id: 'breakfast', label: 'Breakfast' },
-  { id: 'lunch', label: 'Lunch' },
-  { id: 'dinner', label: 'Dinner' }
-];
-const TIMES: Array<{ id: CookingTime; label: string; detail: string }> = [
-  { id: 'very_little', label: 'Very little', detail: 'Sheet-pan, one-pot, or no-cook; batch once' },
-  { id: 'some', label: 'Some', detail: 'Simple meals in about 30 minutes' },
-  { id: 'enjoy', label: 'I enjoy cooking', detail: 'Anything goes, up to about an hour' }
-];
-const VARIETIES: Array<{ id: PlanVariety; label: string; detail: string }> = [
-  { id: 'same', label: 'Same meal every time', detail: 'One breakfast, one lunch, one dinner, repeated' },
-  { id: 'rotate', label: '2–3 meals through the week', detail: 'A short rotation, easy to batch' },
-  { id: 'daily', label: 'Different every day', detail: 'A new meal each day' }
-];
+// Labels come from the dictionary (createPlan.*, meals.slots.*); the ids are what's sent.
+const MEALS: Array<{ id: PlanMeal }> = [{ id: 'breakfast' }, { id: 'lunch' }, { id: 'dinner' }];
+const TIMES: CookingTime[] = ['very_little', 'some', 'enjoy'];
+const VARIETIES: PlanVariety[] = ['same', 'rotate', 'daily'];
 
 type Step = 'days' | 'meals' | 'time' | 'variety' | 'propose' | 'review' | 'done';
 type Kept = Record<PlanMeal, ProposedPlanMeal | undefined>;
 
-function dateLabel(key: string): string {
-  return new Date(`${key}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+function dateLabel(key: string, locale: Locale): string {
+  return formatDate(new Date(`${key}T00:00:00`), { weekday: 'short', month: 'short', day: 'numeric' }, locale);
 }
 
 export function CreateMealPlan({
@@ -71,6 +61,7 @@ export function CreateMealPlan({
   onShoppingList(listId: string): void;
   onClose(): void;
 }) {
+  const t = useT();
   const [step, setStep] = useState<Step>('days');
   const [days, setDays] = useState<DayChoice>({ kind: 'count', count: 5 });
   const [meals, setMeals] = useState<PlanMeal[]>(['breakfast', 'lunch', 'dinner']);
@@ -123,7 +114,7 @@ export function CreateMealPlan({
       setCurrent(merged.filter(Boolean));
       setChecked(Object.fromEntries(keep.map((meal) => [meal.meal, true])));
     } catch (proposeError) {
-      setError(proposeError instanceof Error ? proposeError.message : 'Gus is stuck. Try again.');
+      setError(proposeError instanceof Error ? proposeError.message : t('suggest.stuck'));
     } finally {
       setLoading(false);
     }
@@ -171,7 +162,7 @@ export function CreateMealPlan({
         accessToken
       )
         .then((response) => setCurrent(response.proposals))
-        .catch((proposeError) => setError(proposeError instanceof Error ? proposeError.message : 'Gus is stuck. Try again.'))
+        .catch((proposeError) => setError(proposeError instanceof Error ? proposeError.message : t('suggest.stuck')))
         .finally(() => setLoading(false));
     }
   }
@@ -243,7 +234,7 @@ export function CreateMealPlan({
       setStep('done');
       onCreated();
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Unable to create the plan.');
+      setError(createError instanceof Error ? createError.message : t('createPlan.errors.create'));
     } finally {
       setLoading(false);
     }
@@ -262,16 +253,16 @@ export function CreateMealPlan({
     setError(null);
     try {
       const list = await createShoppingList(
-        planListTitle(createdDates),
+        planListTitle(createdDates, t),
         shopping.flatMap((group) =>
-          group.items.map((item) => ({ name: item.name, amount: shoppingAmount(item), role: isShoppingRole(group.role) ? group.role : 'other' }))
+          group.items.map((item) => ({ name: item.name, amount: shoppingAmount(item, t), role: isShoppingRole(group.role) ? group.role : 'other' }))
         ),
         accessToken
       );
       setSavedListId(list.id);
       onShoppingList(list.id);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save the shopping list.');
+      setError(saveError instanceof Error ? saveError.message : t('createPlan.errors.saveList'));
     } finally {
       setSavingList(false);
     }
@@ -285,8 +276,8 @@ export function CreateMealPlan({
       entry.times += 1;
       counts.set(meal.name, entry);
     }
-    return shoppingList([...counts.values()]);
-  }, [createdMeals]);
+    return shoppingList([...counts.values()], t);
+  }, [createdMeals, t]);
 
   const setupStepIndex = { days: 1, meals: 2, time: 3, variety: 4 } as Record<Step, number>;
 
@@ -302,17 +293,17 @@ export function CreateMealPlan({
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable onPress={onClose} accessibilityRole="button" hitSlop={10}>
-            <Text style={styles.close}>Close</Text>
+            <Text style={styles.close}>{t('common.close')}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Create a meal plan</Text>
+          <Text style={styles.headerTitle}>{t('createPlan.title')}</Text>
           <View style={{ width: 44 }} />
         </View>
         <ScrollView contentContainerStyle={styles.body}>
-          {setupStepIndex[step] ? <Text style={styles.stepTag}>Step {setupStepIndex[step]} of 4</Text> : null}
+          {setupStepIndex[step] ? <Text style={styles.stepTag}>{t('createPlan.stepOf', { step: setupStepIndex[step] })}</Text> : null}
 
           {step === 'days' ? (
             <>
-              <Text style={styles.title}>Plan for how many days?</Text>
+              <Text style={styles.title}>{t('createPlan.daysTitle')}</Text>
               <View style={styles.row}>
                 {[3, 5, 7].map((count) => (
                   <Pressable
@@ -322,17 +313,18 @@ export function CreateMealPlan({
                     accessibilityRole="radio"
                     accessibilityState={{ checked: days.kind === 'count' && days.count === count }}
                   >
-                    <Text style={[styles.pillLabel, days.kind === 'count' && days.count === count && styles.pillLabelActive]}>{count} days</Text>
+                    <Text style={[styles.pillLabel, days.kind === 'count' && days.count === count && styles.pillLabelActive]}>{t('createPlan.daysCount', { count })}</Text>
                   </Pressable>
                 ))}
               </View>
-              <Text style={styles.muted}>Or choose days of the week:</Text>
+              <Text style={styles.muted}>{t('createPlan.orWeekdays')}</Text>
               <View style={styles.row}>
-                {WEEKDAY_LABELS.map((label, weekday) => {
+                {[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
                   const on = days.kind === 'weekdays' && days.weekdays.includes(weekday);
+                  const label = weekdayLabel(weekday, t);
                   return (
                     <Pressable
-                      key={label}
+                      key={weekday}
                       style={[styles.day, on && styles.pillActive]}
                       onPress={() =>
                         setDays((current) => {
@@ -350,14 +342,14 @@ export function CreateMealPlan({
                 })}
               </View>
               <Pressable style={styles.primary} onPress={() => setStep('meals')} accessibilityRole="button">
-                <Text style={styles.primaryLabel}>Next</Text>
+                <Text style={styles.primaryLabel}>{t('setup.nav.next')}</Text>
               </Pressable>
             </>
           ) : null}
 
           {step === 'meals' ? (
             <>
-              <Text style={styles.title}>Plan which meals?</Text>
+              <Text style={styles.title}>{t('createPlan.mealsTitle')}</Text>
               {MEALS.map((meal) => {
                 const on = meals.includes(meal.id);
                 return (
@@ -370,17 +362,17 @@ export function CreateMealPlan({
                   >
                     <Text style={[styles.cardTitle, on && styles.cardTitleActive]}>
                       {on ? '☑ ' : '☐ '}
-                      {meal.label}
+                      {t(`meals.slots.${meal.id}`)}
                     </Text>
                   </Pressable>
                 );
               })}
               <View style={styles.nav}>
                 <Pressable style={styles.secondary} onPress={() => setStep('days')}>
-                  <Text style={styles.secondaryLabel}>Back</Text>
+                  <Text style={styles.secondaryLabel}>{t('setup.nav.back')}</Text>
                 </Pressable>
                 <Pressable style={[styles.primary, styles.flex, !meals.length && styles.disabled]} disabled={!meals.length} onPress={() => setStep('time')}>
-                  <Text style={styles.primaryLabel}>Next</Text>
+                  <Text style={styles.primaryLabel}>{t('setup.nav.next')}</Text>
                 </Pressable>
               </View>
             </>
@@ -388,14 +380,14 @@ export function CreateMealPlan({
 
           {step === 'time' ? (
             <>
-              <Text style={styles.title}>How much time do you have for cooking?</Text>
-              {TIMES.map((option) => choice(time === option.id, option.label, option.detail, () => setTime(option.id), option.id))}
+              <Text style={styles.title}>{t('createPlan.timeTitle')}</Text>
+              {TIMES.map((id) => choice(time === id, t(`createPlan.times.${id}.label`), t(`createPlan.times.${id}.detail`), () => setTime(id), id))}
               <View style={styles.nav}>
                 <Pressable style={styles.secondary} onPress={() => setStep('meals')}>
-                  <Text style={styles.secondaryLabel}>Back</Text>
+                  <Text style={styles.secondaryLabel}>{t('setup.nav.back')}</Text>
                 </Pressable>
                 <Pressable style={[styles.primary, styles.flex]} onPress={() => setStep('variety')}>
-                  <Text style={styles.primaryLabel}>Next</Text>
+                  <Text style={styles.primaryLabel}>{t('setup.nav.next')}</Text>
                 </Pressable>
               </View>
             </>
@@ -403,14 +395,16 @@ export function CreateMealPlan({
 
           {step === 'variety' ? (
             <>
-              <Text style={styles.title}>Meal variety</Text>
-              {VARIETIES.map((option) => choice(variety === option.id, option.label, option.detail, () => setVariety(option.id), option.id))}
+              <Text style={styles.title}>{t('createPlan.varietyTitle')}</Text>
+              {VARIETIES.map((id) =>
+                choice(variety === id, t(`createPlan.varieties.${id}.label`), t(`createPlan.varieties.${id}.detail`), () => setVariety(id), id)
+              )}
               <View style={styles.nav}>
                 <Pressable style={styles.secondary} onPress={() => setStep('time')}>
-                  <Text style={styles.secondaryLabel}>Back</Text>
+                  <Text style={styles.secondaryLabel}>{t('setup.nav.back')}</Text>
                 </Pressable>
                 <Pressable style={[styles.primary, styles.flex]} onPress={startProposing}>
-                  <Text style={styles.primaryLabel}>✨ Let Gus plan</Text>
+                  <Text style={styles.primaryLabel}>{t('createPlan.letGusPlan')}</Text>
                 </Pressable>
               </View>
             </>
@@ -419,13 +413,15 @@ export function CreateMealPlan({
           {step === 'propose' ? (
             <>
               <Text style={styles.stepTag}>
-                {variety === 'same' ? 'Your meals' : variety === 'rotate' ? `Rotation meal ${stepIndex + 1} of ${steps}` : `Day ${stepIndex + 1} of ${steps}`}
+                {variety === 'same'
+                  ? t('createPlan.yourMeals')
+                  : t(variety === 'rotate' ? 'createPlan.rotationMeal' : 'createPlan.dayOf', { step: stepIndex + 1, total: steps })}
               </Text>
-              <Text style={styles.title}>Check ☑ the meals to keep</Text>
+              <Text style={styles.title}>{t('createPlan.checkToKeep')}</Text>
               {loading ? (
                 <View style={styles.center}>
                   <ActivityIndicator color={tc.brand_primary} />
-                  <Text style={styles.thinking}>Gus is planning…</Text>
+                  <Text style={styles.thinking}>{t('createPlan.planning')}</Text>
                 </View>
               ) : null}
               {!loading &&
@@ -440,7 +436,7 @@ export function CreateMealPlan({
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: on, disabled: !meal }}
                     >
-                      <Text style={styles.mealTag}>{proposal.label}</Text>
+                      <Text style={styles.mealTag}>{t(`meals.slots.${proposal.meal}`)}</Text>
                       {meal ? (
                         <>
                           <Text style={styles.cardTitle}>
@@ -454,8 +450,12 @@ export function CreateMealPlan({
                             </Text>
                           ))}
                           <Text style={styles.totals}>
-                            {Math.round(meal.totals.calories)} kcal · P {Math.round(meal.totals.protein)} · C {Math.round(meal.totals.carbs)} · F{' '}
-                            {Math.round(meal.totals.fat)}
+                            {t('createPlan.totals', {
+                              calories: Math.round(meal.totals.calories),
+                              protein: Math.round(meal.totals.protein),
+                              carbs: Math.round(meal.totals.carbs),
+                              fat: Math.round(meal.totals.fat)
+                            })}
                           </Text>
                           {proposal.prep ? <Text style={styles.prep}>{proposal.prep}</Text> : null}
                         </>
@@ -468,7 +468,7 @@ export function CreateMealPlan({
               {error ? <Text style={styles.error}>{error}</Text> : null}
               {!loading && current.length === 0 ? (
                 <Pressable style={styles.primary} onPress={() => void propose(meals)} accessibilityRole="button">
-                  <Text style={styles.primaryLabel}>Ask Gus again</Text>
+                  <Text style={styles.primaryLabel}>{t('createPlan.askAgain')}</Text>
                 </Pressable>
               ) : null}
               {!loading && current.length > 0 ? (
@@ -478,14 +478,14 @@ export function CreateMealPlan({
                     onPress={tryAgain}
                     disabled={current.every((p) => checked[p.meal])}
                   >
-                    <Text style={styles.secondaryLabel}>Try again for unchecked</Text>
+                    <Text style={styles.secondaryLabel}>{t('createPlan.tryAgain')}</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.primary, styles.flex, !(current.length && current.every((p) => checked[p.meal] && p.option)) && styles.disabled]}
                     disabled={!(current.length && current.every((p) => checked[p.meal] && p.option))}
                     onPress={nextStep}
                   >
-                    <Text style={styles.primaryLabel}>{stepIndex + 1 >= steps ? 'Review plan' : 'Next'}</Text>
+                    <Text style={styles.primaryLabel}>{stepIndex + 1 >= steps ? t('createPlan.reviewPlan') : t('setup.nav.next')}</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -494,8 +494,8 @@ export function CreateMealPlan({
 
           {step === 'review' ? (
             <>
-              <Text style={styles.title}>Your plan</Text>
-              <Text style={styles.muted}>Start date</Text>
+              <Text style={styles.title}>{t('createPlan.yourPlan')}</Text>
+              <Text style={styles.muted}>{t('createPlan.startDate')}</Text>
               <input
                 type="date"
                 value={start}
@@ -507,11 +507,11 @@ export function CreateMealPlan({
                   }
                 }}
                 style={{ fontSize: 17, padding: 10, borderRadius: 10, border: '1px solid #cbd5e1' }}
-                aria-label="Start date"
+                aria-label={t('createPlan.startDate')}
               />
               {dates.map((date, dayIndex) => (
                 <View key={date} style={styles.dayCard}>
-                  <Text style={styles.dayTitle}>{dateLabel(date)}</Text>
+                  <Text style={styles.dayTitle}>{dateLabel(date, t.locale)}</Text>
                   {meals.map((meal) => {
                     const proposal = chosen[stepForDay(variety, dayIndex, steps)]?.[meal];
                     if (!proposal?.option) {
@@ -522,7 +522,11 @@ export function CreateMealPlan({
                     return (
                       <View key={meal} style={styles.dayRow}>
                         <Text style={styles.item}>
-                          {MEALS.find((m) => m.id === meal)?.label}: {proposal.option.name} · {Math.round(proposal.option.totals.calories)} kcal
+                          {t('createPlan.mealLine', {
+                            meal: t(`meals.slots.${meal}`),
+                            name: proposal.option.name,
+                            calories: Math.round(proposal.option.totals.calories)
+                          })}
                         </Text>
                         {isConflict ? (
                           <View style={styles.row}>
@@ -533,7 +537,7 @@ export function CreateMealPlan({
                                 onPress={() => setConflictChoice((value) => ({ ...value, [conflictKey(date, meal)]: option }))}
                               >
                                 <Text style={[styles.smallPillLabel, decision === option && styles.pillLabelActive]}>
-                                  {option === 'replace' ? 'Replace this meal' : 'Keep planned'}
+                                  {option === 'replace' ? t('createPlan.replace') : t('createPlan.keepPlanned')}
                                 </Text>
                               </Pressable>
                             ))}
@@ -547,10 +551,10 @@ export function CreateMealPlan({
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <View style={styles.nav}>
                 <Pressable style={styles.secondary} onPress={() => { setChosen([]); setStep('variety'); }}>
-                  <Text style={styles.secondaryLabel}>Start over</Text>
+                  <Text style={styles.secondaryLabel}>{t('createPlan.startOver')}</Text>
                 </Pressable>
                 <Pressable style={[styles.primary, styles.flex, loading && styles.disabled]} disabled={loading} onPress={() => void create()}>
-                  <Text style={styles.primaryLabel}>{loading ? 'Creating…' : 'Create plan'}</Text>
+                  <Text style={styles.primaryLabel}>{loading ? t('createPlan.creating') : t('createPlan.create')}</Text>
                 </Pressable>
               </View>
             </>
@@ -558,20 +562,21 @@ export function CreateMealPlan({
 
           {step === 'done' && result ? (
             <>
-              <Text style={styles.title}>Plan created ✓</Text>
+              <Text style={styles.title}>{t('createPlan.created')}</Text>
               <Text style={styles.muted}>
-                {result.created} meals planned
-                {result.replaced ? ` · ${result.replaced} replaced` : ''}
-                {result.kept ? ` · ${result.kept} kept as they were` : ''}. They show on Today as Planned: tick ✓ Ate it to log one.
+                {t('createPlan.summary', { count: result.created })}
+                {result.replaced ? t('createPlan.replaced', { count: result.replaced }) : ''}
+                {result.kept ? t('createPlan.kept', { count: result.kept }) : ''}
+                {t('createPlan.summaryEnd')}
               </Text>
               {shopping.length > 0 ? (
                 <Pressable style={[styles.primary, savingList && styles.disabled]} onPress={() => void saveShoppingList()} disabled={savingList}>
-                  <Text style={styles.primaryLabel}>{savingList ? 'Saving…' : '🛒 Make a shopping list'}</Text>
+                  <Text style={styles.primaryLabel}>{savingList ? t('common.saving') : t('createPlan.makeList')}</Text>
                 </Pressable>
               ) : null}
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <Pressable style={styles.secondary} onPress={onClose}>
-                <Text style={styles.secondaryLabel}>Done</Text>
+                <Text style={styles.secondaryLabel}>{t('common.done')}</Text>
               </Pressable>
             </>
           ) : null}

@@ -22,7 +22,6 @@ function shortDate(date: string, locale: string): string {
 
 export function WaterBars({ days, goalMl, metric, today }: { days: WaterDay[]; goalMl: number; metric: boolean; today: string }) {
   const pal = usePalette();
-  // Only the summary shared with Today is translated so far; the rest of Trends is pass 2.
   const t = useT();
   const { locale } = useLanguage();
   const [width, setWidth] = useState(0);
@@ -44,7 +43,7 @@ export function WaterBars({ days, goalMl, metric, today }: { days: WaterDay[]; g
   return (
     <View style={styles.block}>
       <Text style={[styles.detail, tapped && styles.detailPicked]}>{detail}</Text>
-      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={`Water: ${detail}`}>
+      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={t('trends.waterA11y', { detail })}>
         {width > 0 ? (
           <Svg width={width} height={HEIGHT}>
             {days.map((day, index) => {

@@ -1,9 +1,11 @@
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { toneColor } from '../lib/app-format';
 import { formatMealPlanCardDate, formatMealPlanCardWeekday } from '../lib/meal-plan';
-import { MEAL_STYLES, styleForSplit } from '../lib/meal-split';
+import { plannedMealLabel } from '../lib/meal-slots';
+import { mealStyleText, styleForSplit } from '../lib/meal-split';
 import type { MealPlanDay, UserProfile } from '../types';
 import { styles } from './shared/styles';
 
@@ -42,31 +44,36 @@ export function MealPlanScreen({
   mealPlanEatenSlots,
   toggleMealPlanMeal
 }: MealPlanScreenProps): ReactElement {
+  const t = useT();
   return (
     <View style={styles.panel}>
-      <Text style={styles.panelEyebrow}>Meal plan</Text>
+      <Text style={styles.panelEyebrow}>{t('mealPlan.eyebrow')}</Text>
       <Pressable
         style={styles.primaryButton}
         onPress={() => foodSessionToken && setCreatePlanOpen(true)}
         accessibilityRole="button"
       >
-        <Text style={styles.primaryButtonLabel}>✨ Create a meal plan</Text>
+        <Text style={styles.primaryButtonLabel}>{t('mealPlan.create')}</Text>
       </Pressable>
       <Text style={styles.panelDetail}>
-        Meal balance:{' '}
-        {(() => {
-          // The saved pattern, not an unsaved Profile tap.
-          const count = profile?.meals_per_day ?? 3;
-          const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count as 3 | 4 | 5, profile?.meal_split ?? []));
-          if (!profile?.meal_pattern_chosen) {
-            return 'Balanced';
-          }
-          return style ? `${style.label}${count === 3 ? '' : ` (${count} meals a day)`}` : `Custom (${count} meals a day)`;
-        })()}{' '}
-        (change it in Profile).
+        {t('mealPlan.balance', {
+          style: (() => {
+            // The saved pattern, not an unsaved Profile tap.
+            const count = profile?.meals_per_day ?? 3;
+            const style = styleForSplit(count as 3 | 4 | 5, profile?.meal_split ?? []);
+            if (!profile?.meal_pattern_chosen) {
+              return mealStyleText('balanced', t).label;
+            }
+            if (!style) {
+              return t('mealPlan.custom', { count });
+            }
+            const label = mealStyleText(style, t).label;
+            return count === 3 ? label : t('mealPlan.styleMeals', { style: label, count });
+          })()
+        })}
       </Text>
       <Text style={styles.panelDetail}>
-        Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
+        {t('mealPlan.hint')}
       </Text>
 
       <View style={[styles.inlineStatus, { borderColor: toneColor(mealPlanTone) }]}>
@@ -90,18 +97,18 @@ export function MealPlanScreen({
               onPress={() => {
                 setSelectedMealPlanDate(day.plan_date ?? null);
                 setMealPlanTone('live');
-                setMealPlanStatus(`Showing ${formatMealPlanCardDate(day.plan_date)} plan`);
+                setMealPlanStatus(t('mealPlan.showing', { date: formatMealPlanCardDate(day.plan_date, t) }));
               }}
             >
               <Text style={[styles.mealPlanDateWeekday, active && styles.mealPlanDateWeekdayActive]}>
-                {formatMealPlanCardWeekday(day.plan_date)}
+                {formatMealPlanCardWeekday(day.plan_date, t)}
               </Text>
               <Text style={[styles.mealPlanDateLabel, active && styles.mealPlanDateLabelActive]}>
-                {formatMealPlanCardDate(day.plan_date)}
+                {formatMealPlanCardDate(day.plan_date, t)}
               </Text>
               <Text style={[styles.mealPlanDateMeta, active && styles.mealPlanDateMetaActive]}>
                 {day.label}
-                {isToday ? ' · Today' : ''}
+                {isToday ? t('mealPlan.todaySuffix') : ''}
               </Text>
             </Pressable>
           );
@@ -114,11 +121,11 @@ export function MealPlanScreen({
             <View>
               <Text style={styles.detailTitle}>{selectedMealPlanDay.label}</Text>
               <Text style={styles.detailSubtitle}>
-                {selectedMealPlanDay.focus} · {formatMealPlanCardDate(selectedMealPlanDay.plan_date)}
+                {selectedMealPlanDay.focus} · {formatMealPlanCardDate(selectedMealPlanDay.plan_date, t)}
               </Text>
             </View>
             <Text style={styles.detailSubtitle}>
-              {selectedMealPlanDay.slots.length} planned meal{selectedMealPlanDay.slots.length === 1 ? '' : 's'}
+              {t('mealPlan.plannedMeals', { count: selectedMealPlanDay.slots.length })}
             </Text>
           </View>
 
@@ -136,8 +143,8 @@ export function MealPlanScreen({
                   <View style={styles.mealPlanSlotHeader}>
                     <View style={styles.foodRowCopy}>
                       <View style={styles.mealPlanSlotTitleRow}>
-                        <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                        <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
+                        <Text style={styles.listTitle}>{plannedMealLabel(slot.meal_label, t)}</Text>
+                        <Text style={styles.mealPlanSlotTotal}>{t('common.kcal', { value: slot.calories })}</Text>
                       </View>
                       <Text style={styles.listCaption}>{slot.title}</Text>
                     </View>
@@ -159,9 +166,13 @@ export function MealPlanScreen({
                             </View>
                             <View style={styles.mealPlanItemInlineMeta}>
                             <Text style={styles.mealPlanItemMacroLine}>
-                              P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
+                              {t('common.macrosGrams', {
+                                protein: Math.round(item.macros.protein),
+                                carbs: Math.round(item.macros.carbs),
+                                fat: Math.round(item.macros.fat)
+                              })}
                             </Text>
-                            <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
+                            <Text style={styles.mealPlanItemCalories}>{t('common.kcal', { value: item.calories })}</Text>
                           </View>
                         </View>
                       ))}
@@ -174,8 +185,8 @@ export function MealPlanScreen({
         </View>
       ) : (
         <View style={styles.detailCard}>
-          <Text style={styles.detailTitle}>No meal plan saved yet</Text>
-          <Text style={styles.detailSubtitle}>Save a weekly plan to populate the date cards here.</Text>
+          <Text style={styles.detailTitle}>{t('mealPlan.emptyTitle')}</Text>
+          <Text style={styles.detailSubtitle}>{t('mealPlan.emptyHint')}</Text>
         </View>
       )}
     </View>

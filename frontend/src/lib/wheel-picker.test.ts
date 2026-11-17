@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import {
   draftsFromWheel,
   formatBodyField,
@@ -91,5 +92,15 @@ describe('selections and display', () => {
     expect(formatBodyField('age', 'imperial', drafts)).toBe('34 years');
     expect(formatBodyField('weight', 'imperial', empty)).toBe('');
     expect(formatBodyField('height', 'imperial', empty)).toBe('');
+  });
+
+  it('labels ages and wheels in Spanish, keeping the unit symbols', () => {
+    const es = translatorFor('es');
+    const drafts = { ...empty, heightFeet: '5', heightInches: '10', age: '34', weight: '165' };
+    expect(formatBodyField('age', 'imperial', drafts, es)).toBe('34 años');
+    expect(formatBodyField('height', 'imperial', drafts, es)).toBe('5 ft 10 in');
+    expect(wheelColumns('age', 'metric', es)[0]).toMatchObject({ unit: 'años', accessibilityLabel: 'Edad, años' });
+    expect(wheelColumns('goalWeight', 'metric', es)[0].accessibilityLabel).toBe('Meta de peso, kilogramos');
+    expect(wheelColumns('goalWeight', 'imperial')[0].accessibilityLabel).toBe('Goal weight, pounds');
   });
 });

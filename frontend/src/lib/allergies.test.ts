@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatAllergySelection, missingOtherAllergy, parseAllergySelection } from './allergies';
+import { translatorFor } from '../i18n/dictionaries';
+import { describeAllergySelection, formatAllergySelection, missingOtherAllergy, parseAllergySelection } from './allergies';
 
 describe('allergies', () => {
   it('round-trips choices and Other text without false matches', () => {
@@ -27,5 +28,13 @@ describe('allergies', () => {
     expect(missingOtherAllergy(['other'], '  ')).toBe(true);
     expect(missingOtherAllergy(['other'], 'soy')).toBe(false);
     expect(missingOtherAllergy(['milk'], '')).toBe(false);
+  });
+
+  it('describes the choices in the display language while the saved note stays English', () => {
+    const selected = ['peanut', 'tree_nuts', 'other'] as const;
+    expect(formatAllergySelection([...selected], 'sesame')).toBe('Peanut; Tree nuts; Other: sesame');
+    expect(describeAllergySelection([...selected], 'sesame', translatorFor('en'))).toBe('Peanut; Tree nuts; Other: sesame');
+    expect(describeAllergySelection([...selected], 'ajonjolí', translatorFor('es'))).toBe('Maní; Frutos secos; Otra: ajonjolí');
+    expect(describeAllergySelection(['none'], '', translatorFor('es'))).toBeNull();
   });
 });

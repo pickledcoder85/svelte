@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Line, Rect } from 'react-native-svg';
 
+import { formatDate, formatNumber, useT } from '../../i18n';
 import type { DayPoint } from '../../lib/trends';
 import { usePalette } from '../../theme/appearance';
 import { tc } from '../../theme/palette';
@@ -17,6 +18,8 @@ const PAD = { top: 8, bottom: 20, left: 40, right: 6 };
 
 export function CalorieBars({ days }: { days: DayPoint[] }) {
   const pal = usePalette();
+  const t = useT();
+  const shortDate = (date: string | undefined) => formatDate(new Date(`${date}T00:00:00`), { month: 'short', day: 'numeric' }, t.locale);
   const [width, setWidth] = useState(0);
   const max = Math.max(500, ...days.map((day) => Math.max(day.eaten, day.allowance))) * 1.05;
   const innerW = Math.max(1, width - PAD.left - PAD.right);
@@ -29,7 +32,7 @@ export function CalorieBars({ days }: { days: DayPoint[] }) {
   const outline = barW >= 5 ? 1.2 : 0.8;
 
   return (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel="Calories eaten each day against the allowance">
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={t('trends.calorieChart.a11y')}>
       {width > 0 ? (
         <Svg width={width} height={HEIGHT}>
           {base > 0 ? (
@@ -63,13 +66,14 @@ export function CalorieBars({ days }: { days: DayPoint[] }) {
       )}
       {width > 0 ? (
         <>
-          {base > 0 ? <Text style={[styles.axis, { top: y(base) - 8 }]}>{base.toLocaleString('en-US')}</Text> : null}
+          {base > 0 ? <Text style={[styles.axis, { top: y(base) - 8 }]}>{formatNumber(base, undefined, t.locale)}</Text> : null}
           <View style={styles.footer}>
-            <Text style={styles.small}>{new Date(`${days[0]?.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+            <Text style={styles.small}>{shortDate(days[0]?.date)}</Text>
             <Text style={styles.small}>
-              <Text style={{ color: pal.brand_primary }}>■</Text> eaten  □ allowance  <Text style={{ color: pal.fg_f59e0b }}>■</Text> over
+              <Text style={{ color: pal.brand_primary }}>■</Text> {t('trends.calorieChart.eaten')}  □ {t('trends.calorieChart.allowance')}  <Text style={{ color: pal.fg_f59e0b }}>■</Text>{' '}
+              {t('trends.calorieChart.over')}
             </Text>
-            <Text style={styles.small}>{new Date(`${days.at(-1)?.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+            <Text style={styles.small}>{shortDate(days.at(-1)?.date)}</Text>
           </View>
         </>
       ) : null}

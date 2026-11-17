@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { translatorFor } from '../i18n/dictionaries';
 import type { FoodLogEntry } from '../types';
-import { addButtonLabel, addToDayLabel, defaultMealSlot, groupByMeal } from './meal-slots';
+import { addButtonLabel, addToDayLabel, defaultMealSlot, groupByMeal, plannedMealLabel } from './meal-slots';
 
 const en = translatorFor('en');
 const es = translatorFor('es');
@@ -48,5 +48,14 @@ describe('meal slots', () => {
     expect(addToDayLabel('today', en)).toBe('Add to today');
     expect(addToDayLabel('Tuesday', en)).toBe('Add to Tuesday');
     expect(addToDayLabel('martes', es)).toBe('Agregar al martes');
+  });
+});
+
+describe('planned meal labels', () => {
+  it('translates the saved English meal names and keeps others as saved', () => {
+    expect(plannedMealLabel('Breakfast', es)).toBe('Desayuno');
+    expect(plannedMealLabel('snack', es)).toBe('Refrigerio');
+    expect(plannedMealLabel('Brunch', es)).toBe('Brunch');
+    expect(plannedMealLabel('Lunch', en)).toBe('Lunch');
   });
 });

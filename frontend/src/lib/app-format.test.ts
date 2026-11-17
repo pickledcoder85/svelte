@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+
+import { translatorFor } from '../i18n/dictionaries';
 import {
   createEmptyFoodLog,
   deriveExerciseIntensity,
@@ -54,5 +56,12 @@ describe('app-format helpers', () => {
       entries: [],
       totals: { calories: 0, macros: { protein: 0, carbs: 0, fat: 0 } }
     });
+  });
+});
+
+describe('home date labels in Spanish', () => {
+  it('uses the display language when given one', () => {
+    expect(formatHomeDateLabel('2026-03-04', '2026-03-04', translatorFor('es')).replace(/\s/g, ' ')).toBe('Hoy · mié, 4 de mar');
+    expect(formatHomeDateLabel('2026-03-04', '2026-03-04', translatorFor('en'))).toBe('Today · Wed, Mar 4');
   });
 });

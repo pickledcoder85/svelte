@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import { applicationServerKey, REMINDER_TIME_OPTIONS, sameKey, timeLabel } from './push-client';
 
 describe('push client', () => {
@@ -25,5 +26,13 @@ describe('push client', () => {
     expect(sameKey(key.buffer, key)).toBe(true);
     expect(sameKey(new Uint8Array([4, 1, 2]).buffer, key)).toBe(false);
     expect(sameKey(null, key)).toBe(false);
+  });
+});
+
+describe('reminder times in Spanish', () => {
+  it('reads times in the display language and keeps English as it was', () => {
+    expect(timeLabel('15:00', translatorFor('es')).replace(/\s/g, ' ')).toBe('3 p. m.');
+    expect(timeLabel('07:30', translatorFor('es')).replace(/\s/g, ' ')).toBe('7:30 a. m.');
+    expect(timeLabel('15:00', translatorFor('en'))).toBe('3 PM');
   });
 });

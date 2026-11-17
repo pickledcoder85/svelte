@@ -4,13 +4,19 @@
  * to the home screen (iOS 16.4+) and the permission asked from a tap.
  */
 
+import { formatDate, type TFunction } from '../i18n/translate';
+
 /** Hourly times offered for water reminders (24-hour "HH:MM", what the server stores). */
 export const REMINDER_TIME_OPTIONS = Array.from({ length: 15 }, (_, index) => `${String(index + 7).padStart(2, '0')}:00`);
 export const DEFAULT_WATER_TIMES = ['10:00', '15:00'];
 
 /** "10 AM", "3 PM", "12 PM". */
-export function timeLabel(time: string): string {
+export function timeLabel(time: string, t?: TFunction): string {
   const [hours, minutes] = time.split(':').map(Number);
+  if (t && t.language !== 'en') {
+    // "3 p. m.", "3:30 p. m." in the display language.
+    return formatDate(new Date(2026, 0, 1, hours, minutes || 0), minutes ? { hour: 'numeric', minute: '2-digit' } : { hour: 'numeric' }, t.locale);
+  }
   const suffix = hours >= 12 ? 'PM' : 'AM';
   const hour = hours % 12 === 0 ? 12 : hours % 12;
   return minutes ? `${hour}:${String(minutes).padStart(2, '0')} ${suffix}` : `${hour} ${suffix}`;

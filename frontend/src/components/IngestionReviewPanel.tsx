@@ -43,6 +43,7 @@ import {
 import { WebBarcodeScanner } from './WebBarcodeScanner';
 import { AddFoodSheet } from './AddFoodSheet';
 import { localDateKey as todayDateKey } from '../lib/dates';
+import { formatDate, useT, type TFunction } from '../i18n';
 
 interface IngestionReviewPanelProps {
   accessToken: string | null;
@@ -56,6 +57,7 @@ interface IngestionReviewPanelProps {
 type SyncTone = 'checking' | 'live';
 
 export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan, onAutoStartHandled }: IngestionReviewPanelProps) {
+  const t = useT();
   const cameraRef = useRef<CameraView | null>(null);
   const guidePulse = useRef(new Animated.Value(0)).current;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -63,8 +65,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
   const [selectedOutput, setSelectedOutput] = useState<IngestionOutput | null>(null);
   const [tone, setTone] = useState<SyncTone>('checking');
-  const [statusLabel, setStatusLabel] = useState('Loading pending outputs');
-  const [statusDetail, setStatusDetail] = useState('Fetching the ingestion review queue.');
+  const [statusLabel, setStatusLabel] = useState(() => t('scans.status.loading'));
+  const [statusDetail, setStatusDetail] = useState(() => t('scans.status.loadingDetail'));
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   }, [selectedOutput]);
 
   useEffect(() => {
-    const groups = groupOutputsByDate(outputs);
+    const groups = groupOutputsByDate(outputs, t);
     setExpandedScanDates((current) => {
       const next: Record<string, boolean> = {};
       groups.forEach((group, index) => {
@@ -129,8 +131,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueLoading(true);
     setQueueError(null);
     setTone('checking');
-    setStatusLabel('Loading pending outputs');
-    setStatusDetail('Fetching the ingestion review queue.');
+    setStatusLabel(t('scans.status.loading'));
+    setStatusDetail(t('scans.status.loadingDetail'));
 
     if (!accessToken) {
       if (cancelled) {
@@ -141,8 +143,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       setSelectedOutputId(null);
       setSelectedOutput(null);
       setTone('checking');
-      setStatusLabel('Sign in to review ingestion outputs');
-      setStatusDetail('Sign in to see your scans.');
+      setStatusLabel(t('scans.status.signIn'));
+      setStatusDetail(t('scans.status.signInDetail'));
       setQueueLoading(false);
       return;
     }
@@ -168,12 +170,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         return pending[0] ?? current ?? null;
       });
       setTone('live');
-      setStatusLabel('Scans');
-      setStatusDetail(
-        pending.length === 0
-          ? 'No pending outputs right now.'
-          : `${pending.length} pending output${pending.length === 1 ? '' : 's'} ready for review.`
-      );
+      setStatusLabel(t('scans.status.scans'));
+      setStatusDetail(pending.length === 0 ? t('scans.status.none') : t('scans.status.pending', { count: pending.length }));
     } catch (error) {
       if (cancelled) {
         return;
@@ -183,9 +181,9 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       setSelectedOutputId(null);
       setSelectedOutput(null);
       setTone('checking');
-      setStatusLabel('Scans unavailable');
-      setStatusDetail('The backend queue is unavailable right now.');
-      setQueueError(error instanceof Error ? error.message : 'Ingestion queue unavailable.');
+      setStatusLabel(t('scans.status.unavailable'));
+      setStatusDetail(t('scans.status.unavailableDetail'));
+      setQueueError(error instanceof Error ? error.message : t('scans.status.queueError'));
     } finally {
       if (!cancelled) {
         setQueueLoading(false);
@@ -202,8 +200,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueError(null);
     setSavedFoods([]);
     setTone('checking');
-    setStatusLabel('Scanning package front');
-    setStatusDetail('Creating a package-ingestion output from the provided image payload.');
+    setStatusLabel(t('scans.status.scanningPackage'));
+    setStatusDetail(t('scans.status.scanningPackageDetail'));
 
     try {
       const scan = await scanFoodPackage(imageBase64, accessToken);
@@ -213,13 +211,13 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       setSelectedOutput(output);
       await refreshQueue();
       setTone('live');
-      setStatusLabel('Package scanned');
-      setStatusDetail(`Read "${scan.extraction.product_name}". Check the nutrition below, or scan the nutrition label for exact numbers.`);
+      setStatusLabel(t('scans.status.packageScanned'));
+      setStatusDetail(t('scans.status.packageRead', { name: scan.extraction.product_name }));
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Package scan failed');
-      setStatusDetail('The package image could not be analyzed.');
-      setQueueError(error instanceof Error ? error.message : 'Package scan failed.');
+      setStatusLabel(t('scans.status.packageFailed'));
+      setStatusDetail(t('scans.status.packageFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : `${t('scans.status.packageFailed')}.`);
     } finally {
       setCaptureLoading(null);
     }
@@ -235,8 +233,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueError(null);
     setSavedFoods([]);
     setTone('checking');
-    setStatusLabel('Scanning nutrition label');
-    setStatusDetail('Creating a label-ingestion output from the provided image payload.');
+    setStatusLabel(t('scans.status.scanningLabel'));
+    setStatusDetail(t('scans.status.scanningLabelDetail'));
 
     try {
       const scan = await ingestNutritionLabel(imageBase64, accessToken);
@@ -256,13 +254,13 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       setSelectedOutput(output);
       await refreshQueue();
       setTone('live');
-      setStatusLabel('Label scanned');
-      setStatusDetail(replaced ? 'The label replaced the matched nutrition. Check it, then save.' : 'Check the numbers, then save.');
+      setStatusLabel(t('scans.status.labelScanned'));
+      setStatusDetail(replaced ? t('scans.status.labelReplaced') : t('scans.status.checkThenSave'));
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Label scan failed');
-      setStatusDetail('The label image could not be analyzed.');
-      setQueueError(error instanceof Error ? error.message : 'Label scan failed.');
+      setStatusLabel(t('scans.status.labelFailed'));
+      setStatusDetail(t('scans.status.labelFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : `${t('scans.status.labelFailed')}.`);
     } finally {
       setCaptureLoading(null);
     }
@@ -277,8 +275,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueError(null);
     setSavedFoods([]);
     setTone('checking');
-    setStatusLabel(action === 'accept' ? 'Accepting output' : 'Rejecting output');
-    setStatusDetail('Saving the review decision.');
+    setStatusLabel(action === 'accept' ? t('scans.status.accepting') : t('scans.status.rejecting'));
+    setStatusDetail(t('scans.status.savingDecision'));
 
     try {
       const reviewed =
@@ -295,13 +293,13 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       setSelectedOutput(reviewed);
       setEditingFields(false);
       setTone('live');
-      setStatusLabel(action === 'accept' ? 'Output accepted' : 'Output rejected');
+      setStatusLabel(action === 'accept' ? t('scans.status.accepted') : t('scans.status.rejected'));
       setStatusDetail(describeOutput(reviewed));
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Review action failed');
-      setStatusDetail('The selected output could not be updated.');
-      setQueueError(error instanceof Error ? error.message : 'Unable to update ingestion review.');
+      setStatusLabel(t('scans.status.reviewFailed'));
+      setStatusDetail(t('scans.status.reviewFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : t('scans.status.reviewError'));
     } finally {
       setActioningId(null);
     }
@@ -318,8 +316,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueError(null);
     setSavedFoods([]);
     setTone('checking');
-    setStatusLabel('Saving');
-    setStatusDetail('Saving to your food bank.');
+    setStatusLabel(t('scans.status.saving'));
+    setStatusDetail(t('scans.status.savingDetail'));
     try {
       const accepted =
         selectedOutput.review_state === 'accepted'
@@ -335,15 +333,17 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       const result = await saveFoodFromIngestionOutput(outputId, accessToken);
       setSavedFoods(result.saved_foods);
       setTone('live');
-      setStatusLabel('Saved to your food bank');
+      setStatusLabel(t('scans.status.saved'));
       setStatusDetail(
-        result.saved_foods.length === 1 ? `${result.saved_foods[0].name} is in your food bank.` : `${result.saved_foods.length} foods are in your food bank.`
+        result.saved_foods.length === 1
+          ? t('scans.status.savedOne', { name: result.saved_foods[0].name })
+          : t('scans.status.savedMany', { count: result.saved_foods.length })
       );
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Save failed');
-      setStatusDetail('Check the numbers and try again.');
-      setQueueError(error instanceof Error ? error.message : 'Unable to save this food.');
+      setStatusLabel(t('scans.status.saveFailed'));
+      setStatusDetail(t('scans.status.saveFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : t('foodSheet.saveError'));
     } finally {
       setActioningId(null);
       setSavingFoodId(null);
@@ -358,24 +358,24 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setSavingFoodId(selectedOutput.id);
     setQueueError(null);
     setTone('checking');
-    setStatusLabel('Saving food item');
-    setStatusDetail('Persisting the accepted ingestion output into the food catalog.');
+    setStatusLabel(t('scans.status.savingItem'));
+    setStatusDetail(t('scans.status.savingItemDetail'));
 
     try {
       const result = await saveFoodFromIngestionOutput(selectedOutput.id, accessToken);
       setSavedFoods(result.saved_foods);
       setTone('live');
-      setStatusLabel(result.saved_foods.length === 1 ? 'Food saved' : 'Foods saved');
+      setStatusLabel(result.saved_foods.length === 1 ? t('scans.status.foodSaved') : t('scans.status.foodsSaved'));
       setStatusDetail(
         result.saved_foods.length === 1
-          ? `${result.saved_foods[0].name} is now available in the food catalog.`
-          : `${result.saved_foods.length} foods are now available in the food catalog.`
+          ? t('scans.status.catalogOne', { name: result.saved_foods[0].name })
+          : t('scans.status.catalogMany', { count: result.saved_foods.length })
       );
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Food save failed');
-      setStatusDetail('The accepted output could not be saved as a food item.');
-      setQueueError(error instanceof Error ? error.message : 'Unable to save food item.');
+      setStatusLabel(t('scans.status.foodSaveFailed'));
+      setStatusDetail(t('scans.status.foodSaveFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : t('scans.status.foodSaveError'));
     } finally {
       setSavingFoodId(null);
     }
@@ -393,7 +393,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
 
     const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
     if (!permission?.granted) {
-      setQueueError('Camera permission is required to scan packages and labels.');
+      setQueueError(t('scans.status.cameraPermission'));
       return;
     }
 
@@ -413,7 +413,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.8 });
       const base64 = photo.base64 ?? '';
       if (!base64) {
-        throw new Error('Camera capture did not return image data.');
+        throw new Error(t('scans.status.noImageData'));
       }
 
       if (activeStep === 'package') {
@@ -421,8 +421,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         await createPackageScanFromBase64(base64);
         await runGuidePulse(guidePulse);
         setCameraStep('label');
-        setStatusLabel('Package scan created');
-        setStatusDetail('Scan the nutrition label next, or skip if the product does not show one.');
+        setStatusLabel(t('scans.status.packageCreated'));
+        setStatusDetail(t('scans.status.packageCreatedDetail'));
       } else {
         setLabelFileName(`live-label-${Date.now()}.jpg`);
         await createLabelScanFromBase64(base64);
@@ -430,7 +430,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         setCameraStep(null);
       }
     } catch (error) {
-      setQueueError(error instanceof Error ? error.message : 'Unable to capture image from camera.');
+      setQueueError(error instanceof Error ? error.message : t('scans.status.captureError'));
     } finally {
       if (activeStep !== 'package') {
         setCameraStep(null);
@@ -441,7 +441,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   async function captureWebPhoto(step: 'package' | 'label' | 'smart', replaceOutputId?: string) {
     if (captureLoading || !accessToken) {
       if (!accessToken) {
-        setQueueError('Sign in before scanning.');
+        setQueueError(t('scans.status.signInFirst'));
       }
       return;
     }
@@ -461,14 +461,14 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     let prepared: PreparedPhoto;
     try {
       setTone('checking');
-      setStatusLabel('Preparing photo');
-      setStatusDetail('Shrinking the photo before upload.');
+      setStatusLabel(t('scans.status.preparing'));
+      setStatusDetail(t('scans.status.preparingDetail'));
       prepared = await prepareScanPhoto(file);
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Photo not usable');
-      setStatusDetail('Take the photo again.');
-      setQueueError(error instanceof Error ? error.message : 'This photo could not be prepared.');
+      setStatusLabel(t('scans.status.photoUnusable'));
+      setStatusDetail(t('scans.status.photoUnusableDetail'));
+      setQueueError(error instanceof Error ? error.message : t('scans.status.photoError'));
       return;
     }
 
@@ -488,7 +488,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       return;
     }
     if (!accessToken) {
-      setQueueError('Sign in before scanning.');
+      setQueueError(t('scans.status.signInFirst'));
       return;
     }
     smartReplaceRef.current = replaceOutputId ?? null;
@@ -506,8 +506,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueError(null);
     setSavedFoods([]);
     setTone('checking');
-    setStatusLabel('Reading…');
-    setStatusDetail('Working out what the picture shows and reading it.');
+    setStatusLabel(t('scan.reading'));
+    setStatusDetail(t('scans.status.readingDetail'));
     try {
       const prepared = await prepareScanPhoto(image);
       const result = await smartScan(prepared.base64, accessToken, replaceOutputId, missingBarcodeRef.current);
@@ -517,9 +517,9 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       await showSmartResult(result);
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Scan failed');
-      setStatusDetail('Try again, or take a full photo.');
-      setQueueError(error instanceof Error ? error.message : 'Scan failed.');
+      setStatusLabel(t('scans.status.scanFailed'));
+      setStatusDetail(t('scans.status.scanFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : t('scan.failed'));
     } finally {
       setCaptureLoading(null);
     }
@@ -528,14 +528,14 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   async function showSmartResult(result: SmartScanResult) {
     if (result.kind === 'meal_plate') {
       setTone('checking');
-      setStatusLabel('That looks like a plate of food');
-      setStatusDetail('To log a meal, use the camera button in the tab bar: it adds each item with its portion.');
+      setStatusLabel(t('scans.status.plate'));
+      setStatusDetail(t('scans.status.plateDetail'));
       return;
     }
     if (result.kind === 'unreadable' || !result.output_id || !result.ingestion_job_id) {
       setTone('checking');
-      setStatusLabel("Couldn't read that");
-      setStatusDetail(result.message ?? 'Hold the phone a little closer and steady, then scan again, or take a full photo.');
+      setStatusLabel(t('scans.status.unreadable'));
+      setStatusDetail(result.message ?? t('scans.status.unreadableDetail'));
       return;
     }
     const extraction = result.kind === 'nutrition_label' ? result.label : result.package;
@@ -545,11 +545,11 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     await refreshQueue();
     setTone('live');
     if (result.kind === 'nutrition_label') {
-      setStatusLabel('Nutrition label read');
-      setStatusDetail(result.replaced ? 'The label replaced the matched nutrition. Check it, then save.' : 'Check the numbers, then save.');
+      setStatusLabel(t('scans.status.labelRead'));
+      setStatusDetail(result.replaced ? t('scans.status.labelReplaced') : t('scans.status.checkThenSave'));
     } else {
-      setStatusLabel('Package front read');
-      setStatusDetail(`Read "${result.package?.product_name ?? 'the package'}". Check the nutrition below, or scan the nutrition label for exact numbers.`);
+      setStatusLabel(t('scans.status.packageFrontRead'));
+      setStatusDetail(t('scans.status.packageRead', { name: result.package?.product_name ?? t('scans.status.thePackage') }));
     }
   }
 
@@ -563,37 +563,37 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     setQueueError(null);
     setSavedFoods([]);
     setTone('checking');
-    setStatusLabel('Looking up barcode');
-    setStatusDetail(`Checking ${code} in your food bank and Open Food Facts.`);
+    setStatusLabel(t('scans.status.lookingUp'));
+    setStatusDetail(t('scans.status.lookingUpDetail', { code }));
 
     try {
       const result = await lookupBarcode(code, accessToken);
       if (result.food) {
         setSavedFoods([result.food]);
         setTone('live');
-        setStatusLabel('Already in your food bank');
-        setStatusDetail(`${result.food.name} is saved. Find it in Foods to log it.`);
+        setStatusLabel(t('scans.status.inBank'));
+        setStatusDetail(t('scans.status.inBankDetail', { name: result.food.name }));
       } else if (result.output) {
         const output = result.output;
         setSelectedOutputId(output.id);
         setSelectedOutput(output);
         await refreshQueue();
         setTone('live');
-        setStatusLabel('Barcode found');
+        setStatusLabel(t('scans.status.barcodeFound'));
         setStatusDetail(
-          `${describeOutput(output)} from ${result.source === 'usda' ? 'USDA' : 'Open Food Facts'}. Check the numbers, then save.`
+          t('scans.status.barcodeFoundDetail', { name: describeOutput(output), source: result.source === 'usda' ? 'USDA' : 'Open Food Facts' })
         );
       } else {
         setTone('checking');
         missingBarcodeRef.current = code;
-        setStatusLabel('Barcode not found');
-        setStatusDetail(result.message ?? "We couldn't find this barcode. Photograph the nutrition label instead.");
+        setStatusLabel(t('scans.status.barcodeNotFound'));
+        setStatusDetail(result.message ?? t('scans.status.barcodeNotFoundDetail'));
       }
     } catch (error) {
       setTone('checking');
-      setStatusLabel('Barcode lookup failed');
-      setStatusDetail('Try again, or photograph the nutrition label instead.');
-      setQueueError(error instanceof Error ? error.message : 'Barcode lookup failed.');
+      setStatusLabel(t('scans.status.barcodeFailed'));
+      setStatusDetail(t('scans.status.barcodeFailedDetail'));
+      setQueueError(error instanceof Error ? error.message : t('scan.barcodeFailed'));
     } finally {
       setCaptureLoading(null);
     }
@@ -602,13 +602,13 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   function skipLabelCapture() {
     setCameraStep(null);
     setTone('live');
-    setStatusLabel('Package scan ready');
-    setStatusDetail('Nutrition label skipped. Review the package result and save when ready.');
+    setStatusLabel(t('scans.status.packageReady'));
+    setStatusDetail(t('scans.status.packageReadyDetail'));
   }
 
   const displayOutput = selectedOutput;
   const pendingCount = outputs.length;
-  const recentScanGroups = groupOutputsByDate(outputs);
+  const recentScanGroups = groupOutputsByDate(outputs, t);
   const browserViewingMode = Platform.OS === 'web';
   const nutritionVariants = getNutritionVariants(displayOutput?.structured_json);
   const hasAdditionalVariants =
@@ -619,8 +619,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   const cameraReady =
     Platform.OS !== 'web' &&
     (cameraPermission?.granted
-      ? 'Camera ready for live scanning.'
-      : 'Open the live scanner and grant camera access to capture the current frame.');
+      ? t('scans.cameraReady')
+      : t('scans.cameraGrant'));
   const canReview =
     displayOutput !== null &&
     displayOutput.review_state === 'pending' &&
@@ -633,11 +633,9 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
 
   return (
     <View style={styles.panel}>
-      <Text style={styles.eyebrow}>Ingestion</Text>
-      <Text style={styles.title}>Camera food bank</Text>
-      <Text style={styles.detail}>
-        Scan a barcode, package front, or nutrition label, check what was read, and save it to your food bank.
-      </Text>
+      <Text style={styles.eyebrow}>{t('scans.eyebrow')}</Text>
+      <Text style={styles.title}>{t('scans.title')}</Text>
+      <Text style={styles.detail}>{t('scans.intro')}</Text>
 
       <View style={[styles.statusBanner, { borderColor: toneColor(tone) }]}>
         <Text style={styles.statusLabel}>{statusLabel}</Text>
@@ -646,15 +644,15 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       </View>
 
       <View style={styles.metricRow}>
-        <MetricTile label="Pending" value={`${outputs.length}`} />
+        <MetricTile label={t('scans.pending')} value={`${outputs.length}`} />
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Capture</Text>
+        <Text style={styles.cardLabel}>{t('scans.capture')}</Text>
         <Text style={styles.detailText}>
           {browserViewingMode
-            ? 'Tap Scan and point at a barcode, a package front, or the nutrition label. Barcodes read instantly; for the rest, hold still and it captures by itself.'
-            : 'Open the camera once, scan the package front, then scan the nutrition label or skip it if the product does not show one.'}
+            ? t('scans.captureWeb')
+            : t('scans.captureNative')}
         </Text>
 
         <View style={styles.detailBlock}>
@@ -667,7 +665,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                 accessibilityRole="button"
               >
                 <Text style={styles.actionButtonLabel}>
-                  {captureLoading === 'barcode' ? 'Looking up barcode…' : captureLoading === 'smart' ? 'Reading…' : 'Scan'}
+                  {captureLoading === 'barcode' ? t('scans.lookingUpButton') : captureLoading === 'smart' ? t('scan.reading') : t('scan.scanner.title')}
                 </Text>
               </Pressable>
               <Pressable
@@ -676,19 +674,15 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                 disabled={captureLoading !== null}
                 accessibilityRole="button"
               >
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Take a full photo</Text>
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>{t('common.takeFullPhoto')}</Text>
               </Pressable>
             </>
           ) : (
             <>
               <View style={styles.uploadSummaryCard}>
-                <Text style={styles.uploadSummaryTitle}>Camera scanner</Text>
-                <Text style={styles.uploadSummaryDetail}>
-                  Package front: {packageFileName ?? 'not scanned yet'}
-                </Text>
-                <Text style={styles.uploadSummaryDetail}>
-                  Nutrition label: {labelFileName ?? 'not scanned yet'}
-                </Text>
+                <Text style={styles.uploadSummaryTitle}>{t('scans.cameraScanner')}</Text>
+                <Text style={styles.uploadSummaryDetail}>{t('scans.packageFront', { file: packageFileName ?? t('scans.notScanned') })}</Text>
+                <Text style={styles.uploadSummaryDetail}>{t('scans.nutritionLabel', { file: labelFileName ?? t('scans.notScanned') })}</Text>
                 <Text style={styles.uploadSummaryDetail}>{cameraReady}</Text>
               </View>
               <Pressable
@@ -697,7 +691,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                 disabled={captureLoading !== null}
               >
                 <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                  {packageFileName || labelFileName ? 'Open Camera Again' : 'Open Camera Scanner'}
+                  {packageFileName || labelFileName ? t('scans.openAgain') : t('scans.openScanner')}
                 </Text>
               </Pressable>
             </>
@@ -706,7 +700,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
 
         {lastPackageScan ? (
           <View style={styles.detailBlock}>
-            <Text style={styles.detailBlockLabel}>Package match candidates</Text>
+            <Text style={styles.detailBlockLabel}>{t('scans.candidates')}</Text>
             {lastPackageScan.extraction.match_candidates.length > 0 ? (
               <View style={styles.list}>
                 {lastPackageScan.extraction.match_candidates.map((candidate) => (
@@ -714,7 +708,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                     <View style={styles.listCopy}>
                       <Text style={styles.listTitle}>{candidate.name}</Text>
                       <Text style={styles.listCaption}>
-                        {candidate.brand ?? 'No brand'} · {candidate.source}
+                        {candidate.brand ?? t('scans.noBrand')} · {candidate.source}
                       </Text>
                     </View>
                     <Text style={styles.listMetric}>{Math.round(candidate.confidence * 100)}%</Text>
@@ -722,25 +716,23 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                 ))}
               </View>
             ) : (
-              <Text style={styles.detailText}>No existing-food matches returned from the current package scan.</Text>
+              <Text style={styles.detailText}>{t('scans.noCandidates')}</Text>
             )}
           </View>
         ) : null}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Recent scans</Text>
+        <Text style={styles.cardLabel}>{t('nav.sections.recentScans')}</Text>
         {queueLoading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size="small" color={tc.fg_17324d} />
-            <Text style={styles.detailText}>Loading recent scans...</Text>
+            <Text style={styles.detailText}>{t('scans.loadingRecent')}</Text>
           </View>
         ) : pendingCount === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No recent scans</Text>
-            <Text style={styles.detailText}>
-              New package or label scans will appear here for quick review.
-            </Text>
+            <Text style={styles.emptyTitle}>{t('scans.noRecent')}</Text>
+            <Text style={styles.detailText}>{t('scans.noRecentDetail')}</Text>
           </View>
         ) : (
           <View style={styles.list}>
@@ -760,10 +752,10 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                     <View style={styles.listCopy}>
                       <Text style={styles.listTitle}>{group.label}</Text>
                       <Text style={styles.listCaption}>
-                        {group.items.length} scan{group.items.length === 1 ? '' : 's'}
+                        {t('scans.scanCount', { count: group.items.length })}
                       </Text>
                     </View>
-                    <Text style={styles.listMetric}>{expanded ? 'Hide' : 'Show'}</Text>
+                    <Text style={styles.listMetric}>{expanded ? t('scans.hide') : t('scans.show')}</Text>
                   </Pressable>
                   {expanded ? (
                     <View style={styles.list}>
@@ -783,7 +775,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                             <View style={styles.listCopy}>
                               <Text style={styles.listTitle}>{describeOutput(output)}</Text>
                               <Text style={styles.listCaption}>
-                                {formatCreatedAt(output.created_at)} · {Math.round(output.confidence * 100)}% confidence
+                                {t('scans.confidence', { time: formatCreatedAt(output.created_at, t.locale), percent: Math.round(output.confidence * 100) })}
                               </Text>
                             </View>
                           </Pressable>
@@ -799,7 +791,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Detected result</Text>
+        <Text style={styles.cardLabel}>{t('scans.detected')}</Text>
         {displayOutput ? (
           <View style={styles.detailStack}>
             <View style={styles.detailBlock}>
@@ -811,7 +803,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                     onPress={() => setEditingFields((current) => !current)}
                   >
                     <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                      {editingFields ? 'Done' : 'Edit'}
+                      {editingFields ? t('common.done') : t('setup.review.edit')}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -819,15 +811,20 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
               <View style={styles.list}>
                 <View style={styles.listRow}>
                   <View style={styles.listCopy}>
-                    <Text style={styles.listTitle}>{nutritionDraft.product_name || 'Unnamed product'}</Text>
+                    <Text style={styles.listTitle}>{nutritionDraft.product_name || t('scans.unnamed')}</Text>
+                    <Text style={styles.listCaption}>{nutritionDraft.brand_name || t('scans.noBrand')}</Text>
                     <Text style={styles.listCaption}>
-                      {nutritionDraft.brand_name || 'No brand'}
+                      {t('scans.servingCalories', {
+                        serving: nutritionDraft.serving_size || t('scans.oneServing'),
+                        calories: nutritionDraft.calories || '0'
+                      })}
                     </Text>
                     <Text style={styles.listCaption}>
-                      {nutritionDraft.serving_size || '1 serving'} · {nutritionDraft.calories || '0'} cal
-                    </Text>
-                    <Text style={styles.listCaption}>
-                      Protein {nutritionDraft.protein || '0'}g · Carbs {nutritionDraft.carbs || '0'}g · Fat {nutritionDraft.fat || '0'}g · Fiber —
+                      {t('scans.macroLine', {
+                        protein: nutritionDraft.protein || '0',
+                        carbs: nutritionDraft.carbs || '0',
+                        fat: nutritionDraft.fat || '0'
+                      })}
                     </Text>
                     {attributionFor(displayOutput.structured_json) ? (
                       <Text style={styles.listCaption}>{attributionFor(displayOutput.structured_json)}</Text>
@@ -842,15 +839,15 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                 }
                 return (
                   <View style={[styles.matchBanner, info.kind === 'missing' && styles.matchBannerMissing]}>
-                    <Text style={styles.matchTitle}>{info.kind === 'match' ? 'Nutrition matched by name' : 'No nutrition found'}</Text>
+                    <Text style={styles.matchTitle}>{info.kind === 'match' ? t('scans.matched') : t('scans.noNutrition')}</Text>
                     <Text style={styles.detailText}>
                       {info.kind === 'match'
-                        ? info.note ?? 'These numbers come from a similar product. Check them against the label.'
-                        : `Nothing matched "${nutritionDraft.product_name || 'this product'}". Scan the nutrition label to read the numbers, or enter them with Edit.`}
+                        ? info.note ?? t('scans.matchedNote')
+                        : t('scans.nothingMatched', { name: nutritionDraft.product_name || t('scan.thisProduct') })}
                     </Text>
                     {info.alternatives.length > 0 ? (
                       <View style={styles.matchChips}>
-                        <Text style={styles.matchChipsLabel}>Not right? Other matches:</Text>
+                        <Text style={styles.matchChipsLabel}>{t('scans.otherMatches')}</Text>
                         {info.alternatives.map((alternative, index) => (
                           <Pressable
                             key={`${describeAlternative(alternative)}-${index}`}
@@ -873,7 +870,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                         accessibilityRole="button"
                       >
                         <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>
-                          {captureLoading === 'smart' ? 'Reading the label…' : 'Scan the nutrition label'}
+                          {captureLoading === 'smart' ? t('scans.readingLabel') : t('scan.scanNutritionLabel')}
                         </Text>
                       </Pressable>
                     ) : null}
@@ -883,40 +880,40 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
               {editingFields ? (
                 <View style={styles.formGrid}>
                   <LabeledInput
-                    label="Product name"
+                    label={t('scans.fields.productName')}
                     value={nutritionDraft.product_name}
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'product_name', value)}
                   />
                   <LabeledInput
-                    label="Brand"
+                    label={t('scans.fields.brand')}
                     value={nutritionDraft.brand_name}
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'brand_name', value)}
                   />
                   <LabeledInput
-                    label="Serving size"
+                    label={t('scans.fields.servingSize')}
                     value={nutritionDraft.serving_size}
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'serving_size', value)}
                   />
                   <LabeledInput
-                    label="Calories"
+                    label={t('scans.fields.calories')}
                     value={nutritionDraft.calories}
                     keyboardType="numeric"
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'calories', value)}
                   />
                   <LabeledInput
-                    label="Protein"
+                    label={t('macros.protein')}
                     value={nutritionDraft.protein}
                     keyboardType="numeric"
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'protein', value)}
                   />
                   <LabeledInput
-                    label="Carbs"
+                    label={t('macros.carbs')}
                     value={nutritionDraft.carbs}
                     keyboardType="numeric"
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'carbs', value)}
                   />
                   <LabeledInput
-                    label="Fat"
+                    label={t('macros.fat')}
                     value={nutritionDraft.fat}
                     keyboardType="numeric"
                     onChangeText={(value) => updateDraft(setNutritionDraft, 'fat', value)}
@@ -930,15 +927,11 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                       <View key={variant.variant_name} style={styles.listRow}>
                         <View style={styles.listCopy}>
                           <Text style={styles.listTitle}>{variant.variant_name}</Text>
+                          <Text style={styles.listCaption}>{nutritionDraft.brand_name || t('scans.noBrand')}</Text>
                           <Text style={styles.listCaption}>
-                            {nutritionDraft.brand_name || 'No brand'}
+                            {t('scans.servingCalories', { serving: variant.serving_size, calories: variant.calories })}
                           </Text>
-                          <Text style={styles.listCaption}>
-                            {variant.serving_size} · {variant.calories} cal
-                          </Text>
-                          <Text style={styles.listCaption}>
-                            Protein {variant.macros.protein}g · Carbs {variant.macros.carbs}g · Fat {variant.macros.fat}g · Fiber —
-                          </Text>
+                          <Text style={styles.listCaption}>{t('scans.macroLine', { ...variant.macros })}</Text>
                         </View>
                       </View>
                     ))}
@@ -948,26 +941,26 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
               {displayOutput.review_state === 'pending' ? (
                 <Text style={styles.detailNote}>
                   {hasAdditionalVariants
-                    ? 'Saving keeps every variant: one food each.'
+                    ? t('scans.variantsNote')
                     : !hasValidNutritionDraft(nutritionDraft)
-                      ? 'Add a name, calories, protein, carbs, and fat to save. Tap Edit.'
-                      : 'Check the numbers. Edit if anything is off, then Save.'}
+                      ? t('scans.needFields')
+                      : t('scans.checkNumbers')}
                 </Text>
               ) : null}
             </View>
 
             {savedFoods.length > 0 ? (
               <View style={styles.savedFoodBanner}>
-                <Text style={styles.savedFoodTitle}>{savedFoods.length === 1 ? 'Saved food' : 'Saved foods'}</Text>
+                <Text style={styles.savedFoodTitle}>{savedFoods.length === 1 ? t('scans.savedFood') : t('scans.savedFoods')}</Text>
                 {savedFoods.map((food) => (
                   <Text key={food.id} style={styles.detailText}>
                     {food.name}
-                    {food.brand ? ` · ${food.brand}` : ''} · {Math.round(food.calories)} kcal per serving
+                    {food.brand ? ` · ${food.brand}` : ''} · {t('scans.perServing', { kcal: Math.round(food.calories) })}
                   </Text>
                 ))}
                 {accessToken ? (
                   <Pressable style={[styles.actionButton, styles.saveButton]} onPress={() => setAddSheetOpen(true)} accessibilityRole="button">
-                    <Text style={styles.actionButtonLabel}>Add to today</Text>
+                    <Text style={styles.actionButtonLabel}>{t('day.addToToday')}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -982,7 +975,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                     disabled={!canReview}
                     accessibilityRole="button"
                   >
-                    <Text style={styles.actionButtonLabel}>{actioningId === displayOutput.id ? 'Saving…' : 'Save'}</Text>
+                    <Text style={styles.actionButtonLabel}>{actioningId === displayOutput.id ? t('common.saving') : t('common.save')}</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.actionButton, styles.rejectButton]}
@@ -990,7 +983,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                     disabled={actioningId === displayOutput.id}
                     accessibilityRole="button"
                   >
-                    <Text style={[styles.actionButtonLabel, styles.rejectButtonLabel]}>Discard</Text>
+                    <Text style={[styles.actionButtonLabel, styles.rejectButtonLabel]}>{t('scans.discard')}</Text>
                   </Pressable>
                 </>
               ) : null}
@@ -1002,7 +995,7 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
                   disabled={savingFoodId === displayOutput.id}
                 >
                   <Text style={styles.actionButtonLabel}>
-                    {savingFoodId === displayOutput.id ? 'Saving…' : 'Save'}
+                    {savingFoodId === displayOutput.id ? t('common.saving') : t('common.save')}
                   </Text>
                 </Pressable>
               ) : null}
@@ -1010,8 +1003,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Select a review item</Text>
-            <Text style={styles.detailText}>The selected item will appear here for editing and save actions.</Text>
+            <Text style={styles.emptyTitle}>{t('scans.selectItem')}</Text>
+            <Text style={styles.detailText}>{t('scans.selectItemDetail')}</Text>
           </View>
         )}
       </View>
@@ -1027,8 +1020,8 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
           onAdded={(food) => {
             setAddSheetOpen(false);
             setTone('live');
-            setStatusLabel('Added to today');
-            setStatusDetail(`${food.name} is in today's meals.`);
+            setStatusLabel(t('scans.status.added'));
+            setStatusDetail(t('scans.status.addedDetail', { name: food.name }));
             onFoodLogged?.();
           }}
         />
@@ -1062,18 +1055,18 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         <View style={styles.cameraModal}>
           <View style={styles.cameraHeader}>
             <View style={styles.cameraHeaderCopy}>
-              <Text style={styles.cameraEyebrow}>{cameraStep === 'package' ? 'Package scan' : 'Label scan'}</Text>
+              <Text style={styles.cameraEyebrow}>{cameraStep === 'package' ? t('scans.camera.packageScan') : t('scans.camera.labelScan')}</Text>
               <Text style={styles.cameraTitle}>
-                {cameraStep === 'package' ? 'Frame the package front' : 'Frame the nutrition label'}
+                {cameraStep === 'package' ? t('scans.camera.framePackage') : t('scans.camera.frameLabel')}
               </Text>
               <Text style={styles.cameraDetail}>
                 {cameraStep === 'package'
-                  ? 'Start with the front of the package. After this scan, the camera will advance to the nutrition label step.'
-                  : 'Now scan the nutrition label, or skip this step if the product does not show one.'}
+                  ? t('scans.camera.packageHint')
+                  : t('scans.camera.labelHint')}
               </Text>
             </View>
             <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={() => setCameraStep(null)}>
-              <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Close</Text>
+              <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>{t('common.close')}</Text>
             </Pressable>
           </View>
           <View style={styles.cameraPreviewShell}>
@@ -1097,15 +1090,15 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
             >
               <Text style={styles.actionButtonLabel}>
                 {captureLoading === cameraStep
-                  ? 'Scanning...'
+                  ? t('scans.camera.scanning')
                   : cameraStep === 'package'
-                    ? 'Scan Package Front'
-                    : 'Scan Nutrition Label'}
+                    ? t('scans.camera.scanPackage')
+                    : t('scans.camera.scanLabel')}
               </Text>
             </Pressable>
             {cameraStep === 'label' ? (
               <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={skipLabelCapture}>
-                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>Skip Label</Text>
+                <Text style={[styles.actionButtonLabel, styles.secondaryButtonLabel]}>{t('scans.camera.skipLabel')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -1165,7 +1158,7 @@ function toneColor(tone: SyncTone): string {
   return tc.line_1d4ed8;
 }
 
-function groupOutputsByDate(outputs: IngestionOutput[]): Array<{
+function groupOutputsByDate(outputs: IngestionOutput[], t: TFunction): Array<{
   dateKey: string;
   label: string;
   items: IngestionOutput[];
@@ -1182,12 +1175,12 @@ function groupOutputsByDate(outputs: IngestionOutput[]): Array<{
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([dateKey, items]) => ({
       dateKey,
-      label: formatScanGroupLabel(dateKey),
+      label: formatScanGroupLabel(dateKey, t),
       items: items.sort((a, b) => b.created_at.localeCompare(a.created_at))
     }));
 }
 
-function formatScanGroupLabel(dateKey: string): string {
+function formatScanGroupLabel(dateKey: string, t: TFunction): string {
   const date = new Date(`${dateKey}T12:00:00`);
   if (Number.isNaN(date.getTime())) {
     return dateKey;
@@ -1195,18 +1188,14 @@ function formatScanGroupLabel(dateKey: string): string {
 
   const todayKey = localDateKey();
   if (dateKey === todayKey) {
-    return 'Today';
+    return t('trends.today');
   }
 
   if (dateKey === addDaysToDateKey(todayKey, -1)) {
-    return 'Yesterday';
+    return t('trends.yesterday');
   }
 
-  return date.toLocaleDateString([], {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
+  return formatDate(date, { month: 'short', day: 'numeric', year: 'numeric' }, t.locale);
 }
 
 function runGuidePulse(value: Animated.Value): Promise<void> {

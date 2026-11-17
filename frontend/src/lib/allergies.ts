@@ -3,6 +3,7 @@
  * example "Peanut; Wheat; Other: sesame". Parsing works on whole entries, so "Other: eggplant"
  * never reads back as Egg, and text that isn't a known choice is kept as Other.
  */
+import type { TFunction } from '../i18n/translate';
 
 export type AllergyChoice = 'none' | 'milk' | 'egg' | 'peanut' | 'tree_nuts' | 'wheat' | 'shellfish' | 'other';
 
@@ -71,6 +72,23 @@ export function formatAllergySelection(selected: AllergyChoice[], otherText: str
     labels.push(`Other: ${otherText.trim()}`);
   }
 
+  return labels.length > 0 ? labels.join('; ') : null;
+}
+
+/**
+ * The choices as the person reads them (for example on the setup review), in `t`'s language.
+ * Display only: the saved note is always formatAllergySelection()'s English.
+ */
+export function describeAllergySelection(selected: AllergyChoice[], otherText: string, t: TFunction): string | null {
+  if (selected.length === 0 || selected.includes('none')) {
+    return null;
+  }
+  const labels = selected
+    .filter((value): value is Exclude<AllergyChoice, 'none' | 'other'> => value !== 'none' && value !== 'other')
+    .map((value) => t(`setup.allergies.options.${value}.title`));
+  if (selected.includes('other') && otherText.trim()) {
+    labels.push(t('setup.allergies.otherEntry', { text: otherText.trim() }));
+  }
   return labels.length > 0 ? labels.join('; ') : null;
 }
 

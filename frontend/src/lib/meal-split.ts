@@ -3,6 +3,8 @@
  * backend/app/services/meal_split.py). Chosen in the meal-planning guide: meals per day, then a
  * named balance style. No manual split: anyone wanting something else builds meals by hand.
  */
+import { en } from '../i18n/en';
+import type { TFunction } from '../i18n/translate';
 import type { MacroTargets } from '../types';
 
 export type MealsPerDay = 3 | 4 | 5;
@@ -40,45 +42,47 @@ export function minimumFor(key: MealBlockKey): number {
 
 export type MealStyleId = 'balanced' | 'big-breakfast' | 'big-lunch' | 'big-dinner' | 'taper-down' | 'build-up';
 
-/** "How do you balance your meals?": named splits for each pattern (all valid). */
+/**
+ * "How do you balance your meals?": named splits for each pattern (all valid). The English
+ * label and detail come from the dictionary; mealStyleText() gives them in any language.
+ */
 export const MEAL_STYLES: Array<{ id: MealStyleId; label: string; detail: string; splits: Record<MealsPerDay, number[]> }> = [
   {
     id: 'balanced',
-    label: 'Balanced',
-    detail: 'About the same at each meal',
+    ...en.setup.balance.styles.balanced,
     splits: { 3: [30, 35, 35], 4: [25, 30, 10, 35], 5: [20, 10, 30, 10, 30] }
   },
   {
     id: 'big-breakfast',
-    label: 'Big breakfast',
-    detail: 'Start the day with the biggest meal',
+    ...en.setup.balance.styles['big-breakfast'],
     splits: { 3: [40, 30, 30], 4: [35, 25, 10, 30], 5: [30, 10, 25, 10, 25] }
   },
   {
     id: 'big-lunch',
-    label: 'Big lunch',
-    detail: 'The main meal in the middle of the day',
+    ...en.setup.balance.styles['big-lunch'],
     splits: { 3: [25, 45, 30], 4: [20, 40, 10, 30], 5: [20, 10, 40, 10, 20] }
   },
   {
     id: 'big-dinner',
-    label: 'Big dinner',
-    detail: 'Lighter by day, the main meal in the evening',
+    ...en.setup.balance.styles['big-dinner'],
     splits: { 3: [25, 30, 45], 4: [20, 25, 10, 45], 5: [20, 5, 25, 10, 40] }
   },
   {
     id: 'taper-down',
-    label: 'Taper down',
-    detail: 'Big breakfast, getting lighter to a light dinner',
+    ...en.setup.balance.styles['taper-down'],
     splits: { 3: [40, 35, 25], 4: [35, 30, 10, 25], 5: [30, 10, 30, 10, 20] }
   },
   {
     id: 'build-up',
-    label: 'Build up',
-    detail: 'Light breakfast, building up to a big dinner',
+    ...en.setup.balance.styles['build-up'],
     splits: { 3: [20, 35, 45], 4: [15, 30, 15, 40], 5: [15, 10, 25, 15, 35] }
   }
 ];
+
+/** A meal style's label and detail in `t`'s language. */
+export function mealStyleText(id: MealStyleId, t: TFunction): { label: string; detail: string } {
+  return { label: t(`setup.balance.styles.${id}.label`), detail: t(`setup.balance.styles.${id}.detail`) };
+}
 
 /** The style a split matches, or null for a custom (fine-tuned) split. */
 export function styleForSplit(count: MealsPerDay, split: number[]): MealStyleId | null {

@@ -2,10 +2,11 @@ import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { MetricTile } from '../components/MetricTile';
+import { useT } from '../i18n';
 import type { AllergyChoice } from '../lib/allergies';
 import { toneColor } from '../lib/app-format';
-import { MEAL_STYLES, type MealStyleId } from '../lib/meal-split';
-import { goalLabel, PACE_OPTIONS, type GoalPace } from '../lib/setup-goals';
+import { MEAL_STYLES, mealStyleText, type MealStyleId } from '../lib/meal-split';
+import { goalLabel, PACE_OPTIONS, paceText, type GoalPace } from '../lib/setup-goals';
 import { tc } from '../theme/palette';
 import type { UserGoal, UserProfile } from '../types';
 import {
@@ -124,15 +125,16 @@ export function ProfileScreen({
   addGoal,
   goalSaving
 }: ProfileScreenProps): ReactElement {
+  const t = useT();
   return (
     <>
       <View style={styles.panel}>
         <View style={styles.panelHeader}>
           <View>
-            <Text style={styles.panelEyebrow}>Profile</Text>
-            <Text style={styles.panelTitle}>Your body and goals</Text>
+            <Text style={styles.panelEyebrow}>{t('profile.eyebrow')}</Text>
+            <Text style={styles.panelTitle}>{t('profile.title')}</Text>
           </View>
-          <Text style={styles.panelDetail}>Update your weight, body stats, and goal here; your daily targets recalculate when you save. Units, time zone, and your name are in Settings.</Text>
+          <Text style={styles.panelDetail}>{t('profile.detail')}</Text>
         </View>
 
         <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
@@ -142,11 +144,11 @@ export function ProfileScreen({
 
         {profile ? (
           <View style={styles.detailCard}>
-            <Text style={styles.detailTitle}>Body and goal</Text>
+            <Text style={styles.detailTitle}>{t('profile.bodyAndGoal')}</Text>
 
             <View style={styles.profileFieldStack}>
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Sex</Text>
+                <Text style={styles.profileFieldLabel}>{t('setup.body.sex')}</Text>
                 <View style={styles.profileToggleRow}>
                   {(['female', 'male'] as const).map((option) => {
                     const active = onboardingSexDraft === option;
@@ -157,7 +159,7 @@ export function ProfileScreen({
                         onPress={() => setOnboardingSexDraft(option)}
                       >
                         <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {option === 'male' ? 'Male' : 'Female'}
+                          {option === 'male' ? t('setup.body.male') : t('setup.body.female')}
                         </Text>
                       </Pressable>
                     );
@@ -167,7 +169,7 @@ export function ProfileScreen({
 
               <View style={styles.profileFieldRow}>
                 <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Age</Text>
+                  <Text style={styles.profileFieldLabel}>{t('setup.body.age')}</Text>
                   <TextInput
                     value={onboardingAgeDraft}
                     onChangeText={setOnboardingAgeDraft}
@@ -178,7 +180,7 @@ export function ProfileScreen({
                   />
                 </View>
                 <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
+                  <Text style={styles.profileFieldLabel}>{t('profile.currentWeightLb')}</Text>
                   <TextInput
                     value={onboardingCurrentWeightDraft}
                     onChangeText={setOnboardingCurrentWeightDraft}
@@ -192,7 +194,7 @@ export function ProfileScreen({
 
               <View style={styles.profileFieldRow}>
                 <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Height, ft</Text>
+                  <Text style={styles.profileFieldLabel}>{t('profile.heightFt')}</Text>
                   <TextInput
                     value={onboardingHeightFeetDraft}
                     onChangeText={setOnboardingHeightFeetDraft}
@@ -203,7 +205,7 @@ export function ProfileScreen({
                   />
                 </View>
                 <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Height, in</Text>
+                  <Text style={styles.profileFieldLabel}>{t('profile.heightIn')}</Text>
                   <TextInput
                     value={onboardingHeightInchesDraft}
                     onChangeText={setOnboardingHeightInchesDraft}
@@ -216,7 +218,7 @@ export function ProfileScreen({
               </View>
 
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Goal</Text>
+                <Text style={styles.profileFieldLabel}>{t('profile.goal')}</Text>
                 <View style={styles.profileToggleRow}>
                   {(['lose', 'maintain', 'gain'] as const).map((option) => {
                     const active = onboardingGoalTypeDraft === option;
@@ -227,7 +229,7 @@ export function ProfileScreen({
                         onPress={() => setOnboardingGoalTypeDraft(option)}
                       >
                         <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {goalLabel(option)}
+                          {goalLabel(option, t)}
                         </Text>
                       </Pressable>
                     );
@@ -236,7 +238,7 @@ export function ProfileScreen({
               </View>
 
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>{onboardingGoalTypeDraft === 'maintain' ? 'Focus' : 'Pace'}</Text>
+                <Text style={styles.profileFieldLabel}>{onboardingGoalTypeDraft === 'maintain' ? t('profile.focus') : t('profile.pace')}</Text>
                 <View style={styles.profileToggleRow}>
                   {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
                     const active = onboardingGoalPaceDraft === option.id;
@@ -249,7 +251,7 @@ export function ProfileScreen({
                         accessibilityState={{ checked: active }}
                       >
                         <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                          {option.title}
+                          {onboardingGoalTypeDraft ? paceText(onboardingGoalTypeDraft, option.id, t).title : option.title}
                         </Text>
                       </Pressable>
                     );
@@ -259,7 +261,7 @@ export function ProfileScreen({
 
               <View style={styles.profileFieldRow}>
                 <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
+                  <Text style={styles.profileFieldLabel}>{t('profile.targetWeightLb')}</Text>
                   <TextInput
                     value={onboardingTargetWeightDraft}
                     onChangeText={setOnboardingTargetWeightDraft}
@@ -270,7 +272,7 @@ export function ProfileScreen({
                   />
                 </View>
                 <View style={styles.profileFieldHalf}>
-                  <Text style={styles.profileFieldLabel}>Activity level</Text>
+                  <Text style={styles.profileFieldLabel}>{t('profile.activityLevel')}</Text>
                   <View style={styles.profileToggleRow}>
                     {(['sedentary', 'light', 'moderate', 'very_active', 'extra_active'] as const).map((option) => {
                       const active = onboardingActivityLevelDraft === option;
@@ -281,15 +283,7 @@ export function ProfileScreen({
                           onPress={() => setOnboardingActivityLevelDraft(option)}
                         >
                           <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                            {option === 'very_active'
-                              ? 'Very active'
-                              : option === 'extra_active'
-                                ? 'Extra active'
-                                : option === 'sedentary'
-                                  ? 'Sedentary'
-                                  : option === 'light'
-                                    ? 'Light'
-                                    : 'Moderate'}
+                            {t(`setup.activity.levels.${option}.title`)}
                           </Text>
                         </Pressable>
                       );
@@ -299,7 +293,7 @@ export function ProfileScreen({
               </View>
 
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>How you eat</Text>
+                <Text style={styles.profileFieldLabel}>{t('setup.review.rows.diet')}</Text>
                 <View style={styles.profileToggleRow}>
                   {dietaryPatternOptions.map((option) => {
                     const active = onboardingDietaryPatternDraft === option.id;
@@ -309,7 +303,9 @@ export function ProfileScreen({
                         style={[styles.profileToggle, active && styles.profileToggleActive]}
                         onPress={() => setOnboardingDietaryPatternDraft(option.id)}
                       >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                          {t(`setup.diet.options.${option.id}.title`)}
+                        </Text>
                       </Pressable>
                     );
                   })}
@@ -317,7 +313,7 @@ export function ProfileScreen({
               </View>
 
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Nutrition style</Text>
+                <Text style={styles.profileFieldLabel}>{t('setup.review.rows.style')}</Text>
                 <View style={styles.profileToggleRow}>
                   {nutritionStyleOptions.map((option) => {
                     const active = onboardingNutritionStyleDraft === option.id;
@@ -327,7 +323,9 @@ export function ProfileScreen({
                         style={[styles.profileToggle, active && styles.profileToggleActive]}
                         onPress={() => setOnboardingNutritionStyleDraft(option.id)}
                       >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                          {t(`setup.style.options.${option.id}.title`)}
+                        </Text>
                       </Pressable>
                     );
                   })}
@@ -335,7 +333,7 @@ export function ProfileScreen({
               </View>
 
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Meal balance</Text>
+                <Text style={styles.profileFieldLabel}>{t('setup.review.rows.balance')}</Text>
                 <View style={styles.profileToggleRow}>
                   {MEAL_STYLES.map((option) => {
                     const active = onboardingMealStyleDraft === option.id;
@@ -345,7 +343,7 @@ export function ProfileScreen({
                         style={[styles.profileToggle, active && styles.profileToggleActive]}
                         onPress={() => setOnboardingMealStyleDraft(option.id)}
                       >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.label}</Text>
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{mealStyleText(option.id, t).label}</Text>
                       </Pressable>
                     );
                   })}
@@ -353,7 +351,7 @@ export function ProfileScreen({
               </View>
 
               <View style={styles.profileField}>
-                <Text style={styles.profileFieldLabel}>Avoid</Text>
+                <Text style={styles.profileFieldLabel}>{t('setup.review.rows.allergies')}</Text>
                 <View style={styles.profileToggleRow}>
                   {allergyOptions.map((option) => {
                     const active = onboardingAllergySelectionsDraft.includes(option.id);
@@ -363,7 +361,9 @@ export function ProfileScreen({
                         style={[styles.profileToggle, active && styles.profileToggleActive]}
                         onPress={() => toggleOnboardingAllergy(option.id)}
                       >
-                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
+                        <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
+                          {t(`setup.allergies.options.${option.id}.title`)}
+                        </Text>
                       </Pressable>
                     );
                   })}
@@ -372,7 +372,7 @@ export function ProfileScreen({
                   <TextInput
                     value={onboardingAllergyOtherDraft}
                     onChangeText={setOnboardingAllergyOtherDraft}
-                    placeholder="For example sesame or soy"
+                    placeholder={t('setup.allergies.otherPlaceholder')}
                     placeholderTextColor={tc.fg_9aa6b8}
                     style={styles.settingsInput}
                   />
@@ -386,7 +386,7 @@ export function ProfileScreen({
               disabled={profileSaving}
             >
               <Text style={styles.primaryButtonLabel}>
-                {profileSaving ? 'Saving...' : 'Save profile and recalculate targets'}
+                {profileSaving ? t('profile.saving') : t('profile.save')}
               </Text>
             </Pressable>
           </View>
@@ -394,24 +394,24 @@ export function ProfileScreen({
       </View>
 
       <View style={styles.panel}>
-        <Text style={styles.panelEyebrow}>Goals</Text>
-        <Text style={styles.panelTitle}>Target management</Text>
-        <Text style={styles.panelDetail}>The profile form above now drives the active targets. Manual goal entries remain available below for temporary overrides or experiments.</Text>
+        <Text style={styles.panelEyebrow}>{t('profile.goalsEyebrow')}</Text>
+        <Text style={styles.panelTitle}>{t('profile.targetTitle')}</Text>
+        <Text style={styles.panelDetail}>{t('profile.targetDetail')}</Text>
 
         {latestProfileGoal ? (
           <View style={styles.detailCard}>
             <View style={styles.recipeRowTitleWrap}>
               <View>
-                <Text style={styles.panelEyebrow}>Active target</Text>
-                <Text style={styles.detailTitle}>Latest generated target block</Text>
+                <Text style={styles.panelEyebrow}>{t('profile.activeTarget')}</Text>
+                <Text style={styles.detailTitle}>{t('profile.latestBlock')}</Text>
               </View>
               <Text style={styles.detailSubtitle}>{latestProfileGoal.effective_at}</Text>
             </View>
             <View style={styles.metricRow}>
-              <MetricTile label="Calories" value={`${latestProfileGoal.calorie_goal} kcal`} />
-              <MetricTile label="Protein" value={`${latestProfileGoal.protein_goal} g`} />
-              <MetricTile label="Carbs" value={`${latestProfileGoal.carbs_goal} g`} />
-              <MetricTile label="Fat" value={`${latestProfileGoal.fat_goal} g`} />
+              <MetricTile label={t('profile.calories')} value={t('common.kcal', { value: latestProfileGoal.calorie_goal })} />
+              <MetricTile label={t('macros.protein')} value={t('macros.grams', { grams: latestProfileGoal.protein_goal })} />
+              <MetricTile label={t('macros.carbs')} value={t('macros.grams', { grams: latestProfileGoal.carbs_goal })} />
+              <MetricTile label={t('macros.fat')} value={t('macros.grams', { grams: latestProfileGoal.fat_goal })} />
             </View>
           </View>
         ) : null}
@@ -422,15 +422,15 @@ export function ProfileScreen({
               <View key={goal.id} style={styles.goalCard}>
                 <View style={styles.recipeRowTitleWrap}>
                   <Text style={styles.listTitle}>
-                    Goal {profileGoals.length - index}
+                    {t('profile.goalNumber', { number: profileGoals.length - index })}
                   </Text>
                   <Text style={styles.listCaption}>{goal.effective_at}</Text>
                 </View>
                 <View style={styles.goalMetaRow}>
-                  <Text style={styles.goalMetaChip}>{goal.calorie_goal} kcal</Text>
-                  <Text style={styles.goalMetaChip}>{goal.protein_goal}P</Text>
-                  <Text style={styles.goalMetaChip}>{goal.carbs_goal}C</Text>
-                  <Text style={styles.goalMetaChip}>{goal.fat_goal}F</Text>
+                  <Text style={styles.goalMetaChip}>{t('common.kcal', { value: goal.calorie_goal })}</Text>
+                  <Text style={styles.goalMetaChip}>{t('profile.chips.protein', { value: goal.protein_goal })}</Text>
+                  <Text style={styles.goalMetaChip}>{t('profile.chips.carbs', { value: goal.carbs_goal })}</Text>
+                  <Text style={styles.goalMetaChip}>{t('profile.chips.fat', { value: goal.fat_goal })}</Text>
                   {goal.target_weight_lbs !== null ? (
                     <Text style={styles.goalMetaChip}>{goal.target_weight_lbs} lb</Text>
                   ) : null}
@@ -439,15 +439,15 @@ export function ProfileScreen({
             ))
           ) : (
             <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>No goals saved yet</Text>
-              <Text style={styles.detailSubtitle}>Create a starting target block below to populate this list.</Text>
+              <Text style={styles.detailTitle}>{t('profile.emptyTitle')}</Text>
+              <Text style={styles.detailSubtitle}>{t('profile.emptyHint')}</Text>
             </View>
           )}
         </View>
 
         <View style={styles.profileFieldStack}>
           <View style={styles.profileField}>
-            <Text style={styles.profileFieldLabel}>Effective date</Text>
+            <Text style={styles.profileFieldLabel}>{t('profile.effectiveDate')}</Text>
             <TextInput
               value={goalEffectiveAtDraft}
               onChangeText={setGoalEffectiveAtDraft}
@@ -459,7 +459,7 @@ export function ProfileScreen({
 
           <View style={styles.profileFieldRow}>
             <View style={styles.profileFieldHalf}>
-              <Text style={styles.profileFieldLabel}>Calories</Text>
+              <Text style={styles.profileFieldLabel}>{t('profile.calories')}</Text>
               <TextInput
                 value={goalCaloriesDraft}
                 onChangeText={setGoalCaloriesDraft}
@@ -470,7 +470,7 @@ export function ProfileScreen({
               />
             </View>
             <View style={styles.profileFieldHalf}>
-              <Text style={styles.profileFieldLabel}>Protein</Text>
+              <Text style={styles.profileFieldLabel}>{t('macros.protein')}</Text>
               <TextInput
                 value={goalProteinDraft}
                 onChangeText={setGoalProteinDraft}
@@ -484,7 +484,7 @@ export function ProfileScreen({
 
           <View style={styles.profileFieldRow}>
             <View style={styles.profileFieldHalf}>
-              <Text style={styles.profileFieldLabel}>Carbs</Text>
+              <Text style={styles.profileFieldLabel}>{t('macros.carbs')}</Text>
               <TextInput
                 value={goalCarbsDraft}
                 onChangeText={setGoalCarbsDraft}
@@ -495,7 +495,7 @@ export function ProfileScreen({
               />
             </View>
             <View style={styles.profileFieldHalf}>
-              <Text style={styles.profileFieldLabel}>Fat</Text>
+              <Text style={styles.profileFieldLabel}>{t('macros.fat')}</Text>
               <TextInput
                 value={goalFatDraft}
                 onChangeText={setGoalFatDraft}
@@ -508,7 +508,7 @@ export function ProfileScreen({
           </View>
 
           <View style={styles.profileField}>
-            <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
+            <Text style={styles.profileFieldLabel}>{t('profile.targetWeightLb')}</Text>
             <TextInput
               value={goalWeightDraft}
               onChangeText={setGoalWeightDraft}
@@ -524,7 +524,7 @@ export function ProfileScreen({
             onPress={() => void addGoal()}
             disabled={goalSaving}
           >
-            <Text style={styles.primaryButtonLabel}>{goalSaving ? 'Saving...' : 'Add goal'}</Text>
+            <Text style={styles.primaryButtonLabel}>{goalSaving ? t('profile.saving') : t('profile.addGoal')}</Text>
           </Pressable>
         </View>
       </View>

@@ -2,8 +2,9 @@ import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { MetricTile } from '../components/MetricTile';
+import { useT } from '../i18n';
 import { toneColor } from '../lib/app-format';
-import { foodMacroLine, formatFoodAmount, formatFoodQuantity, formatFoodReference } from '../lib/foods';
+import { formatFoodAmount, formatFoodQuantity, formatFoodReference } from '../lib/foods';
 import { tc } from '../theme/palette';
 import type { FoodItem } from '../types';
 import { styles } from './shared/styles';
@@ -49,22 +50,23 @@ export function FoodsScreen({
   removeFromBank,
   confirmDeleteKey
 }: FoodsScreenProps): ReactElement {
+  const t = useT();
   return (
     <View style={styles.panel}>
-      <Text style={styles.panelTitle}>Your foods</Text>
-      <Text style={styles.panelDetail}>Your food bank and favorites first; searching also finds USDA foods. ✕ removes a food from your bank.</Text>
+      <Text style={styles.panelTitle}>{t('foods.title')}</Text>
+      <Text style={styles.panelDetail}>{t('foods.detail')}</Text>
       <View style={styles.searchRow}>
         <TextInput
           value={foodDraft}
           onChangeText={setFoodDraft}
-          placeholder="Search yogurt, oats, blueberries..."
+          placeholder={t('foods.placeholder')}
           placeholderTextColor={tc.fg_7c8aa5}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
         />
           <Pressable style={styles.primaryButton} onPress={submitFoodSearch}>
-          <Text style={styles.primaryButtonLabel}>{isSubmittingSearch ? '...' : 'Refresh'}</Text>
+          <Text style={styles.primaryButtonLabel}>{isSubmittingSearch ? '...' : t('foods.refresh')}</Text>
         </Pressable>
       </View>
 
@@ -88,15 +90,15 @@ export function FoodsScreen({
                   <View style={styles.foodRowCopy}>
                     <Text style={styles.listTitle}>{food.name}</Text>
                     <Text style={styles.listCaption}>
-                      {(food.brand ?? 'Unbranded')} · {food.source} · {food.favorite ? 'Favorite' : 'Search match'}
+                      {food.brand ?? t('foods.unbranded')} · {food.source} · {food.favorite ? t('foods.favorite') : t('foods.searchMatch')}
                     </Text>
                   </View>
-                  <Text style={styles.listMetric}>{food.calories} kcal</Text>
+                  <Text style={styles.listMetric}>{t('common.kcal', { value: food.calories })}</Text>
                 </View>
 
                 <View style={styles.foodCardMetaRow}>
-                  <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(food)}`}</Text>
-                  <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(quantity)}`}</Text>
+                  <Text style={styles.foodCardChip}>{t('foods.base', { amount: formatFoodReference(food) })}</Text>
+                  <Text style={styles.foodCardChip}>{t('foods.quantity', { amount: formatFoodQuantity(quantity) })}</Text>
                 </View>
 
                 <View style={styles.foodCardActionsRow}>
@@ -132,7 +134,7 @@ export function FoodsScreen({
                     disabled={isSavingLogEntry}
                   >
                     <Text style={styles.inlinePillButtonLabel}>
-                      {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(food, foodQuantityForId(food.id))} to today`}
+                      {isSavingLogEntry ? t('foods.saving') : t('foods.addToToday', { amount: formatFoodAmount(food, foodQuantityForId(food.id)) })}
                     </Text>
                   </Pressable>
 
@@ -164,10 +166,10 @@ export function FoodsScreen({
                         void removeFromBank(food);
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel={confirmDeleteKey === `bank:${food.id}` ? `Confirm removing ${food.name}` : `Remove ${food.name} from your food bank`}
+                      accessibilityLabel={t(confirmDeleteKey === `bank:${food.id}` ? 'foods.confirmRemove' : 'foods.removeFromBank', { name: food.name })}
                     >
                       <Text style={[styles.todayRemoveLabel, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirmLabel]}>
-                        {confirmDeleteKey === `bank:${food.id}` ? 'Remove?' : '✕'}
+                        {confirmDeleteKey === `bank:${food.id}` ? t('foods.removeConfirm') : '✕'}
                       </Text>
                     </Pressable>
                   ) : null}
@@ -184,18 +186,18 @@ export function FoodsScreen({
             <View>
               <Text style={styles.detailTitle}>{selectedFood.name}</Text>
               <Text style={styles.detailSubtitle}>
-                {selectedFood.brand ?? 'Unbranded'} · {selectedFood.source}
+                {selectedFood.brand ?? t('foods.unbranded')} · {selectedFood.source}
               </Text>
             </View>
-            <Text style={styles.detailSubtitle}>{selectedFood.favorite ? 'Favorite' : 'Search match'}</Text>
+            <Text style={styles.detailSubtitle}>{selectedFood.favorite ? t('foods.favorite') : t('foods.searchMatch')}</Text>
           </View>
           <View style={styles.metricRow}>
-            <MetricTile label="Calories" value={`${selectedFood.calories}`} compact />
-            <MetricTile label="Macros" value={foodMacroLine(selectedFood)} compact />
+            <MetricTile label={t('foods.calories')} value={`${selectedFood.calories}`} compact />
+            <MetricTile label={t('foods.macros')} value={t('foods.macroLine', { ...selectedFood.macros })} compact />
           </View>
           <View style={styles.foodCardMetaRow}>
-            <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(selectedFood)}`}</Text>
-            <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(foodQuantityForId(selectedFood.id))}`}</Text>
+            <Text style={styles.foodCardChip}>{t('foods.base', { amount: formatFoodReference(selectedFood) })}</Text>
+            <Text style={styles.foodCardChip}>{t('foods.quantity', { amount: formatFoodQuantity(foodQuantityForId(selectedFood.id)) })}</Text>
           </View>
           <View style={styles.foodCardActionsRow}>
             <View style={styles.quantityStepper}>
@@ -221,7 +223,7 @@ export function FoodsScreen({
               disabled={isSavingLogEntry}
             >
               <Text style={styles.inlinePillButtonLabel}>
-                {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(selectedFood, foodQuantityForId(selectedFood.id))} to today`}
+                {isSavingLogEntry ? t('foods.saving') : t('foods.addToToday', { amount: formatFoodAmount(selectedFood, foodQuantityForId(selectedFood.id)) })}
               </Text>
             </Pressable>
 
@@ -245,8 +247,8 @@ export function FoodsScreen({
           </View>
           <Text style={styles.detailSubtitle}>
             {selectedFood.favorite
-              ? 'Already cached in this session’s favorite foods.'
-              : 'Tap the heart to save this search result into favorites.'}
+              ? t('foods.cachedFavorite')
+              : t('foods.tapHeart')}
           </Text>
         </View>
       ) : null}

@@ -4,6 +4,7 @@ import {
   formatNumber,
   LanguageProvider,
   parseLanguage,
+  translatorFor,
   useLanguage,
   useT,
   type Language,
@@ -1089,15 +1090,13 @@ function RelishApp(): ReactElement {
         setWeightEntries(fallbackForMode(entryMode, demoWeightEntries, []));
         resetPreviewProfileDrafts();
         setProfileTone('checking');
-        setProfileStatus(isPreview ? 'Preview profile loaded' : 'Profile unavailable');
-        setProfileError(
-          isPreview ? 'No active profile session. Showing preview progress data.' : 'No active profile session. Sign in again.'
-        );
+        setProfileStatus(isPreview ? t('profile.loadStatus.preview') : t('profile.loadStatus.unavailable'));
+        setProfileError(isPreview ? t('profile.loadStatus.noSessionPreview') : t('profile.loadStatus.noSession'));
         return;
       }
 
       setProfileTone('checking');
-      setProfileStatus('Loading profile settings');
+      setProfileStatus(t('profile.loadStatus.loading'));
       setProfileError(null);
 
       try {
@@ -1117,10 +1116,14 @@ function RelishApp(): ReactElement {
         setWeightEntries(weights);
         applyProfileDrafts(loadedProfile, goals);
         setProfileTone('live');
+        // In the profile's own language (it may differ from the phone's).
+        const tp = translatorFor(loadedProfile.language_chosen ? parseLanguage(loadedProfile.language) ?? language : language);
         setProfileStatus(
-          `${goals.length} goal${goals.length === 1 ? '' : 's'}, ${progress.weight_entries} weight entr${
-            progress.weight_entries === 1 ? 'y' : 'ies'
-          }, and ${progress.adherence_score}% adherence loaded`
+          tp('profile.loadStatus.loaded', {
+            goals: tp('profile.loadStatus.goals', { count: goals.length }),
+            weights: tp('profile.loadStatus.weights', { count: progress.weight_entries }),
+            adherence: progress.adherence_score
+          })
         );
       } catch (error) {
         if (cancelled) {
@@ -1132,8 +1135,9 @@ function RelishApp(): ReactElement {
         setWeightEntries([]);
         resetPreviewProfileDrafts();
         setProfileTone('checking');
-        setProfileStatus('Profile unavailable');
-        setProfileError(liveLoadErrorMessage(error, 'Profile'));
+        setProfileStatus(t('profile.loadStatus.unavailable'));
+        const detail = error instanceof Error && error.message.trim() ? error.message.trim() : t('profile.loadStatus.loadFailedHint');
+        setProfileError(`${t('profile.loadStatus.loadFailed')} ${detail}`);
       } finally {
         if (!cancelled) {
           setProfileLoaded(true);
@@ -1783,14 +1787,19 @@ function RelishApp(): ReactElement {
     const days = HORIZON_DAYS[weightHorizon];
     const from = last ? { date: last.date, weight: last.trend } : null;
     const shortDate = (date: string) =>
-      new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        ...(date.slice(0, 4) !== todayKey.slice(0, 4) ? { year: 'numeric' as const } : {})
-      });
+      formatDate(
+        new Date(`${date}T00:00:00`),
+        {
+          month: 'short',
+          day: 'numeric',
+          ...(date.slice(0, 4) !== todayKey.slice(0, 4) ? { year: 'numeric' as const } : {})
+        },
+        t.locale
+      );
+    const number = (value: number) => formatNumber(value, undefined, t.locale);
     const signed = (lbs: number) => {
       const value = toUnit(lbs);
-      return `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value)}`;
+      return `${value > 0 ? '+' : value < 0 ? '−' : '±'}${number(Math.abs(value))}`;
     };
     const direction = profile?.goal_type ?? null;
     const lines: string[] = [];
@@ -1799,28 +1808,34 @@ function RelishApp(): ReactElement {
       const ahead = Math.max(0, Math.round((Date.parse(`${horizonEnd}T00:00:00Z`) - Date.parse(`${from.date}T00:00:00Z`)) / 86400000));
       const reach = goalDate(from, trendRate, goal, direction);
       lines.push(
-        `At your current trend: ${toUnit(from.weight + (trendRate * ahead) / 7)} ${trendUnit} by ${shortDate(horizonEnd)}` +
-          (goal !== null ? ` · goal ${reach ? (reach <= todayKey ? 'reached' : `by ${shortDate(reach)}`) : 'not at this rate'}` : '')
+        t('trends.atTrend', { weight: number(toUnit(from.weight + (trendRate * ahead) / 7)), unit: trendUnit, date: shortDate(horizonEnd) }) +
+          (goal !== null
+            ? reach
+              ? reach <= todayKey
+                ? t('trends.goalReached')
+                : t('trends.goalBy', { date: shortDate(reach) })
+              : t('trends.goalNotAtRate')
+            : '')
       );
     } else if (from) {
       const reach = paceRate !== null ? goalDate(from, paceRate, goal, direction) : null;
-      lines.push(`Weigh in for about a week to see where your trend is heading${reach ? ` · at your planned pace, goal by ${shortDate(reach)}` : ''}`);
+      lines.push(t('trends.weighWeek') + (reach ? t('trends.plannedGoalBy', { date: shortDate(reach) }) : ''));
     }
     const status = paceStatus(trendRate, paceRate);
     if (status && trendRate !== null && paceRate !== null) {
-      const rates = `${signed(trendRate)} vs ${signed(paceRate)} ${trendUnit} a week`;
+      const rates = t('trends.rates', { trend: signed(trendRate), pace: signed(paceRate), unit: trendUnit });
       lines.push(
         status === 'on'
-          ? `On pace (${rates})`
+          ? t('trends.onPace', { rates })
           : status === 'ahead'
-            ? `Ahead of pace (${rates})`
+            ? t('trends.ahead', { rates })
             : status === 'behind'
-              ? `Behind pace (${rates})`
-              : `Drifting ${signed(trendRate)} ${trendUnit} a week (planned: steady)`
+              ? t('trends.behind', { rates })
+              : t('trends.drifting', { rate: signed(trendRate), unit: trendUnit })
       );
     }
     return { trendRate, paceRate, days, lines, status };
-  }, [trendWeightPoints, dailyHomeTargets.calorieTarget, profile?.tdee_calories, profile?.target_weight_lbs, profile?.goal_type, weightHorizon, trendUnit, todayKey]);
+  }, [trendWeightPoints, dailyHomeTargets.calorieTarget, profile?.tdee_calories, profile?.target_weight_lbs, profile?.goal_type, weightHorizon, trendUnit, todayKey, t]);
   const homeOpenPlannedMeals = useMemo(
     () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
     [homeMealPlanDay, homeMealPlanEatenSlots]
@@ -1977,12 +1992,12 @@ function RelishApp(): ReactElement {
     const measurements = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
 
     if (!Number.isFinite(age_years) || age_years <= 0 || measurements === null) {
-      setOnboardingError('Enter a valid age, height, and weight before continuing.');
+      setOnboardingError(t('setup.errors.validBody'));
       return;
     }
 
     if (!foodSessionToken) {
-      setOnboardingError('Create a live local session before continuing to the app.');
+      setOnboardingError(t('setup.errors.liveSession'));
       return;
     }
 
@@ -1993,7 +2008,7 @@ function RelishApp(): ReactElement {
 
     if (!onboardingSexDraft || !onboardingGoalTypeDraft || !onboardingDietaryPatternDraft || !onboardingNutritionStyleDraft) {
       setOnboardingSaving(false);
-      setOnboardingError('Choose your sex, goal, how you eat, and nutrition style before creating your profile.');
+      setOnboardingError(t('setup.errors.chooseAll'));
       return;
     }
 
@@ -2035,11 +2050,11 @@ function RelishApp(): ReactElement {
 
       setProfileLoaded(true);
       setProfileTone('live');
-      setProfileStatus('Onboarding completed');
+      setProfileStatus(t('profile.loadStatus.setupDone'));
       setOnboardingStep('review');
       setSection('dashboard');
     } catch (error) {
-      setOnboardingError(error instanceof Error ? error.message : 'Unable to complete onboarding.');
+      setOnboardingError(error instanceof Error ? error.message : t('setup.errors.complete'));
     } finally {
       setOnboardingSaving(false);
     }
@@ -2514,7 +2529,7 @@ function RelishApp(): ReactElement {
       setProfile(reset);
       setProfileGoals([]); // the server deleted them; setup seeds the new one
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : 'Unable to reset the profile.');
+      setSettingsError(error instanceof Error ? error.message : t('settings.messages.resetError'));
     } finally {
       setProfileResetting(false);
     }
@@ -2536,12 +2551,10 @@ function RelishApp(): ReactElement {
       setOnboardingCalorieFloorDraft(choice);
       setProfileGoals(await fetchUserGoals(foodSessionToken));
       setFloorMessage(
-        choice === 'off'
-          ? 'Calorie floor turned off. Your daily targets were recalculated.'
-          : 'Recommended minimum turned on. Your daily targets were recalculated.'
+        choice === 'off' ? t('settings.messages.floorOff') : t('settings.messages.floorOn')
       );
     } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to change the calorie floor.');
+      setFloorMessage(error instanceof Error ? error.message : t('settings.messages.floorError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2587,10 +2600,10 @@ function RelishApp(): ReactElement {
       if (announce) {
         const linked = result.matched ?? 0;
         const parts = [
-          added > 0 ? `Added ${added} workout${added === 1 ? '' : 's'} from Garmin.` : '',
-          linked > 0 ? `Linked ${linked} to workout${linked === 1 ? '' : 's'} you'd already logged.` : ''
+          added > 0 ? t('settings.garminSync.added', { count: added }) : '',
+          linked > 0 ? t('settings.garminSync.linked', { count: linked }) : ''
         ].filter(Boolean);
-        setGarminNote(parts.length > 0 ? parts.join(' ') : 'No new workouts.');
+        setGarminNote(parts.length > 0 ? parts.join(' ') : t('settings.garminSync.none'));
       }
     } catch (error) {
       if (garminTokenRef.current !== token) {
@@ -2605,7 +2618,7 @@ function RelishApp(): ReactElement {
         // Keep the last known status.
       }
       if (announce) {
-        setGarminNote(error instanceof Error ? error.message : 'Garmin sync failed.');
+        setGarminNote(error instanceof Error ? error.message : t('settings.garminSync.failed'));
       }
     } finally {
       garminSyncingRef.current = false;
@@ -2646,7 +2659,7 @@ function RelishApp(): ReactElement {
         )
       );
     } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to change the water goal.');
+      setFloorMessage(error instanceof Error ? error.message : t('settings.messages.waterError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2674,7 +2687,11 @@ function RelishApp(): ReactElement {
       );
     } catch (error) {
       setLanguage(previous);
-      setSettingsError(error instanceof Error ? error.message : t('settings.language.error'));
+      const message = error instanceof Error ? error.message : t('settings.language.error');
+      setSettingsError(message);
+      if (!profile.setup_complete) {
+        setOnboardingError(message); // the setup screens show this one
+      }
     } finally {
       setSettingsSaving(false);
     }
@@ -2727,12 +2744,10 @@ function RelishApp(): ReactElement {
       );
       setProfile(updated);
       setFloorMessage(
-        share === 0
-          ? 'Workouts no longer add to your daily allowance.'
-          : `${share}% of the calories from workouts you log now add to that day's allowance.`
+        share === 0 ? t('settings.messages.shareOff') : t('settings.messages.shareOn', { percent: share })
       );
     } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to change workout calories.');
+      setFloorMessage(error instanceof Error ? error.message : t('settings.messages.shareError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2759,9 +2774,9 @@ function RelishApp(): ReactElement {
       setProfileDisplayNameDraft(updated.display_name ?? '');
       setProfileTimezoneDraft(updated.timezone);
       setProfileUnitsDraft(updated.units);
-      setSettingsMessage('Settings saved.');
+      setSettingsMessage(t('settings.messages.saved'));
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : 'Unable to save settings.');
+      setSettingsError(error instanceof Error ? error.message : t('settings.messages.saveError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2774,8 +2789,8 @@ function RelishApp(): ReactElement {
 
     if (missingOtherAllergy(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)) {
       setProfileTone('checking');
-      setProfileStatus('Could not save profile settings');
-      setProfileError('Type the other food to avoid, or turn off Other.');
+      setProfileStatus(t('profile.status.saveFailed'));
+      setProfileError(t('profile.status.otherAllergy'));
       return;
     }
 
@@ -2798,8 +2813,8 @@ function RelishApp(): ReactElement {
       (target_weight_lbs !== null && (!Number.isFinite(target_weight_lbs) || target_weight_lbs <= 0))
     ) {
       setProfileTone('checking');
-      setProfileStatus('Could not save profile settings');
-      setProfileError('Enter a valid age, height, weight, and optional target weight before saving.');
+      setProfileStatus(t('profile.status.saveFailed'));
+      setProfileError(t('profile.status.invalid'));
       return;
     }
 
@@ -2830,7 +2845,7 @@ function RelishApp(): ReactElement {
 
     setProfileSaving(true);
     setProfileTone('checking');
-    setProfileStatus('Saving profile and recalculating targets');
+    setProfileStatus(t('profile.status.saving'));
     setProfileError(null);
 
     try {
@@ -2847,11 +2862,11 @@ function RelishApp(): ReactElement {
         applyProfileDrafts(updated, goals);
       }
       setProfileTone('live');
-      setProfileStatus('Profile and targets saved');
+      setProfileStatus(t('profile.status.saved'));
     } catch (error) {
       setProfileTone('checking');
-      setProfileStatus('Could not save profile settings');
-      setProfileError(error instanceof Error ? error.message : 'Unable to save profile settings.');
+      setProfileStatus(t('profile.status.saveFailed'));
+      setProfileError(error instanceof Error ? error.message : t('profile.status.saveError'));
     } finally {
       setProfileSaving(false);
     }
@@ -2909,54 +2924,54 @@ function RelishApp(): ReactElement {
 
   function validateOnboardingStep(step: OnboardingStep): string | null {
     if (step === 'basics' && !onboardingSexDraft) {
-      return 'Choose your sex. It changes how your calories are estimated.';
+      return t('setup.errors.chooseSex');
     }
     if (step === 'basics') {
       const age_years = Number(onboardingAgeDraft);
       if (bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts()) === null) {
         return onboardingUnitsDraft === 'metric'
-          ? 'Enter your height in cm and weight in kg.'
-          : 'Enter your height in feet and inches (0-11) and weight in lb.';
+          ? t('setup.errors.bodyMetric')
+          : t('setup.errors.bodyImperial');
       }
       if (!Number.isFinite(age_years) || age_years <= 0 || age_years >= 120) {
-        return 'Enter your age.';
+        return t('setup.errors.age');
       }
     }
 
     if (step === 'goal') {
-      return onboardingGoalTypeDraft ? null : 'Choose a goal to continue.';
+      return onboardingGoalTypeDraft ? null : t('setup.errors.goal');
     }
     if (step === 'diet' && !onboardingDietaryPatternDraft) {
-      return 'Choose how you eat to continue.';
+      return t('setup.errors.diet');
     }
     if (step === 'style' && !onboardingNutritionStyleDraft) {
-      return 'Choose a nutrition style to continue.';
+      return t('setup.errors.style');
     }
 
     if (step === 'pace' && onboardingGoalTypeDraft !== 'maintain' && onboardingTargetWeightDraft.trim() !== '') {
       const goalLbs = onboardingTargetWeightLbs();
       const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
       if (goalLbs === null) {
-        return 'Enter a goal weight as a number, or leave it empty.';
+        return t('setup.errors.goalWeightNumber');
       }
       if (current && onboardingGoalTypeDraft === 'lose' && goalLbs >= current.weight_lbs) {
-        return 'Goal weight should be below your current weight, or leave it empty.';
+        return t('setup.errors.goalWeightBelow');
       }
       if (current && onboardingGoalTypeDraft === 'gain' && goalLbs <= current.weight_lbs) {
-        return 'Goal weight should be above your current weight, or leave it empty.';
+        return t('setup.errors.goalWeightAbove');
       }
     }
 
     if (step === 'diet' && !onboardingDietaryPatternDraft) {
-      return 'Choose a dietary pattern before continuing.';
+      return t('setup.errors.dietPattern');
     }
 
     if (step === 'style' && !onboardingNutritionStyleDraft) {
-      return 'Choose a nutrition style before continuing.';
+      return t('setup.errors.styleBefore');
     }
 
     if (step === 'allergies' && onboardingAllergySelectionsDraft.includes('other') && !onboardingAllergyOtherDraft.trim()) {
-      return 'Add the custom allergy or exclusion before continuing.';
+      return t('setup.errors.allergyOther');
     }
 
     return null;
@@ -3095,7 +3110,7 @@ function RelishApp(): ReactElement {
 
     setGoalSaving(true);
     setProfileTone('checking');
-    setProfileStatus('Saving new goal');
+    setProfileStatus(t('profile.status.savingGoal'));
     setProfileError(null);
 
     try {
@@ -3117,7 +3132,7 @@ function RelishApp(): ReactElement {
         setProfileGoals((current) => [saved, ...current]);
       }
       setProfileTone('live');
-      setProfileStatus('Goal saved');
+      setProfileStatus(t('profile.status.goalSaved'));
       setGoalEffectiveAtDraft(localDateKey());
       setGoalCaloriesDraft('2100');
       setGoalProteinDraft('180');
@@ -3126,8 +3141,8 @@ function RelishApp(): ReactElement {
       setGoalWeightDraft('178.5');
     } catch (error) {
       setProfileTone('checking');
-      setProfileStatus('Could not save goal');
-      setProfileError(error instanceof Error ? error.message : 'Unable to save goal.');
+      setProfileStatus(t('profile.status.goalFailed'));
+      setProfileError(error instanceof Error ? error.message : t('profile.status.goalError'));
     } finally {
       setGoalSaving(false);
     }
@@ -3412,6 +3427,7 @@ function RelishApp(): ReactElement {
         ribeyeLoaded={ribeyeLoaded}
         setOnboardingError={setOnboardingError}
         setOnboardingStep={setOnboardingStep}
+        applyLanguage={(next) => void applyLanguage(next)}
       />
     );
   }
@@ -3424,6 +3440,7 @@ function RelishApp(): ReactElement {
         leaveExplainerBack={leaveExplainerBack}
         setExplainersSeen={setExplainersSeen}
         setActiveExplainer={setActiveExplainer}
+        applyLanguage={(next) => void applyLanguage(next)}
       />
     );
   }
@@ -3481,6 +3498,7 @@ function RelishApp(): ReactElement {
         goToPreviousOnboardingStep={goToPreviousOnboardingStep}
         goToNextOnboardingStep={goToNextOnboardingStep}
         completeOnboardingSetup={completeOnboardingSetup}
+        applyLanguage={(next) => void applyLanguage(next)}
       />
     );
   }

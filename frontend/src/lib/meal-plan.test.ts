@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import { demoMealPlanDays } from '../mock-data';
 import {
   formatMealPlanCardDate,
@@ -27,5 +28,15 @@ describe('meal plan helpers', () => {
     expect(formatMealPlanCardWeekday('2026-03-30')).toBe('Mon');
     expect(formatMealPlanCardDate(undefined)).toBe('Unscheduled');
     expect(formatMealPlanCardWeekday(undefined)).toBe('Planned');
+  });
+});
+
+describe('meal plan cards in Spanish', () => {
+  it('formats the date cards in the display language', () => {
+    const es = translatorFor('es');
+    expect(formatMealPlanCardDate('2026-03-30', es).replace(/\s/g, ' ')).toBe('30 de mar');
+    expect(formatMealPlanCardWeekday('2026-03-30', es)).toBe('lun');
+    expect(formatMealPlanCardDate(undefined, es)).toBe('Sin fecha');
+    expect(formatMealPlanCardWeekday(undefined, es)).toBe('Planeado');
   });
 });

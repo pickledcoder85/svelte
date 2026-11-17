@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { toneColor } from '../lib/app-format';
 import type { MealPrepTask } from '../types';
 import { styles } from './shared/styles';
@@ -22,13 +23,14 @@ export function MealPrepScreen({
   cycleMealPrepStatus,
   mealPrepSavingId
 }: MealPrepScreenProps): ReactElement {
+  const t = useT();
+  // Category and status are stored in English; only their labels translate.
+  const statusKey = { Queued: 'queued', 'In progress': 'inProgress', Done: 'done' } as const;
   return (
     <View style={styles.panel}>
-      <Text style={styles.panelEyebrow}>Meal prep</Text>
-      <Text style={styles.panelTitle}>Prep the week in batches</Text>
-      <Text style={styles.panelDetail}>
-        Track what to cook, portion, and assemble so the meal plan is realistic.
-      </Text>
+      <Text style={styles.panelEyebrow}>{t('mealPrep.eyebrow')}</Text>
+      <Text style={styles.panelTitle}>{t('mealPrep.title')}</Text>
+      <Text style={styles.panelDetail}>{t('mealPrep.detail')}</Text>
 
       <View style={[styles.inlineStatus, { borderColor: toneColor(mealPrepTone) }]}>
         <Text style={styles.inlineStatusLabel}>{mealPrepStatus}</Text>
@@ -46,12 +48,12 @@ export function MealPrepScreen({
             <View style={styles.foodRowCopy}>
               <Text style={styles.listTitle}>{task.title}</Text>
               <Text style={styles.listCaption}>
-                {task.category} · {task.portions}
+                {t(`mealPrep.categories.${task.category}`)} · {task.portions}
               </Text>
             </View>
             <View style={styles.foodRowActions}>
-              <Text style={styles.listMetric}>{mealPrepSavingId === task.id ? 'Saving...' : task.status}</Text>
-              <Text style={styles.listCaption}>Tap to cycle</Text>
+              <Text style={styles.listMetric}>{mealPrepSavingId === task.id ? t('mealPrep.saving') : t(`mealPrep.statuses.${statusKey[task.status]}`)}</Text>
+              <Text style={styles.listCaption}>{t('mealPrep.tapToCycle')}</Text>
             </View>
           </Pressable>
         ))}

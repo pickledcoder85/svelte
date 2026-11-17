@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import {
   DEFAULT_PACE,
   estimateGoalDate,
   findPreviewOption,
   formatApproximateDate,
+  formatCalories,
   formatWeeklyRate,
+  GOAL_OPTIONS,
+  PACE_OPTIONS,
   goalLabel,
   isPaceForGoal,
   caloriesToMoveMore,
@@ -122,5 +126,26 @@ describe('setup goals', () => {
     expect(paceDisplay(preview.options[0], 'recommended', false).state).toBe('normal');
     expect(caloriesToMoveMore(fast, 1500)).toBe(320);
     expect(caloriesToMoveMore(preview.options[0], 1500)).toBe(0);
+  });
+
+  it('keeps the English option text the screens not yet translated still read', () => {
+    expect(GOAL_OPTIONS.map((option) => option.title)).toEqual(['Lose Weight', 'Maintain Weight', 'Gain Weight']);
+    expect(PACE_OPTIONS.lose.map((option) => option.title)).toEqual(['Steady', 'Recommended', 'Fast']);
+    expect(PACE_OPTIONS.lose[0].note).toBeUndefined();
+    expect(PACE_OPTIONS.gain[1]).toEqual({ id: 'aggressive', title: 'Faster', note: 'More of the gain may be fat' });
+    expect(formatCalories(1850)).toBe('1,850 kcal a day');
+  });
+
+  it('writes goals, paces, rates, and dates in Spanish with Colombian number formats', () => {
+    const es = translatorFor('es');
+    expect(goalLabel('lose', es)).toBe('Bajar de peso');
+    expect(goalLabel(null, es)).toBe('—');
+    expect(paceLabel('maintain', 'build_muscle', es)).toBe('Ganar músculo');
+    expect(paceLabel('gain', null, es)).toBe('Limpio');
+    expect(formatCalories(1850, es)).toBe('1.850 kcal al día');
+    expect(formatWeeklyRate(-1, 'metric', es)).toBe('unos 0,45 kg por semana');
+    expect(formatWeeklyRate(1, 'imperial', es)).toBe('unos 1 lb por semana');
+    expect(formatApproximateDate(new Date(2027, 1, 15), es)).toBe('mediados de febrero de 2027');
+    expect(formatApproximateDate(new Date(2027, 1, 25), es)).toBe('finales de febrero de 2027');
   });
 });

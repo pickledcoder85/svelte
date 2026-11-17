@@ -5,6 +5,8 @@
  * Diet): each weigh-in moves it 10% of the way per day, so water and salt swings of a pound or
  * two don't hide the real direction. Gaps between weigh-ins count as that many days.
  */
+import { translatorFor } from '../i18n/dictionaries';
+import { formatDate, type TFunction } from '../i18n/translate';
 import { addDaysToDateKey } from './dates';
 import { dailyAllowance } from './daily-home';
 import { macroAllowance } from './macro-allowance';
@@ -164,15 +166,15 @@ export function weeklyRate(points: WeightPoint[]): number | null {
   return Math.round(((last.trend - base.trend) / days) * 7 * 10) / 10;
 }
 
-/** "Today", "Yesterday", or "Sat, Nov 14". */
-export function historyDayLabel(date: string, today: string): string {
+/** "Today", "Yesterday", or "Sat, Nov 14" ("Hoy", "Ayer", "sáb, 14 de nov"). */
+export function historyDayLabel(date: string, today: string, t: TFunction = translatorFor('en')): string {
   if (date === today) {
-    return 'Today';
+    return t('trends.today');
   }
   if (date === addDaysToDateKey(today, -1)) {
-    return 'Yesterday';
+    return t('trends.yesterday');
   }
-  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return formatDate(new Date(`${date}T00:00:00`), { weekday: 'short', month: 'short', day: 'numeric' }, t.locale);
 }
 
 // ---- macros over time ---------------------------------------------------------------------------

@@ -6,11 +6,13 @@ import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from '../../compo
 import { ChoiceSheet } from '../../components/ChoiceSheet';
 import { FieldGroup, PickerField } from '../../components/FormField';
 import { PickerSheet } from '../../components/PickerSheet';
-import type { ActivityLevel } from '../../lib/activity-level';
-import { formatAllergySelection, type AllergyChoice } from '../../lib/allergies';
-import { firstName, formatGoalPaceLabel, formatGoalTypeLabel, toneColor } from '../../lib/app-format';
+import { SetupLanguageSwitch } from '../../components/SetupLanguageSwitch';
+import { formatNumber, useT, type Language } from '../../i18n';
+import { activityLevelText, type ActivityLevel } from '../../lib/activity-level';
+import { describeAllergySelection, type AllergyChoice } from '../../lib/allergies';
+import { firstName, toneColor } from '../../lib/app-format';
 import { bodyMeasurementsFromDrafts, type BodyDrafts, type UnitSystem } from '../../lib/body-units';
-import { MEAL_STYLES, type MealStyleId } from '../../lib/meal-split';
+import { MEAL_STYLES, mealStyleText, type MealStyleId } from '../../lib/meal-split';
 import {
   DEFAULT_PACE,
   GOAL_OPTIONS,
@@ -20,7 +22,11 @@ import {
   formatApproximateDate,
   formatCalories,
   formatWeeklyRate,
+  goalLabel,
+  goalText,
   paceDisplay,
+  paceLabel,
+  paceText,
   VERY_LOW_CALORIE_LIMIT,
   type CalorieFloorChoice,
   type GoalPace,
@@ -32,7 +38,6 @@ import {
 import { formatBodyField, initialWheelIndexes, wheelColumns, type BodyField, type WheelDrafts } from '../../lib/wheel-picker';
 import { tc } from '../../theme/palette';
 import {
-  activityLevelCards,
   allergyOptions,
   dietaryPatternOptions,
   mascotDefaultImage,
@@ -97,6 +102,8 @@ export interface OnboardingWizardProps {
   goToPreviousOnboardingStep: () => void;
   goToNextOnboardingStep: () => void;
   completeOnboardingSetup: () => Promise<void>;
+  /** Settings → Language's switch: changes the language now and saves it to the profile. */
+  applyLanguage: (language: Language) => void;
 }
 
 export function OnboardingWizard({
@@ -149,11 +156,18 @@ export function OnboardingWizard({
   setOnboardingAllergyOtherDraft,
   goToPreviousOnboardingStep,
   goToNextOnboardingStep,
-  completeOnboardingSetup
+  completeOnboardingSetup,
+  applyLanguage
 }: OnboardingWizardProps): ReactElement {
+  const t = useT();
   const activeStepIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
-  const currentStepLabel = onboardingSteps[activeStepIndex]?.label ?? 'Basics';
+  const activeStep = onboardingSteps[activeStepIndex];
+  const currentStepLabel = t(`setup.steps.${activeStep?.id ?? 'basics'}`);
   const showOnboardingStatus = onboardingSaving || Boolean(onboardingError);
+  /** "1,200" in English, "1.200" in Spanish. */
+  const num = (value: number) => formatNumber(Math.round(value), undefined, t.locale);
+  const kcal = (value: number) => t('common.kcal', { value: num(value) });
+  const bodyField = (field: BodyField) => formatBodyField(field, onboardingUnitsDraft, onboardingWheelDrafts(), t);
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -169,10 +183,15 @@ export function OnboardingWizard({
         >
           <View style={styles.setupBackdrop}>
             <View style={styles.setupCard}>
+              <SetupLanguageSwitch onChange={applyLanguage} />
               <View
                 style={styles.setupProgress}
                 accessibilityRole="progressbar"
-                accessibilityLabel={`Step ${activeStepIndex + 1} of ${onboardingSteps.length}: ${currentStepLabel}`}
+                accessibilityLabel={t('setup.progress.label', {
+                  step: activeStepIndex + 1,
+                  total: onboardingSteps.length,
+                  name: currentStepLabel
+                })}
               >
                 <View style={styles.setupProgressTrack}>
                   {onboardingSteps.map((step, index) => (
@@ -183,7 +202,7 @@ export function OnboardingWizard({
                   ))}
                 </View>
                 <Text style={styles.setupProgressCount}>
-                  {activeStepIndex + 1} of {onboardingSteps.length}
+                  {t('setup.progress.count', { step: activeStepIndex + 1, total: onboardingSteps.length })}
                 </Text>
               </View>
 
@@ -195,7 +214,7 @@ export function OnboardingWizard({
                   ]}
                 >
                   <Text style={styles.inlineStatusLabel}>
-                    {onboardingSaving ? 'Saving profile...' : 'There is a setup issue to fix'}
+                    {onboardingSaving ? t('setup.status.saving') : t('setup.status.issue')}
                   </Text>
                   {onboardingError ? <Text style={styles.inlineStatusDetail}>{onboardingError}</Text> : null}
                 </View>
@@ -206,14 +225,14 @@ export function OnboardingWizard({
                 const pending = calculatedPaceOption(floorWarning.pace);
                 const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
                 const calculatedCalories = Math.round(pending?.calorie_target ?? 0);
-                const who = onboardingSexDraft === 'male' ? 'men' : 'women';
+                const who = onboardingSexDraft === 'male' ? t('setup.floor.forMen') : t('setup.floor.forWomen');
                 return (
                   <ChoiceSheet
-                    title="Below the recommended minimum"
-                    primaryLabel={`Use ${minimum.toLocaleString('en-US')} kcal`}
-                    primaryDetail="Recommended"
-                    secondaryLabel={`Keep ${calculatedCalories.toLocaleString('en-US')} kcal`}
-                    secondaryDetail="Opt out of the minimum"
+                    title={t('setup.floor.title')}
+                    primaryLabel={t('setup.floor.useMinimum', { value: num(minimum) })}
+                    primaryDetail={t('setup.floor.recommended')}
+                    secondaryLabel={t('setup.floor.keep', { value: num(calculatedCalories) })}
+                    secondaryDetail={t('setup.floor.optOut')}
                     onPrimary={() => answerFloorWarning('recommended')}
                     onSecondary={() => answerFloorWarning('off')}
                     onDismiss={() => setFloorWarning(null)}
@@ -221,38 +240,32 @@ export function OnboardingWizard({
                     <View style={styles.floorCompare}>
                       <View style={styles.floorCompareTile}>
                         <Text style={styles.floorCompareLabel}>
-                          {onboardingGoalTypeDraft === 'maintain' ? 'Maintaining' : 'This pace'}
+                          {onboardingGoalTypeDraft === 'maintain' ? t('setup.floor.maintaining') : t('setup.floor.thisPace')}
                         </Text>
-                        <Text style={[styles.floorCompareValue, styles.paceRowCaloriesBelow]}>
-                          {calculatedCalories.toLocaleString('en-US')} kcal
-                        </Text>
+                        <Text style={[styles.floorCompareValue, styles.paceRowCaloriesBelow]}>{kcal(calculatedCalories)}</Text>
                       </View>
                       <View style={styles.floorCompareTile}>
-                        <Text style={styles.floorCompareLabel}>Recommended minimum</Text>
-                        <Text style={styles.floorCompareValue}>{minimum.toLocaleString('en-US')} kcal</Text>
-                        <Text style={styles.floorCompareNote}>for {who}</Text>
+                        <Text style={styles.floorCompareLabel}>{t('setup.floor.recommendedMinimum')}</Text>
+                        <Text style={styles.floorCompareValue}>{kcal(minimum)}</Text>
+                        <Text style={styles.floorCompareNote}>{who}</Text>
                       </View>
                     </View>
-                    <Text style={styles.floorWarningText}>
-                      Going lower without a doctor makes it hard to get enough protein and nutrients, and raises the risk
-                      of muscle loss, fatigue, and regaining the weight.
-                    </Text>
+                    <Text style={styles.floorWarningText}>{t('setup.floor.risk')}</Text>
                     {pending && caloriesToMoveMore(pending, minimum) > 0 ? (
                       <View style={styles.floorTip}>
                         <Text style={styles.floorWarningText}>
-                          <Text style={styles.floorWarningStrong}>Better:</Text> eat {minimum.toLocaleString('en-US')} kcal and burn
-                          the other {caloriesToMoveMore(pending, minimum).toLocaleString('en-US')} kcal by moving more, like a longer
-                          daily walk.
+                          <Text style={styles.floorWarningStrong}>{t('setup.floor.better')}</Text>{' '}
+                          {t('setup.floor.betterDetail', {
+                            minimum: num(minimum),
+                            extra: num(caloriesToMoveMore(pending, minimum))
+                          })}
                         </Text>
                       </View>
                     ) : null}
                     {calculatedCalories < VERY_LOW_CALORIE_LIMIT ? (
-                      <Text style={styles.floorWarningText}>
-                        Under {VERY_LOW_CALORIE_LIMIT} kcal a day is a very-low-calorie diet, normally done only with medical
-                        supervision.
-                      </Text>
+                      <Text style={styles.floorWarningText}>{t('setup.floor.veryLow', { limit: VERY_LOW_CALORIE_LIMIT })}</Text>
                     ) : null}
-                    <Text style={styles.floorWarningHint}>Opting out turns off the minimum. You can change it in Settings.</Text>
+                    <Text style={styles.floorWarningHint}>{t('setup.floor.hint')}</Text>
                   </ChoiceSheet>
                 );
               })()
@@ -261,8 +274,8 @@ export function OnboardingWizard({
             {bodyPicker ? (
               <PickerSheet
                 key={`${bodyPicker}-${onboardingUnitsDraft}`}
-                title={{ height: 'Height', weight: 'Weight', goalWeight: 'Goal weight', age: 'Age' }[bodyPicker]}
-                columns={wheelColumns(bodyPicker, onboardingUnitsDraft)}
+                title={t(`setup.body.${bodyPicker}`)}
+                columns={wheelColumns(bodyPicker, onboardingUnitsDraft, t)}
                 initialIndexes={initialWheelIndexes(
                   bodyPicker,
                   onboardingUnitsDraft,
@@ -273,7 +286,7 @@ export function OnboardingWizard({
                 onCancel={() => setBodyPicker(null)}
                 {...(bodyPicker === 'goalWeight'
                   ? {
-                      clearLabel: 'No goal weight',
+                      clearLabel: t('setup.body.noGoalWeight'),
                       onClear: () => {
                         setOnboardingTargetWeightDraft('');
                         setBodyPicker(null);
@@ -285,12 +298,10 @@ export function OnboardingWizard({
 
             {onboardingStep === 'basics' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>About you</Text>
-                <Text style={styles.setupIntroText}>
-                  We use these to estimate how many calories your body uses each day.
-                </Text>
+                <Text style={styles.panelTitle}>{t('setup.body.title')}</Text>
+                <Text style={styles.setupIntroText}>{t('setup.body.intro')}</Text>
 
-                <View style={styles.unitToggle} accessibilityRole="radiogroup" accessibilityLabel="Units">
+                <View style={styles.unitToggle} accessibilityRole="radiogroup" accessibilityLabel={t('setup.body.units')}>
                   {(
                     [
                       { id: 'imperial' as const, label: 'lb · ft/in' },
@@ -312,22 +323,22 @@ export function OnboardingWizard({
                   })}
                 </View>
 
-                <FieldGroup label="Your name">
+                <FieldGroup label={t('setup.body.name')}>
                   <TextInput
                     value={profileDisplayNameDraft}
                     onChangeText={setProfileDisplayNameDraft}
-                    placeholder="What should I call you?"
+                    placeholder={t('setup.body.namePlaceholder')}
                     placeholderTextColor={tc.fg_9aa6b8}
                     style={styles.settingsInput}
                     autoCapitalize="words"
                     autoCorrect={false}
                     autoComplete="name"
                     maxLength={60}
-                    accessibilityLabel="Your name"
+                    accessibilityLabel={t('setup.body.name')}
                   />
                 </FieldGroup>
 
-                <FieldGroup label="Sex">
+                <FieldGroup label={t('setup.body.sex')}>
                   <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
                     {(['female', 'male'] as const).map((option) => {
                       const active = onboardingSexDraft === option;
@@ -340,7 +351,7 @@ export function OnboardingWizard({
                           accessibilityState={{ checked: active }}
                         >
                           <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
-                            {option === 'male' ? 'Male' : 'Female'}
+                            {option === 'male' ? t('setup.body.male') : t('setup.body.female')}
                           </Text>
                         </Pressable>
                       );
@@ -349,29 +360,29 @@ export function OnboardingWizard({
                 </FieldGroup>
 
                 <PickerField
-                  label="Height"
-                  value={formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts())}
-                  placeholder="Choose"
+                  label={t('setup.body.height')}
+                  value={bodyField('height')}
+                  placeholder={t('setup.body.choose')}
                   onPress={() => setBodyPicker('height')}
-                  accessibilityLabel="Height"
+                  accessibilityLabel={t('setup.body.height')}
                 />
 
                 <View style={styles.profileFieldRow}>
                   <PickerField
                     style={styles.profileFieldHalf}
-                    label="Weight"
-                    value={formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts())}
-                    placeholder="Choose"
+                    label={t('setup.body.weight')}
+                    value={bodyField('weight')}
+                    placeholder={t('setup.body.choose')}
                     onPress={() => setBodyPicker('weight')}
-                    accessibilityLabel="Weight"
+                    accessibilityLabel={t('setup.body.weight')}
                   />
                   <PickerField
                     style={styles.profileFieldHalf}
-                    label="Age"
-                    value={formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts())}
-                    placeholder="Choose"
+                    label={t('setup.body.age')}
+                    value={bodyField('age')}
+                    placeholder={t('setup.body.choose')}
                     onPress={() => setBodyPicker('age')}
-                    accessibilityLabel="Age"
+                    accessibilityLabel={t('setup.body.age')}
                   />
                 </View>
               </View>
@@ -379,10 +390,8 @@ export function OnboardingWizard({
 
             {onboardingStep === 'activity' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>Daily activity</Text>
-                <Text style={styles.setupIntroText}>
-                  Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
-                </Text>
+                <Text style={styles.panelTitle}>{t('setup.activity.title')}</Text>
+                <Text style={styles.setupIntroText}>{t('setup.activity.intro')}</Text>
 
                 <ActivityEnergyBars
                   bmr={energyPreview?.bmr_calories ?? null}
@@ -398,29 +407,25 @@ export function OnboardingWizard({
                 <Pressable
                   onPress={() => setShowBmrExplainer((current) => !current)}
                   accessibilityRole="button"
-                  accessibilityLabel="What's BMR?"
+                  accessibilityLabel={t('setup.activity.bmrLink')}
                   accessibilityState={{ expanded: showBmrExplainer }}
                   hitSlop={12}
                   style={styles.bmrLinkButton}
                 >
-                  <Text style={styles.bmrLink}>{showBmrExplainer ? 'Hide BMR info' : "What's BMR?"}</Text>
+                  <Text style={styles.bmrLink}>{showBmrExplainer ? t('setup.activity.hideBmr') : t('setup.activity.bmrLink')}</Text>
                 </Pressable>
                 {showBmrExplainer ? (
-                  <Text style={styles.bmrExplainer}>
-                    BMR (basal metabolic rate) is the energy your body needs at complete rest: breathing, circulation, staying
-                    warm. Relish estimates it from your height, weight, age, and sex with the Mifflin-St Jeor formula. With
-                    your activity added, that is about what you burn in a day: eat that much and your weight stays put.
-                  </Text>
+                  <Text style={styles.bmrExplainer}>{t('setup.activity.bmrExplainer')}</Text>
                 ) : null}
               </View>
             ) : null}
 
             {onboardingStep === 'goal' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>Your goal</Text>
+                <Text style={styles.panelTitle}>{t('setup.goal.title')}</Text>
                 {targetPreview ? (
                   <Text style={styles.setupIntroText}>
-                    You burn about {formatCalories(targetPreview.maintenance_calories)}.
+                    {t('setup.goal.youBurn', { calories: formatCalories(targetPreview.maintenance_calories, t) })}
                   </Text>
                 ) : null}
 
@@ -428,6 +433,7 @@ export function OnboardingWizard({
                   {GOAL_OPTIONS.map((option) => {
                     const active = onboardingGoalTypeDraft === option.id;
                     const preview = displayedPace(option.id, DEFAULT_PACE[option.id]);
+                    const text = goalText(option.id, t);
                     const image =
                       option.id === 'lose' ? mascotRunImage : option.id === 'gain' ? mascotWeightsImage : mascotDefaultImage;
                     return (
@@ -439,8 +445,8 @@ export function OnboardingWizard({
                         accessibilityState={{ checked: active }}
                       >
                         <Image source={image} style={styles.setupGoalImage} resizeMode="contain" />
-                        <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                        <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
+                        <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{text.title}</Text>
+                        <Text style={styles.setupChoiceDetail}>{text.detail}</Text>
                         {preview ? (
                           <Text
                             style={[
@@ -448,7 +454,7 @@ export function OnboardingWizard({
                               (preview.state === 'below' || preview.state === 'opted_out') && styles.paceRowCaloriesBelow
                             ]}
                           >
-                            About {formatCalories(preview.calories)}
+                            {t('setup.goal.about', { calories: formatCalories(preview.calories, t) })}
                           </Text>
                         ) : null}
                       </Pressable>
@@ -461,17 +467,16 @@ export function OnboardingWizard({
             {onboardingStep === 'pace' ? (
               <View style={styles.setupPanel}>
                 <Text style={styles.panelTitle}>
-                  {onboardingGoalTypeDraft === 'maintain' ? 'Your focus' : 'How fast?'}
+                  {onboardingGoalTypeDraft === 'maintain' ? t('setup.pace.titleFocus') : t('setup.pace.titleHowFast')}
                 </Text>
                 <Text style={styles.setupIntroText}>
-                  {onboardingGoalTypeDraft === 'maintain'
-                    ? 'Same calories either way. Your focus changes how they split between protein, carbs, and fat.'
-                    : 'A slower pace is easier to keep up. You can change it any time.'}
+                  {onboardingGoalTypeDraft === 'maintain' ? t('setup.pace.introFocus') : t('setup.pace.introPace')}
                 </Text>
 
                 <View style={styles.setupOptionStack}>
                   {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
                     const active = onboardingGoalPaceDraft === option.id;
+                    const text = onboardingGoalTypeDraft ? paceText(onboardingGoalTypeDraft, option.id, t) : { title: option.title };
                     const calculated = calculatedPaceOption(option.id);
                     const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
                     // The honest number until the user decides; red when below the minimum.
@@ -480,7 +485,7 @@ export function OnboardingWizard({
                       : null;
                     const rate =
                       display && onboardingGoalTypeDraft !== 'maintain'
-                        ? formatWeeklyRate(display.weeklyChangeLbs, onboardingUnitsDraft)
+                        ? formatWeeklyRate(display.weeklyChangeLbs, onboardingUnitsDraft, t)
                         : '';
                     // The recommended minimum can turn a loss pace into a small surplus.
                     const wrongDirection =
@@ -488,7 +493,6 @@ export function OnboardingWizard({
                       ((onboardingGoalTypeDraft === 'lose' && display.weeklyChangeLbs >= 0) ||
                         (onboardingGoalTypeDraft === 'gain' && display.weeklyChangeLbs <= 0));
                     const belowShown = display?.state === 'below' || display?.state === 'opted_out';
-                    const kcal = (value: number) => `${Math.round(value).toLocaleString('en-US')} kcal`;
                     return (
                       <Pressable
                         key={option.id}
@@ -499,35 +503,31 @@ export function OnboardingWizard({
                       >
                         <View style={styles.paceRowHeader}>
                           <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                            {option.title}
+                            {text.title}
                           </Text>
                           {display ? (
                             <Text style={[styles.paceRowCalories, belowShown && styles.paceRowCaloriesBelow]}>
-                              {formatCalories(display.calories)}
+                              {formatCalories(display.calories, t)}
                             </Text>
                           ) : null}
                         </View>
                         {rate && !wrongDirection ? (
                           <Text style={styles.setupChoiceDetail}>
-                            {display && display.weeklyChangeLbs < 0 ? 'Lose ' : 'Gain '}
-                            {rate}
+                            {display && display.weeklyChangeLbs < 0 ? t('setup.pace.lose', { rate }) : t('setup.pace.gain', { rate })}
                           </Text>
                         ) : null}
-                        {option.note ? <Text style={styles.setupGoalNote}>{option.note}</Text> : null}
+                        {text.note ? <Text style={styles.setupGoalNote}>{text.note}</Text> : null}
                         {display?.state === 'below' ? (
-                          <Text style={styles.paceRowWarning}>Below the {kcal(minimum)} recommended minimum</Text>
+                          <Text style={styles.paceRowWarning}>{t('setup.pace.below', { minimum: kcal(minimum) })}</Text>
                         ) : display?.state === 'opted_out' ? (
-                          <Text style={styles.paceRowWarning}>Below the {kcal(minimum)} recommended minimum (floor off)</Text>
+                          <Text style={styles.paceRowWarning}>{t('setup.pace.belowFloorOff', { minimum: kcal(minimum) })}</Text>
                         ) : display?.state === 'using_minimum' ? (
                           <Text style={styles.setupChoiceDetail}>
-                            Calculated {kcal(display.calculatedCalories)} · using the recommended minimum
+                            {t('setup.pace.usingMinimum', { calculated: kcal(display.calculatedCalories) })}
                           </Text>
                         ) : null}
                         {wrongDirection ? (
-                          <Text style={styles.paceRowWarning}>
-                            At the {kcal(minimum)} minimum you would not lose weight, because it is above what you burn. Move
-                            more to keep this pace, or tap this pace to opt out of the minimum.
-                          </Text>
+                          <Text style={styles.paceRowWarning}>{t('setup.pace.wrongDirection', { minimum: kcal(minimum) })}</Text>
                         ) : null}
                       </Pressable>
                     );
@@ -537,11 +537,11 @@ export function OnboardingWizard({
                 {onboardingGoalTypeDraft !== 'maintain' ? (
                   <View style={styles.goalWeightBlock}>
                     <PickerField
-                      label="Goal weight (optional)"
-                      value={formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}
-                      placeholder="Choose"
+                      label={t('setup.pace.goalWeightOptional')}
+                      value={bodyField('goalWeight')}
+                      placeholder={t('setup.body.choose')}
                       onPress={() => setBodyPicker('goalWeight')}
-                      accessibilityLabel="Goal weight"
+                      accessibilityLabel={t('setup.body.goalWeight')}
                     />
                     {(() => {
                       const goalLbs = onboardingTargetWeightLbs();
@@ -559,14 +559,14 @@ export function OnboardingWizard({
                       }
                       return estimate ? (
                         <Text style={styles.goalWeightEstimate}>
-                          At this pace: about {estimate.weeks} {estimate.weeks === 1 ? 'week' : 'weeks'}, around{' '}
-                          {formatApproximateDate(estimate.date)}.
+                          {t('setup.pace.estimate', {
+                            count: estimate.weeks,
+                            date: formatApproximateDate(estimate.date, t)
+                          })}
                         </Text>
                       ) : (
                         <Text style={styles.paceRowWarning}>
-                          {onboardingGoalTypeDraft === 'lose'
-                            ? 'Goal weight should be below your current weight.'
-                            : 'Goal weight should be above your current weight.'}
+                          {onboardingGoalTypeDraft === 'lose' ? t('setup.pace.goalBelowCurrent') : t('setup.pace.goalAboveCurrent')}
                         </Text>
                       );
                     })()}
@@ -577,10 +577,8 @@ export function OnboardingWizard({
 
             {onboardingStep === 'diet' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>How you eat</Text>
-                <Text style={styles.setupIntroText}>
-                  Helps Relish suggest foods and meals that fit. It doesn't change your calories.
-                </Text>
+                <Text style={styles.panelTitle}>{t('setup.diet.title')}</Text>
+                <Text style={styles.setupIntroText}>{t('setup.diet.intro')}</Text>
                 <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
                   {dietaryPatternOptions.map((option) => {
                     const active = onboardingDietaryPatternDraft === option.id;
@@ -596,8 +594,10 @@ export function OnboardingWizard({
                           {option.icon}
                         </Text>
                         <View style={styles.setupIconRowCopy}>
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                            {t(`setup.diet.options.${option.id}.title`)}
+                          </Text>
+                          <Text style={styles.setupChoiceDetail}>{t(`setup.diet.options.${option.id}.subtitle`)}</Text>
                         </View>
                       </Pressable>
                     );
@@ -608,8 +608,8 @@ export function OnboardingWizard({
 
             {onboardingStep === 'style' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>Nutrition style</Text>
-                <Text style={styles.setupIntroText}>The kind of eating you prefer. You can change it any time in Profile.</Text>
+                <Text style={styles.panelTitle}>{t('setup.style.title')}</Text>
+                <Text style={styles.setupIntroText}>{t('setup.style.intro')}</Text>
                 <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
                   {nutritionStyleOptions.map((option) => {
                     const active = onboardingNutritionStyleDraft === option.id;
@@ -625,8 +625,10 @@ export function OnboardingWizard({
                           {option.icon}
                         </Text>
                         <View style={styles.setupIconRowCopy}>
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                          <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
+                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
+                            {t(`setup.style.options.${option.id}.title`)}
+                          </Text>
+                          <Text style={styles.setupChoiceDetail}>{t(`setup.style.options.${option.id}.subtitle`)}</Text>
                         </View>
                       </Pressable>
                     );
@@ -637,15 +639,13 @@ export function OnboardingWizard({
 
             {onboardingStep === 'balance' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>How do you balance your meals?</Text>
-                <Text style={styles.setupIntroText}>
-                  How your day's calories split across breakfast, lunch, and dinner. Gus uses it to size the meals he plans. You can
-                  change it any time in Profile.
-                </Text>
+                <Text style={styles.panelTitle}>{t('setup.balance.title')}</Text>
+                <Text style={styles.setupIntroText}>{t('setup.balance.intro')}</Text>
                 <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
                   {MEAL_STYLES.map((option) => {
                     const active = onboardingMealStyleDraft === option.id;
                     const [breakfast, lunch, dinner] = option.splits[3];
+                    const text = mealStyleText(option.id, t);
                     return (
                       <Pressable
                         key={option.id}
@@ -656,13 +656,11 @@ export function OnboardingWizard({
                       >
                         <View style={styles.setupIconRowCopy}>
                           <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                            {option.label}
-                            {option.id === 'balanced' ? ' (default)' : ''}
+                            {text.label}
+                            {option.id === 'balanced' ? t('setup.balance.defaultSuffix') : ''}
                           </Text>
-                          <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
-                          <Text style={styles.setupChoiceDetail}>
-                            Breakfast {breakfast}% · Lunch {lunch}% · Dinner {dinner}%
-                          </Text>
+                          <Text style={styles.setupChoiceDetail}>{text.detail}</Text>
+                          <Text style={styles.setupChoiceDetail}>{t('setup.balance.split', { breakfast, lunch, dinner })}</Text>
                         </View>
                       </Pressable>
                     );
@@ -673,12 +671,13 @@ export function OnboardingWizard({
 
             {onboardingStep === 'allergies' ? (
               <View style={styles.setupPanel}>
-                <Text style={styles.panelTitle}>Allergies and foods to avoid</Text>
-                <Text style={styles.setupIntroText}>Pick all that apply, or None. Saved to your profile.</Text>
+                <Text style={styles.panelTitle}>{t('setup.allergies.title')}</Text>
+                <Text style={styles.setupIntroText}>{t('setup.allergies.intro')}</Text>
                 {/* Two columns of compact tiles, so all eight fit on a phone screen. */}
                 <View style={styles.allergyGrid}>
                   {allergyOptions.map((option) => {
                     const active = onboardingAllergySelectionsDraft.includes(option.id);
+                    const title = t(`setup.allergies.options.${option.id}.title`);
                     return (
                       <Pressable
                         key={option.id}
@@ -686,7 +685,7 @@ export function OnboardingWizard({
                         onPress={() => toggleOnboardingAllergy(option.id)}
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: active }}
-                        accessibilityLabel={option.title}
+                        accessibilityLabel={title}
                       >
                         <Text style={styles.allergyIcon} accessibilityElementsHidden importantForAccessibility="no">
                           {option.icon}
@@ -695,7 +694,7 @@ export function OnboardingWizard({
                           style={[styles.allergyLabel, active && styles.setupChoiceTitleActive]}
                           numberOfLines={1}
                         >
-                          {option.title}
+                          {title}
                         </Text>
                         <View style={[styles.setupCheckBox, styles.allergyCheck, active && styles.setupCheckBoxActive]}>
                           {active ? <Text style={styles.setupCheckMark}>✓</Text> : null}
@@ -705,11 +704,11 @@ export function OnboardingWizard({
                   })}
                 </View>
                 {onboardingAllergySelectionsDraft.includes('other') ? (
-                  <FieldGroup label="Other">
+                  <FieldGroup label={t('setup.allergies.other')}>
                     <TextInput
                       value={onboardingAllergyOtherDraft}
                       onChangeText={setOnboardingAllergyOtherDraft}
-                      placeholder="For example sesame or soy"
+                      placeholder={t('setup.allergies.otherPlaceholder')}
                       placeholderTextColor={tc.fg_9aa6b8}
                       style={styles.settingsInput}
                     />
@@ -721,28 +720,31 @@ export function OnboardingWizard({
             {onboardingStep === 'review' ? (
               <View style={styles.setupPanel}>
                 <Text style={styles.panelTitle}>
-                  {firstName(profileDisplayNameDraft) ? `Looking good, ${firstName(profileDisplayNameDraft)}!` : 'Looking good!'}
+                  {firstName(profileDisplayNameDraft)
+                    ? t('setup.review.titleNamed', { name: firstName(profileDisplayNameDraft) })
+                    : t('setup.review.title')}
                 </Text>
-                <Text style={styles.setupIntroText}>
-                  Check everything, then create your profile. You can change any of this later.
-                </Text>
+                <Text style={styles.setupIntroText}>{t('setup.review.intro')}</Text>
 
                 {effectivePaceOption() ? (
                   <View style={styles.reviewTarget}>
-                    <Text style={styles.reviewTargetLabel}>Your daily target</Text>
-                    <Text style={styles.reviewTargetValue}>{formatCalories(effectivePaceOption()?.calorie_target ?? 0)}</Text>
+                    <Text style={styles.reviewTargetLabel}>{t('setup.review.dailyTarget')}</Text>
+                    <Text style={styles.reviewTargetValue}>{formatCalories(effectivePaceOption()?.calorie_target ?? 0, t)}</Text>
                     <Text style={styles.reviewTargetMacros}>
-                      Protein {Math.round(effectivePaceOption()?.protein_target_g ?? 0)} g · Carbs{' '}
-                      {Math.round(effectivePaceOption()?.carbs_target_g ?? 0)} g · Fat {Math.round(effectivePaceOption()?.fat_target_g ?? 0)} g
+                      {t('setup.review.macros', {
+                        protein: num(effectivePaceOption()?.protein_target_g ?? 0),
+                        carbs: num(effectivePaceOption()?.carbs_target_g ?? 0),
+                        fat: num(effectivePaceOption()?.fat_target_g ?? 0)
+                      })}
                     </Text>
                     {onboardingCalorieFloorDraft === 'off' ? (
                       <Text style={styles.paceRowWarning}>
                         {calculatedPaceOption()?.below_recommended_minimum
-                          ? 'Below the recommended minimum (calorie floor off)'
-                          : 'Calorie floor off: future targets can go below the recommended minimum'}
+                          ? t('setup.review.floorOffBelow')
+                          : t('setup.review.floorOffFuture')}
                       </Text>
                     ) : calculatedPaceOption()?.below_recommended_minimum ? (
-                      <Text style={styles.setupChoiceDetail}>Set to the recommended minimum</Text>
+                      <Text style={styles.setupChoiceDetail}>{t('setup.review.setToMinimum')}</Text>
                     ) : null}
                   </View>
                 ) : null}
@@ -752,32 +754,30 @@ export function OnboardingWizard({
                     [
                       {
                         step: 'basics' as const,
-                        label: 'About you',
+                        label: t('setup.review.rows.basics'),
                         value: [
                           profileDisplayNameDraft.trim(),
-                          onboardingSexDraft === 'male' ? 'Male' : 'Female',
-                          formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts()),
-                          formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts()),
-                          formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts())
+                          onboardingSexDraft === 'male' ? t('setup.body.male') : t('setup.body.female'),
+                          bodyField('age'),
+                          bodyField('height'),
+                          bodyField('weight')
                         ]
                           .filter(Boolean)
                           .join(' · ')
                       },
                       {
                         step: 'activity' as const,
-                        label: 'Daily activity',
-                        value: activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Sedentary'
+                        label: t('setup.review.rows.activity'),
+                        value: activityLevelText(onboardingActivityLevelDraft, t).title
                       },
                       {
                         step: 'goal' as const,
-                        label: 'Goal',
+                        label: t('setup.review.rows.goal'),
                         value: [
-                          formatGoalTypeLabel(onboardingGoalTypeDraft),
-                          onboardingGoalTypeDraft ? formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft) : '',
-                          onboardingGoalTypeDraft !== 'maintain'
-                            ? formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())
-                              ? `goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
-                              : ''
+                          goalLabel(onboardingGoalTypeDraft, t),
+                          onboardingGoalTypeDraft ? paceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft, t) : '',
+                          onboardingGoalTypeDraft !== 'maintain' && bodyField('goalWeight')
+                            ? t('setup.review.goalWeight', { weight: bodyField('goalWeight') })
                             : ''
                         ]
                           .filter(Boolean)
@@ -785,23 +785,32 @@ export function OnboardingWizard({
                       },
                       {
                         step: 'diet' as const,
-                        label: 'How you eat',
-                        value: dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Not chosen'
+                        label: t('setup.review.rows.diet'),
+                        value: onboardingDietaryPatternDraft
+                          ? t(`setup.diet.options.${onboardingDietaryPatternDraft}.title`)
+                          : t('setup.review.notChosen')
                       },
                       {
                         step: 'style' as const,
-                        label: 'Nutrition style',
-                        value: nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Not chosen'
+                        label: t('setup.review.rows.style'),
+                        value: onboardingNutritionStyleDraft
+                          ? t(`setup.style.options.${onboardingNutritionStyleDraft}.title`)
+                          : t('setup.review.notChosen')
                       },
                       {
                         step: 'balance' as const,
-                        label: 'Meal balance',
-                        value: MEAL_STYLES.find((option) => option.id === onboardingMealStyleDraft)?.label ?? 'Balanced'
+                        label: t('setup.review.rows.balance'),
+                        value: mealStyleText(
+                          MEAL_STYLES.some((option) => option.id === onboardingMealStyleDraft) ? onboardingMealStyleDraft : 'balanced',
+                          t
+                        ).label
                       },
                       {
                         step: 'allergies' as const,
-                        label: 'Avoid',
-                        value: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft) || 'Nothing'
+                        label: t('setup.review.rows.allergies'),
+                        value:
+                          describeAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft, t) ||
+                          t('setup.review.nothing')
                       }
                     ]
                   ).map((row) => (
@@ -816,10 +825,10 @@ export function OnboardingWizard({
                           setOnboardingStep(row.step);
                         }}
                         accessibilityRole="button"
-                        accessibilityLabel={`Edit ${row.label}`}
+                        accessibilityLabel={t('setup.review.editRow', { label: row.label })}
                         hitSlop={10}
                       >
-                        <Text style={styles.reviewEdit}>Edit</Text>
+                        <Text style={styles.reviewEdit}>{t('setup.review.edit')}</Text>
                       </Pressable>
                     </View>
                   ))}
@@ -834,7 +843,7 @@ export function OnboardingWizard({
                     onPress={goToPreviousOnboardingStep}
                     disabled={onboardingSaving}
                   >
-                    <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
+                    <Text style={styles.setupActionButtonLabelSecondary}>{t('setup.nav.back')}</Text>
                   </Pressable>
 
                   {onboardingStep === 'review' ? (
@@ -844,7 +853,7 @@ export function OnboardingWizard({
                       disabled={onboardingSaving}
                     >
                       <Text style={styles.setupActionButtonLabelPrimary}>
-                        {onboardingSaving ? 'Saving...' : 'Create profile'}
+                        {onboardingSaving ? t('setup.nav.saving') : t('setup.nav.create')}
                       </Text>
                     </Pressable>
                   ) : (
@@ -853,7 +862,7 @@ export function OnboardingWizard({
                       onPress={goToNextOnboardingStep}
                       disabled={onboardingSaving}
                     >
-                      <Text style={styles.setupActionButtonLabelPrimary}>Next</Text>
+                      <Text style={styles.setupActionButtonLabelPrimary}>{t('setup.nav.next')}</Text>
                     </Pressable>
                   )}
                 </View>

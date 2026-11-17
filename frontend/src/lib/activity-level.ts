@@ -6,17 +6,29 @@
  * Slider positions run from t = 0 (left end) to t = 1 (right end). The five levels sit evenly
  * from end to end.
  */
+import { en } from '../i18n/en';
+import type { TFunction } from '../i18n/translate';
 
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
 
-/** Daily movement only; workouts are logged separately. Step counts are rough guides. */
-export const ACTIVITY_LEVELS: Array<{ id: ActivityLevel; title: string; description: string; steps: string }> = [
-  { id: 'sedentary', title: 'Sedentary', description: 'Mostly sitting', steps: '< 5,000 steps' },
-  { id: 'light', title: 'Light', description: 'Some walking', steps: '5,000–7,500 steps' },
-  { id: 'moderate', title: 'Moderate', description: 'On your feet often', steps: '7,500–10,000 steps' },
-  { id: 'very_active', title: 'Very active', description: 'On your feet most of the day', steps: '10,000–15,000 steps' },
-  { id: 'extra_active', title: 'Extra active', description: 'Physical work all day', steps: '15,000+ steps' }
-];
+const LEVEL_IDS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'very_active', 'extra_active'];
+
+/**
+ * Daily movement only; workouts are logged separately. Step counts are rough guides. The
+ * English text comes from the dictionary; activityLevelText() gives it in any language.
+ */
+export const ACTIVITY_LEVELS: Array<{ id: ActivityLevel; title: string; description: string; steps: string }> = LEVEL_IDS.map(
+  (id) => ({ id, ...en.setup.activity.levels[id] })
+);
+
+/** A level's name, description, and rough step count in `t`'s language. */
+export function activityLevelText(level: ActivityLevel, t: TFunction): { title: string; description: string; steps: string } {
+  return {
+    title: t(`setup.activity.levels.${level}.title`),
+    description: t(`setup.activity.levels.${level}.description`),
+    steps: t(`setup.activity.levels.${level}.steps`)
+  };
+}
 
 export function activityIndex(level: ActivityLevel): number {
   const index = ACTIVITY_LEVELS.findIndex((option) => option.id === level);

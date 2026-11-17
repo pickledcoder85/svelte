@@ -10,6 +10,12 @@ export function mealSlotLabel(slot: MealSlot | 'other', t: TFunction): string {
   return t(`meals.slots.${slot}`);
 }
 
+/** A planned meal's saved label ("Breakfast") in the display language; other labels as saved. */
+export function plannedMealLabel(label: string, t: TFunction): string {
+  const key = label.trim().toLowerCase();
+  return key === 'breakfast' || key === 'lunch' || key === 'dinner' || key === 'snack' ? t(`meals.slots.${key}`) : label;
+}
+
 /** The meal for a time of day: before 10:30 breakfast, before 2:30 lunch, before 5 snack, then dinner. */
 export function defaultMealSlot(now: Date = new Date()): MealSlot {
   const minutes = now.getHours() * 60 + now.getMinutes();

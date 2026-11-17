@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import type { ExerciseEntry, FoodLogSummary, WeightEntry } from '../types';
 import {
   averageMacros,
@@ -62,5 +63,14 @@ describe('trends', () => {
     expect(historyDayLabel('2026-11-15', '2026-11-15')).toBe('Today');
     expect(historyDayLabel('2026-11-14', '2026-11-15')).toBe('Yesterday');
     expect(historyDayLabel('2026-11-10', '2026-11-15')).toBe('Tue, Nov 10');
+  });
+});
+
+describe('trends in Spanish', () => {
+  it('labels history days in the display language', () => {
+    const es = translatorFor('es');
+    expect(historyDayLabel('2026-11-15', '2026-11-15', es)).toBe('Hoy');
+    expect(historyDayLabel('2026-11-14', '2026-11-15', es)).toBe('Ayer');
+    expect(historyDayLabel('2026-11-10', '2026-11-15', es).replace(/\s/g, ' ')).toBe('mar, 10 de nov');
   });
 });
