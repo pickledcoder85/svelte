@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.app.config import Settings
 from backend.app.dependencies import get_app_settings, get_required_session, get_repository
+from backend.app.i18n import request_language, translate
 from backend.app.models.nutrition import (
     SmartScanResult,
     VisionLabelScanResult,
@@ -143,14 +144,22 @@ def _keep_package_identity(repository: SQLiteRepository, user_id: str, output_id
 @router.post("/scan", response_model=SmartScanResult)
 async def smart_scan(
     payload: SmartScanRequest,
+    request: Request,
     session=Depends(get_required_session),
     repository: SQLiteRepository = Depends(get_repository),
     settings: Settings = Depends(get_app_settings),
 ) -> SmartScanResult:
     """The auto-capture scanner: one AI read that works out whether the frame is a nutrition
-    label or a package front, then saves it for review like the separate scans."""
+    label or a package front, then saves it for review like the separate scans. Its messages
+    are in the app's language."""
+    language = request_language(request)
+    result = await _smart_scan(payload, session, repository, settings, language)
+    return result.model_copy(update={"message": translate(result.message, language)})
+
+
+async def _smart_scan(payload: SmartScanRequest, session, repository: SQLiteRepository, settings: Settings, language: str) -> SmartScanResult:
     try:
-        kind, extraction, message = await analyze_scan_image(payload.image_base64, repository, settings)
+        kind, extraction, message = await analyze_scan_image(payload.image_base64, repository, settings, language)
         if kind == "unreadable" or extraction is None:
             return SmartScanResult(kind="unreadable", message=message)
         if kind == "meal_plate":
@@ -208,7 +217,7 @@ async def smart_scan(
             source_kind="camera_package",
             source_name="package-scan",
             extracted_text=extraction.package_text,
-            structured_json=package_structured_json(extraction.model_dump(), matches),
+            structured_json=_localized_package(package_structured_json(extraction.model_dump(), matches), language),
             confidence=extraction.confidence,
         )
         return SmartScanResult(
@@ -246,3 +255,10 @@ async def ingest_label(
         )
     except Exception as exc:
         raise _scan_http_error(exc, "Vision label ingest") from exc
+
+
+def _localized_package(structured: dict, language: str) -> dict:
+    """The match note is shown with the saved scan, so it's saved in the app's language."""
+    if structured.get("match_note"):
+        structured = {**structured, "match_note": translate(structured["match_note"], language)}
+    return structured

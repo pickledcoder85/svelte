@@ -34,6 +34,7 @@ from backend.app.services.meal_suggest import (
     _resolve,
     COUNT_RULE,
     _targets,
+    language_rule,
     clean_ingredients,
 )
 from backend.app.services.portions import quantity_label
@@ -88,6 +89,8 @@ class PlanItem(BaseModel):
     # Counted foods ("2 large eggs"); both or neither.
     count: float | None = Field(default=None, gt=0, le=24)
     unit: str | None = Field(default=None, max_length=40)
+    # The unit's plural when it isn't English ("huevos grandes").
+    unit_plural: str | None = Field(default=None, max_length=40)
 
 
 class PlanAssignment(BaseModel):
@@ -137,6 +140,7 @@ def plan_prompt(
     avoid: list[str],
     no_data: list[str],
     step_note: str | None,
+    language: str = "en",
 ) -> str:
     """What Gus is asked. Only meal preferences go out: no name, email, or body details."""
     diet = profile.get("dietary_pattern") or "omnivore"
@@ -166,6 +170,7 @@ Rules:
 - {COUNT_RULE}
 - at most 6 ingredients per meal, plain whole foods (no brands), grams for one serving (cooked weights when cooked)
 - each meal must fit its meal type and its cooking time
+{language_rule(language)}
 """.strip()
 
 
@@ -177,6 +182,7 @@ async def propose_meals(
     *,
     ask: Callable[[str], Awaitable[dict[str, Any]]],
     client_factory: Callable[[], httpx.AsyncClient] | None = None,
+    language: str = "en",
 ) -> ProposeResponse:
     profile = repository.get_user_identity(user_id) or {}
     meals = list(dict.fromkeys(payload.meals))
@@ -207,6 +213,7 @@ async def propose_meals(
                     avoid=payload.avoid_titles,
                     no_data=no_data,
                     step_note=payload.step_note,
+                    language=language,
                 )
             )
             raw_meals = reply.get("meals") if isinstance(reply, dict) else None
@@ -215,7 +222,7 @@ async def propose_meals(
                     continue
                 meal = str(raw.get("meal") or "").lower()
                 name = str(raw.get("name") or "").strip()[:80]
-                items = clean_ingredients(raw.get("ingredients"))
+                items = clean_ingredients(raw.get("ingredients"), language)
                 if meal not in wanted or meal in results or not name or not items:
                     continue
                 resolved = await asyncio.gather(
@@ -276,7 +283,9 @@ def create_plan(repository: SQLiteRepository, user_id: str, payload: CreatePlanR
                 "items": [
                     {
                         "name": item.name,
-                        "quantity_label": quantity_label(item.grams, item.count, (item.unit or "").strip() or None),
+                        "quantity_label": quantity_label(
+                            item.grams, item.count, (item.unit or "").strip() or None, (item.unit_plural or "").strip() or None
+                        ),
                         "calories": round(item.calories),
                         "macros": {"protein": item.protein, "carbs": item.carbs, "fat": item.fat},
                     }

@@ -6,6 +6,7 @@ import {
   deriveExerciseIntensity,
   firstName,
   formatHomeDateLabel,
+  formatStoredClock,
   sortPlannedExerciseEntries,
   splitHeightCm
 } from './app-format';
@@ -63,5 +64,14 @@ describe('home date labels in Spanish', () => {
   it('uses the display language when given one', () => {
     expect(formatHomeDateLabel('2026-03-04', '2026-03-04', translatorFor('es')).replace(/\s/g, ' ')).toBe('Hoy · mié, 4 de mar');
     expect(formatHomeDateLabel('2026-03-04', '2026-03-04', translatorFor('en'))).toBe('Today · Wed, Mar 4');
+  });
+});
+
+describe('stored workout times', () => {
+  it('shows "7:05 AM" in the language', () => {
+    expect(formatStoredClock('7:05 AM', 'en-US')).toBe('7:05 AM');
+    expect(formatStoredClock('7:05 PM', 'es-CO')).toMatch(/^7:05\s?p\.\s?m\.$/);
+    expect(formatStoredClock('12:30 AM', 'es-CO')).toMatch(/^12:30\s?a\.\s?m\.$/);
+    expect(formatStoredClock('17:00', 'es-CO')).toBe('17:00');
   });
 });

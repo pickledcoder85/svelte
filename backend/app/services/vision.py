@@ -340,8 +340,14 @@ def _plate_items(value: Any) -> list[dict[str, Any]]:
     return items
 
 
+SPANISH_SCAN_RULE = (
+    '\nWrite "problem" and each plate item "name" in Colombian Spanish (addressing the user as "usted"); '
+    'keep every "usda_query" in English, and copy package and label text exactly as printed.'
+)
+
+
 async def analyze_scan_image(
-    image_base64: str, repository: SQLiteRepository, settings: Settings
+    image_base64: str, repository: SQLiteRepository, settings: Settings, language: str = "en"
 ) -> tuple[str, Any, str | None]:
     """One call for the auto-capture scanner: (kind, what was read, a message when unreadable).
     A label that names a panel but has no calories counts as unreadable, never as a guess."""
@@ -350,7 +356,7 @@ async def analyze_scan_image(
         demo = await analyze_label_image(image_base64, settings)
         return "nutrition_label", demo, None
 
-    payload = await _request_vision_json(settings, image_url, SCAN_PROMPT)
+    payload = await _request_vision_json(settings, image_url, SCAN_PROMPT + (SPANISH_SCAN_RULE if language == "es" else ""))
     kind = payload.get("kind") if payload.get("kind") in SCAN_KINDS else "unreadable"
     numbers = ("calories", "protein", "carbs", "fat")
     if kind == "nutrition_label" and not all(

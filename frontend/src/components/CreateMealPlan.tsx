@@ -206,7 +206,7 @@ export function CreateMealPlan({
             protein: item.nutrition.protein,
             carbs: item.nutrition.carbs,
             fat: item.nutrition.fat,
-            ...(item.count && item.unit ? { count: item.count, unit: item.unit } : {})
+            ...(item.count && item.unit ? { count: item.count, unit: item.unit, ...(item.unit_plural ? { unit_plural: item.unit_plural } : {}) } : {})
           }))
         })),
         accessToken

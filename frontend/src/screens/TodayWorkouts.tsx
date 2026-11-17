@@ -5,6 +5,7 @@ import { useT } from '../i18n';
 import { workoutSourceLabel } from '../lib/garmin';
 import type { ExerciseEntry, PlannedExerciseEntry } from '../types';
 import { styles } from './shared/styles';
+import { formatStoredClock } from '../lib/app-format';
 
 export interface TodayWorkoutsProps {
   setOpenSheet: (sheet: 'add-workout') => void;
@@ -67,7 +68,7 @@ export function TodayWorkouts({
               <Text style={styles.todayRowTag}>{t('workouts.planned')}</Text>
               <Text style={styles.listTitle}>{entry.title}</Text>
               <Text style={styles.listCaption}>
-                {entry.planned_at} · {t('common.minutes', { minutes: entry.duration_minutes })} ·{' '}
+                {formatStoredClock(entry.planned_at, t.locale)} · {t('common.minutes', { minutes: entry.duration_minutes })} ·{' '}
                 {t('common.kcal', { value: entry.calories_burned })}
               </Text>
             </View>
@@ -117,7 +118,7 @@ export function TodayWorkouts({
               <View style={styles.listRowCopyFlex}>
                 <Text style={styles.listTitle}>{entry.title}</Text>
                 <Text style={styles.listCaption}>
-                  {entry.logged_at} · {t('common.minutes', { minutes: entry.duration_minutes })}
+                  {formatStoredClock(entry.logged_at, t.locale)} · {t('common.minutes', { minutes: entry.duration_minutes })}
                   {workoutSourceLabel(entry.source) ? ` · ${workoutSourceLabel(entry.source)}` : ''}
                 </Text>
               </View>

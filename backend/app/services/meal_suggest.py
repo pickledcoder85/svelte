@@ -32,6 +32,17 @@ logger = logging.getLogger(__name__)
 
 BlockKey = Literal["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner", "snack"]
 MAX_INGREDIENTS = 6
+def language_rule(language: str) -> str:
+    """Spanish: Gus writes in Colombian Spanish (usted) but keeps lookups in English."""
+    if language != "es":
+        return ""
+    return (
+        '- write every name, why, prep, seen_items entry, and ingredient "name" in Colombian Spanish, addressing the '
+        'user as "usted" (e.g. "muslo de pollo"); usda_query stays in English; for counted foods, unit stays English '
+        'singular (e.g. "large egg") and also give unit_es and unit_es_plural in Spanish (e.g. "huevo grande", "huevos grandes")'
+    )
+
+
 COUNT_RULE = (
     "for foods people count rather than weigh (eggs, fruit, potatoes, bread, tortillas, wraps), give how many as count "
     'and one in singular as unit, e.g. 2 and "large egg", 1 and "medium sweet potato", 2 and "slice of whole wheat bread"; '
@@ -233,6 +244,7 @@ def suggestion_prompt(
     with_photo: bool = False,
     avoid: list[str] | None = None,
     seen: list[str] | None = None,
+    language: str = "en",
 ) -> str:
     """What Gus is asked. Only meal preferences go out: no name, email, or body details."""
     diet = profile.get("dietary_pattern") or "omnivore"
@@ -259,11 +271,13 @@ Rules:
 - grams are a realistic portion near the target (the app adjusts them), for cooked weights when cooked
 - a {block_label.lower()} should look like one: {"small and simple" if "snack" in block_label.lower() else "a real meal"}
 - the two options should be clearly different
+{language_rule(language)}
 """.strip()
 
 
-def clean_ingredients(raw_items: Any) -> list[dict[str, Any]]:
-    """An AI ingredient list, checked: plain names, positive grams, a known role."""
+def clean_ingredients(raw_items: Any, language: str = "en") -> list[dict[str, Any]]:
+    """An AI ingredient list, checked: plain names, positive grams, a known role. In Spanish the
+    shown name and unit are Spanish, while lookups use the English query and unit."""
     items = []
     for ingredient in (raw_items if isinstance(raw_items, list) else [])[:MAX_INGREDIENTS]:
         if not isinstance(ingredient, dict):
@@ -282,9 +296,16 @@ def clean_ingredients(raw_items: Any) -> list[dict[str, Any]]:
             count = 0.0
         unit = str(ingredient.get("unit") or "").strip()[:40]
         counted = math.isfinite(count) and 0 < count <= MAX_COUNT and bool(unit)
+        query = (str(ingredient.get("usda_query") or "").strip() or name)[:80]
+        unit_es = str(ingredient.get("unit_es") or "").strip()[:40] if language == "es" else ""
+        unit_es_plural = str(ingredient.get("unit_es_plural") or "").strip()[:40] if language == "es" else ""
         items.append({
             "name": name,
-            "query": (str(ingredient.get("usda_query") or "").strip() or name)[:80],
+            # The English words to search with (the shown name may be Spanish).
+            "lookup_name": query if language == "es" else name,
+            "unit_display": (unit_es or unit) if counted else None,
+            "unit_display_plural": (unit_es_plural or None) if counted and unit_es else None,
+            "query": query,
             "grams": min(grams, 1000.0),
             "role": role if role in ROLES else "other",
             "count": count if counted else None,
@@ -293,14 +314,14 @@ def clean_ingredients(raw_items: Any) -> list[dict[str, Any]]:
     return items
 
 
-def _clean_options(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def _clean_options(payload: dict[str, Any], language: str = "en") -> list[dict[str, Any]]:
     """The AI's options, checked: lists where lists belong, usable ingredients, unique names."""
     options = []
     raw_options = payload.get("options") if isinstance(payload, dict) else None
     for raw in (raw_options if isinstance(raw_options, list) else [])[:2]:
         if not isinstance(raw, dict):
             continue
-        items = clean_ingredients(raw.get("ingredients"))
+        items = clean_ingredients(raw.get("ingredients"), language)
         name = str(raw.get("name") or "").strip()[:80]
         if name and items:
             if any(option["name"] == name for option in options):
@@ -381,7 +402,11 @@ def fit_portions(items: list[dict[str, Any]], budget: Nutrition) -> list[float]:
 
 
 # Basics anyone has: allowed in photo mode even when they aren't in the picture.
-PANTRY_STAPLES = {"oil", "olive", "butter", "salt", "pepper", "spice", "spices", "seasoning", "water", "vinegar", "herbs"}
+PANTRY_STAPLES = {
+    "oil", "olive", "butter", "salt", "pepper", "spice", "spices", "seasoning", "water", "vinegar", "herbs",
+    # Spanish (Gus names ingredients in Spanish when the app is in Spanish)
+    "aceite", "oliva", "mantequilla", "sal", "pimienta", "especias", "condimento", "agua", "vinagre", "hierbas",
+}
 _PREP_WORDS = {"cooked", "boiled", "roasted", "grilled", "baked", "fried", "steamed", "raw", "fresh", "chopped", "sliced", "diced"}
 
 
@@ -423,18 +448,19 @@ async def _resolve(
     """The ingredient's food: the user's bank, then USDA generic foods, then all of USDA
     (branded too), then a simpler name. Every step uses the same safe matching (cooked is not
     raw, plain is not breaded); USDA finds are saved so they can be logged."""
-    food = _bank_food(repository, user_id, item["name"], item["query"])
+    lookup_name = item.get("lookup_name") or item["name"]
+    food = _bank_food(repository, user_id, lookup_name, item["query"])
     if food is not None or generic is None:
         return food
     attempts: list[tuple[Callable[[str], Awaitable[list[FoodItem]]], str]] = [(generic, item["query"])]
     if any_type is not None:
         attempts.append((any_type, item["query"]))
-    simpler = _simpler(item["name"])
+    simpler = _simpler(lookup_name)
     if simpler:
         attempts.append((generic, simpler))
     for lookup, query in attempts:
         found = await _lookup(lookup, query)
-        picked = pick_generic_food(query, found) or pick_generic_food(item["name"], found)
+        picked = pick_generic_food(query, found) or pick_generic_food(lookup_name, found)
         if picked is not None:
             return repository.save_food_item(picked)
     # Food names only (no personal data): so failures can be diagnosed from the server log.
@@ -469,6 +495,7 @@ async def suggest_meals(
     *,
     ask: Callable[[str], Awaitable[dict[str, Any]]],
     client_factory: Callable[[], httpx.AsyncClient] | None = None,
+    language: str = "en",
 ) -> SuggestResponse:
     key, budget, remaining = meal_budget(repository, user_id, payload.log_date, payload.block)
     label = LABELS.get(key, "Snack")
@@ -511,11 +538,12 @@ async def suggest_meals(
                 with_photo=with_photo,
                 avoid=avoid,
                 seen=seen if _round else None,
+                language=language,
             )
             reply = await ask(prompt)
             if with_photo and not seen:
                 seen = [str(item).strip()[:40] for item in (reply.get("seen_items") or []) if str(item).strip()][:20] if isinstance(reply.get("seen_items"), list) else []
-            options = _clean_options(reply)
+            options = _clean_options(reply, language)
             if with_photo:
                 options = _photo_filter(options, seen)
             options = [option for option in options if option["name"] not in {meal.name for meal in meals}]
@@ -601,9 +629,11 @@ def _assemble(option: dict[str, Any], found: list[dict[str, Any]], budget: Nutri
                 fat=round(weight * item["rate"].fat, 1),
             ),
             count=counted[1] if counted else None,
-            unit=counted[0] if counted else None,
-            unit_plural=plural(counted[0]) if counted else None,
-            quantity_label=quantity_label(weight, counted[1], counted[0]) if counted else quantity_label(weight),
+            unit=(item.get("unit_display") or counted[0]) if counted else None,
+            unit_plural=(item.get("unit_display_plural") or plural(item.get("unit_display") or counted[0])) if counted else None,
+            quantity_label=quantity_label(
+                weight, counted[1], item.get("unit_display") or counted[0], item.get("unit_display_plural")
+            ) if counted else quantity_label(weight),
         )
         for item, weight, counted in zip(found, grams, counts)
     ]

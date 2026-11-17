@@ -114,9 +114,10 @@ def count_text(count: float) -> str:
     return str(int(whole))
 
 
-def quantity_label(grams: float, count: float | None = None, unit: str | None = None) -> str:
-    """"2 large eggs (100 g)", "½ medium sweet potato (75 g)", or "150 g"."""
+def quantity_label(grams: float, count: float | None = None, unit: str | None = None, unit_plural: str | None = None) -> str:
+    """"2 large eggs (100 g)", "½ medium sweet potato (75 g)", or "150 g". `unit_plural` when
+    the unit isn't English ("huevos grandes")."""
     weight = f"{round(grams)} g"
     if not count or not unit:
         return weight
-    return f"{count_text(count)} {unit if count <= 1 else plural(unit)} ({weight})"
+    return f"{count_text(count)} {unit if count <= 1 else (unit_plural or plural(unit))} ({weight})"

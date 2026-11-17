@@ -11,16 +11,18 @@ from ._base import _synchronized
 
 
 class NotificationsMixin:
-    def save_push_subscription(self, *, user_id: str, endpoint: str, p256dh: str, auth: str) -> None:
-        """Store (or refresh) a phone's push subscription; the endpoint is unique."""
+    def save_push_subscription(self, *, user_id: str, endpoint: str, p256dh: str, auth: str, language: str = "en") -> None:
+        """Store (or refresh) a phone's push subscription and the app's language on it; the
+        endpoint is unique."""
         self._ensure_user_exists(user_id)
         with self._lock, self._connection:
             self._connection.execute(
                 """
-                INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth
+                INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, language) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh,
+                    auth = excluded.auth, language = excluded.language
                 """,
-                (str(uuid4()), user_id, endpoint, p256dh, auth),
+                (str(uuid4()), user_id, endpoint, p256dh, auth, language),
             )
 
     @_synchronized
