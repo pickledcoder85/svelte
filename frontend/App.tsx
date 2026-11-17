@@ -187,6 +187,7 @@ import {
 import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
 import { isTailnetHost, resolveOwnerAccess } from './src/lib/owner-access';
 import { addDaysToDateKey, localDateKey } from './src/lib/dates';
+import { isTyping, latestBundleHash, loadedBundleHash, MIN_CHECK_INTERVAL_MS, updateDecision } from './src/lib/app-update';
 import { registerServiceWorker } from './src/lib/service-worker';
 import {
   FONT_WAIT_MS,
@@ -548,7 +549,7 @@ export default function App(): ReactElement {
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
-  const [trendRange, setTrendRange] = useState<TrendRange>('1M');
+  const [trendRange, setTrendRange] = useState<TrendRange>('1W');
   const [weightHorizon, setWeightHorizon] = useState<ProjectionHorizon>('1M');
   // Gus's single-meal suggestion (Today → Meals).
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -1092,6 +1093,68 @@ export default function App(): ReactElement {
   useEffect(() => {
     registerServiceWorker(Platform.OS, IS_DEVELOPMENT_BUILD);
   }, []);
+
+  // A new deploy: iOS resumes the home-screen app from memory, so check on returning to it and
+  // reload when nothing is in progress (else as soon as it is done). See src/lib/app-update.ts.
+  // Only Today and Trends reload by themselves: other screens (Profile, Settings, Plan, Foods)
+  // can hold unsaved edits, so an update waits until you're back on one of these two.
+  const appBusy =
+    (section !== 'dashboard' && section !== 'trends') ||
+    profile === null ||
+    settingsFloorWarning ||
+    openSheet !== null ||
+    weighInOpen ||
+    createPlanOpen ||
+    suggestOpen ||
+    quickScanOpen ||
+    workoutDetailId !== null ||
+    editingFoodEntryId !== null ||
+    (profile !== null && !profile.setup_complete);
+  const appBusyRef = useRef(appBusy);
+  appBusyRef.current = appBusy;
+  const [updatePending, setUpdatePending] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || IS_DEVELOPMENT_BUILD || typeof document === 'undefined') {
+      return;
+    }
+    const loaded = loadedBundleHash();
+    if (!loaded) {
+      return;
+    }
+    let lastCheck = 0;
+    const check = async () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastCheck < MIN_CHECK_INTERVAL_MS) {
+        return;
+      }
+      lastCheck = Date.now();
+      const decision = updateDecision(loaded, await latestBundleHash(), appBusyRef.current || isTyping());
+      if (decision === 'reload') {
+        window.location.reload();
+      } else if (decision === 'wait') {
+        setUpdatePending(true);
+      }
+    };
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    const hourly = setInterval(check, 60 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+      clearInterval(hourly);
+    };
+  }, []);
+  useEffect(() => {
+    if (!updatePending || appBusy) {
+      return;
+    }
+    // Done with what was in progress: reload once the user isn't typing.
+    const timer = setInterval(() => {
+      if (!appBusyRef.current && !isTyping()) {
+        window.location.reload();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [updatePending, appBusy]);
 
   useEffect(() => {
     // A home-screen app can stay open across midnight; refresh "today" when it comes back.
@@ -5395,9 +5458,9 @@ export default function App(): ReactElement {
             {/* Macros: each day above or below its target. */}
             <View style={styles.homeSection}>
               <Text style={styles.detailTitle}>Macros</Text>
-              <Text style={styles.todayHint}>Each day’s bar is its target (bigger on workout days), filled with what you ate. Tap a day for its grams.</Text>
+              <Text style={styles.todayHint}>Each day’s bar is its target (bigger on workout days), filled with what you ate. Tap a day for its grams and %.</Text>
               {(['protein', 'carbs', 'fat'] as const).map((macro) => (
-                <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} />
+                <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} today={todayKey} />
               ))}
             </View>
 

@@ -2,32 +2,34 @@
  * One macro over time, like the calorie chart: one see-through bar per logged day, as tall as
  * that day's target (it grows on workout days), filled with the grams eaten in the macro's own
  * colour, and a darker shade for anything over the target, above the outline. Days with nothing
- * logged have no bar. Tap a day to see "Nov 14 · 85 of 120 g · 71%".
+ * logged have no bar. The header shows one day (the latest logged, or the one tapped):
+ * "Nov 14 · 85 of 120 g · 71%"; on 1W each bar also has its % above it.
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { G, Rect } from 'react-native-svg';
+import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
 
-import { macroCounts, type MacroDay, type MacroKey } from '../../lib/trends';
+import type { MacroDay, MacroKey } from '../../lib/trends';
 import { usePalette } from '../../theme/appearance';
 import { tc } from '../../theme/palette';
 
-const HEIGHT = 84;
-const PAD = { top: 4, bottom: 4, left: 40, right: 6 };
+const HEIGHT = 92;
+const PAD = { top: 14, bottom: 4, left: 40, right: 6 };
+/** Bars at least this far apart get their % printed above them. */
+const LABEL_SLOT = 26;
 const LABELS: Record<MacroKey, string> = { protein: 'Protein', carbs: 'Carbs', fat: 'Fat' };
 
 function shortDate(date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function MacroBars({ macro, days, baseTarget }: { macro: MacroKey; days: MacroDay[]; baseTarget: number }) {
+export function MacroBars({ macro, days, baseTarget, today }: { macro: MacroKey; days: MacroDay[]; baseTarget: number; today: string }) {
   const pal = usePalette();
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const fill = { protein: pal.fg_0f766e, carbs: pal.fg_ea580c, fat: pal.fg_2563eb }[macro];
   const over = { protein: pal.fg_134e4a, carbs: pal.fg_9a3412, fat: pal.fg_1e3a8a }[macro];
   const logged = days.filter((day) => day.percent !== null);
-  const counts = macroCounts(days);
   const max = Math.max(10, baseTarget, ...logged.map((day) => Math.max(day.eaten, day.target))) * 1.05;
   const innerW = Math.max(1, width - PAD.left - PAD.right);
   const innerH = HEIGHT - PAD.top - PAD.bottom;
@@ -35,14 +37,13 @@ export function MacroBars({ macro, days, baseTarget }: { macro: MacroKey; days: 
   const barW = Math.max(2, Math.min(22, slot * 0.7));
   const radius = Math.min(3, barW / 2);
   const y = (value: number) => PAD.top + (1 - value / max) * innerH;
-  const picked = logged.find((day) => day.date === selected) ?? null;
-  const average = logged.length ? Math.round(logged.reduce((sum, day) => sum + day.eaten, 0) / logged.length) : 0;
-
-  const detail = picked
-    ? `${shortDate(picked.date)} · ${Math.round(picked.eaten)} of ${Math.round(picked.target)} g · ${Math.round((picked.eaten / Math.max(1, picked.target)) * 100)}%`
-    : logged.length
-      ? `avg ${average} g · on target ${counts.on} · over ${counts.over} · under ${counts.under}`
-      : 'nothing logged';
+  const tapped = logged.find((day) => day.date === selected) ?? null;
+  const shown = tapped ?? logged.at(-1) ?? null;
+  const percent = (day: MacroDay) => Math.round((day.eaten / Math.max(1, day.target)) * 100);
+  const showLabels = slot >= LABEL_SLOT;
+  const detail = shown
+    ? `${shown.date === today ? 'Today' : shortDate(shown.date)} · ${Math.round(shown.eaten)} of ${Math.round(shown.target)} g · ${percent(shown)}%`
+    : 'nothing logged';
 
   return (
     <View style={styles.block}>
@@ -50,7 +51,7 @@ export function MacroBars({ macro, days, baseTarget }: { macro: MacroKey; days: 
         <Text style={styles.label}>
           <Text style={{ color: fill }}>■</Text> {LABELS[macro]} <Text style={styles.target}>{Math.round(baseTarget)} g</Text>
         </Text>
-        <Text style={[styles.counts, picked && styles.countsPicked]}>{detail}</Text>
+        <Text style={[styles.counts, tapped && styles.countsPicked]}>{detail}</Text>
       </View>
       <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={`${LABELS[macro]}: ${detail}`}>
         {width > 0 ? (
@@ -62,7 +63,7 @@ export function MacroBars({ macro, days, baseTarget }: { macro: MacroKey; days: 
               const left = PAD.left + slot * index + (slot - barW) / 2;
               const within = Math.min(day.eaten, day.target);
               const extra = Math.max(0, day.eaten - day.target);
-              const dim = picked !== null && picked.date !== day.date;
+              const dim = tapped !== null && tapped.date !== day.date;
               return (
                 <G key={day.date} opacity={dim ? 0.45 : 1}>
                   <Rect x={left} y={y(day.target)} width={barW} height={Math.max(0, y(0) - y(day.target))} rx={radius}
@@ -72,6 +73,12 @@ export function MacroBars({ macro, days, baseTarget }: { macro: MacroKey; days: 
                   ) : null}
                   {extra > 0 ? (
                     <Rect x={left} y={y(day.eaten)} width={barW} height={Math.max(1, y(day.target) - y(day.eaten))} rx={radius} fill={over} />
+                  ) : null}
+                  {showLabels ? (
+                    <SvgText x={left + barW / 2} y={Math.max(10, y(Math.max(day.eaten, day.target)) - 3)} fontSize={10} fontWeight="600"
+                      fill={pal.fg_5c6d80} textAnchor="middle">
+                      {`${percent(day)}%`}
+                    </SvgText>
                   ) : null}
                 </G>
               );

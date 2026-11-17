@@ -37,6 +37,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname === '/api') {
     return; // Let the browser handle it: API data is never cached.
   }
+  if (url.searchParams.has('relish-update-check')) {
+    return; // The app checking for a new deploy: always the network, never cached.
+  }
 
   if (request.mode === 'navigate') {
     event.respondWith(networkFirstShell(request));
