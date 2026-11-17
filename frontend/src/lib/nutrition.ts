@@ -61,14 +61,6 @@ export function scaleMealIngredients(meal: MealInput, multiplier: number): MealI
   };
 }
 
-export function progressPercent(consumed: number, target: number): number {
-  if (target <= 0) {
-    return 0;
-  }
-
-  return Math.min(Math.round((consumed / target) * 100), 100);
-}
-
 export function recipeScaleLabel(multiplier: number): string {
   const formatted = multiplier.toFixed(2);
   return `${formatted.endsWith('00') ? multiplier.toFixed(1) : formatted.replace(/0$/, '')}x`;

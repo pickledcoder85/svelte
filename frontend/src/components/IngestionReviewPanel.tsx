@@ -68,8 +68,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const [packageBase64, setPackageBase64] = useState('');
-  const [labelBase64, setLabelBase64] = useState('');
   const [packageFileName, setPackageFileName] = useState<string | null>(null);
   const [labelFileName, setLabelFileName] = useState<string | null>(null);
   const [captureLoading, setCaptureLoading] = useState<'package' | 'label' | 'barcode' | 'smart' | null>(null);
@@ -195,10 +193,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     }
   }
 
-  async function createPackageScan() {
-    await createPackageScanFromBase64(packageBase64.trim());
-  }
-
   async function createPackageScanFromBase64(imageBase64: string) {
     if (!accessToken || captureLoading || imageBase64.length === 0) {
       return;
@@ -229,10 +223,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
     } finally {
       setCaptureLoading(null);
     }
-  }
-
-  async function createLabelScan() {
-    await createLabelScanFromBase64(labelBase64.trim());
   }
 
   /** replaceOutputId: a package scan whose guessed nutrition this label replaces (discarded). */
@@ -427,7 +417,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
       }
 
       if (activeStep === 'package') {
-        setPackageBase64(base64);
         setPackageFileName(`live-package-${Date.now()}.jpg`);
         await createPackageScanFromBase64(base64);
         await runGuidePulse(guidePulse);
@@ -435,7 +424,6 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
         setStatusLabel('Package scan created');
         setStatusDetail('Scan the nutrition label next, or skip if the product does not show one.');
       } else {
-        setLabelBase64(base64);
         setLabelFileName(`live-label-${Date.now()}.jpg`);
         await createLabelScanFromBase64(base64);
         await runGuidePulse(guidePulse);
@@ -486,26 +474,12 @@ export function IngestionReviewPanel({ accessToken, onFoodLogged, autoStartScan,
 
     const fileName = `${step}-${Date.now()}.jpg`;
     if (step === 'package') {
-      setPackageBase64(prepared.base64);
       setPackageFileName(fileName);
       await createPackageScanFromBase64(prepared.base64);
     } else {
-      setLabelBase64(prepared.base64);
       setLabelFileName(fileName);
       await createLabelScanFromBase64(prepared.base64, replaceOutputId);
     }
-  }
-
-  function openBarcodeScanner() {
-    if (captureLoading) {
-      return;
-    }
-    if (!accessToken) {
-      setQueueError('Sign in before scanning.');
-      return;
-    }
-    setQueueError(null);
-    setBarcodeScannerOpen(true);
   }
 
   /** The smart scanner: barcode live, or a package front / label captured once it's steady. */
@@ -1448,32 +1422,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12
   },
-  detailHeadingCopy: {
-    flex: 1,
-    gap: 4
-  },
-  detailTitle: {
-    color: tc.fg_132536,
-    fontSize: 18,
-    fontWeight: '800'
-  },
-  detailSubtitle: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 18
-  },
-  stateChip: {
-    borderRadius: 999,
-    backgroundColor: tc.bg_17324d,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  stateChipLabel: {
-    color: tc.fg_ffffff,
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase'
-  },
   detailBlock: {
     gap: 6
   },
@@ -1487,21 +1435,6 @@ const styles = StyleSheet.create({
     color: tc.fg_132536,
     fontSize: 13,
     lineHeight: 18
-  },
-  codeBlock: {
-    color: tc.fg_132536,
-    fontFamily: 'Courier',
-    fontSize: 12,
-    lineHeight: 18,
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: tc.line_e2e8f0,
-    padding: 12
-  },
-  inputBlock: {
-    minHeight: 86,
-    textAlignVertical: 'top'
   },
   uploadSummaryCard: {
     backgroundColor: tc.bg_ffffff,

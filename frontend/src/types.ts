@@ -42,11 +42,6 @@ export interface RecipeAsset {
   content: string | null;
 }
 
-export interface FoodLogEntryInput {
-  food_id: string;
-  grams: number;
-}
-
 export interface FoodLogEntry {
   id: string;
   food_id: string;
@@ -356,26 +351,6 @@ export interface RecipeFavoriteToggleResult {
   favorite: boolean;
 }
 
-export type DashboardRange = '1D' | '1W' | '1M' | '3M';
-
-export type DashboardMetricKey = 'net_calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
-
-export interface DashboardTrendPoint {
-  label: string;
-  calories: number;
-}
-
-export interface DashboardRangeSeries {
-  range: DashboardRange;
-  label: string;
-  detail: string;
-  targetCalories: number;
-  caloriesConsumed: number;
-  macroTargets: MacroTargets;
-  macroConsumed: MacroTargets;
-  points: DashboardTrendPoint[];
-}
-
 export interface FoodItem {
   id: string;
   name: string;
@@ -440,7 +415,6 @@ export interface MealPrepTask {
 export type AppSection =
   | 'dashboard'
   | 'profile'
-  | 'tracker'
   | 'foods'
   | 'meals'
   | 'meal-plan'
@@ -451,25 +425,10 @@ export type AppSection =
   | 'trends'
   | 'workout-plan';
 
-export interface DashboardSnapshot {
-  connectionLabel: string;
-  connectionDetail: string;
-  weeklyMetrics: WeeklyMetrics;
-  mealTotals: MealTotals;
-  rangeSeries: DashboardRangeSeries[];
-  recipeImport?: RecipeImportResult;
-}
-
 export interface RecipeImportInput {
   title: string;
   sourceType: 'text' | 'pdf' | 'image';
   rawContent: string;
-}
-
-export interface RecipeImportResult {
-  id: string;
-  title: string;
-  favorite: boolean;
 }
 
 export type IngestionReviewState = 'pending' | 'reviewed' | 'accepted' | 'rejected';

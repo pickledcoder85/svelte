@@ -1,10 +1,9 @@
-import { MASCOT_OUTLINE, resolveColor, tc } from './src/theme/palette';
-import { APPEARANCE_OPTIONS, setAppearance, startAppearance, useAppearance, usePalette } from './src/theme/appearance';
+import { MASCOT_OUTLINE, tc } from './src/theme/palette';
+import { APPEARANCE_OPTIONS, setAppearance, startAppearance, useAppearance } from './src/theme/appearance';
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Svg, { Circle } from 'react-native-svg';
 import {
   ActivityIndicator,
   AppState,
@@ -25,12 +24,10 @@ import {
 
 import {
   addFavoriteFood,
-  createExerciseEntry,
   createPlannedWorkoutSession,
   createLocalSession,
   deleteExerciseEntry,
   deleteFoodLogEntry,
-  updateExerciseEntry,
   updateFoodLogEntry,
   fetchCurrentSession,
   fetchOwnerSession,
@@ -80,9 +77,7 @@ import {
   unfavoriteRecipe,
   searchFoods
 } from './src/lib/api';
-import { buildTrendChartGeometry, remainingCalories, selectRangeSeries } from './src/lib/dashboard';
 import {
-  buildDailyMealPlanSummary,
   buildDailyTargetSummary,
   DEFAULT_WORKOUT_CALORIES_SHARE,
   WORKOUT_CALORIE_SHARES,
@@ -142,8 +137,6 @@ import { APP_TABS, subTabsForSection, tabForSection, type AppTabId } from './src
 import { ActionSheet } from './src/components/ActionSheet';
 import { SubTabs } from './src/components/SubTabs';
 import { TabBar } from './src/components/TabBar';
-import { DashboardTimeRangeTabs } from './src/components/dashboard/DashboardTimeRangeTabs';
-import { DashboardHeroChart } from './src/components/dashboard/DashboardHeroChart';
 import {
   formatMealPlanCardDate,
   formatMealPlanCardWeekday,
@@ -151,7 +144,6 @@ import {
   selectMealPlanDay,
   sortMealPlanDaysByDate
 } from './src/lib/meal-plan';
-import { buildTrackerTotals, buildWeightProgressSummary } from './src/lib/progress';
 import { filterRecipesFuzzy, sortRecipesAlphabetically } from './src/lib/recipes';
 import {
   calculateFoodGrams,
@@ -165,9 +157,8 @@ import {
   sortFoodsForPicker,
   formatFoodAmount
 } from './src/lib/foods';
-import { mealTotals, progressPercent, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
+import { mealTotals, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
-import { CogIcon } from './src/components/CogIcon';
 import { ChoiceSheet } from './src/components/ChoiceSheet';
 import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
 import { formatAllergySelection, missingOtherAllergy, parseAllergySelection, type AllergyChoice } from './src/lib/allergies';
@@ -240,7 +231,7 @@ import {
   type BodyDrafts,
   type UnitSystem
 } from './src/lib/body-units';
-import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './src/lib/entry-edits';
+import { scaleEntryToGrams } from './src/lib/entry-edits';
 import {
   clearStoredSessionToken,
   loadStoredSessionToken,
@@ -249,40 +240,29 @@ import {
 import type {
   AppSection,
   GarminStatus,
-  DashboardRange,
-  DashboardSnapshot,
-  DashboardMetricKey,
-  DashboardRangeSeries,
   ExerciseEntry,
   FoodItem,
   FoodLogEntry,
   FoodLogSummary,
   MealInput,
-  MealTotals,
   MealPlanDay,
   MealPrepTask,
   PlannedExerciseEntry,
   PlannedWorkoutSession,
-  ProfileProgress,
   RecipeDefinition,
   UserGoal,
   UserProfile,
-  WeeklyMetrics,
   WaterEntry,
   WeightEntry
 } from './src/types';
 import {
-  demoDashboardSnapshot,
   demoExerciseEntries,
   demoFoodLog,
   demoPlannedExerciseEntries,
-  demoProfileProgress,
   demoWeightEntries
 } from './src/mock-data';
-const rangeTabs: DashboardRange[] = ['1D', '1W', '1M', '3M'];
 const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
 type ScaleStop = (typeof scaleStops)[number];
-const chartHeight = 160;
 const mascotDefaultImage = require('./assets/mascot.png');
 const mascotAvatarImage = require('./assets/mascot-avatar.png');
 const mascotWeightsImage = require('./assets/weights.png');
@@ -449,54 +429,6 @@ function splitHeightCm(heightCm: number | null | undefined): { feet: string; inc
   return { feet: String(feet), inches: String(inches) };
 }
 
-function createEmptyWeeklyMetrics(): WeeklyMetrics {
-  return {
-    calorie_goal: 0,
-    calories_consumed: 0,
-    macro_targets: { protein: 0, carbs: 0, fat: 0 },
-    macro_consumed: { protein: 0, carbs: 0, fat: 0 },
-    weekly_weight_change: 0,
-    adherence_score: 0
-  };
-}
-
-function createEmptyMealTotals(): MealTotals {
-  return {
-    calories: 0,
-    macros: { protein: 0, carbs: 0, fat: 0 },
-    per_serving_calories: 0,
-    per_serving_macros: { protein: 0, carbs: 0, fat: 0 }
-  };
-}
-
-function createEmptyDashboardRangeSeries(range: DashboardRange): DashboardRangeSeries {
-  return {
-    range,
-    label: range,
-    detail: 'Live summary is loading',
-    targetCalories: 0,
-    caloriesConsumed: 0,
-    macroTargets: { protein: 0, carbs: 0, fat: 0 },
-    macroConsumed: { protein: 0, carbs: 0, fat: 0 },
-    points: [
-      { label: 'Start', calories: 0 },
-      { label: 'Mid', calories: 0 },
-      { label: 'Late', calories: 0 },
-      { label: 'Now', calories: 0 }
-    ]
-  };
-}
-
-function createEmptyDashboardSnapshot(): DashboardSnapshot {
-  return {
-    connectionLabel: 'Loading live summary',
-    connectionDetail: 'Waiting for backend metrics.',
-    weeklyMetrics: createEmptyWeeklyMetrics(),
-    mealTotals: createEmptyMealTotals(),
-    rangeSeries: rangeTabs.map((range) => createEmptyDashboardRangeSeries(range))
-  };
-}
-
 function createEmptyMealDraft(): MealInput {
   return {
     id: 'meal-draft',
@@ -526,7 +458,6 @@ if (Platform.OS === 'web') {
 }
 
 export default function App(): ReactElement {
-  const palette = usePalette();
   const appearance = useAppearance();
   const [ribeyeLoaded, ribeyeError] = useRibeyeFonts({
     Ribeye_400Regular
@@ -570,15 +501,6 @@ export default function App(): ReactElement {
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const mainScrollRef = useRef<ScrollView | null>(null);
-  // Where the weigh-in card sits on Trends, and whether ＋ → Weigh-in should scroll to it.
-  const weighInY = useRef(0);
-  const trendsPanelY = useRef(0);
-  const [scrollToWeighIn, setScrollToWeighIn] = useState(false);
-  const [activeRange, setActiveRange] = useState<DashboardRange>('1D');
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot>(() => createEmptyDashboardSnapshot());
-  const [syncTone, setSyncTone] = useState<'checking' | 'live'>('checking');
-  const [syncLabel, setSyncLabel] = useState('Loading live summary');
-  const [syncDetail, setSyncDetail] = useState('Waiting for live backend data.');
   const [mealScale, setMealScale] = useState<ScaleStop>(1);
   const [recipeScale, setRecipeScale] = useState<ScaleStop>(1);
   const [mealDraft, setMealDraft] = useState<MealInput>(() => createEmptyMealDraft());
@@ -605,11 +527,7 @@ export default function App(): ReactElement {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
-  const [profileProgress, setProfileProgress] = useState<ProfileProgress | null>(null);
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
-  const [weightRecordedAtDraft, setWeightRecordedAtDraft] = useState(() => localDateKey());
-  const [weightValueDraft, setWeightValueDraft] = useState('');
-  const [weightSaving, setWeightSaving] = useState(false);
   const [profileDisplayNameDraft, setProfileDisplayNameDraft] = useState('');
   const [profileTimezoneDraft, setProfileTimezoneDraft] = useState('UTC');
   const [profileUnitsDraft, setProfileUnitsDraft] = useState<'imperial' | 'metric'>('imperial');
@@ -658,7 +576,6 @@ export default function App(): ReactElement {
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('welcome');
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
-  const [onboardingStatus, setOnboardingStatus] = useState('Loading first-run setup');
 
   function handleSectionChange(nextSection: AppSection) {
     if (nextSection === 'settings' && profile) {
@@ -798,42 +715,25 @@ export default function App(): ReactElement {
     });
   }
 
-  const [logFoodDraft, setLogFoodDraft] = useState('chicken');
-  const [logFoodSearchTerm, setLogFoodSearchTerm] = useState('chicken');
-  const [logFoodResults, setLogFoodResults] = useState<FoodItem[]>([]);
-  const [selectedLogFoodId, setSelectedLogFoodId] = useState('');
-  const [logGrams, setLogGrams] = useState('100');
   // Re-read when the app returns to the foreground so an app left open overnight rolls over.
   const [todayKey, setTodayKey] = useState(() => localDateKey());
   const [selectedHomeDate, setSelectedHomeDate] = useState(todayKey);
   const [foodLog, setFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog());
   const [homeFoodLog, setHomeFoodLog] = useState<FoodLogSummary>(() => createEmptyFoodLog(todayKey));
-  const [foodLogTone, setFoodLogTone] = useState<'checking' | 'live'>('checking');
-  const [foodLogStatus, setFoodLogStatus] = useState("Loading today's log");
   const [foodLogError, setFoodLogError] = useState<string | null>(null);
-  const [foodLogLoading, setFoodLogLoading] = useState(true);
   const [isSavingLogEntry, setIsSavingLogEntry] = useState(false);
-  const [logSearchTone, setLogSearchTone] = useState<'checking' | 'live'>('checking');
-  const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
-  const [logSearchError, setLogSearchError] = useState<string | null>(null);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   // Water drunk over the last three months (and any older day shown on Today).
   const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
   const [waterBusy, setWaterBusy] = useState(false);
   const [plannedExerciseEntries, setPlannedExerciseEntries] = useState<PlannedExerciseEntry[]>([]);
   const [plannedWorkoutSessions, setPlannedWorkoutSessions] = useState<PlannedWorkoutSession[]>([]);
-  const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
-  const [exerciseMinutesDraft, setExerciseMinutesDraft] = useState('30');
-  const [exerciseCaloriesDraft, setExerciseCaloriesDraft] = useState('220');
   const [plannedExerciseTitleDraft, setPlannedExerciseTitleDraft] = useState('Swim');
   const [plannedExerciseMinutesDraft, setPlannedExerciseMinutesDraft] = useState('55');
   const [plannedExerciseWarmupEnabled, setPlannedExerciseWarmupEnabled] = useState(false);
   const [plannedExerciseWarmupMinutesDraft, setPlannedExerciseWarmupMinutesDraft] = useState('10');
   const [plannedExerciseCooldownEnabled, setPlannedExerciseCooldownEnabled] = useState(false);
   const [plannedExerciseCooldownMinutesDraft, setPlannedExerciseCooldownMinutesDraft] = useState('8');
-  const [trackerTone, setTrackerTone] = useState<'checking' | 'live'>('checking');
-  const [trackerStatus, setTrackerStatus] = useState('Loading tracker data');
-  const [trackerError, setTrackerError] = useState<string | null>(null);
   const [recipeFavorites, setRecipeFavorites] = useState<RecipeDefinition[]>([]);
   const [recipeCatalog, setRecipeCatalog] = useState<RecipeDefinition[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
@@ -854,9 +754,6 @@ export default function App(): ReactElement {
   // Inline edit/delete of logged food and exercise. Delete asks for a second tap.
   const [editingFoodEntryId, setEditingFoodEntryId] = useState<string | null>(null);
   const [editingFoodGramsDraft, setEditingFoodGramsDraft] = useState('');
-  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
-  const [editingExerciseMinutesDraft, setEditingExerciseMinutesDraft] = useState('');
-  const [editingExerciseCaloriesDraft, setEditingExerciseCaloriesDraft] = useState('');
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [profileResetting, setProfileResetting] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -878,7 +775,6 @@ export default function App(): ReactElement {
   const [mealPrepTone, setMealPrepTone] = useState<'checking' | 'live'>('checking');
   const [mealPrepStatus, setMealPrepStatus] = useState('Loading meal prep');
   const [mealPrepError, setMealPrepError] = useState<string | null>(null);
-  const activeExercisePreset = useMemo(() => selectExercisePreset(exerciseTitleDraft), [exerciseTitleDraft]);
   const activePlannedExercisePreset = useMemo(() => selectExercisePreset(plannedExerciseTitleDraft), [plannedExerciseTitleDraft]);
   const plannedExerciseDurationValue = Number(plannedExerciseMinutesDraft);
   const estimatedPlannedExerciseCalories = useMemo(
@@ -888,7 +784,6 @@ export default function App(): ReactElement {
         : 0,
     [activePlannedExercisePreset, plannedExerciseDurationValue]
   );
-  const [exerciseSaving, setExerciseSaving] = useState(false);
   const [plannedExerciseSaving, setPlannedExerciseSaving] = useState(false);
   const [plannedExerciseUpdatingId, setPlannedExerciseUpdatingId] = useState<string | null>(null);
   const [plannedExerciseEditingId, setPlannedExerciseEditingId] = useState<string | null>(null);
@@ -1311,13 +1206,9 @@ export default function App(): ReactElement {
 
     async function syncBackend() {
       if (entryMode === 'preview') {
-        setSnapshot(demoDashboardSnapshot);
         setRecipeImportTone('checking');
         setRecipeImportStatus('Preview mode active');
         setRecipeImportError(null);
-        setSyncTone('checking');
-        setSyncLabel('Preview mode');
-        setSyncDetail('Showing demo data without a live local profile session.');
         return;
       }
 
@@ -1326,7 +1217,7 @@ export default function App(): ReactElement {
       setRecipeImportError(null);
 
       try {
-        const [health, metrics] = await Promise.all([
+        await Promise.all([
           fetchBackendHealth(),
           fetchWeeklyMetrics(foodSessionToken)
         ]);
@@ -1334,51 +1225,16 @@ export default function App(): ReactElement {
           return;
         }
 
-        setSnapshot({
-          connectionLabel: health.service,
-          connectionDetail: `Connected at ${new Date(health.timestamp).toLocaleTimeString([], {
-            hour: 'numeric',
-            minute: '2-digit'
-          })}`,
-          weeklyMetrics: metrics,
-          mealTotals: mealTotals(mealDraft),
-          rangeSeries: rangeTabs.map((range) =>
-            range === '1W'
-              ? {
-                  range,
-                  label: '1W',
-                  detail: `${metrics.calories_consumed.toLocaleString()} kcal tracked from the live summary`,
-                  targetCalories: metrics.calorie_goal,
-                  caloriesConsumed: metrics.calories_consumed,
-                  macroTargets: metrics.macro_targets,
-                  macroConsumed: metrics.macro_consumed,
-                  points: [
-                    { label: 'Start', calories: Math.round(metrics.calorie_goal * 0.2) },
-                    { label: 'Mid', calories: Math.round(metrics.calories_consumed * 0.4) },
-                    { label: 'Late', calories: Math.round(metrics.calories_consumed * 0.7) },
-                    { label: 'Now', calories: metrics.calories_consumed }
-                  ]
-                }
-              : createEmptyDashboardRangeSeries(range)
-          ),
-        });
         setRecipeImportTone('live');
         setRecipeImportStatus('No imported recipe selected yet');
-        setSyncTone('live');
-        setSyncLabel('Live backend');
-        setSyncDetail('Expo is reading live summary metrics from the Python API.');
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        setSyncTone('checking');
-        setSyncLabel('Backend unavailable');
-        setSyncDetail(error instanceof Error ? error.message : 'Backend unavailable.');
         setRecipeImportTone('checking');
         setRecipeImportStatus('Live recipe import unavailable');
         setRecipeImportError(error instanceof Error ? error.message : 'Recipe import unavailable.');
-        setSnapshot(createEmptyDashboardSnapshot());
       }
     }
 
@@ -1402,7 +1258,6 @@ export default function App(): ReactElement {
         setProfileLoaded(true);
         setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(fallbackForMode(entryMode, demoProfileProgress, null));
         setWeightEntries(fallbackForMode(entryMode, demoWeightEntries, []));
         resetPreviewProfileDrafts();
         setProfileTone('checking');
@@ -1431,7 +1286,6 @@ export default function App(): ReactElement {
 
         setProfile(loadedProfile);
         setProfileGoals(goals);
-        setProfileProgress(progress);
         setWeightEntries(weights);
         applyProfileDrafts(loadedProfile, goals);
         setProfileTone('live');
@@ -1447,7 +1301,6 @@ export default function App(): ReactElement {
 
         setProfile(null);
         setProfileGoals([]);
-        setProfileProgress(null);
         setWeightEntries([]);
         resetPreviewProfileDrafts();
         setProfileTone('checking');
@@ -1513,11 +1366,6 @@ export default function App(): ReactElement {
       if (!foodSessionToken) {
         const isPreview = entryMode === 'preview';
         const fallbackSessions = isPreview ? buildDemoPlannedWorkoutSessions(demoPlannedExerciseEntries) : [];
-        setTrackerTone('checking');
-        setTrackerStatus(isPreview ? 'Preview tracker loaded' : 'Tracker unavailable');
-        setTrackerError(
-          isPreview ? 'No active tracker session. Showing preview tracker data.' : 'No active tracker session. Sign in again.'
-        );
         setExerciseEntries(fallbackForMode(entryMode, demoExerciseEntries, []));
         setPlannedWorkoutSessions(fallbackSessions);
         setPlannedExerciseEntries(sortPlannedExerciseEntries(fallbackSessions.map(mapPlannedWorkoutSessionToEntry)));
@@ -1534,9 +1382,6 @@ export default function App(): ReactElement {
         return;
       }
 
-      setTrackerTone('checking');
-      setTrackerStatus('Loading tracker items');
-      setTrackerError(null);
       setMealPlanTone('checking');
       setMealPlanStatus('Loading meal plan');
       setMealPlanError(null);
@@ -1559,12 +1404,6 @@ export default function App(): ReactElement {
         setExerciseEntries(exercise);
         setPlannedWorkoutSessions(plannedWorkoutSessionItems);
         setPlannedExerciseEntries(sortPlannedExerciseEntries(plannedWorkoutSessionItems.map(mapPlannedWorkoutSessionToEntry)));
-        setTrackerTone('live');
-        setTrackerStatus(
-          exercise.length > 0
-            ? `${exercise.length} tracked exercise entr${exercise.length === 1 ? 'y' : 'ies'} loaded`
-            : 'No saved exercise yet'
-        );
 
         setMealPlanDays(mealPlan);
         setMealPlanEatenSlots(
@@ -1608,9 +1447,6 @@ export default function App(): ReactElement {
         setSelectedMealPlanDate(null);
         setMealPlanEatenSlots({});
         setMealPrepTasks([]);
-        setTrackerTone('checking');
-        setTrackerStatus('Tracker unavailable');
-        setTrackerError(liveLoadErrorMessage(error, 'Tracker data'));
         setMealPlanTone('checking');
         setMealPlanStatus('Meal plan unavailable');
         setMealPlanError(error instanceof Error ? error.message : 'Meal plan unavailable.');
@@ -1686,20 +1522,14 @@ export default function App(): ReactElement {
     let cancelled = false;
 
     async function loadFoodLog() {
-      setFoodLogLoading(true);
-      setFoodLogTone('checking');
-      setFoodLogStatus("Loading today's log");
       setFoodLogError(null);
 
       if (!foodSessionToken) {
         const isPreview = entryMode === 'preview';
         setFoodLog(fallbackForMode(entryMode, demoFoodLog, createEmptyFoodLog()));
-        setFoodLogTone('checking');
-        setFoodLogStatus(isPreview ? 'Preview daily log loaded' : 'Daily log unavailable');
         setFoodLogError(
           isPreview ? 'No active food session. Showing preview daily log.' : 'No active food session. Sign in again.'
         );
-        setFoodLogLoading(false);
         return;
       }
 
@@ -1711,25 +1541,13 @@ export default function App(): ReactElement {
         }
 
         setFoodLog(log);
-        setFoodLogTone('live');
-        setFoodLogStatus(
-          log.entries.length === 0
-            ? 'No foods logged yet'
-            : `${log.entries.length} persisted entr${log.entries.length === 1 ? 'y' : 'ies'} loaded`
-        );
       } catch (error) {
         if (cancelled) {
           return;
         }
 
         setFoodLog(createEmptyFoodLog());
-        setFoodLogTone('checking');
-        setFoodLogStatus('Daily log unavailable');
         setFoodLogError(liveLoadErrorMessage(error, 'Daily log'));
-      } finally {
-        if (!cancelled) {
-          setFoodLogLoading(false);
-        }
       }
     }
 
@@ -1817,57 +1635,6 @@ export default function App(): ReactElement {
     return () => clearTimeout(timeoutId);
   }, [entryMode, foodDraft]);
 
-  useEffect(() => {
-    if (entryMode === null) {
-      return;
-    }
-    let cancelled = false;
-
-    async function syncLogFoodSearch() {
-      const query = logFoodSearchTerm.trim();
-      if (!query) {
-        setLogFoodResults([]);
-        setSelectedLogFoodId('');
-        setLogSearchTone('checking');
-        setLogSearchStatus('Enter a food search to add something to today');
-        setLogSearchError(null);
-        return;
-      }
-
-      setLogSearchTone('checking');
-      setLogSearchStatus(`Searching for "${query}"`);
-      setLogSearchError(null);
-
-      try {
-        const results = await searchFoods(query, foodSessionToken);
-
-        if (cancelled) {
-          return;
-        }
-
-        setLogFoodResults(results);
-        setSelectedLogFoodId((current) => selectFoodById(results, current)?.id ?? results[0]?.id ?? '');
-        setLogSearchTone('live');
-        setLogSearchStatus(`${results.length} result${results.length === 1 ? '' : 's'} available for logging`);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        setLogFoodResults([]);
-        setSelectedLogFoodId('');
-        setLogSearchTone('checking');
-        setLogSearchStatus('Food search unavailable');
-        setLogSearchError(error instanceof Error ? error.message : 'Food search unavailable.');
-      }
-    }
-
-    void syncLogFoodSearch();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entryMode, foodSessionToken, logFoodSearchTerm]);
 
   useEffect(() => {
     if (entryMode === null) {
@@ -2070,27 +1837,14 @@ export default function App(): ReactElement {
     };
   }, [foodSessionToken, recipeCatalog, recipeFavorites, selectedRecipeId]);
 
-  const selectedSeries = useMemo(
-    () => selectRangeSeries(snapshot.rangeSeries, activeRange),
-    [activeRange, snapshot.rangeSeries]
-  );
   const selectedFood = useMemo(
     () => selectFoodById(foodResults, selectedFoodId),
     [foodResults, selectedFoodId]
-  );
-  const selectedLogFood = useMemo(
-    () => selectFoodById(logFoodResults, selectedLogFoodId),
-    [logFoodResults, selectedLogFoodId]
   );
   const sortedMealPlanDays = useMemo(() => sortMealPlanDaysByDate(mealPlanDays), [mealPlanDays]);
   const selectedMealPlanDay = useMemo(
     () => selectMealPlanDay(sortedMealPlanDays, selectedMealPlanDate),
     [selectedMealPlanDate, sortedMealPlanDays]
-  );
-  const trackerTotals = useMemo(() => buildTrackerTotals(foodLog, exerciseEntries), [exerciseEntries, foodLog]);
-  const weightProgress = useMemo(
-    () => buildWeightProgressSummary(profileProgress, weightEntries),
-    [profileProgress, weightEntries]
   );
   const latestProfileGoal = useMemo(() => profileGoals[0] ?? null, [profileGoals]);
   const homeCompletedExerciseEntries = useMemo(
@@ -2244,10 +1998,6 @@ export default function App(): ReactElement {
     () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
     [homeMealPlanDay, homeMealPlanEatenSlots]
   );
-  const dailyMealPlanSummary = useMemo(
-    () => buildDailyMealPlanSummary(homeMealPlanDay, homeMealPlanEatenSlots),
-    [homeMealPlanDay, homeMealPlanEatenSlots]
-  );
   const homeCalorieBudget = useMemo(
     () =>
       buildCalorieBudget({
@@ -2260,7 +2010,6 @@ export default function App(): ReactElement {
     [dailyHomeTargets, homeCompletedExerciseEntries, profile]
   );
   const homeConsumedMacros = homeFoodLog.totals.macros;
-  const homeConsumedCalories = dailyHomeTargets.intakeCalories;
   const filteredRecipeCatalog = useMemo(
     () => filterRecipesFuzzy(sortRecipesAlphabetically(recipeCatalog), recipeSearchTerm),
     [recipeCatalog, recipeSearchTerm]
@@ -2286,188 +2035,6 @@ export default function App(): ReactElement {
     () => (selectedRecipePreview ? mealTotals(selectedRecipePreview) : null),
     [selectedRecipePreview]
   );
-  const logEntryPreview = useMemo(() => {
-    // Nutrition is per serving; a weight needs the serving's weight to convert.
-    if (!selectedLogFood || !selectedLogFood.serving_grams) {
-      return null;
-    }
-
-    const grams = Number(logGrams);
-    if (!Number.isFinite(grams) || grams <= 0) {
-      return null;
-    }
-
-    const multiplier = grams / selectedLogFood.serving_grams;
-    return {
-      calories: round1(selectedLogFood.calories * multiplier),
-      macros: {
-        protein: round1(selectedLogFood.macros.protein * multiplier),
-        carbs: round1(selectedLogFood.macros.carbs * multiplier),
-        fat: round1(selectedLogFood.macros.fat * multiplier)
-      }
-    };
-  }, [logGrams, selectedLogFood]);
-  const calorieProgress = progressPercent(
-    selectedSeries.caloriesConsumed,
-    selectedSeries.targetCalories
-  );
-  const rangeRemaining = remainingCalories(
-    selectedSeries.targetCalories,
-    selectedSeries.caloriesConsumed
-  );
-  const macroCalories = {
-    protein: selectedSeries.macroConsumed.protein * 4,
-    carbs: selectedSeries.macroConsumed.carbs * 4,
-    fat: selectedSeries.macroConsumed.fat * 9
-  };
-  const macroCalorieTotal = Math.max(macroCalories.protein + macroCalories.carbs + macroCalories.fat, 1);
-  const fiberConsumed = 0;
-  const fiberGoal = 30;
-  const netCaloriePoints = selectedSeries.points.map((point) => ({
-    label: point.label,
-    calories: point.calories
-  }));
-  const proteinPoints = selectedSeries.points.map((point) => ({
-    label: point.label,
-    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * selectedSeries.macroConsumed.protein)
-  }));
-  const carbsPoints = selectedSeries.points.map((point) => ({
-    label: point.label,
-    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * selectedSeries.macroConsumed.carbs)
-  }));
-  const fatPoints = selectedSeries.points.map((point) => ({
-    label: point.label,
-    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * selectedSeries.macroConsumed.fat)
-  }));
-  const fiberPoints = selectedSeries.points.map((point) => ({
-    label: point.label,
-    calories: Math.round((point.calories / Math.max(selectedSeries.caloriesConsumed, 1)) * fiberConsumed)
-  }));
-  const dashboardMetricConfig: Record<
-    DashboardMetricKey,
-    {
-      label: string;
-      value: string;
-      detail: string;
-      targetLabel: string;
-      targetValue: number;
-      points: { label: string; calories: number }[];
-      accentColor?: string;
-      ringPercentage?: number;
-      ringText?: string;
-      chartTitle: string;
-      legendLabel: string;
-    }
-  > = {
-    net_calories: {
-      label: 'Net Calories',
-      value: `${trackerTotals.netCalories.toLocaleString()} kcal`,
-      detail:
-        activeRange === '1D'
-          ? 'Net calories after exercise across today'
-          : 'Daily net calories compared against the daily goal',
-      targetLabel: 'Daily goal',
-      targetValue: activeRange === '1D' ? selectedSeries.targetCalories : Math.round(selectedSeries.targetCalories / Math.max(selectedSeries.points.length, 1)),
-      points: netCaloriePoints,
-      chartTitle: `Net calories across ${activeRange}`,
-      legendLabel: 'Daily calories'
-    },
-    protein: {
-      label: 'Protein',
-      value: `${Math.round(selectedSeries.macroConsumed.protein)} g`,
-      detail: 'Protein intake over the selected range',
-      targetLabel: 'Protein goal',
-      targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.protein) : Math.round(selectedSeries.macroTargets.protein / Math.max(selectedSeries.points.length, 1)),
-      points: proteinPoints,
-      accentColor: tc.fg_0f766e,
-      ringPercentage: (macroCalories.protein / macroCalorieTotal) * 100,
-      ringText: `${Math.round((macroCalories.protein / macroCalorieTotal) * 100)}%`,
-      chartTitle: `Protein tracked across ${activeRange}`,
-      legendLabel: 'Daily protein'
-    },
-    carbs: {
-      label: 'Carbs',
-      value: `${Math.round(selectedSeries.macroConsumed.carbs)} g`,
-      detail: 'Carbohydrate intake over the selected range',
-      targetLabel: 'Carb goal',
-      targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.carbs) : Math.round(selectedSeries.macroTargets.carbs / Math.max(selectedSeries.points.length, 1)),
-      points: carbsPoints,
-      accentColor: tc.fg_ea580c,
-      ringPercentage: (macroCalories.carbs / macroCalorieTotal) * 100,
-      ringText: `${Math.round((macroCalories.carbs / macroCalorieTotal) * 100)}%`,
-      chartTitle: `Carbs tracked across ${activeRange}`,
-      legendLabel: 'Daily carbs'
-    },
-    fat: {
-      label: 'Fat',
-      value: `${Math.round(selectedSeries.macroConsumed.fat)} g`,
-      detail: 'Fat intake over the selected range',
-      targetLabel: 'Fat goal',
-      targetValue: activeRange === '1D' ? Math.round(selectedSeries.macroTargets.fat) : Math.round(selectedSeries.macroTargets.fat / Math.max(selectedSeries.points.length, 1)),
-      points: fatPoints,
-      accentColor: tc.fg_2563eb,
-      ringPercentage: (macroCalories.fat / macroCalorieTotal) * 100,
-      ringText: `${Math.round((macroCalories.fat / macroCalorieTotal) * 100)}%`,
-      chartTitle: `Fat tracked across ${activeRange}`,
-      legendLabel: 'Daily fat'
-    },
-    fiber: {
-      label: 'Fiber',
-      value: fiberConsumed > 0 ? `${fiberConsumed} g` : '—',
-      detail: 'Fiber tracking remains a placeholder until fiber is wired into the saved totals',
-      targetLabel: 'Fiber goal',
-      targetValue: fiberGoal,
-      points: fiberPoints,
-      accentColor: tc.fg_7c3aed,
-      ringPercentage: fiberConsumed > 0 && fiberGoal > 0 ? (fiberConsumed / fiberGoal) * 100 : 0,
-      ringText: fiberConsumed > 0 && fiberGoal > 0 ? `${Math.round((fiberConsumed / fiberGoal) * 100)}%` : '—',
-      chartTitle: `Fiber tracked across ${activeRange}`,
-      legendLabel: 'Daily fiber'
-    }
-  };
-  const activeMetricConfig = dashboardMetricConfig.net_calories;
-  const homeChartPoints = useMemo(() => {
-    if (activeRange === '1D') {
-      const checkpoints = [
-        { label: '12a', hour: 0 },
-        { label: '6a', hour: 6 },
-        { label: '12p', hour: 12 },
-        { label: '6p', hour: 18 },
-        { label: '12a', hour: 24 },
-      ];
-      const sortedLoggedEntries = [...homeFoodLog.entries]
-        .map((entry) => ({ entry, parsed: new Date(entry.logged_at) }))
-        .filter((item) => item.parsed && !Number.isNaN(item.parsed.getTime()))
-        .sort((left, right) => left.parsed!.getTime() - right.parsed!.getTime());
-
-      return [
-        ...checkpoints.map((checkpoint) => {
-          const cumulative = sortedLoggedEntries.reduce((sum, item) => {
-            const parsed = item.parsed!;
-            const hour = parsed.getHours() + parsed.getMinutes() / 60;
-            const normalizedHour = checkpoint.hour === 24 ? 24 : hour;
-            if (normalizedHour <= checkpoint.hour) {
-              return sum + item.entry.calories;
-            }
-            return sum;
-          }, 0);
-          return { label: checkpoint.label, calories: cumulative };
-        })
-      ];
-    }
-
-    if (activeMetricConfig.points.length === 0) {
-      return activeMetricConfig.points;
-    }
-
-    const adjustedLastCalories = Math.max(0, homeConsumedCalories);
-
-    return activeMetricConfig.points.map((point, index) =>
-      index === activeMetricConfig.points.length - 1 ? { ...point, calories: adjustedLastCalories } : point
-    );
-  }, [activeMetricConfig.points, activeRange, homeConsumedCalories, homeFoodLog.entries]);
-  const homeChartTargetValue =
-    activeRange === '1D' ? dailyHomeTargets.allowanceCalories : activeMetricConfig.targetValue;
   const onboardingRequired = profileLoaded && profile !== null && profile.setup_complete === false;
   const [launchHoldDone, setLaunchHoldDone] = useState(false);
   useEffect(() => {
@@ -2556,15 +2123,11 @@ export default function App(): ReactElement {
     const grams = calculateFoodGrams(food, quantity);
 
     if (!Number.isFinite(grams) || grams <= 0) {
-      setFoodLogTone('checking');
-      setFoodLogStatus('Choose a valid quantity before adding.');
       setFoodLogError('Choose a valid quantity before adding.');
       return;
     }
 
     setIsSavingLogEntry(true);
-    setFoodLogTone('checking');
-    setFoodLogStatus(`Adding ${formatFoodQuantity(quantity)} of ${food.name} to today`);
     setFoodLogError(null);
 
     try {
@@ -2574,11 +2137,7 @@ export default function App(): ReactElement {
       // The server works out calories from the food (quantity = number of servings).
       await logFood({ food_id: food.id, log_date: localDateKey(), servings: quantity }, foodSessionToken);
       setFoodLog(await fetchTodaysFoodLog(foodSessionToken));
-      setFoodLogTone('live');
-      setFoodLogStatus(`Added ${formatFoodAmount(food, quantity)} of ${food.name} to today`);
     } catch (error) {
-      setFoodLogTone('checking');
-      setFoodLogStatus(`Could not save ${food.name}`);
       setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
     } finally {
       setIsSavingLogEntry(false);
@@ -2590,13 +2149,11 @@ export default function App(): ReactElement {
     const measurements = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
 
     if (!Number.isFinite(age_years) || age_years <= 0 || measurements === null) {
-      setOnboardingStatus('Could not save onboarding');
       setOnboardingError('Enter a valid age, height, and weight before continuing.');
       return;
     }
 
     if (!foodSessionToken) {
-      setOnboardingStatus('Could not save onboarding');
       setOnboardingError('Create a live local session before continuing to the app.');
       return;
     }
@@ -2604,12 +2161,10 @@ export default function App(): ReactElement {
     const allergy_notes = formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft);
 
     setOnboardingSaving(true);
-    setOnboardingStatus('Saving your first-run setup');
     setOnboardingError(null);
 
     if (!onboardingSexDraft || !onboardingGoalTypeDraft || !onboardingDietaryPatternDraft || !onboardingNutritionStyleDraft) {
       setOnboardingSaving(false);
-      setOnboardingStatus('Finish setup before saving');
       setOnboardingError('Choose your sex, goal, how you eat, and nutrition style before creating your profile.');
       return;
     }
@@ -2638,7 +2193,7 @@ export default function App(): ReactElement {
       );
       setProfile(completed);
 
-      const [loadedProfile, goals, progress, weights] = await Promise.all([
+      const [loadedProfile, goals, , weights] = await Promise.all([
         fetchProfile(foodSessionToken),
         fetchUserGoals(foodSessionToken),
         fetchProfileProgress(foodSessionToken),
@@ -2647,60 +2202,18 @@ export default function App(): ReactElement {
 
       setProfile(loadedProfile);
       setProfileGoals(goals);
-      setProfileProgress(progress);
       setWeightEntries(weights);
       applyProfileDrafts(loadedProfile, goals);
 
       setProfileLoaded(true);
       setProfileTone('live');
       setProfileStatus('Onboarding completed');
-      setOnboardingStatus('Setup complete. Opening the app...');
       setOnboardingStep('review');
       setSection('dashboard');
     } catch (error) {
-      setOnboardingStatus('Could not save onboarding');
       setOnboardingError(error instanceof Error ? error.message : 'Unable to complete onboarding.');
     } finally {
       setOnboardingSaving(false);
-    }
-  }
-
-  async function submitFoodLogEntry() {
-    const grams = Number(logGrams);
-    if (!selectedLogFood || !Number.isFinite(grams) || grams <= 0) {
-      setFoodLogTone('checking');
-      setFoodLogStatus('Enter a valid gram amount before adding.');
-      setFoodLogError('Enter a valid gram amount before adding.');
-      return;
-    }
-    if (!selectedLogFood.serving_grams) {
-      setFoodLogTone('checking');
-      setFoodLogStatus(`No serving weight for ${selectedLogFood.name} yet`);
-      setFoodLogError('This food has no serving weight yet, so it can only be added by servings (Food Search).');
-      return;
-    }
-
-    setIsSavingLogEntry(true);
-    setFoodLogTone('checking');
-    setFoodLogStatus(`Adding ${selectedLogFood.name} to today`);
-    setFoodLogError(null);
-
-    try {
-      if (!foodSessionToken) {
-        throw new Error('Create a local session before saving food log entries.');
-      }
-      // By weight; the server converts grams to servings with the food's serving weight.
-      await logFood({ food_id: selectedLogFood.id, log_date: localDateKey(), grams: round1(grams) }, foodSessionToken);
-      setFoodLog(await fetchTodaysFoodLog(foodSessionToken));
-      setFoodLogTone('live');
-      setFoodLogStatus(`Added ${selectedLogFood.name} to today's log`);
-      setLogGrams('100');
-    } catch (error) {
-      setFoodLogTone('checking');
-      setFoodLogStatus(`Could not save ${selectedLogFood.name}`);
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
-    } finally {
-      setIsSavingLogEntry(false);
     }
   }
 
@@ -2738,8 +2251,6 @@ export default function App(): ReactElement {
     try {
       const updated = await updateFoodLogEntry(foodLog.log_id, entry.id, payload, foodSessionToken);
       setFoodLog(updated);
-      setFoodLogTone('live');
-      setFoodLogStatus(`${entry.food_name} updated to ${payload.grams} g`);
       setEditingFoodEntryId(null);
     } catch (error) {
       setFoodLogError(error instanceof Error ? error.message : 'Unable to update this entry.');
@@ -2766,48 +2277,8 @@ export default function App(): ReactElement {
       if (entry.meal_plan_slot_id) {
         unmarkMealPlanSlot(entry.meal_plan_slot_id);
       }
-      setFoodLogTone('live');
-      setFoodLogStatus(`${entry.food_name} removed`);
     } catch (error) {
       setFoodLogError(error instanceof Error ? error.message : 'Unable to delete this entry.');
-    } finally {
-      setEntryActionBusyKey((current) => (current === key ? null : current));
-    }
-  }
-
-  async function saveExerciseEdit(entry: ExerciseEntry) {
-    const minutes = parsePositiveInt(editingExerciseMinutesDraft);
-    const calories = parseNonNegativeInt(editingExerciseCaloriesDraft);
-    if (!foodSessionToken) {
-      setTrackerError('Sign in again to edit exercise.');
-      return;
-    }
-    if (minutes === null || calories === null) {
-      setTrackerError('Enter at least 1 minute and 0 or more calories.');
-      return;
-    }
-    const key = `exercise:${entry.id}`;
-    setEntryActionBusyKey(key);
-    setTrackerError(null);
-    try {
-      const updated = await updateExerciseEntry(
-        entry.id,
-        {
-          title: entry.title,
-          duration_minutes: minutes,
-          calories_burned: calories,
-          logged_on: entry.logged_on,
-          logged_at: entry.logged_at,
-          intensity: entry.intensity
-        },
-        foodSessionToken
-      );
-      setExerciseEntries((current) => current.map((item) => (item.id === entry.id ? updated : item)));
-      setTrackerTone('live');
-      setTrackerStatus(`${entry.title} updated`);
-      setEditingExerciseId(null);
-    } catch (error) {
-      setTrackerError(error instanceof Error ? error.message : 'Unable to update this exercise.');
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
@@ -2867,8 +2338,7 @@ export default function App(): ReactElement {
     const shown = units === 'metric' ? `${Math.round(weightLbs * 0.45359237 * 10) / 10} kg` : `${weightLbs} lb`;
     try {
       await createWeightEntry({ recorded_at: todayKey, weight_lbs: weightLbs }, token);
-      const [progress, weights] = await Promise.all([fetchProfileProgress(token), fetchWeightEntries(token)]);
-      setProfileProgress(progress);
+      const [, weights] = await Promise.all([fetchProfileProgress(token), fetchWeightEntries(token)]);
       setWeightEntries(weights);
       setToast(`Saved ${shown} for today`);
     } catch (error) {
@@ -3003,7 +2473,6 @@ export default function App(): ReactElement {
     }
     setConfirmDeleteKey(null);
     setEntryActionBusyKey(key);
-    setTrackerError(null);
     try {
       await deleteExerciseEntry(entry.id, foodSessionToken);
       setExerciseEntries((current) => current.filter((item) => item.id !== entry.id));
@@ -3017,61 +2486,10 @@ export default function App(): ReactElement {
         setPlannedExerciseEntries(sortPlannedExerciseEntries(next.map(mapPlannedWorkoutSessionToEntry)));
         return next;
       });
-      setTrackerTone('live');
-      setTrackerStatus(`${entry.title} removed`);
-    } catch (error) {
-      setTrackerError(error instanceof Error ? error.message : 'Unable to delete this exercise.');
+    } catch {
+      // The entry stays listed when the delete fails.
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
-    }
-  }
-
-  async function addExerciseEntry() {
-    const duration_minutes = Number(exerciseMinutesDraft);
-    const calories_burned = Number(exerciseCaloriesDraft);
-    const title = exerciseTitleDraft.trim();
-
-    if (!title || !Number.isFinite(duration_minutes) || duration_minutes <= 0 || !Number.isFinite(calories_burned) || calories_burned <= 0) {
-      return;
-    }
-
-    const payload = {
-      title,
-      duration_minutes: Math.round(duration_minutes),
-      calories_burned: Math.round(calories_burned),
-      logged_on: todayKey,
-      logged_at: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      intensity: calories_burned >= 300 ? 'High' : duration_minutes >= 30 ? 'Moderate' : 'Low'
-    } as const;
-
-    const optimisticEntry: ExerciseEntry = {
-      id: `exercise-${Date.now()}`,
-      ...payload
-    };
-
-    setExerciseSaving(true);
-    setTrackerTone('checking');
-    setTrackerStatus(`Saving ${title}`);
-    setTrackerError(null);
-    setExerciseEntries((current) => [optimisticEntry, ...current]);
-
-    try {
-      if (foodSessionToken) {
-        const saved = await createExerciseEntry(payload, foodSessionToken);
-        setExerciseEntries((current) => [saved, ...current.filter((entry) => entry.id !== optimisticEntry.id)]);
-      }
-      setTrackerTone('live');
-      setTrackerStatus(`${title} added to tracker`);
-      setExerciseTitleDraft('Walk');
-      setExerciseMinutesDraft('20');
-      setExerciseCaloriesDraft('120');
-    } catch (error) {
-      setExerciseEntries((current) => current.filter((entry) => entry.id !== optimisticEntry.id));
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not save ${title}`);
-      setTrackerError(error instanceof Error ? error.message : 'Unable to save tracker entry.');
-    } finally {
-      setExerciseSaving(false);
     }
   }
 
@@ -3082,31 +2500,19 @@ export default function App(): ReactElement {
     const title = plannedExerciseTitleDraft.trim();
 
     if (!title || !Number.isFinite(duration_minutes) || duration_minutes <= 0) {
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title || 'workout'}`);
-      setTrackerError('Enter a workout title and a valid duration before saving planned exercise.');
       return;
     }
 
     const estimatedCaloriesBurned = estimatePlannedExerciseCalories(duration_minutes, activePlannedExercisePreset);
     if (!Number.isFinite(estimatedCaloriesBurned) || estimatedCaloriesBurned <= 0) {
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
-      setTrackerError('Enter a valid duration so the planned calorie estimate can be generated.');
       return;
     }
 
     if (plannedExerciseWarmupEnabled && (!Number.isFinite(warmup_minutes) || warmup_minutes <= 0)) {
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
-      setTrackerError('Enter valid warmup minutes or turn warmup off.');
       return;
     }
 
     if (plannedExerciseCooldownEnabled && (!Number.isFinite(cooldown_minutes) || cooldown_minutes <= 0)) {
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
-      setTrackerError('Enter valid cooldown minutes or turn cooldown off.');
       return;
     }
 
@@ -3123,9 +2529,6 @@ export default function App(): ReactElement {
     });
 
     setPlannedExerciseSaving(true);
-    setTrackerTone('checking');
-    setTrackerStatus(`${plannedExerciseEditingId ? 'Updating' : 'Planning'} ${title}`);
-    setTrackerError(null);
     let previousSessions: PlannedWorkoutSession[] = [];
     const optimisticSessionId = plannedExerciseEditingId ?? `planned-workout-${Date.now()}`;
     const optimisticSession = buildOptimisticPlannedWorkoutSession(optimisticSessionId, payload);
@@ -3169,17 +2572,10 @@ export default function App(): ReactElement {
           mapPlannedWorkoutSessionToEntry(saved)
         ])
       );
-      setTrackerTone('live');
-      setTrackerStatus(
-        `${title} ${plannedExerciseEditingId ? 'updated for' : 'planned for'} ${formatHomeDateLabel(selectedHomeDate, todayKey)}`
-      );
       resetPlannedExerciseDrafts();
     } catch (error) {
       setPlannedWorkoutSessions(previousSessions);
       setPlannedExerciseEntries(sortPlannedExerciseEntries(previousSessions.map(mapPlannedWorkoutSessionToEntry)));
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not ${plannedExerciseEditingId ? 'update' : 'plan'} ${title}`);
-      setTrackerError(error instanceof Error ? error.message : `Unable to ${plannedExerciseEditingId ? 'update' : 'save'} planned exercise.`);
     } finally {
       setPlannedExerciseSaving(false);
     }
@@ -3196,9 +2592,6 @@ export default function App(): ReactElement {
     setPlannedExerciseWarmupMinutesDraft(String(draft.warmupMinutes));
     setPlannedExerciseCooldownEnabled(draft.cooldownEnabled);
     setPlannedExerciseCooldownMinutesDraft(String(draft.cooldownMinutes));
-    setTrackerTone('live');
-    setTrackerStatus(`Editing ${entry.title}`);
-    setTrackerError(null);
   }
 
   function resetPlannedExerciseDrafts() {
@@ -3214,9 +2607,6 @@ export default function App(): ReactElement {
   async function removePlannedExerciseEntry(entry: PlannedExerciseEntry) {
     let previousSessions: PlannedWorkoutSession[] = [];
     setPlannedExerciseDeletingId(entry.id);
-    setTrackerTone('checking');
-    setTrackerStatus(`Deleting ${entry.title}`);
-    setTrackerError(null);
     setPlannedWorkoutSessions((current) => {
       previousSessions = current;
       return current.filter((item) => item.id !== entry.id);
@@ -3234,14 +2624,9 @@ export default function App(): ReactElement {
       if (plannedExerciseEditingId === entry.id) {
         resetPlannedExerciseDrafts();
       }
-      setTrackerTone('live');
-      setTrackerStatus(`${entry.title} deleted`);
     } catch (error) {
       setPlannedWorkoutSessions(previousSessions);
       setPlannedExerciseEntries(sortPlannedExerciseEntries(previousSessions.map(mapPlannedWorkoutSessionToEntry)));
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not delete ${entry.title}`);
-      setTrackerError(error instanceof Error ? error.message : 'Unable to delete planned exercise.');
     } finally {
       setPlannedExerciseDeletingId(null);
     }
@@ -3251,9 +2636,6 @@ export default function App(): ReactElement {
     const nextCompletedAt = entry.completed_at ? null : new Date().toISOString();
     const session = plannedWorkoutSessions.find((item) => item.id === entry.id);
     if (!session) {
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not update ${entry.title}`);
-      setTrackerError('Planned workout session is missing from local state.');
       return;
     }
     const optimisticSession: PlannedWorkoutSession = {
@@ -3265,11 +2647,6 @@ export default function App(): ReactElement {
     const optimisticEntry = mapPlannedWorkoutSessionToEntry(optimisticSession);
 
     setPlannedExerciseUpdatingId(entry.id);
-    setTrackerTone('checking');
-    setTrackerStatus(
-      `${entry.title} ${nextCompletedAt ? 'completed' : 'marked incomplete'}`
-    );
-    setTrackerError(null);
     setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? optimisticSession : item)));
     setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? optimisticEntry : item)));
 
@@ -3281,16 +2658,9 @@ export default function App(): ReactElement {
       setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? saved : item)));
       setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? mapPlannedWorkoutSessionToEntry(saved) : item)));
       setExerciseEntries(await fetchExerciseEntries(foodSessionToken));
-      setTrackerTone('live');
-      setTrackerStatus(
-        `${entry.title} ${nextCompletedAt ? 'completed' : 'marked incomplete'}`
-      );
     } catch (error) {
       setPlannedWorkoutSessions((current) => current.map((item) => (item.id === entry.id ? session : item)));
       setPlannedExerciseEntries((current) => current.map((item) => (item.id === entry.id ? entry : item)));
-      setTrackerTone('checking');
-      setTrackerStatus(`Could not update ${entry.title}`);
-      setTrackerError(error instanceof Error ? error.message : 'Unable to update planned exercise completion.');
     } finally {
       setPlannedExerciseUpdatingId(null);
     }
@@ -3609,14 +2979,13 @@ export default function App(): ReactElement {
     try {
       if (foodSessionToken) {
         const updated = await updateProfile(payload, foodSessionToken);
-        const [goals, progress, weights] = await Promise.all([
+        const [goals, , weights] = await Promise.all([
           fetchUserGoals(foodSessionToken),
           fetchProfileProgress(foodSessionToken),
           fetchWeightEntries(foodSessionToken)
         ]);
         setProfile(updated);
         setProfileGoals(goals);
-        setProfileProgress(progress);
         setWeightEntries(weights);
         applyProfileDrafts(updated, goals);
       }
@@ -3810,7 +3179,6 @@ export default function App(): ReactElement {
     const error = validateOnboardingStep(onboardingStep);
     if (error) {
       setOnboardingError(error);
-      setOnboardingStatus('Finish this step before continuing');
       return;
     }
 
@@ -3818,7 +3186,6 @@ export default function App(): ReactElement {
     const nextStep = onboardingSteps[currentIndex + 1];
     if (nextStep) {
       setOnboardingError(null);
-      setOnboardingStatus(`${nextStep.label} step ready`);
       setOnboardingStep(nextStep.id);
       // Daily activity and Your goal open with an explainer card, once per setup.
       const explainer = explainerBefore(nextStep.id, explainersSeen);
@@ -3844,7 +3211,6 @@ export default function App(): ReactElement {
     const previousStep = onboardingSteps[currentIndex - 1];
     if (previousStep) {
       setOnboardingError(null);
-      setOnboardingStatus(`${previousStep.label} step ready`);
       setOnboardingStep(previousStep.id);
     }
   }
@@ -3907,60 +3273,6 @@ export default function App(): ReactElement {
       setProfileError(error instanceof Error ? error.message : 'Unable to save goal.');
     } finally {
       setGoalSaving(false);
-    }
-  }
-
-  async function addWeightRecord() {
-    if (!foodSessionToken) {
-      setProfileTone('checking');
-      setProfileStatus('Preview profile loaded');
-      setProfileError('Create a local session before saving weight entries.');
-      return;
-    }
-
-    const weightLbs = Number(weightValueDraft);
-    if (!Number.isFinite(weightLbs) || weightLbs <= 0) {
-      setProfileTone('checking');
-      setProfileStatus('Could not save weight entry');
-      setProfileError('Enter a valid weight in pounds before saving.');
-      return;
-    }
-
-    if (weightRecordedAtDraft.trim().length === 0) {
-      setProfileTone('checking');
-      setProfileStatus('Could not save weight entry');
-      setProfileError('Enter a valid recorded date before saving.');
-      return;
-    }
-
-    setWeightSaving(true);
-    setProfileTone('checking');
-    setProfileStatus('Saving weight entry');
-    setProfileError(null);
-
-    try {
-      await createWeightEntry(
-        {
-          recorded_at: weightRecordedAtDraft,
-          weight_lbs: Number(weightLbs.toFixed(1))
-        },
-        foodSessionToken
-      );
-      const [progress, weights] = await Promise.all([
-        fetchProfileProgress(foodSessionToken),
-        fetchWeightEntries(foodSessionToken)
-      ]);
-      setProfileProgress(progress);
-      setWeightEntries(weights);
-      setWeightValueDraft('');
-      setProfileTone('live');
-      setProfileStatus('Weight entry saved');
-    } catch (error) {
-      setProfileTone('checking');
-      setProfileStatus('Could not save weight entry');
-      setProfileError(error instanceof Error ? error.message : 'Unable to save weight entry.');
-    } finally {
-      setWeightSaving(false);
     }
   }
 
@@ -4054,13 +3366,7 @@ export default function App(): ReactElement {
         if (isTodayPlan) {
           const updatedLog = await fetchFoodLogForDate(todayKey, foodSessionToken);
           setFoodLog(updatedLog);
-          setFoodLogTone('live');
           setFoodLogError(null);
-          setFoodLogStatus(
-            updatedLog.entries.length === 0
-              ? 'No foods logged yet'
-              : `${updatedLog.entries.length} persisted entr${updatedLog.entries.length === 1 ? 'y' : 'ies'} loaded`
-          );
         }
         if (isSelectedHomeDay) {
           const updatedHomeLog = await fetchFoodLogForDate(selectedHomeDate, foodSessionToken);
@@ -4404,7 +3710,6 @@ export default function App(): ReactElement {
                 style={[styles.setupActionButton, styles.setupActionButtonPrimary, styles.onboardingWelcomeAction]}
                 onPress={() => {
                   setOnboardingError(null);
-                  setOnboardingStatus('Basics step ready');
                   setOnboardingStep('basics');
                 }}
                 accessibilityRole="button"
@@ -4801,7 +4106,6 @@ export default function App(): ReactElement {
                     {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
                       const active = onboardingGoalPaceDraft === option.id;
                       const calculated = calculatedPaceOption(option.id);
-                      const preview = effectivePaceOption(onboardingGoalTypeDraft, option.id);
                       const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
                       // The honest number until the user decides; red when below the minimum.
                       const display = calculated
@@ -6271,7 +5575,6 @@ export default function App(): ReactElement {
               {foodResults.map((food) => {
                 const active = food.id === selectedFood?.id;
                 const quantity = foodQuantityForId(food.id);
-                const grams = calculateFoodGrams(food, quantity);
                 return (
                   <Pressable
                     key={food.id}
@@ -7511,34 +6814,6 @@ function MetricTile({
   );
 }
 
-function MacroProgress({
-  label,
-  consumed,
-  target,
-  color
-}: {
-  label: string;
-  consumed: number;
-  target: number;
-  color: string;
-}): ReactElement {
-  const width = `${progressPercent(consumed, target)}%` as DimensionValue;
-
-  return (
-    <View style={styles.macroRow}>
-      <View style={styles.macroLabels}>
-        <Text style={styles.listTitle}>{label}</Text>
-        <Text style={styles.listCaption}>
-          {Math.round(consumed)} / {Math.round(target)} g
-        </Text>
-      </View>
-      <View style={styles.macroTrack}>
-        <View style={[styles.macroFill, { width, backgroundColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
 function ScaleStopSelector({
   label,
   helperText,
@@ -7591,23 +6866,6 @@ function ScaleStopSelector({
       </View>
     </View>
   );
-}
-
-function formatLogDate(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString([], {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric'
-  });
-}
-
-function addDaysToIsoDate(value: string, days: number): string {
-  return addDaysToDateKey(value, days);
 }
 
 function formatHomeDateLabel(value: string, todayKey: string): string {
@@ -7682,74 +6940,6 @@ function createEmptyFoodLog(date = localDateKey()): FoodLogSummary {
       macros: { protein: 0, carbs: 0, fat: 0 }
     }
   };
-}
-
-function LineTrendChart({
-  points,
-  targetCalories
-}: {
-  points: { label: string; calories: number }[];
-  targetCalories: number;
-}): ReactElement {
-  const [frameWidth, setFrameWidth] = useState(0);
-  const geometry = useMemo(
-    () => (frameWidth > 0 ? buildTrendChartGeometry(points, targetCalories, frameWidth, chartHeight) : null),
-    [frameWidth, points, targetCalories]
-  );
-
-  return (
-    <View>
-      <View
-        style={styles.lineChartFrame}
-        onLayout={(event) => setFrameWidth(event.nativeEvent.layout.width)}
-      >
-        {geometry ? (
-          <>
-            <View style={[styles.targetGuide, { top: geometry.targetY }]} />
-            {geometry.segments.map((segment) => (
-              <View
-                key={segment.key}
-                style={[
-                  styles.lineSegment,
-                  {
-                    left: segment.centerX - segment.width / 2,
-                    top: segment.centerY - 1.5,
-                    width: segment.width,
-                    transform: [{ rotate: `${segment.angle}deg` }]
-                  }
-                ]}
-              />
-            ))}
-            {geometry.nodes.map((point) => (
-              <View
-                key={point.label}
-                style={[
-                  styles.lineNode,
-                  {
-                    left: point.x - 5,
-                    top: point.y - 5
-                  }
-                ]}
-              />
-            ))}
-          </>
-        ) : (
-          <View style={styles.chartLoading}>
-            <ActivityIndicator size="small" color={tc.fg_17324d} />
-          </View>
-        )}
-      </View>
-      <View style={styles.lineChartLabels}>
-        {points.map((point) => (
-          <View key={point.label} style={styles.lineChartLabelItem}>
-            <Text style={styles.chartValue}>{point.calories}</Text>
-            <Text style={styles.chartLabel}>{point.label}</Text>
-          </View>
-        ))}
-      </View>
-      <Text style={styles.chartTargetCaption}>Target guide: {targetCalories.toLocaleString()} kcal</Text>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -7866,34 +7056,6 @@ const styles = StyleSheet.create({
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
     elevation: 4
-  },
-  setupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 14
-  },
-  setupHeaderCopy: {
-    flex: 1,
-    gap: 4
-  },
-  setupTitle: {
-    color: tc.fg_132536,
-    fontSize: 22,
-    fontWeight: '800'
-  },
-  setupMascotWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    overflow: 'hidden',
-    backgroundColor: tc.bg_f6f0e7,
-    borderWidth: 1,
-    borderColor: tc.line_e5ddd1
-  },
-  setupMascotImage: {
-    width: '100%',
-    height: '100%'
   },
   bmrLink: {
     color: tc.fg_2f6b4f,
@@ -8134,16 +7296,6 @@ const styles = StyleSheet.create({
   setupPanel: {
     gap: 14
   },
-  setupChoiceCard: {
-    flexGrow: 1,
-    flexBasis: 180,
-    backgroundColor: tc.bg_f7f4ef,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 14,
-    gap: 6
-  },
   setupChoiceCardActive: {
     backgroundColor: tc.bg_eef3f8,
     borderColor: tc.line_17324d
@@ -8298,115 +7450,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%'
   },
-  modeControlCard: {
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 14,
-    gap: 10
-  },
-  modeControlHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12
-  },
-  modeControlLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8
-  },
-  modeControlValue: {
-    color: tc.fg_17324d,
-    fontSize: 18,
-    fontWeight: '800',
-    marginTop: 4
-  },
-  modeControlDetail: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 17,
-    flexShrink: 1,
-    textAlign: 'right'
-  },
-  modeControlActions: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap'
-  },
-  hero: {
-    backgroundColor: tc.bg_17324d,
-    borderRadius: 28,
-    padding: 20,
-    gap: 16
-  },
-  eyebrow: {
-    color: tc.fg_d8e1ed,
-    letterSpacing: 1.5,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  heroHeader: {
-    gap: 16
-  },
-  heroAside: {
-    gap: 14,
-    alignItems: 'stretch'
-  },
-  heroCopy: {
-    gap: 10
-  },
-  headline: {
-    color: tc.fg_f8fafc,
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '800'
-  },
-  lede: {
-    color: tc.fg_d6e0ea,
-    fontSize: 15,
-    lineHeight: 22
-  },
-  ringCard: {
-    alignSelf: 'flex-start',
-    backgroundColor: tc.bg_f6f0e7,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 24,
-    minWidth: 132
-  },
-  ringValue: {
-    color: tc.fg_17324d,
-    fontSize: 30,
-    fontWeight: '800'
-  },
-  ringLabel: {
-    color: tc.fg_17324d,
-    fontWeight: '700',
-    marginTop: 4
-  },
-  ringCaption: {
-    color: tc.fg_5c6d80,
-    marginTop: 4,
-    fontSize: 12
-  },
-  mascotCard: {
-    backgroundColor: tc.bg_f6f0e7,
-    borderRadius: 24,
-    padding: 14,
-    alignItems: 'center'
-  },
-  mascotImage: {
-    width: '100%',
-    maxWidth: 180,
-    height: 180
-  },
-  entryGrid: {
-    gap: 16
-  },
   entryCard: {
     width: '100%',
     maxWidth: 420,
@@ -8431,24 +7474,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.9,
     textTransform: 'uppercase'
-  },
-  entryPreviewCard: {
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 14,
-    gap: 6
-  },
-  entryPreviewTitle: {
-    color: tc.fg_132536,
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  entryPreviewDetail: {
-    color: tc.fg_66778c,
-    fontSize: 13,
-    lineHeight: 18
   },
   secondaryButton: {
     borderRadius: 18,
@@ -8567,23 +7592,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     width: '100%'
-  },
-  statusBanner: {
-    backgroundColor: tc.bg_fffaf0,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.5,
-    gap: 4
-  },
-  statusLabel: {
-    color: tc.fg_132536,
-    fontWeight: '700',
-    fontSize: 15
-  },
-  statusDetail: {
-    color: tc.fg_5c6d80,
-    fontSize: 13,
-    lineHeight: 18
   },
   exercisePresetGrid: {
     flexDirection: 'row',
@@ -8734,45 +7742,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: tc.line_dbe3ec
   },
-  dailyHomeGoalBadge: {
-    backgroundColor: tc.bg_edf8f1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: tc.line_c7e5d2,
-    maxWidth: 180
-  },
-  dailyHomeGoalBadgeLabel: {
-    color: tc.fg_1d5f3a,
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center'
-  },
   dailyHomeMacroRingRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 14,
     justifyContent: 'center'
-  },
-  dailyHomeMacroLegend: {
-    color: tc.fg_66778c,
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center'
-  },
-  dailyHomeMealPlanHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  dailyHomeMealPlanSlotCopy: {
-    flex: 1,
-    gap: 8
-  },
-  dailyHomeMealPlanSlotMeta: {
-    alignItems: 'flex-end',
-    gap: 8
   },
   mealPlanSlotCard: {
     backgroundColor: tc.bg_ffffff,
@@ -8793,17 +7767,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
     gap: 12
-  },
-  mealPlanSlotLabel: {
-    color: tc.fg_132536,
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 20
-  },
-  mealPlanSlotSubtitle: {
-    color: tc.fg_7890ad,
-    fontSize: 13,
-    lineHeight: 18
   },
   mealPlanSlotTotal: {
     color: tc.fg_17324d,
@@ -8857,45 +7820,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     textAlign: 'center'
-  },
-  dashboardIntro: {
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 16,
-    gap: 8
-  },
-  dashboardTitle: {
-    color: tc.fg_132536,
-    fontSize: 22,
-    fontWeight: '800'
-  },
-  summaryStrip: {
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap'
-  },
-  rangeTabs: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap'
-  },
-  rangeTab: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    backgroundColor: tc.bg_edf1f5
-  },
-  rangeTabActive: {
-    backgroundColor: tc.bg_17324d
-  },
-  rangeTabLabel: {
-    color: tc.fg_17324d,
-    fontWeight: '700'
-  },
-  rangeTabLabelActive: {
-    color: tc.fg_ffffff
   },
   scaleSelectorCard: {
     backgroundColor: tc.bg_f8fafc,
@@ -9142,123 +8066,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 18
   },
-  chartCard: {
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 22,
-    padding: 16
-  },
-  chartTitle: {
-    color: tc.fg_17324d,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 10
-  },
-  lineChartFrame: {
-    height: chartHeight,
-    borderRadius: 18,
-    backgroundColor: tc.bg_eef3f8,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    position: 'relative',
-    overflow: 'hidden'
-  },
-  chartLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  targetGuide: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    borderTopWidth: 1,
-    borderTopColor: tc.line_94a3b8,
-    borderStyle: 'dashed'
-  },
-  lineSegment: {
-    position: 'absolute',
-    height: 3,
-    backgroundColor: tc.bg_0f766e,
-    borderRadius: 999,
-    opacity: 0.9
-  },
-  lineNode: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: tc.bg_17324d,
-    borderWidth: 2,
-    borderColor: tc.line_f8fafc
-  },
-  lineChartLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginTop: 12
-  },
-  lineChartLabelItem: {
-    flex: 1,
-    alignItems: 'center'
-  },
-  chartValue: {
-    color: tc.fg_17324d,
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  chartLabel: {
-    color: tc.fg_66778c,
-    fontSize: 12
-  },
-  chartTargetCaption: {
-    color: tc.fg_66778c,
-    marginTop: 10,
-    fontSize: 12
-  },
-  macroStack: {
-    gap: 12
-  },
-  quickLogCard: {
-    backgroundColor: tc.bg_f7f4ef,
-    borderRadius: 20,
-    padding: 14,
-    gap: 4
-  },
-  quickLogHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'flex-start'
-  },
-  quickLogTitle: {
-    color: tc.fg_17324d,
-    fontSize: 18,
-    fontWeight: '800'
-  },
-  quickLogHint: {
-    color: tc.fg_7c8aa5,
-    fontSize: 11,
-    maxWidth: 120,
-    textAlign: 'right'
-  },
-  macroRow: {
-    gap: 8
-  },
-  macroLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8
-  },
-  macroTrack: {
-    height: 12,
-    borderRadius: 999,
-    backgroundColor: tc.bg_e2e8f0,
-    overflow: 'hidden'
-  },
-  macroFill: {
-    height: '100%',
-    borderRadius: 999
-  },
   listRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -9282,58 +8089,6 @@ const styles = StyleSheet.create({
   },
   searchRow: {
     gap: 10
-  },
-  dropdownWrap: {
-    gap: 8
-  },
-  dropdownLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  dropdownTrigger: {
-    backgroundColor: tc.bg_f8fafc,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  dropdownValue: {
-    color: tc.fg_17324d,
-    fontWeight: '800',
-    fontSize: 16
-  },
-  dropdownCaret: {
-    color: tc.fg_66778c,
-    fontSize: 12
-  },
-  dropdownMenu: {
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_dbe3ec,
-    overflow: 'hidden'
-  },
-  dropdownOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: tc.line_edf1f5
-  },
-  dropdownOptionActive: {
-    backgroundColor: tc.bg_17324d
-  },
-  dropdownOptionLabel: {
-    color: tc.fg_17324d,
-    fontWeight: '700'
-  },
-  dropdownOptionLabelActive: {
-    color: tc.fg_ffffff
   },
   searchInput: {
     borderWidth: 1,
@@ -9374,32 +8129,6 @@ const styles = StyleSheet.create({
   },
   foodList: {
     gap: 8
-  },
-  logEntryCard: {
-    gap: 8
-  },
-  entryEditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 4
-  },
-  entryEditInput: {
-    minWidth: 72,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: tc.bg_ffffff,
-    color: tc.fg_17324d,
-    fontSize: 16
-  },
-  entryActionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 4
   },
   entryDeleteConfirmLabel: {
     color: tc.fg_b42318
@@ -9818,28 +8547,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4
   },
-  recipeStarToggle: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    alignSelf: 'flex-start'
-  },
-  recipeStarToggleActive: {
-    backgroundColor: tc.bg_17324d,
-    borderColor: tc.line_17324d
-  },
-  recipeStarToggleInactive: {
-    backgroundColor: tc.bg_f8fafc,
-    borderColor: tc.line_cbd5e1
-  },
-  recipeStarToggleLabel: {
-    color: tc.fg_17324d,
-    fontWeight: '800'
-  },
-  recipeStarToggleLabelActive: {
-    color: tc.fg_ffffff
-  },
   recipeMetaBlock: {
     gap: 6,
     paddingTop: 4
@@ -9868,18 +8575,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     gap: 10
-  },
-  recipeReviewBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: tc.bg_17324d,
-    paddingHorizontal: 10,
-    paddingVertical: 5
-  },
-  recipeReviewBadgeLabel: {
-    color: tc.fg_ffffff,
-    fontSize: 11,
-    fontWeight: '800'
   },
   recipeSecondaryCard: {
     backgroundColor: tc.bg_f2f6fb,

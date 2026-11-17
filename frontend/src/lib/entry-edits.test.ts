@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FoodLogEntry } from '../types';
-import { parseNonNegativeInt, parsePositiveInt, scaleEntryToGrams } from './entry-edits';
+import { scaleEntryToGrams } from './entry-edits';
 
 const oats: FoodLogEntry = {
   id: 'entry-1',
@@ -46,15 +46,4 @@ describe('entry edits', () => {
     expect(scaleEntryToGrams({ ...oats, grams: 0 }, 50)).toBeNull();
   });
 
-  it('parses positive whole numbers from text fields', () => {
-    expect(parsePositiveInt(' 35 ')).toBe(35);
-    expect(parsePositiveInt('12.6')).toBe(13);
-    expect(parsePositiveInt('0')).toBeNull();
-    expect(parsePositiveInt('abc')).toBeNull();
-    expect(parsePositiveInt('0.4')).toBeNull();
-    expect(parsePositiveInt('')).toBeNull();
-    expect(parseNonNegativeInt('0')).toBe(0);
-    expect(parseNonNegativeInt('-1')).toBeNull();
-    expect(parseNonNegativeInt('')).toBeNull();
-  });
 });

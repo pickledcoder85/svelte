@@ -27,23 +27,3 @@ export function scaleEntryToGrams(entry: FoodLogEntry, grams: number): FoodLogEn
     fat: round3(entry.macros.fat * factor)
   };
 }
-
-/** Parses a whole number > 0 from a text field (checked after rounding), or null. */
-export function parsePositiveInt(value: string): number | null {
-  const parsed = parseWholeNumber(value);
-  return parsed !== null && parsed > 0 ? parsed : null;
-}
-
-/** Parses a whole number >= 0 from a text field (for calories, which may be 0), or null. */
-export function parseNonNegativeInt(value: string): number | null {
-  const parsed = parseWholeNumber(value);
-  return parsed !== null && parsed >= 0 ? parsed : null;
-}
-
-function parseWholeNumber(value: string): number | null {
-  if (value.trim() === '') {
-    return null;
-  }
-  const parsed = Number(value.trim());
-  return Number.isFinite(parsed) ? Math.round(parsed) : null;
-}
