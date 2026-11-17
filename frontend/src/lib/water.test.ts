@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import type { WaterEntry } from '../types';
 import { glasses, volumeLabel, waterByDay, waterDays, waterForDay, waterSummary } from './water';
 
 const drink = (id: string, day: string, ml: number): WaterEntry => ({ id, logged_on: day, amount_ml: ml, created_at: `${day}T10:00:00Z` });
 
+const en = translatorFor('en');
+const es = translatorFor('es');
+
 describe('water', () => {
   it('counts glasses and volume', () => {
     expect(glasses(1250)).toBe(5);
-    expect(volumeLabel(1250, true)).toBe('1.25 L');
-    expect(volumeLabel(2000, false)).toBe('68 oz');
-    expect(waterSummary(1250, 2000, true)).toBe('5 of 8 glasses · 1.25 L');
-    expect(waterSummary(375, 2000, false)).toBe('1.5 of 8 glasses · 13 oz');
+    expect(volumeLabel(1250, true, en)).toBe('1.25 L');
+    expect(volumeLabel(2000, false, en)).toBe('68 oz');
+    expect(waterSummary(1250, 2000, true, en)).toBe('5 of 8 glasses · 1.25 L');
+    expect(waterSummary(375, 2000, false, en)).toBe('1.5 of 8 glasses · 13 oz');
+    expect(waterSummary(1250, 2000, true, es)).toBe('5 de 8 vasos · 1,25 L');
+    expect(waterSummary(375, 2000, false, es)).toBe('1,5 de 8 vasos · 13 oz');
   });
 
   it('adds up each day', () => {

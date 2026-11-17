@@ -5,11 +5,13 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { tc } from '../theme/palette';
 
 export type SheetAction = { id: string; label: string; detail?: string; icon?: string; onPress(): void };
 
 export function ActionSheet({ title, actions, onClose }: { title?: string; actions: SheetAction[]; onClose(): void }) {
+  const t = useT();
   const progress = useRef(new Animated.Value(1)).current;
   const closing = useRef(false);
 
@@ -35,7 +37,7 @@ export function ActionSheet({ title, actions, onClose }: { title?: string; actio
     <Modal visible transparent animationType="none" onRequestClose={() => close()}>
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={styles.fill} onPress={() => close()} accessibilityLabel="Close" />
+          <Pressable style={styles.fill} onPress={() => close()} accessibilityLabel={t('common.close')} />
         </Animated.View>
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]} accessibilityViewIsModal>
           <View style={styles.handle} />

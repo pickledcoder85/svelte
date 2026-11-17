@@ -8,9 +8,11 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { deleteMealPlanSlot, logFood, suggestMeal } from '../lib/api';
+import { addedToDayLabel } from '../lib/meal-slots';
 import { pickPhotoFromCamera, prepareScanPhoto } from '../lib/web-photo';
-import { BLOCK_LABELS, type MealBlockKey } from '../lib/meal-split';
+import { MEAL_PATTERNS, type MealBlockKey } from '../lib/meal-split';
 import { tc } from '../theme/palette';
 import type { SuggestedMeal, SuggestResponse } from '../types';
 import { countLabel, ingredientLine } from '../lib/portions';
@@ -33,7 +35,11 @@ export function SuggestMealSheet({
   onLogged(): void;
   onClose(): void;
 }) {
+  const t = useT();
   const [block, setBlock] = useState<MealBlockKey>(defaultBlock);
+  // The block's name in the display language (the server's label when it is a block we don't know).
+  const blockLabel = (key: string, fallback: string) =>
+    MEAL_PATTERNS[5].includes(key as MealBlockKey) ? t(`meals.blocks.${key as MealBlockKey}`) : fallback;
   const [have, setHave] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SuggestResponse | null>(null);
@@ -65,7 +71,7 @@ export function SuggestMealSheet({
       }
     } catch (askError) {
       if (id === requestId.current) {
-        setError(askError instanceof Error ? askError.message : 'Gus is stuck. Try again.');
+        setError(askError instanceof Error ? askError.message : t('suggest.stuck'));
       }
     } finally {
       if (id === requestId.current) {
@@ -109,10 +115,10 @@ export function SuggestMealSheet({
     } catch (logError) {
       setError(
         logged.size > 0
-          ? `Some of it was added; tap Log it again to add the rest. (${logError instanceof Error ? logError.message : 'error'})`
+          ? t('suggest.partial', { message: logError instanceof Error ? logError.message : t('suggest.errorWord') })
           : logError instanceof Error
             ? logError.message
-            : 'Unable to log this meal.'
+            : t('suggest.logError')
       );
     } finally {
       if (logged.size > 0) {
@@ -137,7 +143,7 @@ export function SuggestMealSheet({
     } catch (photoError) {
       if (id === requestId.current) {
         setLoading(false);
-        setError(photoError instanceof Error ? photoError.message : 'That photo could not be used.');
+        setError(photoError instanceof Error ? photoError.message : t('suggest.photoError'));
       }
     }
   }
@@ -145,12 +151,12 @@ export function SuggestMealSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>✨ Gus suggests</Text>
-            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Which meal">
+            <Text style={styles.title}>{t('suggest.title')}</Text>
+            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('suggest.whichMeal')}>
               {blocks.map((key) => (
                 <Pressable
                   key={key}
@@ -159,7 +165,7 @@ export function SuggestMealSheet({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: key === block }}
                 >
-                  <Text style={[styles.chipLabel, key === block && styles.chipLabelActive]}>{BLOCK_LABELS[key]}</Text>
+                  <Text style={[styles.chipLabel, key === block && styles.chipLabelActive]}>{t(`meals.blocks.${key}`)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -167,24 +173,24 @@ export function SuggestMealSheet({
               style={styles.input}
               value={have}
               onChangeText={setHave}
-              placeholder="Anything you'd like to use? (optional) e.g. chicken, rice"
+              placeholder={t('suggest.havePlaceholder')}
               placeholderTextColor={tc.fg_8a97a8}
               maxLength={300}
-              accessibilityLabel="Ingredients you have"
+              accessibilityLabel={t('suggest.haveA11y')}
             />
             <View style={styles.modes}>
               <Pressable style={[styles.mode, loading && styles.disabled]} onPress={() => void askWithPhoto()} disabled={loading} accessibilityRole="button">
                 <Text style={styles.modeIcon}>📷</Text>
-                <Text style={styles.modeTitle}>Photo of my ingredients</Text>
-                <Text style={styles.modeDetail}>Fridge, counter, or pantry</Text>
+                <Text style={styles.modeTitle}>{t('suggest.photo')}</Text>
+                <Text style={styles.modeDetail}>{t('suggest.photoDetail')}</Text>
               </Pressable>
               <Pressable style={[styles.mode, styles.modePrimary, loading && styles.disabled]} onPress={() => void ask()} disabled={loading} accessibilityRole="button">
                 <Text style={styles.modeIcon}>✨</Text>
-                <Text style={[styles.modeTitle, styles.modeTitlePrimary]}>Let Gus choose</Text>
-                <Text style={[styles.modeDetail, styles.modeDetailPrimary]}>From what's left today</Text>
+                <Text style={[styles.modeTitle, styles.modeTitlePrimary]}>{t('suggest.letGusChoose')}</Text>
+                <Text style={[styles.modeDetail, styles.modeDetailPrimary]}>{t('suggest.letGusChooseDetail')}</Text>
               </Pressable>
             </View>
-            {loading ? <Text style={styles.thinking}>Gus is thinking…</Text> : null}
+            {loading ? <Text style={styles.thinking}>{t('suggest.thinking')}</Text> : null}
 
             {loading ? <ActivityIndicator color={tc.brand_primary} /> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -192,12 +198,18 @@ export function SuggestMealSheet({
             {result ? (
               <>
                 <Text style={styles.budget}>
-                  {result.block_label} budget: {Math.round(result.budget.calories)} kcal · P {Math.round(result.budget.protein)} · C{' '}
-                  {Math.round(result.budget.carbs)} · F {Math.round(result.budget.fat)}
-                  {'  '}({Math.round(result.remaining.calories)} kcal left today)
+                  {t('suggest.budget', {
+                    block: blockLabel(result.block, result.block_label),
+                    calories: Math.round(result.budget.calories),
+                    protein: Math.round(result.budget.protein),
+                    carbs: Math.round(result.budget.carbs),
+                    fat: Math.round(result.budget.fat)
+                  })}
+                  {'  '}
+                  {t('suggest.leftToday', { calories: Math.round(result.remaining.calories) })}
                 </Text>
                 {result.seen_items.length > 0 ? (
-                  <Text style={styles.seen}>Gus sees: {result.seen_items.join(', ')}</Text>
+                  <Text style={styles.seen}>{t('suggest.sees', { items: result.seen_items.join(', ') })}</Text>
                 ) : null}
                 {result.message ? <Text style={styles.message}>{result.message}</Text> : null}
                 {result.options.map((meal, index) => (
@@ -209,21 +221,28 @@ export function SuggestMealSheet({
                         <Text style={styles.itemName} numberOfLines={2}>
                           {ingredientLine(item)}
                         </Text>
-                        <Text style={styles.itemKcal}>{Math.round(item.nutrition.calories)} kcal</Text>
+                        <Text style={styles.itemKcal}>{t('common.kcal', { value: Math.round(item.nutrition.calories) })}</Text>
                       </View>
                     ))}
                     <Text style={styles.totals}>
-                      {Math.round(meal.totals.calories)} kcal · P {Math.round(meal.totals.protein)} · C {Math.round(meal.totals.carbs)} · F{' '}
-                      {Math.round(meal.totals.fat)}
+                      {t('common.kcal', { value: Math.round(meal.totals.calories) })} ·{' '}
+                      {t('common.macrosShort', {
+                        protein: Math.round(meal.totals.protein),
+                        carbs: Math.round(meal.totals.carbs),
+                        fat: Math.round(meal.totals.fat)
+                      })}
                     </Text>
                     {meal.missing.length > 0 ? (
-                      <Text style={styles.missing}>Left out (no nutrition data): {meal.missing.join(', ')}</Text>
+                      <Text style={styles.missing}>{t('suggest.leftOut', { items: meal.missing.join(', ') })}</Text>
                     ) : null}
                     {askReplace === index && result.planned_here ? (
                       <View style={styles.replaceBox}>
                         <Text style={styles.replaceText}>
-                          You planned “{result.planned_here.title}” ({Math.round(result.planned_here.calories)} kcal) for{' '}
-                          {result.block_label.toLowerCase()}.
+                          {t('suggest.planned', {
+                            title: result.planned_here.title,
+                            calories: Math.round(result.planned_here.calories),
+                            block: blockLabel(result.block, result.block_label).toLowerCase()
+                          })}
                         </Text>
                         <View style={styles.actions}>
                           <Pressable
@@ -231,16 +250,16 @@ export function SuggestMealSheet({
                             onPress={() => void logIt(index, meal, result.meal_slot, result.planned_here?.slot_id)}
                             accessibilityRole="button"
                           >
-                            <Text style={styles.actionPrimaryLabel}>Replace planned</Text>
+                            <Text style={styles.actionPrimaryLabel}>{t('suggest.replacePlanned')}</Text>
                           </Pressable>
                           <Pressable style={styles.action} onPress={() => void logIt(index, meal, result.meal_slot)} accessibilityRole="button">
-                            <Text style={styles.keepLabel}>Keep planned</Text>
+                            <Text style={styles.keepLabel}>{t('suggest.keepPlanned')}</Text>
                           </Pressable>
                         </View>
                       </View>
                     ) : null}
                     {done[index] ? (
-                      <Text style={styles.done}>✓ Added to {dayName}</Text>
+                      <Text style={styles.done}>{addedToDayLabel(dayName, t)}</Text>
                     ) : (
                       <View style={styles.actions}>
                         <Pressable
@@ -253,7 +272,7 @@ export function SuggestMealSheet({
                           disabled={busy !== null}
                           accessibilityRole="button"
                         >
-                          <Text style={styles.actionPrimaryLabel}>{busy === index ? 'Adding…' : 'Log it'}</Text>
+                          <Text style={styles.actionPrimaryLabel}>{busy === index ? t('common.adding') : t('suggest.logIt')}</Text>
                         </Pressable>
 
                       </View>

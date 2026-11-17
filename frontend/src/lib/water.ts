@@ -2,6 +2,7 @@
  * Water: glasses of 250 ml (a bottle is 500 ml), the day's total against the goal, and a day
  * series for Trends. Litres for metric, fluid ounces for imperial.
  */
+import { formatNumber, type TFunction } from '../i18n/translate';
 import { addDaysToDateKey } from './dates';
 import type { WaterEntry } from '../types';
 
@@ -16,22 +17,28 @@ export function glasses(ml: number): number {
   return Math.round((ml / GLASS_ML) * 10) / 10;
 }
 
-/** "1.25 L" or "42 oz". */
-export function volumeLabel(ml: number, metric: boolean): string {
+/** "1.25 L" or "42 oz" ("1,25 L" in Spanish). */
+export function volumeLabel(ml: number, metric: boolean, t: TFunction): string {
   if (metric) {
-    return `${(Math.round(ml / 10) / 100).toLocaleString('en-US')} L`;
+    return `${formatNumber(Math.round(ml / 10) / 100, undefined, t.locale)} L`;
   }
   return `${Math.round(ml / ML_PER_FL_OZ)} oz`;
 }
 
-function glassCount(ml: number): string {
+function glassCount(ml: number, t: TFunction): string {
   const value = glasses(ml);
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return Number.isInteger(value)
+    ? String(value)
+    : formatNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }, t.locale);
 }
 
 /** "5 of 8 glasses · 1.25 L". */
-export function waterSummary(totalMl: number, goalMl: number, metric: boolean): string {
-  return `${glassCount(totalMl)} of ${glassCount(goalMl)} glasses · ${volumeLabel(totalMl, metric)}`;
+export function waterSummary(totalMl: number, goalMl: number, metric: boolean, t: TFunction): string {
+  return t('water.summary', {
+    glasses: glassCount(totalMl, t),
+    goal: glassCount(goalMl, t),
+    volume: volumeLabel(totalMl, metric, t)
+  });
 }
 
 /** Millilitres drunk each day. */

@@ -1,6 +1,7 @@
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { formatNumber, useT } from '../i18n';
 import type { MealGroup } from '../lib/meal-slots';
 import type { FoodLogEntry, FoodLogSummary, MealPlanDay, MealPlanSlot } from '../types';
 import { styles } from './shared/styles';
@@ -48,24 +49,25 @@ export function TodayMeals({
   saveHomeFoodEntryEdit,
   removeHomeFoodEntry
 }: TodayMealsProps): ReactElement {
+  const t = useT();
   return (
     <View style={styles.homeSection}>
       <View style={styles.todaySectionHeader}>
-        <Text style={styles.detailTitle}>Meals</Text>
+        <Text style={styles.detailTitle}>{t('meals.title')}</Text>
         <Pressable
           style={styles.todayAddButton}
           onPress={() => setOpenSheet('add-food')}
           disabled={!foodSessionToken}
           accessibilityRole="button"
-          accessibilityLabel="Add a food"
+          accessibilityLabel={t('meals.addFood')}
         >
           <Text style={styles.todayAddButtonLabel}>+</Text>
         </Pressable>
       </View>
       {homeOpenPlannedMeals.length === 0 && homeFoodLog.entries.length === 0 ? (
         <View style={styles.todayEmpty}>
-          <Text style={styles.dailyHomeEmptyState}>Nothing eaten yet.</Text>
-          <Text style={styles.todayHint}>Tap + to search, scan, or add quick calories.</Text>
+          <Text style={styles.dailyHomeEmptyState}>{t('meals.emptyTitle')}</Text>
+          <Text style={styles.todayHint}>{t('meals.emptyHint')}</Text>
         </View>
       ) : null}
       {homeMealPlanDay
@@ -74,27 +76,29 @@ export function TodayMeals({
             return (
               <View key={slot.id} style={styles.todayRow}>
                 <View style={styles.listRowCopyFlex}>
-                  <Text style={styles.todayRowTag}>Planned · {slot.meal_label}</Text>
+                  <Text style={styles.todayRowTag}>{t('meals.planned', { meal: plannedMealLabel(slot.meal_label, t) })}</Text>
                   <Text style={styles.listTitle}>{slot.title}</Text>
-                  <Text style={styles.listCaption}>{slot.calories} kcal</Text>
+                  <Text style={styles.listCaption}>{t('common.kcal', { value: slot.calories })}</Text>
                 </View>
                 <Pressable
                   style={styles.inlinePillButton}
                   onPress={() => void toggleMealPlanMeal(homeMealPlanDay, slot.id, slot.meal_label)}
                   accessibilityRole="button"
-                  accessibilityLabel={`I ate ${slot.title}`}
+                  accessibilityLabel={t('meals.ateItem', { name: slot.title })}
                 >
-                  <Text style={styles.inlinePillButtonLabel}>✓ Ate it</Text>
+                  <Text style={styles.inlinePillButtonLabel}>{t('meals.ateIt')}</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
                   onPress={() => void removeMealPlanSlot(slot.id)}
                   disabled={entryActionBusyKey === deleteKey}
                   accessibilityRole="button"
-                  accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm skipping ${slot.title}` : `Skip ${slot.title}`}
+                  accessibilityLabel={
+                    confirmDeleteKey === deleteKey ? t('common.confirmSkipItem', { name: slot.title }) : t('common.skipItem', { name: slot.title })
+                  }
                 >
                   <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                    {confirmDeleteKey === deleteKey ? 'Skip?' : '✕'}
+                    {confirmDeleteKey === deleteKey ? t('common.skipConfirm') : '✕'}
                   </Text>
                 </Pressable>
               </View>
@@ -106,7 +110,7 @@ export function TodayMeals({
         <View key={group.slot} style={styles.todayMealGroup}>
           <View style={styles.todayMealGroupHeader}>
             <Text style={styles.todayMealGroupLabel}>{group.label}</Text>
-            <Text style={styles.todayMealGroupCalories}>{group.calories.toLocaleString('en-US')} kcal</Text>
+            <Text style={styles.todayMealGroupCalories}>{t('common.kcal', { value: formatNumber(group.calories, undefined, t.locale) })}</Text>
           </View>
           {group.entries.map((entry) => {
             const deleteKey = `food:${entry.id}`;
@@ -123,7 +127,7 @@ export function TodayMeals({
                         keyboardType="decimal-pad"
                         inputMode="decimal"
                         autoFocus
-                        accessibilityLabel={`Amount of ${entry.food_name} in grams`}
+                        accessibilityLabel={t('meals.amountInGrams', { name: entry.food_name })}
                       />
                       <Text style={styles.listCaption}>g</Text>
                       <Pressable
@@ -132,10 +136,10 @@ export function TodayMeals({
                         onPress={() => void saveHomeFoodEntryEdit(entry)}
                         accessibilityRole="button"
                       >
-                        <Text style={styles.inlinePillButtonLabel}>{entryActionBusyKey === deleteKey ? 'Saving…' : 'Save'}</Text>
+                        <Text style={styles.inlinePillButtonLabel}>{entryActionBusyKey === deleteKey ? t('common.saving') : t('common.save')}</Text>
                       </Pressable>
                       <Pressable style={styles.inlinePillButton} onPress={() => setEditingFoodEntryId(null)} accessibilityRole="button">
-                        <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
+                        <Text style={styles.inlinePillButtonLabel}>{t('common.cancel')}</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -151,24 +155,35 @@ export function TodayMeals({
                       }
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={`${entry.food_name}${entry.grams > 0 ? `, ${Math.round(entry.grams)} g. Tap to change the amount` : ''}`}
+                    accessibilityLabel={
+                      entry.grams > 0 ? t('meals.editAmount', { name: entry.food_name, grams: Math.round(entry.grams) }) : entry.food_name
+                    }
                   >
                     <Text style={styles.listTitle}>{entry.food_name}</Text>
                     <Text style={styles.listCaption}>
-                      {entry.quantity_label ? `${entry.quantity_label} · ` : entry.grams > 0 ? `${Math.round(entry.grams)} g · ` : ''}P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
+                      {entry.quantity_label ? `${entry.quantity_label} · ` : entry.grams > 0 ? `${Math.round(entry.grams)} g · ` : ''}
+                      {t('common.macrosGrams', {
+                        protein: Math.round(entry.macros.protein),
+                        carbs: Math.round(entry.macros.carbs),
+                        fat: Math.round(entry.macros.fat)
+                      })}
                     </Text>
                   </Pressable>
                 )}
-                <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
+                <Text style={styles.listMetric}>{t('common.kcal', { value: Math.round(entry.calories) })}</Text>
                 <Pressable
                   style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
                   onPress={() => void removeHomeFoodEntry(entry)}
                   disabled={entryActionBusyKey === deleteKey}
                   accessibilityRole="button"
-                  accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.food_name}` : `Delete ${entry.food_name}`}
+                  accessibilityLabel={
+                    confirmDeleteKey === deleteKey
+                      ? t('common.confirmDeleteItem', { name: entry.food_name })
+                      : t('common.deleteItem', { name: entry.food_name })
+                  }
                 >
                   <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                    {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
+                    {confirmDeleteKey === deleteKey ? t('common.deleteConfirm') : '✕'}
                   </Text>
                 </Pressable>
               </View>
@@ -178,4 +193,10 @@ export function TodayMeals({
       ))}
     </View>
   );
+}
+
+/** A planned meal's label in the app's language ("Breakfast" is stored in English). */
+function plannedMealLabel(label: string, t: ReturnType<typeof useT>): string {
+  const key = label.trim().toLowerCase();
+  return key === 'breakfast' || key === 'lunch' || key === 'dinner' || key === 'snack' ? t(`meals.slots.${key}`) : label;
 }

@@ -1,15 +1,14 @@
 /** Breakfast, lunch, dinner, snack: which meal a logged food belongs to. */
+import type { TFunction } from '../i18n/translate';
 import type { FoodLogEntry } from '../types';
 
 export const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
-export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  snack: 'Snack'
-};
+/** "Breakfast", "Desayuno": the display label only; the stored value stays the slot key. */
+export function mealSlotLabel(slot: MealSlot | 'other', t: TFunction): string {
+  return t(`meals.slots.${slot}`);
+}
 
 /** The meal for a time of day: before 10:30 breakfast, before 2:30 lunch, before 5 snack, then dinner. */
 export function defaultMealSlot(now: Date = new Date()): MealSlot {
@@ -34,14 +33,14 @@ export interface MealGroup {
 }
 
 /** The day's food under its meals, in meal order; untagged food last, under "Other". */
-export function groupByMeal(entries: FoodLogEntry[]): MealGroup[] {
+export function groupByMeal(entries: FoodLogEntry[], t: TFunction): MealGroup[] {
   const order: Array<MealSlot | 'other'> = [...MEAL_SLOTS, 'other'];
   return order
     .map((slot) => {
       const items = entries.filter((entry) => (entry.meal_slot ?? 'other') === slot);
       return {
         slot,
-        label: slot === 'other' ? 'Other' : MEAL_SLOT_LABELS[slot],
+        label: mealSlotLabel(slot, t),
         entries: items,
         calories: Math.round(items.reduce((sum, entry) => sum + entry.calories, 0))
       };
@@ -49,8 +48,23 @@ export function groupByMeal(entries: FoodLogEntry[]): MealGroup[] {
     .filter((group) => group.entries.length > 0);
 }
 
-/** "Add to today's dinner", "Add to Tuesday's lunch". */
-export function addButtonLabel(dayName: string, slot: MealSlot): string {
-  const day = dayName === 'today' ? "today's" : `${dayName}'s`;
-  return `Add to ${day} ${MEAL_SLOT_LABELS[slot].toLowerCase()}`;
+/**
+ * "Add to today's dinner", "Add to Tuesday's lunch" (or, with `all`, "Add all to …"). `dayName`
+ * is "today" or the day's name in the display language.
+ */
+export function addButtonLabel(dayName: string, slot: MealSlot, t: TFunction, all = false): string {
+  if (dayName === 'today') {
+    return t(all ? `meals.addAllToToday.${slot}` : `meals.addToToday.${slot}`);
+  }
+  return t(all ? `meals.addAllToDay.${slot}` : `meals.addToDay.${slot}`, { day: dayName });
+}
+
+/** "Add to today", "Add to Tuesday". */
+export function addToDayLabel(dayName: string, t: TFunction): string {
+  return dayName === 'today' ? t('day.addToToday') : t('day.addToDay', { day: dayName });
+}
+
+/** "✓ Added to today", "✓ Added to Tuesday". */
+export function addedToDayLabel(dayName: string, t: TFunction): string {
+  return dayName === 'today' ? t('day.addedToToday') : t('day.addedToDay', { day: dayName });
 }

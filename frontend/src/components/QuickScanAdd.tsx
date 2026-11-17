@@ -13,6 +13,7 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import {
   acceptIngestionOutput,
   fetchIngestionOutput,
@@ -61,6 +62,7 @@ export function QuickScanAdd({
   onSearch?(): void;
   onQuickCalories?(): void;
 }) {
+  const t = useT();
   const [phase, setPhase] = useState<Phase>({ kind: 'scanning' });
   // Remounts the viewfinder (restarting the live camera), e.g. after the photo camera was cancelled.
   const [scannerKey, setScannerKey] = useState(0);
@@ -69,7 +71,7 @@ export function QuickScanAdd({
 
   async function lookUpBarcode(code: string) {
     missingBarcode.current = null;
-    setPhase({ kind: 'looking', text: 'Looking up the barcode…' });
+    setPhase({ kind: 'looking', text: t('scan.lookingUpBarcode') });
     try {
       const result = await foodForBarcode(code, accessToken);
       if (result.found && result.foods.length > 0) {
@@ -78,22 +80,22 @@ export function QuickScanAdd({
         missingBarcode.current = code;
         setPhase({
           kind: 'missing',
-          message: result.message ?? "We couldn't find this product's nutrition. Scan the nutrition label: it'll be saved with the barcode for next time.",
+          message: result.message ?? t('scan.barcodeNotFound'),
           barcode: code
         });
       }
     } catch (error) {
-      setPhase({ kind: 'missing', message: error instanceof Error ? error.message : 'Barcode lookup failed.' });
+      setPhase({ kind: 'missing', message: error instanceof Error ? error.message : t('scan.barcodeFailed') });
     }
   }
 
   async function read(image: Blob, labelFor?: string) {
-    setPhase({ kind: 'looking', text: 'Reading…' });
+    setPhase({ kind: 'looking', text: t('scan.reading') });
     try {
       const prepared = await prepareScanPhoto(image);
       await showResult(await smartScan(prepared.base64, accessToken, labelFor ?? null, missingBarcode.current), labelFor);
     } catch (error) {
-      setPhase({ kind: 'missing', message: error instanceof Error ? error.message : 'Scan failed.', packageOutputId: labelFor });
+      setPhase({ kind: 'missing', message: error instanceof Error ? error.message : t('scan.failed'), packageOutputId: labelFor });
     }
   }
 
@@ -103,7 +105,7 @@ export function QuickScanAdd({
       return;
     }
     if (result.kind === 'unreadable' || !result.output_id) {
-      setPhase({ kind: 'missing', message: result.message ?? "Couldn't read that.", packageOutputId: labelFor });
+      setPhase({ kind: 'missing', message: result.message ?? t('scan.unreadable'), packageOutputId: labelFor });
       return;
     }
     if (result.kind === 'package_front') {
@@ -114,7 +116,7 @@ export function QuickScanAdd({
     if (!preview) {
       setPhase({
         kind: 'missing',
-        message: "Couldn't read the numbers. Hold the label a little closer and try again.",
+        message: t('scan.numbersUnreadable'),
         packageOutputId: labelFor
       });
       return;
@@ -124,7 +126,7 @@ export function QuickScanAdd({
       foods: [preview],
       fromBank: false,
       pending: { outputId: result.output_id, structuredJson: result.label, kind: 'nutrition_label' },
-      note: preview.name === 'Scanned food' ? "The label doesn't show the product's name: you can rename it in Foods." : null
+      note: preview.name === 'Scanned food' ? t('scan.noName') : null
     });
   }
 
@@ -134,10 +136,10 @@ export function QuickScanAdd({
     const info = matchInfo(output.structured_json);
     const preview = previewFoodFromScan(output.structured_json);
     if (info.kind !== 'match' || !preview) {
-      const name = buildNutritionDraft(output.structured_json).product_name || 'this product';
+      const name = buildNutritionDraft(output.structured_json).product_name || t('scan.thisProduct');
       setPhase({
         kind: 'missing',
-        message: `No nutrition found for ${name}. Scan its nutrition label for the numbers.`,
+        message: t('scan.noNutrition', { name }),
         packageOutputId: outputId
       });
       return;
@@ -160,7 +162,7 @@ export function QuickScanAdd({
     const saved = await saveFoodFromIngestionOutput(pending.outputId, accessToken);
     const [food] = saved.saved_foods;
     if (!food) {
-      throw new Error("The food couldn't be saved.");
+      throw new Error(t('scan.notSaved'));
     }
     return food;
   }
@@ -186,8 +188,8 @@ export function QuickScanAdd({
           phase.labelFor
             ? undefined
             : [
-                ...(onSearch ? [{ label: '🔎 Search', onPress: onSearch }] : []),
-                ...(onQuickCalories ? [{ label: '✏️ Quick calories', onPress: onQuickCalories }] : [])
+                ...(onSearch ? [{ label: t('scan.searchAction'), onPress: onSearch }] : []),
+                ...(onQuickCalories ? [{ label: t('scan.quickCaloriesAction'), onPress: onQuickCalories }] : [])
               ]
         }
         onCode={(code) => void lookUpBarcode(code)}
@@ -225,7 +227,7 @@ export function QuickScanAdd({
         prepare={pending ? () => savePending(pending) : undefined}
         extraAction={
           pending?.kind === 'package_front'
-            ? { label: 'Scan the nutrition label for exact numbers', onPress: () => setPhase({ kind: 'scanning', labelFor: pending.outputId }) }
+            ? { label: t('scan.scanLabelForExact'), onPress: () => setPhase({ kind: 'scanning', labelFor: pending.outputId }) }
             : undefined
         }
         onAdded={onAdded}
@@ -239,7 +241,7 @@ export function QuickScanAdd({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <View style={styles.body}>
@@ -250,20 +252,20 @@ export function QuickScanAdd({
               </View>
             ) : (
               <>
-                <Text style={styles.title}>{phase.packageOutputId || phase.barcode ? 'Scan the label' : 'Not found'}</Text>
+                <Text style={styles.title}>{phase.packageOutputId || phase.barcode ? t('scan.scanTheLabel') : t('scan.notFound')}</Text>
                 <Text style={styles.muted}>{phase.message}</Text>
                 <Pressable
                   style={styles.primary}
                   onPress={() => setPhase({ kind: 'scanning', labelFor: phase.packageOutputId, labelOnly: Boolean(phase.barcode) })}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.primaryLabel}>{phase.packageOutputId || phase.barcode ? 'Scan the nutrition label' : 'Scan again'}</Text>
+                  <Text style={styles.primaryLabel}>{phase.packageOutputId || phase.barcode ? t('scan.scanNutritionLabel') : t('common.scanAgain')}</Text>
                 </Pressable>
                 <Pressable style={styles.secondary} onPress={() => void takeFullPhoto(phase.packageOutputId)} accessibilityRole="button">
-                  <Text style={styles.secondaryLabel}>Take a full photo</Text>
+                  <Text style={styles.secondaryLabel}>{t('common.takeFullPhoto')}</Text>
                 </Pressable>
                 <Pressable style={styles.secondary} onPress={onClose} accessibilityRole="button">
-                  <Text style={styles.secondaryLabel}>Cancel</Text>
+                  <Text style={styles.secondaryLabel}>{t('common.cancel')}</Text>
                 </Pressable>
               </>
             )}

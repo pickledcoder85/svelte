@@ -1,4 +1,14 @@
 import { startAppearance, useAppearance } from './src/theme/appearance';
+import {
+  formatDate,
+  formatNumber,
+  LanguageProvider,
+  parseLanguage,
+  useLanguage,
+  useT,
+  type Language,
+  type TranslationKey
+} from './src/i18n';
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
@@ -248,8 +258,28 @@ if (Platform.OS === 'web') {
   startAppearance();
 }
 
+/** Sub-tab labels (Plan, Food bank) by section; app-shell keeps the English ones for its tests. */
+const SECTION_LABEL_KEYS: Partial<Record<AppSection, TranslationKey>> = {
+  'meal-plan': 'nav.sections.mealPlan',
+  'workout-plan': 'nav.sections.workoutPlan',
+  foods: 'nav.sections.foods',
+  recipes: 'nav.sections.recipes',
+  meals: 'nav.sections.buildMeal',
+  ingestion: 'nav.sections.recentScans'
+};
+
 export default function App(): ReactElement {
+  return (
+    <LanguageProvider>
+      <RelishApp />
+    </LanguageProvider>
+  );
+}
+
+function RelishApp(): ReactElement {
   const appearance = useAppearance();
+  const t = useT();
+  const { language, setLanguage } = useLanguage();
   const [ribeyeLoaded, ribeyeError] = useRibeyeFonts({
     Ribeye_400Regular
   });
@@ -311,6 +341,13 @@ export default function App(): ReactElement {
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  // The profile's language once loaded (the device's until then).
+  const profileLanguage = parseLanguage(profile?.language);
+  useEffect(() => {
+    if (profileLanguage) {
+      setLanguage(profileLanguage);
+    }
+  }, [profileLanguage, setLanguage]);
   const [profileGoals, setProfileGoals] = useState<UserGoal[]>([]);
   const [profileTone, setProfileTone] = useState<'checking' | 'live'>('checking');
   const [profileStatus, setProfileStatus] = useState('Loading profile settings');
@@ -1670,11 +1707,10 @@ export default function App(): ReactElement {
       }),
     [homeCompletedExerciseEntries, homeFoodLog, latestProfileGoal, profile]
   );
+  // "today", or the weekday in the display language (the sheets' Add buttons read it).
   const homeDayName =
-    selectedHomeDate === todayKey
-      ? 'today'
-      : new Date(`${selectedHomeDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
-  const homeMealGroups = useMemo(() => groupByMeal(homeFoodLog.entries), [homeFoodLog.entries]);
+    selectedHomeDate === todayKey ? 'today' : formatDate(new Date(`${selectedHomeDate}T00:00:00`), { weekday: 'long' }, t.locale);
+  const homeMealGroups = useMemo(() => groupByMeal(homeFoodLog.entries, t), [homeFoodLog.entries, t]);
   const trendStart = rangeStart(todayKey, trendRange);
   const trendUnit = profile?.units === 'metric' ? 'kg' : 'lb';
   const trendDays = useMemo(
@@ -1796,9 +1832,10 @@ export default function App(): ReactElement {
         sharePercent: profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE,
         bmrCalories: profile?.bmr_calories,
         maintenanceCalories: profile?.tdee_calories,
-        workouts: homeCompletedExerciseEntries
+        workouts: homeCompletedExerciseEntries,
+        t
       }),
-    [dailyHomeTargets, homeCompletedExerciseEntries, profile]
+    [dailyHomeTargets, homeCompletedExerciseEntries, profile, t]
   );
   const homeConsumedMacros = homeFoodLog.totals.macros;
   const filteredRecipeCatalog = useMemo(
@@ -1929,7 +1966,7 @@ export default function App(): ReactElement {
       await logFood({ food_id: food.id, log_date: localDateKey(), servings: quantity }, foodSessionToken);
       setFoodLog(await fetchTodaysFoodLog(foodSessionToken));
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to add food log entry.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.add'));
     } finally {
       setIsSavingLogEntry(false);
     }
@@ -2029,11 +2066,11 @@ export default function App(): ReactElement {
     const grams = Number(editingFoodGramsDraft);
     const payload = scaleEntryToGrams(entry, grams);
     if (!foodSessionToken || !foodLog.log_id) {
-      setFoodLogError('Sign in again to edit this entry.');
+      setFoodLogError(t('today.errors.signInToEdit'));
       return;
     }
     if (!payload) {
-      setFoodLogError('Enter an amount in grams greater than 0.');
+      setFoodLogError(t('today.errors.gramsAboveZero'));
       return;
     }
     const key = `food:${entry.id}`;
@@ -2044,7 +2081,7 @@ export default function App(): ReactElement {
       setFoodLog(updated);
       setEditingFoodEntryId(null);
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to update this entry.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.update'));
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
@@ -2069,7 +2106,7 @@ export default function App(): ReactElement {
         unmarkMealPlanSlot(entry.meal_plan_slot_id);
       }
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to delete this entry.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.delete'));
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
@@ -2126,14 +2163,15 @@ export default function App(): ReactElement {
       return;
     }
     const units = profile?.units === 'metric' ? 'metric' : 'imperial';
-    const shown = units === 'metric' ? `${Math.round(weightLbs * 0.45359237 * 10) / 10} kg` : `${weightLbs} lb`;
+    const value = units === 'metric' ? Math.round(weightLbs * 0.45359237 * 10) / 10 : weightLbs;
+    const shown = `${formatNumber(value, { maximumFractionDigits: 1, useGrouping: false }, t.locale)} ${units === 'metric' ? 'kg' : 'lb'}`;
     try {
       await createWeightEntry({ recorded_at: todayKey, weight_lbs: weightLbs }, token);
       const [, weights] = await Promise.all([fetchProfileProgress(token), fetchWeightEntries(token)]);
       setWeightEntries(weights);
-      setToast(`Saved ${shown} for today`);
+      setToast(t('weighIn.saved', { weight: shown }));
     } catch (error) {
-      setToast(error instanceof Error ? `Couldn't save: ${error.message}` : "Couldn't save the weigh-in");
+      setToast(error instanceof Error ? t('weighIn.saveFailed', { message: error.message }) : t('weighIn.saveFailedGeneric'));
     }
     setTimeout(() => setToast(null), 3000);
   }
@@ -2184,11 +2222,11 @@ export default function App(): ReactElement {
     }
     const payload = scaleEntryToGrams(entry, Number(editingFoodGramsDraft));
     if (!foodSessionToken || !homeFoodLog.log_id) {
-      setFoodLogError('Sign in again to edit this entry.');
+      setFoodLogError(t('today.errors.signInToEdit'));
       return;
     }
     if (!payload) {
-      setFoodLogError('Enter an amount in grams greater than 0.');
+      setFoodLogError(t('today.errors.gramsAboveZero'));
       return;
     }
     const key = `food:${entry.id}`;
@@ -2198,7 +2236,7 @@ export default function App(): ReactElement {
       setHomeFoodLog(await updateFoodLogEntry(homeFoodLog.log_id, entry.id, payload, foodSessionToken));
       setEditingFoodEntryId(null);
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to update this entry.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.update'));
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
@@ -2225,7 +2263,7 @@ export default function App(): ReactElement {
         unmarkMealPlanSlot(entry.meal_plan_slot_id);
       }
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to delete this entry.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.delete'));
     } finally {
       setEntryActionBusyKey((current) => (current === key ? null : current));
     }
@@ -2614,6 +2652,34 @@ export default function App(): ReactElement {
     }
   }
 
+  /** Settings > Language: switches at once, saves to the profile, and switches back if saving fails. */
+  async function applyLanguage(next: Language) {
+    if (next === language || settingsSaving) {
+      return;
+    }
+    if (!profile || !foodSessionToken) {
+      setLanguage(next); // preview mode: switch for this session only
+      return;
+    }
+    const previous = language;
+    setLanguage(next);
+    setSettingsSaving(true);
+    setSettingsError(null);
+    try {
+      setProfile(
+        await updateProfile(
+          { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, language: next },
+          foodSessionToken
+        )
+      );
+    } catch (error) {
+      setLanguage(previous);
+      setSettingsError(error instanceof Error ? error.message : t('settings.language.error'));
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
   /** Today: log a drink on the day shown. */
   async function addHomeWater(ml: number) {
     if (!foodSessionToken || waterBusy) {
@@ -2624,7 +2690,7 @@ export default function App(): ReactElement {
       const entry = await addWater(selectedHomeDate, ml, foodSessionToken);
       setWaterEntries((current) => [...current, entry]);
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to log water.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.logWater'));
     } finally {
       setWaterBusy(false);
     }
@@ -2641,7 +2707,7 @@ export default function App(): ReactElement {
       await deleteWater(last.id, foodSessionToken);
       setWaterEntries((current) => current.filter((entry) => entry.id !== last.id));
     } catch (error) {
-      setFoodLogError(error instanceof Error ? error.message : 'Unable to undo.');
+      setFoodLogError(error instanceof Error ? error.message : t('today.errors.undo'));
     } finally {
       setWaterBusy(false);
     }
@@ -3432,7 +3498,7 @@ export default function App(): ReactElement {
               <Pressable
                 style={styles.avatarButton}
                 onPress={() => setOpenSheet('account')}
-                accessibilityLabel="Account: profile and settings"
+                accessibilityLabel={t('nav.account')}
               >
                 <View style={styles.avatarBadge}>
                   <Image source={mascotAvatarImage} style={styles.avatarImage} resizeMode="cover" />
@@ -3442,7 +3508,14 @@ export default function App(): ReactElement {
           </View>
 
           {subTabsForSection(section).length > 0 ? (
-            <SubTabs items={subTabsForSection(section)} active={section} onSelect={handleSectionChange} />
+            <SubTabs
+              items={subTabsForSection(section).map((item) => {
+                const key = SECTION_LABEL_KEYS[item.id];
+                return key ? { ...item, label: t(key) } : item;
+              })}
+              active={section}
+              onSelect={handleSectionChange}
+            />
           ) : null}
         </View>
 
@@ -3655,6 +3728,8 @@ export default function App(): ReactElement {
             profile={profile}
             isOwnerSession={isOwnerSession}
             appearance={appearance}
+            language={language}
+            applyLanguage={applyLanguage}
             profileUnitsDraft={profileUnitsDraft}
             setProfileUnitsDraft={setProfileUnitsDraft}
             profileTimezoneDraft={profileTimezoneDraft}
@@ -3770,7 +3845,7 @@ export default function App(): ReactElement {
         const entry = workoutDetailId ? exerciseEntries.find((item) => item.id === workoutDetailId) : undefined;
         return entry ? (
           <WorkoutDetailSheet
-            detail={buildWorkoutDetail(entry, profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE, profile?.units === 'metric')}
+            detail={buildWorkoutDetail(entry, profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE, profile?.units === 'metric', t)}
             onClose={() => setWorkoutDetailId(null)}
           />
         ) : null;
@@ -3778,9 +3853,9 @@ export default function App(): ReactElement {
 
       {weighInOpen ? (
         <PickerSheet
-          title="Weigh in · today"
-          note={weighInSummary(weightEntries, profile?.units === 'metric' ? 'metric' : 'imperial', todayKey)}
-          columns={weighInColumns(profile?.units === 'metric' ? 'metric' : 'imperial')}
+          title={t('weighIn.title')}
+          note={weighInSummary(weightEntries, profile?.units === 'metric' ? 'metric' : 'imperial', todayKey, t)}
+          columns={weighInColumns(profile?.units === 'metric' ? 'metric' : 'imperial', t)}
           initialIndexes={initialWeighInIndexes(
             profile?.units === 'metric' ? 'metric' : 'imperial',
             [...weightEntries].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at)).at(-1)?.weight_lbs ??
@@ -3825,9 +3900,7 @@ export default function App(): ReactElement {
           accessToken={foodSessionToken}
           logDate={suggestDate}
           dayName={
-            suggestDate === todayKey
-              ? 'today'
-              : new Date(`${suggestDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
+            suggestDate === todayKey ? 'today' : formatDate(new Date(`${suggestDate}T00:00:00`), { weekday: 'long' }, t.locale)
           }
           blocks={['breakfast', 'lunch', 'dinner']}
           defaultBlock={defaultSuggestBlock()}
@@ -3915,33 +3988,33 @@ export default function App(): ReactElement {
 
       {openSheet === 'add-food' ? (
         <ActionSheet
-          title={selectedHomeDate === todayKey ? 'Add food to today' : 'Add food'}
+          title={selectedHomeDate === todayKey ? t('addFood.titleToday') : t('addFood.title')}
           actions={[
             {
               id: 'search',
-              label: 'Search foods',
-              detail: 'Your foods first, then USDA (e.g. "green apple")',
+              label: t('addFood.search'),
+              detail: t('addFood.searchDetail'),
               icon: '🔎',
               onPress: () => setOpenSheet('food-search')
             },
             {
               id: 'scan',
-              label: 'Scan',
-              detail: 'Barcode, package front, or nutrition label',
+              label: t('addFood.scan'),
+              detail: t('addFood.scanDetail'),
               icon: '📷',
               onPress: () => setQuickScanOpen(true)
             },
             {
               id: 'quick-calories',
-              label: 'Quick calories',
-              detail: 'Just a number, no lookup',
+              label: t('addFood.quickCalories'),
+              detail: t('addFood.quickCaloriesDetail'),
               icon: '✏️',
               onPress: () => setOpenSheet('quick-calories')
             },
             {
               id: 'suggest',
-              label: 'Suggest a meal',
-              detail: 'Gus picks a meal that fits what you have left',
+              label: t('addFood.suggest'),
+              detail: t('addFood.suggestDetail'),
               icon: '✨',
               onPress: openSuggest
             }
@@ -3952,30 +4025,48 @@ export default function App(): ReactElement {
 
       {openSheet === 'account' ? (
         <ActionSheet
-          title={profile?.display_name || 'Account'}
+          title={profile?.display_name || t('account.title')}
           actions={[
-            { id: 'profile', label: 'Profile', detail: 'Body, goal, and targets', icon: '🥒', onPress: () => handleSectionChange('profile') },
-            { id: 'food-bank', label: 'Food bank', detail: 'Your foods, recipes, and recent scans', icon: '🥫', onPress: () => handleSectionChange('foods') },
+            {
+              id: 'profile',
+              label: t('account.profile'),
+              detail: t('account.profileDetail'),
+              icon: '🥒',
+              onPress: () => handleSectionChange('profile')
+            },
+            {
+              id: 'food-bank',
+              label: t('account.foodBank'),
+              detail: t('account.foodBankDetail'),
+              icon: '🥫',
+              onPress: () => handleSectionChange('foods')
+            },
             {
               id: 'shopping-lists',
-              label: 'Shopping lists',
-              detail: 'Tick off what you buy',
+              label: t('account.shoppingLists'),
+              detail: t('account.shoppingListsDetail'),
               icon: '🛒',
               onPress: () => {
                 setShoppingListId(null);
                 setOpenSheet('shopping-lists');
               }
             },
-            { id: 'settings', label: 'Settings', detail: 'Appearance, units, nutrition, account', icon: '⚙️', onPress: () => handleSectionChange('settings') },
+            {
+              id: 'settings',
+              label: t('account.settings'),
+              detail: t('account.settingsDetail'),
+              icon: '⚙️',
+              onPress: () => handleSectionChange('settings')
+            },
             // Development sessions only: the owner never sees these.
             ...(isOwnerSession
               ? []
               : entryMode === 'live'
                 ? [
-                    { id: 'preview', label: 'Switch to preview', onPress: enterPreviewMode },
-                    { id: 'logout', label: 'Log out', onPress: logoutToEntryScreen }
+                    { id: 'preview', label: t('account.switchToPreview'), onPress: enterPreviewMode },
+                    { id: 'logout', label: t('account.logOut'), onPress: logoutToEntryScreen }
                   ]
-                : [{ id: 'entry', label: 'Change entry mode', onPress: returnToEntryScreen }])
+                : [{ id: 'entry', label: t('account.changeEntryMode'), onPress: returnToEntryScreen }])
           ]}
           onClose={() => setOpenSheet(null)}
         />

@@ -2,8 +2,9 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { logQuickCalories } from '../lib/api';
-import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, MEAL_SLOT_LABELS, type MealSlot } from '../lib/meal-slots';
+import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, mealSlotLabel, type MealSlot } from '../lib/meal-slots';
 import { tc } from '../theme/palette';
 
 function toNumber(text: string): number {
@@ -24,6 +25,7 @@ export function QuickCaloriesSheet({
   onAdded(): void;
   onClose(): void;
 }) {
+  const t = useT();
   const [calories, setCalories] = useState('');
   const [name, setName] = useState('');
   const [protein, setProtein] = useState('');
@@ -56,7 +58,7 @@ export function QuickCaloriesSheet({
       );
       onAdded();
     } catch (addError) {
-      setError(addError instanceof Error ? addError.message : 'Unable to add.');
+      setError(addError instanceof Error ? addError.message : t('quickCalories.error'));
       setSaving(false);
     }
   }
@@ -71,7 +73,7 @@ export function QuickCaloriesSheet({
           onChangeText={(text) => onChange(text.replace(/[^0-9.,]/g, ''))}
           keyboardType="decimal-pad"
           inputMode="decimal"
-          accessibilityLabel={`${label} in ${unit}`}
+          accessibilityLabel={t('quickCalories.inUnit', { label, unit })}
         />
         <Text style={styles.unit}>{unit}</Text>
       </View>
@@ -81,11 +83,11 @@ export function QuickCaloriesSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>Quick calories</Text>
+            <Text style={styles.title}>{t('quickCalories.title')}</Text>
             <View style={styles.bigRow}>
               <TextInput
                 style={styles.bigInput}
@@ -96,7 +98,7 @@ export function QuickCaloriesSheet({
                 placeholder="0"
                 placeholderTextColor={tc.fg_8a97a8}
                 autoFocus
-                accessibilityLabel="Calories"
+                accessibilityLabel={t('quickCalories.calories')}
               />
               <Text style={styles.bigUnit}>kcal</Text>
             </View>
@@ -104,17 +106,17 @@ export function QuickCaloriesSheet({
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="What was it? (optional)"
+              placeholder={t('quickCalories.namePlaceholder')}
               placeholderTextColor={tc.fg_8a97a8}
               maxLength={80}
-              accessibilityLabel="Name"
+              accessibilityLabel={t('quickCalories.name')}
             />
             <View style={styles.macros}>
-              {field('Protein', protein, setProtein, 'g')}
-              {field('Carbs', carbs, setCarbs, 'g')}
-              {field('Fat', fat, setFat, 'g')}
+              {field(t('macros.protein'), protein, setProtein, 'g')}
+              {field(t('macros.carbs'), carbs, setCarbs, 'g')}
+              {field(t('macros.fat'), fat, setFat, 'g')}
             </View>
-            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Meal">
+            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('meals.mealPicker')}>
               {MEAL_SLOTS.map((slot) => (
                 <Pressable
                   key={slot}
@@ -123,7 +125,7 @@ export function QuickCaloriesSheet({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: slot === mealSlot }}
                 >
-                  <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{MEAL_SLOT_LABELS[slot]}</Text>
+                  <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{mealSlotLabel(slot, t)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -134,10 +136,10 @@ export function QuickCaloriesSheet({
               disabled={!kcal || saving}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryLabel}>{saving ? 'Adding…' : addButtonLabel(dayName, mealSlot)}</Text>
+              <Text style={styles.primaryLabel}>{saving ? t('common.adding') : addButtonLabel(dayName, mealSlot, t)}</Text>
             </Pressable>
             <Pressable style={styles.secondary} onPress={onClose} accessibilityRole="button">
-              <Text style={styles.secondaryLabel}>Cancel</Text>
+              <Text style={styles.secondaryLabel}>{t('common.cancel')}</Text>
             </Pressable>
           </ScrollView>
           <div style={{ height: 'max(12px, env(safe-area-inset-bottom))' }} />

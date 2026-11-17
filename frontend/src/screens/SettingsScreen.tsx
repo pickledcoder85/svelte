@@ -5,6 +5,7 @@ import appConfig from '../../app.json';
 import { ChoiceSheet } from '../components/ChoiceSheet';
 import { FieldGroup } from '../components/FormField';
 import { RemindersSettings } from '../components/RemindersSettings';
+import { useT, type Language } from '../i18n';
 import { deviceTimeZone } from '../lib/body-units';
 import { DEFAULT_WORKOUT_CALORIES_SHARE, WORKOUT_CALORIE_SHARES, type WorkoutCaloriesShare } from '../lib/daily-home';
 import { garminStatusText } from '../lib/garmin';
@@ -23,6 +24,8 @@ export interface SettingsScreenProps {
   profile: UserProfile | null;
   isOwnerSession: boolean;
   appearance: ReturnType<typeof useAppearance>;
+  language: Language;
+  applyLanguage: (language: Language) => Promise<void>;
   profileUnitsDraft: 'imperial' | 'metric';
   setProfileUnitsDraft: Dispatch<SetStateAction<'imperial' | 'metric'>>;
   profileTimezoneDraft: string;
@@ -53,6 +56,8 @@ export function SettingsScreen({
   profile,
   isOwnerSession,
   appearance,
+  language,
+  applyLanguage,
   profileUnitsDraft,
   setProfileUnitsDraft,
   profileTimezoneDraft,
@@ -74,6 +79,7 @@ export function SettingsScreen({
   resetProfile,
   profileResetting
 }: SettingsScreenProps): ReactElement {
+  const t = useT();
   return (
     <>
       <View style={styles.panel}>
@@ -126,6 +132,35 @@ export function SettingsScreen({
               ? `Follows your iPhone (${appearance.scheme === 'dark' ? 'dark' : 'light'} right now). Saved on this device.`
               : 'Saved on this device. Applies right away.'}
           </Text>
+        </FieldGroup>
+        <FieldGroup label={t('settings.language.label')}>
+          <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel={t('settings.language.label')}>
+            {(
+              [
+                { id: 'en' as const, label: t('settings.language.english') },
+                { id: 'es' as const, label: t('settings.language.spanish') }
+              ]
+            ).map((option) => {
+              const active = language === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                  onPress={() => {
+                    if (!active && !settingsSaving) {
+                      void applyLanguage(option.id);
+                    }
+                  }}
+                  disabled={!profile}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active, disabled: !profile }}
+                >
+                  <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.settingsHint}>{t('settings.language.hint')}</Text>
         </FieldGroup>
         <FieldGroup label="Units">
           <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
@@ -241,7 +276,7 @@ export function SettingsScreen({
               })}
             </View>
             <Text style={styles.settingsHint}>
-              {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric')} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric')}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric')}) is a common goal; food and other drinks count toward what you need too.`}
+              {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric', t)} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric', t)}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric', t)}) is a common goal; food and other drinks count toward what you need too.`}
             </Text>
           </FieldGroup>
           <FieldGroup label="Water reminders">

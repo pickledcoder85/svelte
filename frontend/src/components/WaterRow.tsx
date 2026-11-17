@@ -1,6 +1,7 @@
 /** Today's water: "5 of 8 glasses · 1.25 L", a filling bar, ＋ 1 glass (long press: a bottle), and undo. */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { BOTTLE_ML, GLASS_ML, waterSummary } from '../lib/water';
 import { tc } from '../theme/palette';
 
@@ -21,21 +22,23 @@ export function WaterRow({
   onAdd(ml: number): void;
   onUndo(): void;
 }) {
+  const t = useT();
   const share = goalMl > 0 ? Math.min(1, totalMl / goalMl) : 0;
   const reached = goalMl > 0 && totalMl >= goalMl;
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
         <Text style={styles.title}>
-          💧 Water{reached ? ' ✓' : ''}
+          {t('water.title')}
+          {reached ? ' ✓' : ''}
         </Text>
-        <Text style={styles.summary}>{waterSummary(totalMl, goalMl, metric)}</Text>
-        <View style={styles.track} accessibilityLabel={`Water: ${Math.round(share * 100)}% of today's goal`}>
+        <Text style={styles.summary}>{waterSummary(totalMl, goalMl, metric, t)}</Text>
+        <View style={styles.track} accessibilityLabel={t('water.progress', { percent: Math.round(share * 100) })}>
           <View style={[styles.fill, { width: `${Math.round(share * 100)}%` }]} />
         </View>
         {canUndo ? (
-          <Pressable onPress={onUndo} disabled={busy} accessibilityRole="button" accessibilityLabel="Undo the last drink">
-            <Text style={styles.undo}>Undo last</Text>
+          <Pressable onPress={onUndo} disabled={busy} accessibilityRole="button" accessibilityLabel={t('water.undoLastA11y')}>
+            <Text style={styles.undo}>{t('water.undoLast')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -46,19 +49,19 @@ export function WaterRow({
           onLongPress={() => onAdd(BOTTLE_ML)}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel="Add a glass of water"
-          accessibilityHint="Press and hold to add a bottle"
+          accessibilityLabel={t('water.addGlassA11y')}
+          accessibilityHint={t('water.addGlassHint')}
         >
-          <Text style={styles.addLabel}>＋ Glass</Text>
+          <Text style={styles.addLabel}>{t('water.addGlass')}</Text>
         </Pressable>
         <Pressable
           style={[styles.bottle, busy && styles.disabled]}
           onPress={() => onAdd(BOTTLE_ML)}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel="Add a bottle of water"
+          accessibilityLabel={t('water.addBottleA11y')}
         >
-          <Text style={styles.bottleLabel}>＋ Bottle</Text>
+          <Text style={styles.bottleLabel}>{t('water.addBottle')}</Text>
         </Pressable>
       </View>
     </View>

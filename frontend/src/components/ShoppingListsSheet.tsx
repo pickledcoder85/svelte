@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { addShoppingItem, deleteShoppingList, fetchShoppingList, fetchShoppingLists } from '../lib/api';
 import { dropList, flushTicks, onQueueChange, pendingCount as queuedCount, queueTick, withPendingTicks } from '../lib/shopping-queue';
 import { itemsByGroup, progressLabel, remainingCount, shareText } from '../lib/shopping';
@@ -23,6 +24,7 @@ export function ShoppingListsSheet({
   initialListId?: string | null;
   onClose(): void;
 }) {
+  const t = useT();
   const [lists, setLists] = useState<ShoppingListSummary[] | null>(null);
   const [open, setOpen] = useState<ShoppingList | null>(null);
   const [openId, setOpenId] = useState<string | null>(initialListId ?? null);
@@ -41,9 +43,9 @@ export function ShoppingListsSheet({
     try {
       setLists(await fetchShoppingLists(accessToken));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load shopping lists.');
+      setError(loadError instanceof Error ? loadError.message : t('shopping.errors.load'));
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   useEffect(() => {
     void loadLists();
@@ -65,12 +67,14 @@ export function ShoppingListsSheet({
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to open the list.');
+          setError(loadError instanceof Error ? loadError.message : t('shopping.errors.open'));
         }
       });
     return () => {
       cancelled = true;
     };
+    // t only labels a failure; a language switch needn't reload the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, accessToken]);
 
   async function toggle(itemId: string) {
@@ -102,7 +106,7 @@ export function ShoppingListsSheet({
       setDraft('');
       setAskDelete(false);
     } catch (addError) {
-      setError(addError instanceof Error ? addError.message : 'Unable to add the item.');
+      setError(addError instanceof Error ? addError.message : t('shopping.errors.add'));
     } finally {
       setAdding(false);
     }
@@ -118,10 +122,10 @@ export function ShoppingListsSheet({
       if (openId === listId) {
         setOpenId(null);
       }
-      setNotice('List deleted.');
+      setNotice(t('shopping.deleted'));
       await loadLists();
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete the list.');
+      setError(deleteError instanceof Error ? deleteError.message : t('shopping.errors.delete'));
     }
   }
 
@@ -129,11 +133,11 @@ export function ShoppingListsSheet({
     if (!open) {
       return;
     }
-    const text = shareText(open);
+    const text = shareText(open, t);
     if (typeof navigator !== 'undefined' && navigator.share) {
       void navigator.share({ title: open.title, text }).catch(() => undefined);
     } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(text).then(() => setNotice('Copied.'));
+      void navigator.clipboard.writeText(text).then(() => setNotice(t('shopping.copied')));
     }
   }
 
@@ -149,7 +153,7 @@ export function ShoppingListsSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -157,30 +161,30 @@ export function ShoppingListsSheet({
               open ? (
                 <>
                   <View style={styles.headerRow}>
-                    <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="All shopping lists">
-                      <Text style={styles.link}>‹ Lists</Text>
+                    <Pressable onPress={back} accessibilityRole="button" accessibilityLabel={t('shopping.allLists')}>
+                      <Text style={styles.link}>{t('shopping.lists')}</Text>
                     </Pressable>
                     <Pressable onPress={share} accessibilityRole="button">
-                      <Text style={styles.link}>Share</Text>
+                      <Text style={styles.link}>{t('shopping.share')}</Text>
                     </Pressable>
                   </View>
                   <Text style={styles.title}>🛒 {open.title}</Text>
-                  <Text style={styles.caption}>{progressLabel(remainingCount(open), open.items.length)}</Text>
-                  {pendingCount > 0 ? <Text style={styles.caption}>Not saved yet: saves when you’re back online.</Text> : null}
+                  <Text style={styles.caption}>{progressLabel(remainingCount(open), open.items.length, t)}</Text>
+                  {pendingCount > 0 ? <Text style={styles.caption}>{t('shopping.notSavedYet')}</Text> : null}
                   {askDelete ? (
                     <View style={styles.done}>
-                      <Text style={styles.doneTitle}>All done 🎉 Delete this list?</Text>
+                      <Text style={styles.doneTitle}>{t('shopping.allDoneAsk')}</Text>
                       <View style={styles.doneRow}>
                         <Pressable style={styles.secondary} onPress={() => setAskDelete(false)} accessibilityRole="button">
-                          <Text style={styles.secondaryLabel}>Keep</Text>
+                          <Text style={styles.secondaryLabel}>{t('common.keep')}</Text>
                         </Pressable>
                         <Pressable style={styles.danger} onPress={() => void removeList(open.id)} accessibilityRole="button">
-                          <Text style={styles.dangerLabel}>Delete</Text>
+                          <Text style={styles.dangerLabel}>{t('common.delete')}</Text>
                         </Pressable>
                       </View>
                     </View>
                   ) : null}
-                  {itemsByGroup(open.items).map((group) => (
+                  {itemsByGroup(open.items, t).map((group) => (
                     <View key={group.role} style={styles.group}>
                       <Text style={styles.groupTitle}>{group.label}</Text>
                       {group.items.map((item) => (
@@ -206,15 +210,15 @@ export function ShoppingListsSheet({
                       style={styles.input}
                       value={draft}
                       onChangeText={setDraft}
-                      placeholder="＋ Add item, e.g. coffee"
+                      placeholder={t('shopping.addPlaceholder')}
                       placeholderTextColor={tc.fg_8a97a8}
                       maxLength={80}
                       returnKeyType="done"
                       onSubmitEditing={() => void addItem()}
-                      accessibilityLabel="Add an item"
+                      accessibilityLabel={t('shopping.addA11y')}
                     />
                     <Pressable style={[styles.addButton, (!draft.trim() || adding) && styles.disabled]} onPress={() => void addItem()} disabled={!draft.trim() || adding} accessibilityRole="button">
-                      <Text style={styles.addLabel}>Add</Text>
+                      <Text style={styles.addLabel}>{t('common.add')}</Text>
                     </Pressable>
                   </View>
                   <Pressable
@@ -222,39 +226,41 @@ export function ShoppingListsSheet({
                     onPress={() => (confirmDelete === open.id ? void removeList(open.id) : setConfirmDelete(open.id))}
                     accessibilityRole="button"
                   >
-                    <Text style={styles.dangerText}>{confirmDelete === open.id ? 'Tap again to delete this list' : 'Delete list'}</Text>
+                    <Text style={styles.dangerText}>{confirmDelete === open.id ? t('shopping.tapAgainToDelete') : t('shopping.deleteList')}</Text>
                   </Pressable>
                 </>
               ) : (
                 <>
-                  <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="All shopping lists">
-                    <Text style={styles.link}>‹ Lists</Text>
+                  <Pressable onPress={back} accessibilityRole="button" accessibilityLabel={t('shopping.allLists')}>
+                    <Text style={styles.link}>{t('shopping.lists')}</Text>
                   </Pressable>
-                  <Text style={styles.caption}>{error ?? 'Opening…'}</Text>
+                  <Text style={styles.caption}>{error ?? t('shopping.opening')}</Text>
                 </>
               )
             ) : (
               <>
-                <Text style={styles.title}>🛒 Shopping lists</Text>
+                <Text style={styles.title}>{t('shopping.title')}</Text>
                 {lists === null ? (
-                  <Text style={styles.caption}>{error ?? 'Loading…'}</Text>
+                  <Text style={styles.caption}>{error ?? t('common.loading')}</Text>
                 ) : lists.length === 0 ? (
-                  <Text style={styles.caption}>No shopping lists yet. Create a Meal Plan, then tap “Make a shopping list”.</Text>
+                  <Text style={styles.caption}>{t('shopping.empty')}</Text>
                 ) : (
                   lists.map((list) => (
                     <View key={list.id} style={styles.listRow}>
                       <Pressable style={styles.listCopy} onPress={() => setOpenId(list.id)} accessibilityRole="button">
                         <Text style={styles.itemName}>{list.title}</Text>
-                        <Text style={styles.itemAmount}>{progressLabel(list.remaining, list.total)}</Text>
+                        <Text style={styles.itemAmount}>{progressLabel(list.remaining, list.total, t)}</Text>
                       </Pressable>
                       <Pressable
                         style={[styles.remove, confirmDelete === list.id && styles.removeConfirm]}
                         onPress={() => (confirmDelete === list.id ? void removeList(list.id) : setConfirmDelete(list.id))}
                         accessibilityRole="button"
-                        accessibilityLabel={confirmDelete === list.id ? `Confirm deleting ${list.title}` : `Delete ${list.title}`}
+                        accessibilityLabel={
+                          confirmDelete === list.id ? t('common.confirmDeleteItem', { name: list.title }) : t('common.deleteItem', { name: list.title })
+                        }
                       >
                         <Text style={[styles.removeLabel, confirmDelete === list.id && styles.removeConfirmLabel]}>
-                          {confirmDelete === list.id ? 'Delete?' : '✕'}
+                          {confirmDelete === list.id ? t('common.deleteConfirm') : '✕'}
                         </Text>
                       </Pressable>
                     </View>
@@ -265,7 +271,7 @@ export function ShoppingListsSheet({
             {notice ? <Text style={styles.notice}>{notice}</Text> : null}
             {error && (open || lists) ? <Text style={styles.error}>{error}</Text> : null}
             <Pressable style={styles.close} onPress={onClose} accessibilityRole="button">
-              <Text style={styles.link}>Close</Text>
+              <Text style={styles.link}>{t('common.close')}</Text>
             </Pressable>
           </ScrollView>
           <div style={{ height: 'max(12px, env(safe-area-inset-bottom))' }} />

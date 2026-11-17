@@ -7,28 +7,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { formatNumber, useT } from '../i18n';
 import {
+  activityLabel,
   clockLabel,
   DEFAULT_DURATION_INDEX,
   distanceMeters,
   DURATION_MINUTES,
   durationLabel,
+  effortHint,
+  effortLabel,
   watchCalories,
   WORKOUT_ACTIVITIES,
   WORKOUT_EFFORTS
 } from '../lib/add-workout';
 import { addManualWorkout, estimateWorkout } from '../lib/api';
+import { addToDayLabel } from '../lib/meal-slots';
 import { tc } from '../theme/palette';
 import type { WorkoutActivity, WorkoutEffort, WorkoutEstimate } from '../types';
 import { WheelPicker } from './WheelPicker';
 
-const DURATION_COLUMN = {
-  key: 'minutes',
-  values: DURATION_MINUTES,
-  labels: DURATION_MINUTES.map(String),
-  unit: 'min',
-  accessibilityLabel: 'Duration in minutes'
-};
 
 export function AddWorkoutSheet({
   accessToken,
@@ -47,6 +45,14 @@ export function AddWorkoutSheet({
   onAdded(): void;
   onClose(): void;
 }) {
+  const t = useT();
+  const durationColumn = {
+    key: 'minutes',
+    values: DURATION_MINUTES,
+    labels: DURATION_MINUTES.map(String),
+    unit: 'min',
+    accessibilityLabel: t('workouts.sheet.durationA11y')
+  };
   const [activity, setActivity] = useState<WorkoutActivity>('walk');
   const [name, setName] = useState('');
   const [durationIndex, setDurationIndex] = useState(DEFAULT_DURATION_INDEX);
@@ -118,28 +124,32 @@ export function AddWorkoutSheet({
       );
       onAdded();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to add the workout.');
+      setError(saveError instanceof Error ? saveError.message : t('workouts.sheet.error'));
       setSaving(false);
     }
   }
 
-  const effortLabel = WORKOUT_EFFORTS.find((option) => option.id === effort)!.label.toLowerCase();
+  const kcal = (value: number) => formatNumber(value, undefined, t.locale);
   const basisText = estimate
     ? estimate.basis === 'pace'
-      ? `from your pace · MET ${estimate.met}`
-      : `${effortLabel} ${chosen.label.toLowerCase()} · MET ${estimate.met}`
+      ? t('workouts.sheet.fromPace', { met: kcal(estimate.met) })
+      : t('workouts.sheet.fromEffort', {
+          effort: effortLabel(effort, t).toLowerCase(),
+          activity: activityLabel(chosen.id, t).toLowerCase(),
+          met: kcal(estimate.met)
+        })
     : '';
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>Add a workout</Text>
+            <Text style={styles.title}>{t('workouts.sheet.title')}</Text>
 
-            <View style={styles.activities} accessibilityRole="radiogroup" accessibilityLabel="Activity">
+            <View style={styles.activities} accessibilityRole="radiogroup" accessibilityLabel={t('workouts.sheet.activity')}>
               {WORKOUT_ACTIVITIES.map((option) => (
                 <Pressable
                   key={option.id}
@@ -147,10 +157,12 @@ export function AddWorkoutSheet({
                   onPress={() => setActivity(option.id)}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: option.id === activity }}
-                  accessibilityLabel={option.label}
+                  accessibilityLabel={activityLabel(option.id, t)}
                 >
                   <Text style={styles.activityIcon}>{option.icon}</Text>
-                  <Text style={[styles.activityLabel, option.id === activity && styles.activityLabelActive]}>{option.label}</Text>
+                  <Text style={[styles.activityLabel, option.id === activity && styles.activityLabelActive]}>
+                    {activityLabel(option.id, t)}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -159,33 +171,33 @@ export function AddWorkoutSheet({
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="What was it? e.g. Pickleball"
+                placeholder={t('workouts.sheet.namePlaceholder')}
                 placeholderTextColor={tc.fg_8a97a8}
                 maxLength={60}
-                accessibilityLabel="Workout name"
+                accessibilityLabel={t('workouts.sheet.nameA11y')}
               />
             ) : null}
 
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>
-                How long <Text style={styles.fieldValue}>{durationLabel(minutes)}</Text>
+                {t('workouts.sheet.howLong')} <Text style={styles.fieldValue}>{durationLabel(minutes, t)}</Text>
               </Text>
-              <WheelPicker columns={[DURATION_COLUMN]} indexes={[durationIndex]} onChange={(_, row) => setDurationIndex(row)} />
+              <WheelPicker columns={[durationColumn]} indexes={[durationIndex]} onChange={(_, row) => setDurationIndex(row)} />
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Effort</Text>
-              <View style={styles.efforts} accessibilityRole="radiogroup" accessibilityLabel="Effort">
+              <Text style={styles.fieldLabel}>{t('workouts.sheet.effort')}</Text>
+              <View style={styles.efforts} accessibilityRole="radiogroup" accessibilityLabel={t('workouts.sheet.effort')}>
                 {WORKOUT_EFFORTS.map((option) => (
                   <Pressable
-                    key={option.id}
-                    style={[styles.effort, option.id === effort && styles.effortActive]}
-                    onPress={() => setEffort(option.id)}
+                    key={option}
+                    style={[styles.effort, option === effort && styles.effortActive]}
+                    onPress={() => setEffort(option)}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: option.id === effort }}
+                    accessibilityState={{ checked: option === effort }}
                   >
-                    <Text style={[styles.effortLabel, option.id === effort && styles.effortLabelActive]}>{option.label}</Text>
-                    <Text style={[styles.effortHint, option.id === effort && styles.effortHintActive]}>{option.hint}</Text>
+                    <Text style={[styles.effortLabel, option === effort && styles.effortLabelActive]}>{effortLabel(option, t)}</Text>
+                    <Text style={[styles.effortHint, option === effort && styles.effortHintActive]}>{effortHint(option, t)}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -193,7 +205,7 @@ export function AddWorkoutSheet({
 
             {chosen.distance ? (
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Distance (optional, sets the pace)</Text>
+                <Text style={styles.fieldLabel}>{t('workouts.sheet.distance')}</Text>
                 <View style={styles.distanceRow}>
                   <TextInput
                     style={[styles.input, styles.distanceInput]}
@@ -203,7 +215,7 @@ export function AddWorkoutSheet({
                     inputMode="decimal"
                     placeholder="0.0"
                     placeholderTextColor={tc.fg_8a97a8}
-                    accessibilityLabel={`Distance in ${unit === 'mi' ? 'miles' : 'kilometers'}`}
+                    accessibilityLabel={unit === 'mi' ? t('workouts.sheet.distanceMiles') : t('workouts.sheet.distanceKm')}
                   />
                   <Text style={styles.unit}>{unit}</Text>
                 </View>
@@ -213,7 +225,7 @@ export function AddWorkoutSheet({
             <View style={styles.estimate} accessibilityLiveRegion="polite">
               {useWatch ? (
                 <>
-                  <Text style={styles.estimateLabel}>Your watch’s total</Text>
+                  <Text style={styles.estimateLabel}>{t('workouts.sheet.watchTotal')}</Text>
                   <View style={styles.distanceRow}>
                     <TextInput
                       style={[styles.input, styles.distanceInput]}
@@ -224,33 +236,39 @@ export function AddWorkoutSheet({
                       placeholder="0"
                       placeholderTextColor={tc.fg_8a97a8}
                       autoFocus
-                      accessibilityLabel="Calories your watch says"
+                      accessibilityLabel={t('workouts.sheet.watchA11y')}
                     />
                     <Text style={styles.unit}>kcal</Text>
                   </View>
                   <Text style={styles.estimateNote}>
-                    Relish takes off your resting calories for these minutes (your target already counts them).
-                    {estimate ? ` Its own estimate: ≈ ${estimate.active_calories.toLocaleString('en-US')} kcal active.` : ''}
+                    {t('workouts.sheet.watchNote')}
+                    {estimate ? t('workouts.sheet.ownEstimate', { value: kcal(estimate.active_calories) }) : ''}
                   </Text>
                   <Pressable onPress={() => setUseWatch(false)} accessibilityRole="button">
-                    <Text style={styles.link}>Use Relish’s estimate</Text>
+                    <Text style={styles.link}>{t('workouts.sheet.useEstimate')}</Text>
                   </Pressable>
                 </>
               ) : (
                 <>
                   <Text style={styles.estimateValue}>
-                    {estimate ? `≈ ${estimate.active_calories.toLocaleString('en-US')} kcal active` : estimating ? 'Estimating…' : '—'}
+                    {estimate
+                      ? t('workouts.sheet.estimate', { value: kcal(estimate.active_calories) })
+                      : estimating
+                        ? t('workouts.sheet.estimating')
+                        : '—'}
                   </Text>
                   {estimate ? (
                     <Text style={styles.estimateNote}>
                       {basisText}
                       {estimate.weight_known
-                        ? ` · at ${metric ? `${Math.round(estimate.weight_lbs * 0.45359237)} kg` : `${Math.round(estimate.weight_lbs)} lb`}`
-                        : ' · using a typical weight (weigh in for a better estimate)'}
+                        ? t('workouts.sheet.atWeight', {
+                            weight: metric ? `${Math.round(estimate.weight_lbs * 0.45359237)} kg` : `${Math.round(estimate.weight_lbs)} lb`
+                          })
+                        : t('workouts.sheet.typicalWeight')}
                     </Text>
                   ) : null}
                   <Pressable onPress={() => setUseWatch(true)} accessibilityRole="button">
-                    <Text style={styles.link}>My watch says…</Text>
+                    <Text style={styles.link}>{t('workouts.sheet.myWatch')}</Text>
                   </Pressable>
                 </>
               )}
@@ -263,10 +281,10 @@ export function AddWorkoutSheet({
               disabled={!canSave}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryLabel}>{saving ? 'Adding…' : `Add to ${dayName}`}</Text>
+              <Text style={styles.primaryLabel}>{saving ? t('common.adding') : addToDayLabel(dayName, t)}</Text>
             </Pressable>
             <Pressable style={styles.secondary} onPress={onClose} accessibilityRole="button">
-              <Text style={styles.secondaryLabel}>Cancel</Text>
+              <Text style={styles.secondaryLabel}>{t('common.cancel')}</Text>
             </Pressable>
           </ScrollView>
           <div style={{ height: 'max(12px, env(safe-area-inset-bottom))' }} />

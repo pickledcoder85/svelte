@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_DURATION_INDEX, DURATION_MINUTES, clockLabel, distanceMeters, durationLabel, watchCalories } from './add-workout';
+import { translatorFor } from '../i18n/dictionaries';
+import {
+  DEFAULT_DURATION_INDEX,
+  DURATION_MINUTES,
+  activityLabel,
+  clockLabel,
+  distanceMeters,
+  durationLabel,
+  effortHint,
+  effortLabel,
+  watchCalories
+} from './add-workout';
+
+const en = translatorFor('en');
+const es = translatorFor('es');
 
 describe('add a workout', () => {
   it('offers 5 to 300 minutes, starting at 30', () => {
@@ -10,9 +24,19 @@ describe('add a workout', () => {
   });
 
   it('labels durations', () => {
-    expect(durationLabel(45)).toBe('45 min');
-    expect(durationLabel(60)).toBe('1 h');
-    expect(durationLabel(95)).toBe('1 h 35 min');
+    expect(durationLabel(45, en)).toBe('45 min');
+    expect(durationLabel(60, en)).toBe('1 h');
+    expect(durationLabel(95, en)).toBe('1 h 35 min');
+    expect(durationLabel(95, es)).toBe('1 h 35 min');
+  });
+
+  it('labels activities and efforts in each language', () => {
+    expect(activityLabel('walk', en)).toBe('Walk');
+    expect(activityLabel('walk', es)).toBe('Caminata');
+    expect(effortLabel('hard', en)).toBe('Hard');
+    expect(effortLabel('hard', es)).toBe('Intenso');
+    expect(effortHint('easy', en)).toBe('can chat');
+    expect(effortHint('easy', es)).toBe('puede conversar');
   });
 
   it('reads distances in miles or km', () => {
