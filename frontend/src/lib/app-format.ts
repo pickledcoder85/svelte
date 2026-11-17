@@ -2,7 +2,6 @@ import { tc } from '../theme/palette';
 import type { FoodLogSummary, MealInput, PlannedExerciseEntry } from '../types';
 import { localDateKey } from './dates';
 import { MEAL_STYLES, type MealStyleId } from './meal-split';
-import { goalLabel, paceLabel, type GoalPace } from './setup-goals';
 
 /** The breakfast / lunch / dinner split for a meal balance style. */
 export function mealStyleSplit(style: MealStyleId): number[] {
@@ -16,17 +15,9 @@ export function toneColor(tone: 'checking' | 'live'): string {
   return tc.line_1d4ed8;
 }
 
-export function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | undefined): string {
-  return goalLabel(goalType);
-}
-
 /** The first word of a name, for greetings ("Brian Miner" → "Brian"). */
 export function firstName(name: string | null | undefined): string {
   return (name ?? '').trim().split(/\s+/)[0] ?? '';
-}
-
-export function formatGoalPaceLabel(goalType: 'lose' | 'maintain' | 'gain', goalPace: GoalPace | null): string {
-  return paceLabel(goalType, goalPace);
 }
 
 export function splitHeightCm(heightCm: number | null | undefined): { feet: string; inches: string } {

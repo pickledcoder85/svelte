@@ -3,7 +3,12 @@
  * the wheels start, and how a selection turns back into the setup drafts (plain strings, in the
  * chosen units, so the existing validation and unit conversion keep working).
  */
+import { translatorFor } from '../i18n/dictionaries';
+import type { TFunction } from '../i18n/translate';
 import type { BodyDrafts, UnitSystem } from './body-units';
+
+/** Screens not translated yet get English, as before. */
+const ENGLISH = translatorFor('en');
 
 /** Height of one wheel row in px; the wheel shows five rows with the middle one selected. */
 export const WHEEL_ROW_HEIGHT = 44;
@@ -62,24 +67,30 @@ function column(
 }
 
 /** Weight is picked in whole pounds or kilograms; tenths are more precision than setup needs. */
-function weightColumns(units: UnitSystem, name: string): WheelColumn[] {
+function weightColumns(units: UnitSystem, name: string, t: TFunction): WheelColumn[] {
   const [min, max] = WEIGHT_RANGE[units];
   const metric = units === 'metric';
-  return [column('weight', wheelRange(min, max), metric ? 'kg' : 'lb', `${name}, ${metric ? 'kilograms' : 'pounds'}`)];
+  return [
+    column('weight', wheelRange(min, max), metric ? 'kg' : 'lb', t(metric ? 'setup.units.kilograms' : 'setup.units.pounds', { name }))
+  ];
 }
 
-export function wheelColumns(field: BodyField, units: UnitSystem): WheelColumn[] {
+/** The wheels for a field; `t` labels them (the values and unit symbols are the same in every language). */
+export function wheelColumns(field: BodyField, units: UnitSystem, t: TFunction = ENGLISH): WheelColumn[] {
   switch (field) {
     case 'height':
       return units === 'metric'
-        ? [column('cm', wheelRange(120, 220), 'cm', 'Height, centimetres')]
-        : [column('feet', wheelRange(3, 7), 'ft', 'Height, feet'), column('inches', wheelRange(0, 11), 'in', 'Height, inches')];
+        ? [column('cm', wheelRange(120, 220), 'cm', t('setup.units.heightCm'))]
+        : [
+            column('feet', wheelRange(3, 7), 'ft', t('setup.units.heightFeet')),
+            column('inches', wheelRange(0, 11), 'in', t('setup.units.heightInches'))
+          ];
     case 'weight':
-      return weightColumns(units, 'Weight');
+      return weightColumns(units, t('setup.body.weight'), t);
     case 'goalWeight':
-      return weightColumns(units, 'Goal weight');
+      return weightColumns(units, t('setup.body.goalWeight'), t);
     case 'age':
-      return [column('age', wheelRange(13, 100), 'years', 'Age, years')];
+      return [column('age', wheelRange(13, 100), t('setup.units.years'), t('setup.units.ageYears'))];
   }
 }
 
@@ -149,7 +160,7 @@ function trimNumber(value: string): string {
 }
 
 /** What a field shows, such as "5 ft 10 in", "165.4 lb", or "34 years"; empty when not set. */
-export function formatBodyField(field: BodyField, units: UnitSystem, drafts: WheelDrafts): string {
+export function formatBodyField(field: BodyField, units: UnitSystem, drafts: WheelDrafts, t: TFunction = ENGLISH): string {
   if (field === 'height') {
     if (units === 'metric') {
       return positive(drafts.heightCm) === null ? '' : `${trimNumber(drafts.heightCm)} cm`;
@@ -157,7 +168,7 @@ export function formatBodyField(field: BodyField, units: UnitSystem, drafts: Whe
     return positive(drafts.heightFeet) === null ? '' : `${drafts.heightFeet.trim()} ft ${drafts.heightInches.trim() || '0'} in`;
   }
   if (field === 'age') {
-    return positive(drafts.age) === null ? '' : `${drafts.age.trim()} years`;
+    return positive(drafts.age) === null ? '' : t('setup.units.ageValue', { value: drafts.age.trim() });
   }
   const value = field === 'weight' ? drafts.weight : drafts.goalWeight;
   // Whole numbers, matching the wheel (a value converted between lb and kg can have decimals).

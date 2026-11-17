@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import {
   ACTIVITY_LEVELS,
   activityIndex,
+  activityLevelText,
   activityBars,
   indexForPosition,
   maintenanceForLevel,
@@ -71,5 +73,15 @@ describe('activity level', () => {
     expect(maintenanceForLevel(preview, 'light')).toBe(2736);
     expect(maintenanceForLevel({ maintenance_calories: 2000 }, 'extra_active')).toBe(2000);
     expect(maintenanceForLevel(null, 'moderate')).toBeNull();
+  });
+
+  it('names each level in English and Spanish', () => {
+    expect(ACTIVITY_LEVELS[0]).toEqual({ id: 'sedentary', title: 'Sedentary', description: 'Mostly sitting', steps: '< 5,000 steps' });
+    expect(activityLevelText('very_active', translatorFor('en')).title).toBe('Very active');
+    expect(activityLevelText('light', translatorFor('es'))).toEqual({
+      title: 'Ligero',
+      description: 'Camina un poco',
+      steps: '5.000–7.500 pasos'
+    });
   });
 });

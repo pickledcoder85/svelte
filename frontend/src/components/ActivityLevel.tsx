@@ -7,10 +7,12 @@ import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { formatNumber, useT, type TFunction } from '../i18n';
 import {
   ACTIVITY_LEVELS,
   activityBars,
   activityIndex,
+  activityLevelText,
   indexForPosition,
   positionForIndex,
   sliderPosition,
@@ -18,8 +20,8 @@ import {
 } from '../lib/activity-level';
 import { tc } from '../theme/palette';
 
-function kcal(value: number): string {
-  return `${Math.round(value).toLocaleString('en-US')} kcal`;
+function kcal(value: number, t: TFunction): string {
+  return t('common.kcal', { value: formatNumber(Math.round(value), undefined, t.locale) });
 }
 
 /** The two energy bars. Both are scaled to the most active level, so the lower bar can grow. */
@@ -33,14 +35,15 @@ export function ActivityEnergyBars({
   maintenance: number | null;
   maintenanceByLevel?: Partial<Record<ActivityLevel, number>>;
 }) {
+  const t = useT();
   const ready = bmr !== null && maintenance !== null;
   const bars = ready ? activityBars(bmr, maintenance, maintenanceByLevel) : { rest: 0, active: 0, fromActivity: 0 };
   return (
     <View style={styles.bars}>
       <View style={styles.barBlock}>
         <View style={styles.barLabelRow}>
-          <Text style={styles.barLabel}>At rest (BMR)</Text>
-          <Text style={styles.barValue}>{bmr !== null ? kcal(bmr) : '—'}</Text>
+          <Text style={styles.barLabel}>{t('setup.activity.atRest')}</Text>
+          <Text style={styles.barValue}>{bmr !== null ? kcal(bmr, t) : '—'}</Text>
         </View>
         <View style={styles.barTrack}>
           <View style={[styles.barRest, { width: `${bars.rest}%` }]} />
@@ -48,15 +51,15 @@ export function ActivityEnergyBars({
       </View>
       <View style={styles.barBlock}>
         <View style={styles.barLabelRow}>
-          <Text style={styles.barLabel}>With your activity</Text>
-          <Text style={styles.barValue}>{maintenance !== null ? kcal(maintenance) : '—'}</Text>
+          <Text style={styles.barLabel}>{t('setup.activity.withActivity')}</Text>
+          <Text style={styles.barValue}>{maintenance !== null ? kcal(maintenance, t) : '—'}</Text>
         </View>
         <View style={styles.barTrack}>
           {/* The whole bar is the day's total: the green start is the at-rest part, amber is activity. */}
           <View style={[styles.barActive, { width: `${bars.active}%` }]} />
           <View style={[styles.barRest, styles.barRestOverlay, { width: `${Math.min(bars.rest, bars.active)}%` }]} />
         </View>
-        <Text style={styles.barNote}>{ready ? `+${kcal(bars.fromActivity)} from activity` : ' '}</Text>
+        <Text style={styles.barNote}>{ready ? t('setup.activity.fromActivity', { value: kcal(bars.fromActivity, t) }) : ' '}</Text>
       </View>
     </View>
   );
@@ -64,12 +67,19 @@ export function ActivityEnergyBars({
 
 /** The chosen level's name, description, and rough step count: one block that swaps. */
 export function ActivityCaption({ value }: { value: ActivityLevel }) {
+  const t = useT();
   const index = activityIndex(value);
-  const level = ACTIVITY_LEVELS[index];
+  const level = activityLevelText(ACTIVITY_LEVELS[index].id, t);
   return (
     <View
       style={styles.caption}
-      accessibilityLabel={`${level.title}, ${index + 1} of ${ACTIVITY_LEVELS.length}. ${level.description}, ${level.steps}.`}
+      accessibilityLabel={t('setup.activity.captionLabel', {
+        level: level.title,
+        index: index + 1,
+        total: ACTIVITY_LEVELS.length,
+        description: level.description,
+        steps: level.steps
+      })}
     >
       <Text style={styles.captionTitle}>{level.title}</Text>
       <Text style={styles.captionDetail} numberOfLines={1}>
@@ -96,8 +106,9 @@ export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onCh
   // A touch only changes the level once it moves sideways (a drag) or lifts in place (a tap).
   // A touch that turns into a page scroll is cancelled and the level it started with returns.
   const gesture = useRef<{ startIndex: number; x: number; y: number; dragging: boolean } | null>(null);
+  const t = useT();
   const index = activityIndex(value);
-  const level = ACTIVITY_LEVELS[index];
+  const level = activityLevelText(ACTIVITY_LEVELS[index].id, t);
   const last = ACTIVITY_LEVELS.length - 1;
   const position = positionForIndex(index);
 
@@ -139,11 +150,11 @@ export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onCh
         ref={trackRef}
         role="slider"
         tabIndex={0}
-        aria-label="Daily activity level"
+        aria-label={t('setup.activity.sliderLabel')}
         aria-valuemin={1}
         aria-valuemax={ACTIVITY_LEVELS.length}
         aria-valuenow={index + 1}
-        aria-valuetext={`${level.title}, ${index + 1} of ${ACTIVITY_LEVELS.length}`}
+        aria-valuetext={t('setup.activity.levelPosition', { level: level.title, index: index + 1, total: ACTIVITY_LEVELS.length })}
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
           if (!event.isPrimary) {
@@ -247,8 +258,8 @@ export function ActivitySlider({ value, onChange }: { value: ActivityLevel; onCh
         />
       </div>
       <View style={styles.sliderEnds}>
-        <Text style={styles.sliderEndLabel}>{ACTIVITY_LEVELS[0].title}</Text>
-        <Text style={styles.sliderEndLabel}>{ACTIVITY_LEVELS[last].title}</Text>
+        <Text style={styles.sliderEndLabel}>{activityLevelText(ACTIVITY_LEVELS[0].id, t).title}</Text>
+        <Text style={styles.sliderEndLabel}>{activityLevelText(ACTIVITY_LEVELS[last].id, t).title}</Text>
       </View>
     </View>
   );

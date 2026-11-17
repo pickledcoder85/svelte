@@ -1977,12 +1977,12 @@ function RelishApp(): ReactElement {
     const measurements = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
 
     if (!Number.isFinite(age_years) || age_years <= 0 || measurements === null) {
-      setOnboardingError('Enter a valid age, height, and weight before continuing.');
+      setOnboardingError(t('setup.errors.validBody'));
       return;
     }
 
     if (!foodSessionToken) {
-      setOnboardingError('Create a live local session before continuing to the app.');
+      setOnboardingError(t('setup.errors.liveSession'));
       return;
     }
 
@@ -1993,7 +1993,7 @@ function RelishApp(): ReactElement {
 
     if (!onboardingSexDraft || !onboardingGoalTypeDraft || !onboardingDietaryPatternDraft || !onboardingNutritionStyleDraft) {
       setOnboardingSaving(false);
-      setOnboardingError('Choose your sex, goal, how you eat, and nutrition style before creating your profile.');
+      setOnboardingError(t('setup.errors.chooseAll'));
       return;
     }
 
@@ -2039,7 +2039,7 @@ function RelishApp(): ReactElement {
       setOnboardingStep('review');
       setSection('dashboard');
     } catch (error) {
-      setOnboardingError(error instanceof Error ? error.message : 'Unable to complete onboarding.');
+      setOnboardingError(error instanceof Error ? error.message : t('setup.errors.complete'));
     } finally {
       setOnboardingSaving(false);
     }
@@ -2909,54 +2909,54 @@ function RelishApp(): ReactElement {
 
   function validateOnboardingStep(step: OnboardingStep): string | null {
     if (step === 'basics' && !onboardingSexDraft) {
-      return 'Choose your sex. It changes how your calories are estimated.';
+      return t('setup.errors.chooseSex');
     }
     if (step === 'basics') {
       const age_years = Number(onboardingAgeDraft);
       if (bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts()) === null) {
         return onboardingUnitsDraft === 'metric'
-          ? 'Enter your height in cm and weight in kg.'
-          : 'Enter your height in feet and inches (0-11) and weight in lb.';
+          ? t('setup.errors.bodyMetric')
+          : t('setup.errors.bodyImperial');
       }
       if (!Number.isFinite(age_years) || age_years <= 0 || age_years >= 120) {
-        return 'Enter your age.';
+        return t('setup.errors.age');
       }
     }
 
     if (step === 'goal') {
-      return onboardingGoalTypeDraft ? null : 'Choose a goal to continue.';
+      return onboardingGoalTypeDraft ? null : t('setup.errors.goal');
     }
     if (step === 'diet' && !onboardingDietaryPatternDraft) {
-      return 'Choose how you eat to continue.';
+      return t('setup.errors.diet');
     }
     if (step === 'style' && !onboardingNutritionStyleDraft) {
-      return 'Choose a nutrition style to continue.';
+      return t('setup.errors.style');
     }
 
     if (step === 'pace' && onboardingGoalTypeDraft !== 'maintain' && onboardingTargetWeightDraft.trim() !== '') {
       const goalLbs = onboardingTargetWeightLbs();
       const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
       if (goalLbs === null) {
-        return 'Enter a goal weight as a number, or leave it empty.';
+        return t('setup.errors.goalWeightNumber');
       }
       if (current && onboardingGoalTypeDraft === 'lose' && goalLbs >= current.weight_lbs) {
-        return 'Goal weight should be below your current weight, or leave it empty.';
+        return t('setup.errors.goalWeightBelow');
       }
       if (current && onboardingGoalTypeDraft === 'gain' && goalLbs <= current.weight_lbs) {
-        return 'Goal weight should be above your current weight, or leave it empty.';
+        return t('setup.errors.goalWeightAbove');
       }
     }
 
     if (step === 'diet' && !onboardingDietaryPatternDraft) {
-      return 'Choose a dietary pattern before continuing.';
+      return t('setup.errors.dietPattern');
     }
 
     if (step === 'style' && !onboardingNutritionStyleDraft) {
-      return 'Choose a nutrition style before continuing.';
+      return t('setup.errors.styleBefore');
     }
 
     if (step === 'allergies' && onboardingAllergySelectionsDraft.includes('other') && !onboardingAllergyOtherDraft.trim()) {
-      return 'Add the custom allergy or exclusion before continuing.';
+      return t('setup.errors.allergyOther');
     }
 
     return null;
@@ -3412,6 +3412,7 @@ function RelishApp(): ReactElement {
         ribeyeLoaded={ribeyeLoaded}
         setOnboardingError={setOnboardingError}
         setOnboardingStep={setOnboardingStep}
+        applyLanguage={(next) => void applyLanguage(next)}
       />
     );
   }
@@ -3424,6 +3425,7 @@ function RelishApp(): ReactElement {
         leaveExplainerBack={leaveExplainerBack}
         setExplainersSeen={setExplainersSeen}
         setActiveExplainer={setActiveExplainer}
+        applyLanguage={(next) => void applyLanguage(next)}
       />
     );
   }
@@ -3481,6 +3483,7 @@ function RelishApp(): ReactElement {
         goToPreviousOnboardingStep={goToPreviousOnboardingStep}
         goToNextOnboardingStep={goToNextOnboardingStep}
         completeOnboardingSetup={completeOnboardingSetup}
+        applyLanguage={(next) => void applyLanguage(next)}
       />
     );
   }

@@ -2,7 +2,9 @@ import { StatusBar } from 'expo-status-bar';
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
-import { ONBOARDING_EXPLAINERS, type ExplainerStep } from '../../lib/onboarding-explainers';
+import { SetupLanguageSwitch } from '../../components/SetupLanguageSwitch';
+import { useT, type Language } from '../../i18n';
+import { onboardingExplainer, type ExplainerStep } from '../../lib/onboarding-explainers';
 import { mascotBikeImage, mascotDefaultImage } from '../shared/constants';
 import { styles } from '../shared/styles';
 
@@ -12,6 +14,8 @@ export interface OnboardingExplainerProps {
   leaveExplainerBack: () => void;
   setExplainersSeen: Dispatch<SetStateAction<ExplainerStep[]>>;
   setActiveExplainer: Dispatch<SetStateAction<ExplainerStep | null>>;
+  /** Settings → Language's switch: changes the language now and saves it to the profile. */
+  applyLanguage: (language: Language) => void;
 }
 
 export function OnboardingExplainer({
@@ -19,15 +23,18 @@ export function OnboardingExplainer({
   ribeyeLoaded,
   leaveExplainerBack,
   setExplainersSeen,
-  setActiveExplainer
+  setActiveExplainer,
+  applyLanguage
 }: OnboardingExplainerProps): ReactElement {
-  const explainer = ONBOARDING_EXPLAINERS[activeExplainer];
+  const t = useT();
+  const explainer = onboardingExplainer(activeExplainer, t);
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.setupBackdrop}>
           <View style={[styles.setupCard, styles.onboardingWelcomeCard]}>
+            <SetupLanguageSwitch onChange={applyLanguage} />
             <Image
               source={activeExplainer === 'activity' ? mascotBikeImage : mascotDefaultImage}
               style={styles.onboardingWelcomeImage}
@@ -58,7 +65,7 @@ export function OnboardingExplainer({
                 onPress={leaveExplainerBack}
                 accessibilityRole="button"
               >
-                <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
+                <Text style={styles.setupActionButtonLabelSecondary}>{t('setup.nav.back')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.setupActionButton, styles.setupActionButtonPrimary]}

@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { ONBOARDING_WELCOME } from './onboarding-welcome';
+import { translatorFor } from '../i18n/dictionaries';
+import { onboardingWelcome } from './onboarding-welcome';
 
 describe('onboarding welcome copy', () => {
   it('greets without a name, since a new user has not given one yet', () => {
-    expect(ONBOARDING_WELCOME.title).toBe('Welcome to Relish!');
-    expect(JSON.stringify(ONBOARDING_WELCOME)).not.toMatch(/\$\{|undefined|null/);
+    const welcome = onboardingWelcome(translatorFor('en'));
+    expect(welcome.title).toBe('Welcome to Relish!');
+    expect(JSON.stringify(welcome)).not.toMatch(/\$\{|\{\w+\}|undefined|null/);
   });
 
   it('previews the three parts of setup in order', () => {
-    expect(ONBOARDING_WELCOME.sections.map((section) => section.title)).toEqual([
+    expect(onboardingWelcome(translatorFor('en')).sections.map((section) => section.title)).toEqual([
       'About you',
       'Your goal',
       'How you eat'
+    ]);
+    expect(onboardingWelcome(translatorFor('es')).sections.map((section) => `${section.number} ${section.title}`)).toEqual([
+      '1 Sobre usted',
+      '2 Su meta',
+      '3 Cómo come'
     ]);
   });
 });

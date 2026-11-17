@@ -474,5 +474,277 @@ export const en = {
       hint: 'Saved to your profile. Applies right away.',
       error: 'Unable to change the language.'
     }
+  },
+  /** First-run setup: the welcome card, the explainer cards, and the wizard steps. */
+  setup: {
+    welcome: {
+      title: 'Welcome to Relish!',
+      intro: "I'm Gherkin. Let's set up your nutrition and activity goals so your daily targets fit you.",
+      sections: {
+        aboutYou: { title: 'About you', detail: 'Height, weight, age, and activity' },
+        goal: { title: 'Your goal', detail: 'Lose, stay, or gain, and how fast' },
+        eating: { title: 'How you eat', detail: 'Diet, nutrition style, and allergies' }
+      },
+      footnote: 'Takes about 2 minutes. You can change anything later in Profile.',
+      action: "Let's get started"
+    },
+    explainers: {
+      activity: {
+        title: 'Your day, not your workouts',
+        intro: 'Next, tell me how much you move on a normal day: walking, chores, errands, and your job.',
+        workouts: "Don't count workouts. You'll log those in Tracker, and they add to that day's allowance.",
+        baseline: 'This sets your baseline: what you burn on an ordinary day.',
+        action: 'Got it'
+      },
+      goal: {
+        title: 'Your goal is about food',
+        intro: 'Your daily calorie target comes from your baseline and your goal. It is what you eat to stay on pace.',
+        covers: 'It covers your diet and everyday movement.',
+        workouts: 'Workouts you log add to your daily allowance, so you can eat a bit more and still stay on pace.',
+        action: 'Got it'
+      }
+    },
+    steps: {
+      basics: 'About you',
+      activity: 'Activity',
+      goal: 'Your goal',
+      pace: 'Pace or focus',
+      diet: 'Diet',
+      style: 'Nutrition style',
+      balance: 'Meal balance',
+      allergies: 'Allergies',
+      review: 'Review'
+    },
+    progress: {
+      label: 'Step {step} of {total}: {name}',
+      count: '{step} of {total}'
+    },
+    status: {
+      saving: 'Saving profile...',
+      issue: 'There is a setup issue to fix'
+    },
+    nav: {
+      back: 'Back',
+      next: 'Next',
+      create: 'Create profile',
+      saving: 'Saving...'
+    },
+    kcalPerDay: '{value} kcal a day',
+    weeklyRate: 'about {value} {unit} a week',
+    /** "mid-February 2027": a rough date for reaching a goal weight. */
+    approximateDate: {
+      early: 'early-{month} {year}',
+      mid: 'mid-{month} {year}',
+      late: 'late-{month} {year}'
+    },
+    units: {
+      years: 'years',
+      ageValue: '{value} years',
+      heightCm: 'Height, centimetres',
+      heightFeet: 'Height, feet',
+      heightInches: 'Height, inches',
+      kilograms: '{name}, kilograms',
+      pounds: '{name}, pounds',
+      ageYears: 'Age, years'
+    },
+    body: {
+      title: 'About you',
+      intro: 'We use these to estimate how many calories your body uses each day.',
+      units: 'Units',
+      name: 'Your name',
+      namePlaceholder: 'What should I call you?',
+      sex: 'Sex',
+      male: 'Male',
+      female: 'Female',
+      height: 'Height',
+      weight: 'Weight',
+      age: 'Age',
+      goalWeight: 'Goal weight',
+      choose: 'Choose',
+      noGoalWeight: 'No goal weight'
+    },
+    activity: {
+      title: 'Daily activity',
+      intro: 'Count everyday movement like walking, chores, and your job. Workouts are tracked separately.',
+      bmrLink: "What's BMR?",
+      hideBmr: 'Hide BMR info',
+      bmrExplainer:
+        'BMR (basal metabolic rate) is the energy your body needs at complete rest: breathing, circulation, staying warm. Relish estimates it from your height, weight, age, and sex with the Mifflin-St Jeor formula. With your activity added, that is about what you burn in a day: eat that much and your weight stays put.',
+      atRest: 'At rest (BMR)',
+      withActivity: 'With your activity',
+      fromActivity: '+{value} from activity',
+      sliderLabel: 'Daily activity level',
+      levelPosition: '{level}, {index} of {total}',
+      captionLabel: '{level}, {index} of {total}. {description}, {steps}.',
+      levels: {
+        sedentary: { title: 'Sedentary', description: 'Mostly sitting', steps: '< 5,000 steps' },
+        light: { title: 'Light', description: 'Some walking', steps: '5,000–7,500 steps' },
+        moderate: { title: 'Moderate', description: 'On your feet often', steps: '7,500–10,000 steps' },
+        very_active: { title: 'Very active', description: 'On your feet most of the day', steps: '10,000–15,000 steps' },
+        extra_active: { title: 'Extra active', description: 'Physical work all day', steps: '15,000+ steps' }
+      }
+    },
+    goal: {
+      title: 'Your goal',
+      youBurn: 'You burn about {calories}.',
+      about: 'About {calories}',
+      options: {
+        lose: { title: 'Lose Weight', detail: 'Eat a little less than you burn' },
+        maintain: { title: 'Maintain Weight', detail: 'Eat about what you burn' },
+        gain: { title: 'Gain Weight', detail: 'Eat a little more than you burn' }
+      }
+    },
+    pace: {
+      titleFocus: 'Your focus',
+      titleHowFast: 'How fast?',
+      introFocus: 'Same calories either way. Your focus changes how they split between protein, carbs, and fat.',
+      introPace: 'A slower pace is easier to keep up. You can change it any time.',
+      lose: 'Lose {rate}',
+      gain: 'Gain {rate}',
+      below: 'Below the {minimum} recommended minimum',
+      belowFloorOff: 'Below the {minimum} recommended minimum (floor off)',
+      usingMinimum: 'Calculated {calculated} · using the recommended minimum',
+      wrongDirection:
+        'At the {minimum} minimum you would not lose weight, because it is above what you burn. Move more to keep this pace, or tap this pace to opt out of the minimum.',
+      goalWeightOptional: 'Goal weight (optional)',
+      estimate: {
+        one: 'At this pace: about {count} week, around {date}.',
+        other: 'At this pace: about {count} weeks, around {date}.'
+      },
+      goalBelowCurrent: 'Goal weight should be below your current weight.',
+      goalAboveCurrent: 'Goal weight should be above your current weight.',
+      options: {
+        lose: {
+          light: { title: 'Steady' },
+          recommended: { title: 'Recommended', note: 'Best balance for most people' },
+          extreme: { title: 'Fast', note: 'Harder to keep up' }
+        },
+        maintain: {
+          steady: { title: 'Stay steady', note: 'Balanced protein, carbs, and fat' },
+          build_muscle: { title: 'Build muscle', note: 'More protein, for strength training' },
+          fuel_training: { title: 'Fuel training', note: 'More carbs, for endurance training' }
+        },
+        gain: {
+          lean: { title: 'Lean', note: 'Slow and steady' },
+          aggressive: { title: 'Faster', note: 'More of the gain may be fat' }
+        }
+      }
+    },
+    floor: {
+      title: 'Below the recommended minimum',
+      useMinimum: 'Use {value} kcal',
+      recommended: 'Recommended',
+      keep: 'Keep {value} kcal',
+      optOut: 'Opt out of the minimum',
+      maintaining: 'Maintaining',
+      thisPace: 'This pace',
+      recommendedMinimum: 'Recommended minimum',
+      forMen: 'for men',
+      forWomen: 'for women',
+      risk: 'Going lower without a doctor makes it hard to get enough protein and nutrients, and raises the risk of muscle loss, fatigue, and regaining the weight.',
+      better: 'Better:',
+      betterDetail: 'eat {minimum} kcal and burn the other {extra} kcal by moving more, like a longer daily walk.',
+      veryLow: 'Under {limit} kcal a day is a very-low-calorie diet, normally done only with medical supervision.',
+      hint: 'Opting out turns off the minimum. You can change it in Settings.'
+    },
+    diet: {
+      title: 'How you eat',
+      intro: "Helps Relish suggest foods and meals that fit. It doesn't change your calories.",
+      options: {
+        vegan: { title: 'Vegan', subtitle: 'Plants only' },
+        vegetarian: { title: 'Vegetarian', subtitle: 'No meat or fish' },
+        pescatarian: { title: 'Pescatarian', subtitle: 'Fish, dairy, and plants' },
+        omnivore: { title: 'Omnivore', subtitle: 'Balanced mixed diet' },
+        carnivore: { title: 'Carnivore', subtitle: 'Animal-based focus' }
+      }
+    },
+    style: {
+      title: 'Nutrition style',
+      intro: 'The kind of eating you prefer. You can change it any time in Profile.',
+      options: {
+        balanced: { title: 'Balanced', subtitle: 'Flexible mixed approach' },
+        high_protein: { title: 'High protein', subtitle: 'Protein at every meal, for strength and keeping muscle' },
+        low_carb: { title: 'Low carb', subtitle: 'Fewer carbs: about 50–130 g a day' },
+        keto: { title: 'Keto', subtitle: 'Very low carb: under about 50 g a day, higher fat' },
+        mediterranean: { title: 'Mediterranean', subtitle: 'Whole foods, olive oil, fish, plants' },
+        paleo: { title: 'Paleo', subtitle: 'Meat, fish, vegetables, fruit, and nuts; no grains or dairy' }
+      }
+    },
+    balance: {
+      title: 'How do you balance your meals?',
+      intro:
+        "How your day's calories split across breakfast, lunch, and dinner. Gus uses it to size the meals he plans. You can change it any time in Profile.",
+      defaultSuffix: ' (default)',
+      split: 'Breakfast {breakfast}% · Lunch {lunch}% · Dinner {dinner}%',
+      styles: {
+        balanced: { label: 'Balanced', detail: 'About the same at each meal' },
+        'big-breakfast': { label: 'Big breakfast', detail: 'Start the day with the biggest meal' },
+        'big-lunch': { label: 'Big lunch', detail: 'The main meal in the middle of the day' },
+        'big-dinner': { label: 'Big dinner', detail: 'Lighter by day, the main meal in the evening' },
+        'taper-down': { label: 'Taper down', detail: 'Big breakfast, getting lighter to a light dinner' },
+        'build-up': { label: 'Build up', detail: 'Light breakfast, building up to a big dinner' }
+      }
+    },
+    allergies: {
+      title: 'Allergies and foods to avoid',
+      intro: 'Pick all that apply, or None. Saved to your profile.',
+      other: 'Other',
+      otherPlaceholder: 'For example sesame or soy',
+      /** How a typed allergy reads in the review list. */
+      otherEntry: 'Other: {text}',
+      options: {
+        none: { title: 'None', subtitle: 'No major food allergies' },
+        milk: { title: 'Milk', subtitle: 'Avoid dairy milk proteins' },
+        egg: { title: 'Egg', subtitle: 'Avoid eggs and egg ingredients' },
+        peanut: { title: 'Peanut', subtitle: 'Avoid peanuts' },
+        tree_nuts: { title: 'Tree nuts', subtitle: 'Avoid almonds, cashews, walnuts' },
+        wheat: { title: 'Wheat', subtitle: 'Avoid wheat-based foods' },
+        shellfish: { title: 'Shellfish', subtitle: 'Avoid shrimp, crab, lobster' },
+        other: { title: 'Other', subtitle: 'Add a custom restriction' }
+      }
+    },
+    review: {
+      title: 'Looking good!',
+      titleNamed: 'Looking good, {name}!',
+      intro: 'Check everything, then create your profile. You can change any of this later.',
+      dailyTarget: 'Your daily target',
+      macros: 'Protein {protein} g · Carbs {carbs} g · Fat {fat} g',
+      floorOffBelow: 'Below the recommended minimum (calorie floor off)',
+      floorOffFuture: 'Calorie floor off: future targets can go below the recommended minimum',
+      setToMinimum: 'Set to the recommended minimum',
+      rows: {
+        basics: 'About you',
+        activity: 'Daily activity',
+        goal: 'Goal',
+        diet: 'How you eat',
+        style: 'Nutrition style',
+        balance: 'Meal balance',
+        allergies: 'Avoid'
+      },
+      goalWeight: 'goal {weight}',
+      notChosen: 'Not chosen',
+      nothing: 'Nothing',
+      edit: 'Edit',
+      editRow: 'Edit {label}'
+    },
+    errors: {
+      chooseSex: 'Choose your sex. It changes how your calories are estimated.',
+      bodyMetric: 'Enter your height in cm and weight in kg.',
+      bodyImperial: 'Enter your height in feet and inches (0-11) and weight in lb.',
+      age: 'Enter your age.',
+      goal: 'Choose a goal to continue.',
+      diet: 'Choose how you eat to continue.',
+      style: 'Choose a nutrition style to continue.',
+      goalWeightNumber: 'Enter a goal weight as a number, or leave it empty.',
+      goalWeightBelow: 'Goal weight should be below your current weight, or leave it empty.',
+      goalWeightAbove: 'Goal weight should be above your current weight, or leave it empty.',
+      dietPattern: 'Choose a dietary pattern before continuing.',
+      styleBefore: 'Choose a nutrition style before continuing.',
+      allergyOther: 'Add the custom allergy or exclusion before continuing.',
+      validBody: 'Enter a valid age, height, and weight before continuing.',
+      liveSession: 'Create a live local session before continuing to the app.',
+      chooseAll: 'Choose your sex, goal, how you eat, and nutrition style before creating your profile.',
+      complete: 'Unable to complete onboarding.'
+    }
   }
 } as const;

@@ -472,5 +472,274 @@ export const es: Dictionary = {
       hint: 'Se guarda en su perfil y se aplica de inmediato.',
       error: 'No se pudo cambiar el idioma.'
     }
+  },
+  setup: {
+    welcome: {
+      title: '¡Le damos la bienvenida a Relish!',
+      intro: 'Soy Gherkin. Configuremos sus metas de nutrición y actividad para que sus objetivos diarios se ajusten a usted.',
+      sections: {
+        aboutYou: { title: 'Sobre usted', detail: 'Estatura, peso, edad y actividad' },
+        goal: { title: 'Su meta', detail: 'Bajar, mantener o subir de peso, y a qué ritmo' },
+        eating: { title: 'Cómo come', detail: 'Dieta, estilo de nutrición y alergias' }
+      },
+      footnote: 'Toma unos 2 minutos. Puede cambiar cualquier cosa después en Perfil.',
+      action: 'Empezar'
+    },
+    explainers: {
+      activity: {
+        title: 'Su día, no sus entrenamientos',
+        intro: 'Ahora cuénteme cuánto se mueve en un día normal: caminar, oficios de la casa, diligencias y su trabajo.',
+        workouts: 'No cuente los entrenamientos. Esos los registra en Tracker y se suman a lo que puede comer ese día.',
+        baseline: 'Esto define su base: lo que gasta en un día común.',
+        action: 'Entendido'
+      },
+      goal: {
+        title: 'Su meta tiene que ver con la comida',
+        intro: 'Su objetivo diario de calorías sale de su base y de su meta. Es lo que come para mantener el ritmo.',
+        covers: 'Cubre su alimentación y su movimiento de todos los días.',
+        workouts: 'Los entrenamientos que registre se suman a lo que puede comer en el día, así puede comer un poco más y mantener el ritmo.',
+        action: 'Entendido'
+      }
+    },
+    steps: {
+      basics: 'Sobre usted',
+      activity: 'Actividad',
+      goal: 'Su meta',
+      pace: 'Ritmo o enfoque',
+      diet: 'Dieta',
+      style: 'Estilo de nutrición',
+      balance: 'Reparto de comidas',
+      allergies: 'Alergias',
+      review: 'Revisión'
+    },
+    progress: {
+      label: 'Paso {step} de {total}: {name}',
+      count: '{step} de {total}'
+    },
+    status: {
+      saving: 'Guardando el perfil...',
+      issue: 'Hay algo por corregir en la configuración'
+    },
+    nav: {
+      back: 'Atrás',
+      next: 'Siguiente',
+      create: 'Crear perfil',
+      saving: 'Guardando...'
+    },
+    kcalPerDay: '{value} kcal al día',
+    weeklyRate: 'unos {value} {unit} por semana',
+    approximateDate: {
+      early: 'principios de {month} de {year}',
+      mid: 'mediados de {month} de {year}',
+      late: 'finales de {month} de {year}'
+    },
+    units: {
+      years: 'años',
+      ageValue: '{value} años',
+      heightCm: 'Estatura, centímetros',
+      heightFeet: 'Estatura, pies',
+      heightInches: 'Estatura, pulgadas',
+      kilograms: '{name}, kilogramos',
+      pounds: '{name}, libras',
+      ageYears: 'Edad, años'
+    },
+    body: {
+      title: 'Sobre usted',
+      intro: 'Con estos datos calculamos cuántas calorías usa su cuerpo cada día.',
+      units: 'Unidades',
+      name: 'Su nombre',
+      namePlaceholder: '¿Cómo quiere que le diga?',
+      sex: 'Sexo',
+      male: 'Hombre',
+      female: 'Mujer',
+      height: 'Estatura',
+      weight: 'Peso',
+      age: 'Edad',
+      goalWeight: 'Meta de peso',
+      choose: 'Elegir',
+      noGoalWeight: 'Sin meta de peso'
+    },
+    activity: {
+      title: 'Actividad diaria',
+      intro: 'Cuente el movimiento de todos los días, como caminar, los oficios de la casa y su trabajo. Los entrenamientos se registran aparte.',
+      bmrLink: '¿Qué es la TMB?',
+      hideBmr: 'Ocultar la información de la TMB',
+      bmrExplainer:
+        'La TMB (tasa metabólica basal) es la energía que su cuerpo necesita en reposo total: respirar, mantener la circulación, conservar el calor. Relish la calcula con su estatura, peso, edad y sexo usando la fórmula de Mifflin-St Jeor. Si le suma su actividad, eso es más o menos lo que gasta en un día, su mantenimiento: si come esa cantidad, su peso se mantiene.',
+      atRest: 'En reposo (TMB)',
+      withActivity: 'Con su actividad',
+      fromActivity: '+{value} por actividad',
+      sliderLabel: 'Nivel de actividad diaria',
+      levelPosition: '{level}, {index} de {total}',
+      captionLabel: '{level}, {index} de {total}. {description}, {steps}.',
+      levels: {
+        sedentary: { title: 'Sedentario', description: 'Casi todo el día sentado', steps: '< 5.000 pasos' },
+        light: { title: 'Ligero', description: 'Camina un poco', steps: '5.000–7.500 pasos' },
+        moderate: { title: 'Moderado', description: 'A menudo de pie', steps: '7.500–10.000 pasos' },
+        very_active: { title: 'Muy activo', description: 'De pie la mayor parte del día', steps: '10.000–15.000 pasos' },
+        extra_active: { title: 'Extra activo', description: 'Trabajo físico todo el día', steps: 'Más de 15.000 pasos' }
+      }
+    },
+    goal: {
+      title: 'Su meta',
+      youBurn: 'Usted gasta unas {calories}.',
+      about: 'Unas {calories}',
+      options: {
+        lose: { title: 'Bajar de peso', detail: 'Comer un poco menos de lo que gasta' },
+        maintain: { title: 'Mantener el peso', detail: 'Comer más o menos lo que gasta' },
+        gain: { title: 'Subir de peso', detail: 'Comer un poco más de lo que gasta' }
+      }
+    },
+    pace: {
+      titleFocus: 'Su enfoque',
+      titleHowFast: '¿A qué ritmo?',
+      introFocus: 'Las mismas calorías en cualquier caso. Su enfoque cambia cómo se reparten entre proteína, carbohidratos y grasa.',
+      introPace: 'Un ritmo más lento es más fácil de sostener. Puede cambiarlo cuando quiera.',
+      lose: 'Bajar {rate}',
+      gain: 'Subir {rate}',
+      below: 'Por debajo del mínimo recomendado de {minimum}',
+      belowFloorOff: 'Por debajo del mínimo recomendado de {minimum} (mínimo desactivado)',
+      usingMinimum: 'Calculado: {calculated} · se usa el mínimo recomendado',
+      wrongDirection:
+        'Con el mínimo de {minimum} no bajaría de peso, porque es más de lo que gasta. Muévase más para mantener este ritmo, o toque este ritmo para no usar el mínimo.',
+      goalWeightOptional: 'Meta de peso (opcional)',
+      estimate: {
+        one: 'A este ritmo: más o menos {count} semana, hacia {date}.',
+        other: 'A este ritmo: unas {count} semanas, hacia {date}.'
+      },
+      goalBelowCurrent: 'La meta de peso debe ser menor que su peso actual.',
+      goalAboveCurrent: 'La meta de peso debe ser mayor que su peso actual.',
+      options: {
+        lose: {
+          light: { title: 'Constante' },
+          recommended: { title: 'Recomendado', note: 'El mejor equilibrio para la mayoría' },
+          extreme: { title: 'Rápido', note: 'Más difícil de sostener' }
+        },
+        maintain: {
+          steady: { title: 'Mantenerse estable', note: 'Proteína, carbohidratos y grasa equilibrados' },
+          build_muscle: { title: 'Ganar músculo', note: 'Más proteína, para entrenamiento de fuerza' },
+          fuel_training: { title: 'Rendir en el entrenamiento', note: 'Más carbohidratos, para entrenamiento de resistencia' }
+        },
+        gain: {
+          lean: { title: 'Limpio', note: 'Lento y constante' },
+          aggressive: { title: 'Más rápido', note: 'Más de lo que suba puede ser grasa' }
+        }
+      }
+    },
+    floor: {
+      title: 'Por debajo del mínimo recomendado',
+      useMinimum: 'Usar {value} kcal',
+      recommended: 'Recomendado',
+      keep: 'Conservar {value} kcal',
+      optOut: 'No usar el mínimo',
+      maintaining: 'Mantenimiento',
+      thisPace: 'Este ritmo',
+      recommendedMinimum: 'Mínimo recomendado',
+      forMen: 'para hombres',
+      forWomen: 'para mujeres',
+      risk: 'Bajar más sin un médico hace difícil consumir suficiente proteína y nutrientes, y aumenta el riesgo de perder músculo, sentir fatiga y volver a subir de peso.',
+      better: 'Mejor:',
+      betterDetail: 'coma {minimum} kcal y queme las otras {extra} kcal moviéndose más, por ejemplo con una caminata diaria más larga.',
+      veryLow: 'Menos de {limit} kcal al día es una dieta muy baja en calorías, que normalmente solo se hace con supervisión médica.',
+      hint: 'Si no usa el mínimo, este se desactiva. Puede cambiarlo en Ajustes.'
+    },
+    diet: {
+      title: 'Cómo come',
+      intro: 'Le ayuda a Relish a sugerir alimentos y comidas que le sirvan. No cambia sus calorías.',
+      options: {
+        vegan: { title: 'Vegano', subtitle: 'Solo plantas' },
+        vegetarian: { title: 'Vegetariano', subtitle: 'Sin carne ni pescado' },
+        pescatarian: { title: 'Pescetariano', subtitle: 'Pescado, lácteos y plantas' },
+        omnivore: { title: 'Omnívoro', subtitle: 'Dieta variada y equilibrada' },
+        carnivore: { title: 'Carnívoro', subtitle: 'Basada en productos animales' }
+      }
+    },
+    style: {
+      title: 'Estilo de nutrición',
+      intro: 'La forma de comer que prefiere. Puede cambiarla cuando quiera en Perfil.',
+      options: {
+        balanced: { title: 'Equilibrado', subtitle: 'Un enfoque variado y flexible' },
+        high_protein: { title: 'Alto en proteína', subtitle: 'Proteína en cada comida, para la fuerza y conservar músculo' },
+        low_carb: { title: 'Bajo en carbohidratos', subtitle: 'Menos carbohidratos: unos 50–130 g al día' },
+        keto: { title: 'Keto', subtitle: 'Muy bajo en carbohidratos: menos de unos 50 g al día, más grasa' },
+        mediterranean: { title: 'Mediterráneo', subtitle: 'Alimentos naturales, aceite de oliva, pescado, plantas' },
+        paleo: { title: 'Paleo', subtitle: 'Carne, pescado, verduras, fruta y frutos secos; sin granos ni lácteos' }
+      }
+    },
+    balance: {
+      title: '¿Cómo reparte sus comidas?',
+      intro:
+        'Cómo se reparten las calorías del día entre el desayuno, el almuerzo y la cena. Gus lo usa para calcular el tamaño de las comidas que planea. Puede cambiarlo cuando quiera en Perfil.',
+      defaultSuffix: ' (predeterminado)',
+      split: 'Desayuno {breakfast} % · Almuerzo {lunch} % · Cena {dinner} %',
+      styles: {
+        balanced: { label: 'Equilibrado', detail: 'Más o menos lo mismo en cada comida' },
+        'big-breakfast': { label: 'Desayuno grande', detail: 'Empezar el día con la comida más grande' },
+        'big-lunch': { label: 'Almuerzo grande', detail: 'La comida principal a mitad del día' },
+        'big-dinner': { label: 'Cena grande', detail: 'Más liviano de día, la comida principal en la noche' },
+        'taper-down': { label: 'De más a menos', detail: 'Desayuno grande, cada vez más liviano hasta una cena ligera' },
+        'build-up': { label: 'De menos a más', detail: 'Desayuno ligero, cada vez más hasta una cena grande' }
+      }
+    },
+    allergies: {
+      title: 'Alergias y alimentos que evita',
+      intro: 'Elija todas las que apliquen, o Ninguna. Se guarda en su perfil.',
+      other: 'Otra',
+      otherPlaceholder: 'Por ejemplo, ajonjolí o soya',
+      otherEntry: 'Otra: {text}',
+      options: {
+        none: { title: 'Ninguna', subtitle: 'Sin alergias alimentarias importantes' },
+        milk: { title: 'Leche', subtitle: 'Evitar las proteínas de la leche' },
+        egg: { title: 'Huevo', subtitle: 'Evitar el huevo y sus derivados' },
+        peanut: { title: 'Maní', subtitle: 'Evitar el maní' },
+        tree_nuts: { title: 'Frutos secos', subtitle: 'Evitar almendras, marañones, nueces' },
+        wheat: { title: 'Trigo', subtitle: 'Evitar alimentos a base de trigo' },
+        shellfish: { title: 'Mariscos', subtitle: 'Evitar camarón, cangrejo, langosta' },
+        other: { title: 'Otra', subtitle: 'Agregar una restricción propia' }
+      }
+    },
+    review: {
+      title: '¡Todo se ve bien!',
+      titleNamed: '¡Todo se ve bien, {name}!',
+      intro: 'Revise todo y luego cree su perfil. Puede cambiar cualquier cosa después.',
+      dailyTarget: 'Su objetivo diario',
+      macros: 'Proteína {protein} g · Carbohidratos {carbs} g · Grasa {fat} g',
+      floorOffBelow: 'Por debajo del mínimo recomendado (mínimo de calorías desactivado)',
+      floorOffFuture: 'Mínimo de calorías desactivado: los objetivos futuros pueden quedar por debajo del mínimo recomendado',
+      setToMinimum: 'Ajustado al mínimo recomendado',
+      rows: {
+        basics: 'Sobre usted',
+        activity: 'Actividad diaria',
+        goal: 'Meta',
+        diet: 'Cómo come',
+        style: 'Estilo de nutrición',
+        balance: 'Reparto de comidas',
+        allergies: 'Evitar'
+      },
+      goalWeight: 'meta {weight}',
+      notChosen: 'Sin elegir',
+      nothing: 'Nada',
+      edit: 'Editar',
+      editRow: 'Editar {label}'
+    },
+    errors: {
+      chooseSex: 'Elija su sexo. Cambia el cálculo de sus calorías.',
+      bodyMetric: 'Ingrese su estatura en cm y su peso en kg.',
+      bodyImperial: 'Ingrese su estatura en pies y pulgadas (0-11) y su peso en lb.',
+      age: 'Ingrese su edad.',
+      goal: 'Elija una meta para continuar.',
+      diet: 'Elija cómo come para continuar.',
+      style: 'Elija un estilo de nutrición para continuar.',
+      goalWeightNumber: 'Ingrese la meta de peso como un número, o déjela vacía.',
+      goalWeightBelow: 'La meta de peso debe ser menor que su peso actual, o déjela vacía.',
+      goalWeightAbove: 'La meta de peso debe ser mayor que su peso actual, o déjela vacía.',
+      dietPattern: 'Elija un patrón de alimentación antes de continuar.',
+      styleBefore: 'Elija un estilo de nutrición antes de continuar.',
+      allergyOther: 'Agregue la alergia o restricción propia antes de continuar.',
+      validBody: 'Ingrese una edad, estatura y peso válidos antes de continuar.',
+      liveSession: 'Cree una sesión local en vivo antes de continuar a la app.',
+      chooseAll: 'Elija su sexo, su meta, cómo come y su estilo de nutrición antes de crear su perfil.',
+      complete: 'No se pudo completar la configuración.'
+    }
   }
 };

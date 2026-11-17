@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockBudgets, DEFAULT_SPLITS, isValidSplit, MEAL_STYLES, styleForSplit, type MealsPerDay } from './meal-split';
+import { translatorFor } from '../i18n/dictionaries';
+import { blockBudgets, DEFAULT_SPLITS, isValidSplit, MEAL_STYLES, mealStyleText, styleForSplit, type MealsPerDay } from './meal-split';
 
 describe('meal split', () => {
   it('has valid defaults and presets', () => {
@@ -31,5 +32,20 @@ describe('meal split', () => {
     // The review's case: 1,990 kcal no longer shows blocks totalling 2,000.
     expect(sum(blockBudgets(3, [25, 35, 40], 1990, { protein: 0, carbs: 0, fat: 0 }).map((b) => b.calories))).toBe(1990);
     expect(blockBudgets(5, [20, 10, 30, 10, 30], 1500, { protein: 0, carbs: 0, fat: 0 }).filter((b) => b.snack).map((b) => b.calories)).toEqual([150, 150]);
+  });
+
+  it('names the meal styles in either language without changing their ids', () => {
+    expect(MEAL_STYLES.map((style) => style.label)).toEqual([
+      'Balanced',
+      'Big breakfast',
+      'Big lunch',
+      'Big dinner',
+      'Taper down',
+      'Build up'
+    ]);
+    expect(mealStyleText('big-lunch', translatorFor('es'))).toEqual({
+      label: 'Almuerzo grande',
+      detail: 'La comida principal a mitad del día'
+    });
   });
 });
