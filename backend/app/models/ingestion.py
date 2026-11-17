@@ -6,10 +6,6 @@ from pydantic import BaseModel, Field
 from backend.app.models.nutrition import FoodItem
 
 
-class IngestionOutputReviewRequest(BaseModel):
-    review_state: Literal["reviewed", "accepted", "rejected"]
-
-
 class IngestionOutputEditRequest(BaseModel):
     extracted_text: str | None = None
     structured_json: Any | None = None

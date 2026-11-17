@@ -6,7 +6,6 @@ from backend.app.models.tracker import (
     ExerciseEntryCreateRequest,
     MealPlanDay,
     MealPlanDayCreateRequest,
-    PlannedExerciseEntryCompletionRequest,
     PlannedExerciseEntry,
     PlannedExerciseEntryCreateRequest,
     PlannedExerciseEntryUpdateRequest,

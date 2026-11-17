@@ -11,9 +11,7 @@ from backend.app.models.nutrition import (
     FoodItem,
     MacroTargets,
     SavedFoodsResult,
-    VisionNutritionExtraction,
     VisionNutritionVariant,
-    VisionPackageExtraction,
 )
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.servings import parse_serving_text, serving_grams_for_package

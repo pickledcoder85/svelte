@@ -52,12 +52,5 @@ async def search_standardized_foods(
     return _sort_foods(persisted_foods)
 
 
-def _matches_food_query(food: FoodItem, query: str) -> bool:
-    normalized = query.strip().lower()
-    if not normalized:
-        return True
-    return normalized in food.name.lower() or (food.brand is not None and normalized in food.brand.lower())
-
-
 def _sort_foods(foods: list[FoodItem]) -> list[FoodItem]:
     return sorted(foods, key=lambda food: (not food.favorite, food.name.lower(), food.id))
