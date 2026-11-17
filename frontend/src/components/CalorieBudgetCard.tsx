@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { formatNumber, useT } from '../i18n';
 import { formatSigned, type CalorieBudget } from '../lib/calorie-budget';
 import { tc } from '../theme/palette';
 
@@ -20,13 +21,15 @@ export function CalorieBudgetCard({
   onOpenDiary?(): void;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
+  const num = (value: number) => formatNumber(value, undefined, t.locale);
   return (
     <View style={styles.card}>
       <Pressable
         onPress={() => setOpen((value) => !value)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${budget.headline}. ${open ? 'Hide' : 'Show'} the breakdown`}
+        accessibilityLabel={t(open ? 'budget.hideBreakdown' : 'budget.showBreakdown', { headline: budget.headline })}
         style={styles.summary}
       >
         <Text style={[styles.headline, budget.over && styles.headlineOver]}>{budget.headline}</Text>
@@ -35,13 +38,13 @@ export function CalorieBudgetCard({
         </View>
         <View style={styles.captionRow}>
           <Text style={styles.caption}>{budget.caption}</Text>
-          <Text style={styles.toggle}>{open ? 'Hide ▴' : 'Breakdown ▾'}</Text>
+          <Text style={styles.toggle}>{open ? t('budget.hide') : t('budget.breakdown')}</Text>
         </View>
       </Pressable>
 
       {open ? (
         <View style={styles.details}>
-          <Text style={styles.eyebrow}>Today's budget</Text>
+          <Text style={styles.eyebrow}>{t('budget.todaysBudget')}</Text>
           {budget.lines.map((line) => {
             const total = line.sign === '=';
             const row = (
@@ -60,12 +63,12 @@ export function CalorieBudgetCard({
                     line.key === 'remaining' && budget.over && styles.headlineOver
                   ]}
                 >
-                  {formatSigned(line)}
+                  {formatSigned(line, t)}
                 </Text>
               </View>
             );
             return line.key === 'eaten' && onOpenDiary ? (
-              <Pressable key={line.key} onPress={onOpenDiary} accessibilityRole="link" accessibilityLabel="Open history in Trends">
+              <Pressable key={line.key} onPress={onOpenDiary} accessibilityRole="link" accessibilityLabel={t('budget.openHistory')}>
                 {row}
               </Pressable>
             ) : (
@@ -74,20 +77,21 @@ export function CalorieBudgetCard({
           })}
           {budget.workoutCaloriesKept > 0 && sharePercent < 100 ? (
             <Text style={styles.note}>
-              {budget.workoutCaloriesKept.toLocaleString('en-US')} workout kcal aren't added back
-              {sharePercent > 0 ? ` (you add ${sharePercent}%)` : ''}, so today's deficit is a little bigger than your target alone.
-              Change this in Settings → Workout calories.
+              {t('budget.keptNote', {
+                kept: num(budget.workoutCaloriesKept),
+                share: sharePercent > 0 ? t('budget.keptShare', { percent: sharePercent }) : ''
+              })}
             </Text>
           ) : null}
 
           {budget.burn ? (
             <>
-              <Text style={[styles.eyebrow, styles.eyebrowGap]}>Where your target comes from</Text>
+              <Text style={[styles.eyebrow, styles.eyebrowGap]}>{t('budget.whereFrom')}</Text>
               {budget.burn.bars.map((bar) => (
                 <View key={bar.key} style={styles.burnRow}>
                   <View style={styles.burnHead}>
                     <Text style={styles.lineLabel}>{bar.label}</Text>
-                    <Text style={styles.lineValue}>{bar.value.toLocaleString('en-US')}</Text>
+                    <Text style={styles.lineValue}>{num(bar.value)}</Text>
                   </View>
                   <View style={styles.burnTrack}>
                     <View style={[styles.burnFill, { backgroundColor: BAR_COLORS[bar.key], width: `${Math.max(2, Math.round(bar.fraction * 100))}%` }]} />
@@ -98,13 +102,10 @@ export function CalorieBudgetCard({
                 <Text style={styles.lineLabel}>{budget.burn.paceLabel}</Text>
                 <Text style={styles.lineValue}>
                   {budget.burn.pace > 0 ? '+' : budget.burn.pace < 0 ? '−' : ''}
-                  {Math.abs(budget.burn.pace).toLocaleString('en-US')}
+                  {num(Math.abs(budget.burn.pace))}
                 </Text>
               </View>
-              <Text style={styles.note}>
-                Your target is what you burn at rest and with everyday movement, plus your pace. Workouts aren't in the target;
-                they're added on the day you do them.
-              </Text>
+              <Text style={styles.note}>{t('budget.targetNote')}</Text>
             </>
           ) : null}
         </View>

@@ -6,6 +6,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
+import { useT } from '../i18n';
 import { APP_TABS, type AppTabId } from '../lib/app-shell';
 import { usePalette } from '../theme/appearance';
 import { tc } from '../theme/palette';
@@ -49,11 +50,13 @@ export function TabBar({
   onWeighIn(): void;
 }) {
   const pal = usePalette();
+  const t = useT();
   const [first, second, ...rest] = APP_TABS;
   const idle = pal.fg_7a8797;
   const renderTab = (tab: (typeof APP_TABS)[number]) => {
     const active = tab.id === activeTab;
     const color = active ? pal.fg_17324d : pal.fg_7a8797;
+    const label = t(`nav.tabs.${tab.id}`);
     return (
       <Pressable
         key={tab.id}
@@ -61,10 +64,10 @@ export function TabBar({
         onPress={() => onSelect(tab.id)}
         accessibilityRole="tab"
         accessibilityState={{ selected: active }}
-        accessibilityLabel={tab.label}
+        accessibilityLabel={label}
       >
         <TabIcon tab={tab.id} color={color} />
-        <Text style={[styles.label, active && styles.labelActive]}>{tab.label}</Text>
+        <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
       </Pressable>
     );
   };
@@ -73,7 +76,7 @@ export function TabBar({
       <View style={styles.row}>
         {renderTab(first)}
         {renderTab(second)}
-        <Pressable style={styles.plusSlot} onPress={onCamera} accessibilityRole="button" accessibilityLabel="Scan a food to log it">
+        <Pressable style={styles.plusSlot} onPress={onCamera} accessibilityRole="button" accessibilityLabel={t('nav.scanToLog')}>
           <View style={styles.plus}>
             <Svg width={24} height={24} viewBox="0 0 24 24">
               <Path
@@ -87,9 +90,9 @@ export function TabBar({
             </Svg>
           </View>
         </Pressable>
-        <Pressable style={styles.tab} onPress={onWeighIn} accessibilityRole="button" accessibilityLabel="Weigh in">
+        <Pressable style={styles.tab} onPress={onWeighIn} accessibilityRole="button" accessibilityLabel={t('nav.weighIn')}>
           <TabIcon tab="scale" color={idle} />
-          <Text style={styles.label}>Weigh in</Text>
+          <Text style={styles.label}>{t('nav.weighIn')}</Text>
         </Pressable>
         {rest.map(renderTab)}
       </View>

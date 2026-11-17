@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../../i18n';
 import { groupByMeal } from '../../lib/meal-slots';
 import { historyDayLabel, type DayPoint } from '../../lib/trends';
 import { tc } from '../../theme/palette';
@@ -27,6 +28,8 @@ export function DayHistory({
   onDeleteFood(log: FoodLogSummary, entry: FoodLogEntry): Promise<void>;
   onOpenWorkout(id: string): void;
 }) {
+  // Meal names are shared with Today; the rest of Trends is translated in pass 2.
+  const t = useT();
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export function DayHistory({
             {expanded && !empty ? (
               <View style={styles.body}>
                 {log
-                  ? groupByMeal(log.entries).map((group) => (
+                  ? groupByMeal(log.entries, t).map((group) => (
                       <View key={group.slot} style={styles.group}>
                         <View style={styles.groupHeader}>
                           <Text style={styles.groupLabel}>{group.label}</Text>

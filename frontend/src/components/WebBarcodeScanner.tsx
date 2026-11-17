@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { hintText, type StabilityState } from '../lib/frame-stability';
 import { startBarcodeScanner, type BarcodeScannerHandle } from '../lib/web-barcode-scanner';
 
@@ -25,6 +26,7 @@ type Props = {
 
 export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCapture, labelOnly, footerActions }: Props) {
   const smart = Boolean(onCapture);
+  const t = useT();
   const [stability, setStability] = useState<StabilityState | null>(null);
   // A callback ref: the Modal mounts its children in a portal, so wait for the element itself.
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -96,18 +98,18 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
         <video ref={setVideo} style={videoStyle} playsInline muted autoPlay />
         <View style={styles.overlay} pointerEvents="box-none">
           <View style={styles.header}>
-            <Text style={styles.title}>{labelOnly ? 'Scan the nutrition label' : smart ? 'Scan' : 'Scan a barcode'}</Text>
+            <Text style={styles.title}>{labelOnly ? t('scan.scanNutritionLabel') : smart ? t('scan.scanner.title') : t('scan.scanner.barcodeTitle')}</Text>
             <Text style={styles.detail}>
               {error ??
                 (starting
-                  ? 'Starting the camera…'
+                  ? t('scan.scanner.starting')
                   : smart
                     ? stability && stability.hint !== 'steady'
-                      ? hintText(stability.hint)
+                      ? hintText(stability.hint, t)
                       : labelOnly
-                        ? 'Hold the Nutrition Facts panel in the frame and keep still: it captures by itself.'
-                        : 'Barcode, package, nutrition label, or a plate of food. Hold it in the frame and keep still: it captures by itself.'
-                    : 'Hold the barcode inside the box. It reads by itself.')}
+                        ? t('scan.scanner.holdLabel')
+                        : t('scan.scanner.holdAnything')
+                    : t('scan.scanner.holdBarcode'))}
             </Text>
           </View>
           <View style={styles.guideArea} pointerEvents="none">
@@ -146,7 +148,7 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
               }}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryLabel}>{smart ? 'Take a full photo' : 'Take photo instead'}</Text>
+              <Text style={styles.primaryLabel}>{smart ? t('common.takeFullPhoto') : t('scan.scanner.takePhotoInstead')}</Text>
             </Pressable>
             <Pressable
               style={[styles.button, styles.secondaryButton]}
@@ -156,7 +158,7 @@ export function WebBarcodeScanner({ visible, onCode, onClose, onTakePhoto, onCap
               }}
               accessibilityRole="button"
             >
-              <Text style={styles.secondaryLabel}>Close</Text>
+              <Text style={styles.secondaryLabel}>{t('common.close')}</Text>
             </Pressable>
           </View>
         </View>

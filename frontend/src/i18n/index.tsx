@@ -4,13 +4,14 @@
  * t('dotted.key', vars) and useLanguage() the language, its locale, and a setter.
  */
 import type { ReactElement, ReactNode } from 'react';
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 
-import { translate } from './dictionaries';
-import { deviceLanguage, localeFor, type Language, type Locale, type TranslationKey, type TranslationVars } from './translate';
+import { translatorFor } from './dictionaries';
+import { deviceLanguage, localeFor, type Language, type Locale, type TFunction } from './translate';
 
+export { translatorFor } from './dictionaries';
 export { formatDate, formatNumber, parseLanguage } from './translate';
-export type { Language, Locale, TranslationKey, TranslationVars } from './translate';
+export type { Language, Locale, TFunction, TranslationKey, TranslationVars } from './translate';
 
 interface LanguageContextValue {
   language: Language;
@@ -33,9 +34,8 @@ export function useLanguage(): { language: Language; locale: Locale; setLanguage
   return { language, locale: localeFor(language), setLanguage };
 }
 
-export type TFunction = (key: TranslationKey, vars?: TranslationVars) => string;
-
+/** t() for the current language; it also carries `language` and `locale` for formatting. */
 export function useT(): TFunction {
   const { language } = useContext(LanguageContext);
-  return useCallback<TFunction>((key, vars) => translate(language, key, vars), [language]);
+  return translatorFor(language);
 }

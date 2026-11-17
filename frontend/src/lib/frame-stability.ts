@@ -8,6 +8,7 @@
  * table or room that happens to be still is never captured; then, once enough steady, sharp
  * frames in a row are seen, one full frame is captured.
  */
+import type { TFunction } from '../i18n/translate';
 
 export const ANALYSIS_WIDTH = 240;
 /** Average brightness change (0–255) between frames that still counts as holding still. */
@@ -132,17 +133,17 @@ export function createStabilityTracker(needed = STEADY_FRAMES) {
   };
 }
 
-export function hintText(hint: StabilityHint): string {
+export function hintText(hint: StabilityHint, t: TFunction): string {
   switch (hint) {
     case 'bring-it-in':
-      return 'Bring the package or label into the frame';
+      return t('scan.scanner.hints.bringItIn');
     case 'hold-steady':
-      return 'Hold steady…';
+      return t('scan.scanner.hints.holdSteady');
     case 'too-blurry':
-      return 'Move a little closer or farther until it’s sharp';
+      return t('scan.scanner.hints.tooBlurry');
     case 'nothing-to-read':
-      return 'Point at the package or its nutrition label';
+      return t('scan.scanner.hints.nothingToRead');
     default:
-      return 'Hold still…';
+      return t('scan.scanner.hints.holdStill');
   }
 }

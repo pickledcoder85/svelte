@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ShoppingItem, ShoppingList } from '../types';
+import { translatorFor } from '../i18n/dictionaries';
 import { itemsByGroup, planListTitle, progressLabel, remainingCount, shareText } from './shopping';
+
+const en = translatorFor('en');
+const es = translatorFor('es');
 
 const item = (id: string, name: string, role: string, position: number, checked = false, amount = ''): ShoppingItem => ({
   id, name, role, position, checked, amount
@@ -18,23 +22,26 @@ const list: ShoppingList = {
 
 describe('shopping lists', () => {
   it('groups by aisle with ticked items last', () => {
-    const groups = itemsByGroup(list.items);
+    const groups = itemsByGroup(list.items, en);
     expect(groups.map((group) => group.label)).toEqual(['Protein', 'Carbs and grains', 'Other']);
     expect(groups[0].items.map((entry) => entry.name)).toEqual(['Chicken thigh', 'Eggs']);
   });
 
   it('counts what is left', () => {
     expect(remainingCount(list)).toBe(3);
-    expect(progressLabel(3, 4)).toBe('3 of 4 left');
-    expect(progressLabel(0, 4)).toBe('All done');
-    expect(progressLabel(0, 0)).toBe('Empty');
+    expect(progressLabel(3, 4, en)).toBe('3 of 4 left');
+    expect(progressLabel(0, 4, en)).toBe('All done');
+    expect(progressLabel(0, 0, en)).toBe('Empty');
+    expect(progressLabel(3, 4, es)).toBe('Faltan 3 de 4');
+    expect(progressLabel(0, 4, es)).toBe('Todo listo');
   });
 
   it('shares only what is still to buy', () => {
-    const text = shareText(list);
+    const text = shareText(list, en);
     expect(text).toContain('- Chicken thigh: 450 g');
     expect(text).not.toContain('Eggs');
-    expect(shareText({ ...list, items: list.items.map((entry) => ({ ...entry, checked: true })) })).toContain('All done.');
+    expect(shareText({ ...list, items: list.items.map((entry) => ({ ...entry, checked: true })) }, en)).toContain('All done.');
+    expect(shareText(list, es)).toContain('Harinas y granos\n- Oats');
   });
 
   it('titles a list after the plan dates', () => {

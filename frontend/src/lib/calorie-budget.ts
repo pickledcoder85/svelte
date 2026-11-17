@@ -5,6 +5,7 @@
  *   At rest (BMR) + Daily activity + Workouts (active) − pace.
  * Workouts are a bonus on top of a stable target; the activity level never moves.
  */
+import { formatNumber, type TFunction } from '../i18n/translate';
 import type { DailyTargetSummary } from './daily-home';
 
 export interface BudgetWorkout {
@@ -47,40 +48,42 @@ export interface CalorieBudget {
   workoutCaloriesKept: number;
 }
 
-const n = (value: number) => Math.round(value).toLocaleString('en-US');
+const n = (value: number, t: TFunction) => formatNumber(Math.round(value), undefined, t.locale);
 
 export function buildCalorieBudget({
   summary,
   sharePercent,
   bmrCalories,
   maintenanceCalories,
-  workouts
+  workouts,
+  t
 }: {
   summary: DailyTargetSummary;
   sharePercent: number;
   bmrCalories?: number | null;
   maintenanceCalories?: number | null;
   workouts: BudgetWorkout[];
+  t: TFunction;
 }): CalorieBudget {
   const remaining = summary.remainingCalories;
   const over = remaining < 0;
   const allowance = summary.allowanceCalories;
   const hasWorkouts = summary.exerciseCalories > 0;
 
-  const lines: BudgetLine[] = [{ key: 'target', label: 'Target', value: summary.calorieTarget, sign: '' }];
+  const lines: BudgetLine[] = [{ key: 'target', label: t('budget.lines.target'), value: summary.calorieTarget, sign: '' }];
   if (hasWorkouts) {
     const names = workouts.map((w) => (w.source === 'garmin' ? `${w.title} · Garmin` : w.title));
     lines.push({
       key: 'workouts',
-      label: sharePercent > 0 ? `Workouts (${sharePercent}%)` : 'Workouts (off)',
+      label: sharePercent > 0 ? t('budget.lines.workoutsShare', { percent: sharePercent }) : t('budget.lines.workoutsOff'),
       value: summary.workoutCaloriesAdded,
       sign: '+',
       detail: names.join(', ')
     });
-    lines.push({ key: 'allowance', label: 'Allowance', value: allowance, sign: '=' });
+    lines.push({ key: 'allowance', label: t('budget.lines.allowance'), value: allowance, sign: '=' });
   }
-  lines.push({ key: 'eaten', label: 'Eaten', value: summary.intakeCalories, sign: '−' });
-  lines.push({ key: 'remaining', label: over ? 'Over' : 'Remaining', value: Math.abs(remaining), sign: '=' });
+  lines.push({ key: 'eaten', label: t('budget.lines.eaten'), value: summary.intakeCalories, sign: '−' });
+  lines.push({ key: 'remaining', label: over ? t('budget.lines.over') : t('budget.lines.remaining'), value: Math.abs(remaining), sign: '=' });
 
   let burn: CalorieBudget['burn'] = null;
   if (bmrCalories && maintenanceCalories && maintenanceCalories >= bmrCalories) {
@@ -93,28 +96,28 @@ export function buildCalorieBudget({
       value,
       fraction: total > 0 ? value / total : 0
     });
-    const bars = [bar('bmr', 'At rest (BMR)', bmrCalories), bar('activity', 'Daily activity', activity)];
+    const bars = [bar('bmr', t('budget.bars.bmr'), bmrCalories), bar('activity', t('budget.bars.activity'), activity)];
     if (workoutsActive > 0) {
-      bars.push(bar('workouts', 'Workouts (active)', workoutsActive));
+      bars.push(bar('workouts', t('budget.bars.workouts'), workoutsActive));
     }
     const pace = summary.calorieTarget - maintenanceCalories;
     burn = {
       bars,
       total,
       pace,
-      paceLabel: pace < 0 ? 'Your pace (deficit)' : pace > 0 ? 'Your pace (surplus)' : 'Your pace'
+      paceLabel: t(pace < 0 ? 'budget.pace.deficit' : pace > 0 ? 'budget.pace.surplus' : 'budget.pace.even')
     };
   }
 
-  const captionParts = [`Eaten ${n(summary.intakeCalories)}`];
+  const captionParts = [t('budget.captionEaten', { value: n(summary.intakeCalories, t) })];
   if (hasWorkouts) {
-    captionParts.push(`Workouts +${n(summary.workoutCaloriesAdded)}`);
+    captionParts.push(t('budget.captionWorkouts', { value: n(summary.workoutCaloriesAdded, t) }));
   }
 
   return {
     remaining,
     over,
-    headline: over ? `${n(-remaining)} kcal over` : `${n(remaining)} kcal left`,
+    headline: over ? t('budget.over', { value: n(-remaining, t) }) : t('budget.left', { value: n(remaining, t) }),
     progress: allowance > 0 ? Math.min(1, Math.max(0, summary.intakeCalories / allowance)) : 0,
     caption: captionParts.join(' · '),
     lines,
@@ -123,7 +126,7 @@ export function buildCalorieBudget({
   };
 }
 
-export function formatSigned(line: BudgetLine): string {
-  const value = n(line.value);
+export function formatSigned(line: BudgetLine, t: TFunction): string {
+  const value = n(line.value, t);
   return line.sign === '+' ? `+${value}` : line.sign === '−' ? `−${value}` : value;
 }

@@ -7,7 +7,8 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { logFood, logQuickCalories } from '../lib/api';
-import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, MEAL_SLOT_LABELS, type MealSlot } from '../lib/meal-slots';
+import { formatNumber, useT } from '../i18n';
+import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, mealSlotLabel, type MealSlot } from '../lib/meal-slots';
 import { itemNutrition, plateTotal, stepGrams } from '../lib/plate';
 import { tc } from '../theme/palette';
 import type { PlateItem } from '../types';
@@ -29,6 +30,7 @@ export function PlateSheet({
   onClose(): void;
   onScanAgain(): void;
 }) {
+  const t = useT();
   const [rows, setRows] = useState(() => items.map((item, index) => ({ key: index, item, grams: Math.max(10, Math.round(item.estimated_grams)) })));
   const [mealSlot, setMealSlot] = useState<MealSlot>(() => defaultMealSlot());
   const [saving, setSaving] = useState(false);
@@ -64,7 +66,7 @@ export function PlateSheet({
             {
               log_date: logDate,
               calories: Math.min(10000, nutrition.calories),
-              name: `${row.item.name} (estimate, ${row.grams} g)`.slice(0, 80),
+              name: t('scan.plate.estimateName', { name: row.item.name, grams: row.grams }).slice(0, 80),
               protein: Math.min(1000, nutrition.macros.protein),
               carbs: Math.min(1000, nutrition.macros.carbs),
               fat: Math.min(1000, nutrition.macros.fat),
@@ -78,8 +80,8 @@ export function PlateSheet({
       }
       onAdded();
     } catch (addError) {
-      const message = addError instanceof Error ? addError.message : 'Unable to add these foods.';
-      setError(done.size > 0 ? `Some items were added (marked ✓). The rest failed: ${message}` : message);
+      const message = addError instanceof Error ? addError.message : t('scan.plate.error');
+      setError(done.size > 0 ? t('scan.plate.partial', { message }) : message);
       setSaving(false);
     }
   }
@@ -90,13 +92,13 @@ export function PlateSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={leave}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={leave} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={leave} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
-              <Text style={styles.title}>On your plate</Text>
-              <Text style={styles.muted}>Portions are estimated from the photo: adjust with − / + if they look off.</Text>
+              <Text style={styles.title}>{t('scan.plate.title')}</Text>
+              <Text style={styles.muted}>{t('scan.plate.intro')}</Text>
             </View>
 
             {rows.map((row) => {
@@ -112,7 +114,7 @@ export function PlateSheet({
                         {row.item.name}
                       </Text>
                       <Text style={styles.itemDetail} numberOfLines={1}>
-                        {nutrition.fromUsda ? `USDA: ${row.item.food?.name}` : 'Estimate from the photo (no USDA match)'}
+                        {nutrition.fromUsda ? t('scan.plate.usda', { name: row.item.food?.name ?? '' }) : t('scan.plate.photoEstimate')}
                       </Text>
                     </View>
                     <Pressable
@@ -120,7 +122,7 @@ export function PlateSheet({
                       onPress={() => setRows((current) => current.filter((item) => item.key !== row.key))}
                       disabled={locked}
                       accessibilityRole="button"
-                      accessibilityLabel={`Remove ${row.item.name}`}
+                      accessibilityLabel={t('scan.plate.remove', { name: row.item.name })}
                     >
                       <Text style={styles.removeLabel}>✕</Text>
                     </Pressable>
@@ -132,7 +134,7 @@ export function PlateSheet({
                         onPress={() => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, grams: stepGrams(item.grams, -1) } : item)))}
                         disabled={locked}
                         accessibilityRole="button"
-                        accessibilityLabel={`Less ${row.item.name}`}
+                        accessibilityLabel={t('scan.plate.less', { name: row.item.name })}
                       >
                         <Text style={styles.stepLabel}>−</Text>
                       </Pressable>
@@ -142,15 +144,16 @@ export function PlateSheet({
                         onPress={() => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, grams: stepGrams(item.grams, 1) } : item)))}
                         disabled={locked}
                         accessibilityRole="button"
-                        accessibilityLabel={`More ${row.item.name}`}
+                        accessibilityLabel={t('scan.plate.more', { name: row.item.name })}
                       >
                         <Text style={styles.stepLabel}>+</Text>
                       </Pressable>
                     </View>
                     <Text style={styles.itemCalories}>
-                      {nutrition.calories} kcal
+                      {t('common.kcal', { value: nutrition.calories })}
                       <Text style={styles.itemMacros}>
-                        {'  '}P {nutrition.macros.protein} · C {nutrition.macros.carbs} · F {nutrition.macros.fat}
+                        {'  '}
+                        {t('common.macrosShort', { protein: nutrition.macros.protein, carbs: nutrition.macros.carbs, fat: nutrition.macros.fat })}
                       </Text>
                     </Text>
                   </View>
@@ -158,17 +161,17 @@ export function PlateSheet({
               );
             })}
 
-            {rows.length === 0 ? <Text style={styles.muted}>Nothing left to add.</Text> : null}
+            {rows.length === 0 ? <Text style={styles.muted}>{t('scan.plate.nothingLeft')}</Text> : null}
 
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{total.toLocaleString('en-US')} kcal</Text>
+              <Text style={styles.totalLabel}>{t('scan.plate.total')}</Text>
+              <Text style={styles.totalValue}>{t('common.kcal', { value: formatNumber(total, undefined, t.locale) })}</Text>
             </View>
             {anyEstimate ? (
-              <Text style={styles.muted}>Items without a USDA match use the photo's own estimate and are logged as quick calories.</Text>
+              <Text style={styles.muted}>{t('scan.plate.estimateNote')}</Text>
             ) : null}
 
-            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Meal">
+            <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('meals.mealPicker')}>
               {MEAL_SLOTS.map((slot) => (
                 <Pressable
                   key={slot}
@@ -177,7 +180,7 @@ export function PlateSheet({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: slot === mealSlot }}
                 >
-                  <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{MEAL_SLOT_LABELS[slot]}</Text>
+                  <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{mealSlotLabel(slot, t)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -190,16 +193,16 @@ export function PlateSheet({
               accessibilityRole="button"
             >
               <Text style={styles.primaryLabel}>
-                {saving ? 'Adding…' : logged.size > 0 ? 'Add the rest' : `${addButtonLabel(dayName, mealSlot).replace(/^Add to/, 'Add all to')}`}
+                {saving ? t('common.adding') : logged.size > 0 ? t('scan.plate.addRest') : addButtonLabel(dayName, mealSlot, t, true)}
               </Text>
             </Pressable>
             <View style={styles.secondaryRow}>
               <Pressable style={styles.secondary} onPress={logged.size > 0 ? leave : onScanAgain} disabled={saving} accessibilityRole="button">
-                <Text style={styles.secondaryLabel}>Scan again</Text>
+                <Text style={styles.secondaryLabel}>{t('common.scanAgain')}</Text>
               </Pressable>
               <Text style={styles.muted}>·</Text>
               <Pressable style={styles.secondary} onPress={leave} accessibilityRole="button">
-                <Text style={styles.secondaryLabel}>{logged.size > 0 ? 'Done' : 'Cancel'}</Text>
+                <Text style={styles.secondaryLabel}>{logged.size > 0 ? t('common.done') : t('common.cancel')}</Text>
               </Pressable>
             </View>
           </ScrollView>

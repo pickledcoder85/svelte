@@ -6,8 +6,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { formatNumber, useT } from '../i18n';
 import { addFavoriteFood, addFoodToBank, logFood, unfavoriteFood } from '../lib/api';
-import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, MEAL_SLOT_LABELS, type MealSlot } from '../lib/meal-slots';
+import { addButtonLabel, defaultMealSlot, MEAL_SLOTS, mealSlotLabel, type MealSlot } from '../lib/meal-slots';
 import {
   defaultAmountFor,
   isPer100Only,
@@ -51,6 +52,7 @@ export function AddFoodSheet({
   /** One more choice, e.g. "Scan the nutrition label" for a matched package. */
   extraAction?: { label: string; onPress(): void };
 }) {
+  const t = useT();
   const [favorite, setFavorite] = useState(Boolean(foods[0]?.favorite));
   // A pending scan is saved once, and a food is logged once, even if a later step fails and
   // the user taps again.
@@ -106,7 +108,7 @@ export function AddFoodSheet({
       await keepFavorite(real);
       onAdded(real);
     } catch (addError) {
-      setError(addError instanceof Error ? addError.message : 'Unable to add this food.');
+      setError(addError instanceof Error ? addError.message : t('foodSheet.addError'));
       setSaving(false);
     }
   }
@@ -125,7 +127,7 @@ export function AddFoodSheet({
       await keepFavorite(real);
       (onSaved ?? onClose)(real);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save this food.');
+      setError(saveError instanceof Error ? saveError.message : t('foodSheet.saveError'));
       setSaving(false);
     }
   }
@@ -140,7 +142,7 @@ export function AddFoodSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -152,7 +154,7 @@ export function AddFoodSheet({
                       onPress={() => setFavorite((value) => !value)}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: favorite }}
-                      accessibilityLabel="Favorite"
+                      accessibilityLabel={t('foodSheet.favorite')}
                       hitSlop={10}
                     >
                       <Text style={[styles.star, favorite && styles.starOn]}>{favorite ? '★' : '☆'}</Text>
@@ -162,12 +164,14 @@ export function AddFoodSheet({
                   <Text style={styles.muted}>
                     {[
                       food.brand,
-                      per100 ? 'Nutrition listed per 100 g' : food.serving_text ? `1 serving = ${food.serving_text}` : null
+                      per100 ? t('foodSheet.per100') : food.serving_text ? t('foodSheet.serving', { serving: food.serving_text }) : null
                     ]
                       .filter(Boolean)
                       .join(' · ')}
                   </Text>
-                  <Text style={styles.source}>{fromBank ? 'From your food bank' : prepare ? 'New: saved to your food bank when you add or save it' : 'New: saved to your food bank'}</Text>
+                  <Text style={styles.source}>
+                    {fromBank ? t('foodSheet.fromBank') : prepare ? t('foodSheet.newOnSave') : t('foodSheet.newSaved')}
+                  </Text>
                   {note ? <Text style={styles.note}>{note}</Text> : null}
                 </View>
 
@@ -204,7 +208,7 @@ export function AddFoodSheet({
                         accessibilityState={{ checked: amount.mode === mode }}
                       >
                         <Text style={[styles.segmentLabel, amount.mode === mode && styles.segmentLabelActive]}>
-                          {mode === 'servings' ? 'Servings' : `Weight (${unit})`}
+                          {mode === 'servings' ? t('foodSheet.servings') : t('foodSheet.weight', { unit })}
                         </Text>
                       </Pressable>
                     ))}
@@ -217,7 +221,7 @@ export function AddFoodSheet({
                       style={styles.stepButton}
                       onPress={() => setAmount({ mode: 'servings', servings: stepServings(amount.servings, -1) })}
                       accessibilityRole="button"
-                      accessibilityLabel="Less"
+                      accessibilityLabel={t('common.less')}
                     >
                       <Text style={styles.stepLabel}>−</Text>
                     </Pressable>
@@ -226,7 +230,7 @@ export function AddFoodSheet({
                       style={styles.stepButton}
                       onPress={() => setAmount({ mode: 'servings', servings: stepServings(amount.servings, 1) })}
                       accessibilityRole="button"
-                      accessibilityLabel="More"
+                      accessibilityLabel={t('common.more')}
                     >
                       <Text style={styles.stepLabel}>+</Text>
                     </Pressable>
@@ -243,7 +247,7 @@ export function AddFoodSheet({
                       }}
                       keyboardType="decimal-pad"
                       inputMode="decimal"
-                      accessibilityLabel={`Weight in ${unit}`}
+                      accessibilityLabel={t('foodSheet.weightIn', { unit })}
                     />
                     <Text style={styles.gramsUnit}>{unit}</Text>
                   </View>
@@ -251,16 +255,22 @@ export function AddFoodSheet({
 
                 {preview ? (
                   <View style={styles.totals}>
-                    <Text style={styles.totalCalories}>{preview.calories.toLocaleString('en-US')} kcal</Text>
+                    <Text style={styles.totalCalories}>
+                      {t('common.kcal', { value: formatNumber(preview.calories, undefined, t.locale) })}
+                    </Text>
                     <Text style={styles.muted}>
-                      P {preview.macros.protein}g · C {preview.macros.carbs}g · F {preview.macros.fat}g
+                      {t('common.macrosGrams', {
+                        protein: preview.macros.protein,
+                        carbs: preview.macros.carbs,
+                        fat: preview.macros.fat
+                      })}
                     </Text>
                   </View>
                 ) : (
-                  <Text style={styles.muted}>{per100 ? 'How many grams did you use? Check the package for the serving weight.' : 'Enter a weight.'}</Text>
+                  <Text style={styles.muted}>{per100 ? t('foodSheet.per100Hint') : t('foodSheet.enterWeight')}</Text>
                 )}
 
-                <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Meal">
+                <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('meals.mealPicker')}>
                   {MEAL_SLOTS.map((slot) => (
                     <Pressable
                       key={slot}
@@ -269,7 +279,7 @@ export function AddFoodSheet({
                       accessibilityRole="radio"
                       accessibilityState={{ checked: slot === mealSlot }}
                     >
-                      <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{MEAL_SLOT_LABELS[slot]}</Text>
+                      <Text style={[styles.chipLabel, slot === mealSlot && styles.chipLabelActive]}>{mealSlotLabel(slot, t)}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -282,7 +292,7 @@ export function AddFoodSheet({
                   disabled={!preview || saving}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.primaryLabel}>{saving ? 'Adding…' : addButtonLabel(dayName, mealSlot)}</Text>
+                  <Text style={styles.primaryLabel}>{saving ? t('common.adding') : addButtonLabel(dayName, mealSlot, t)}</Text>
                 </Pressable>
                 {extraAction ? (
                   <Pressable style={styles.secondary} onPress={extraAction.onPress} disabled={saving} accessibilityRole="button">
@@ -291,11 +301,11 @@ export function AddFoodSheet({
                 ) : null}
                 <View style={styles.secondaryRow}>
                   <Pressable style={styles.secondary} onPress={() => void saveOnly(food)} disabled={saving} accessibilityRole="button">
-                    <Text style={styles.secondaryLabel}>Save to food bank only</Text>
+                    <Text style={styles.secondaryLabel}>{t('foodSheet.saveOnly')}</Text>
                   </Pressable>
                   <Text style={styles.muted}>·</Text>
                   <Pressable style={styles.secondary} onPress={onScanAgain ?? onClose} accessibilityRole="button">
-                    <Text style={styles.secondaryLabel}>{onScanAgain ? 'Scan again' : 'Cancel'}</Text>
+                    <Text style={styles.secondaryLabel}>{onScanAgain ? t('common.scanAgain') : t('common.cancel')}</Text>
                   </Pressable>
                 </View>
               </>

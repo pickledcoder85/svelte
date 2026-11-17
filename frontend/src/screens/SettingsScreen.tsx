@@ -276,7 +276,7 @@ export function SettingsScreen({
               })}
             </View>
             <Text style={styles.settingsHint}>
-              {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric')} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric')}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric')}) is a common goal; food and other drinks count toward what you need too.`}
+              {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric', t)} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric', t)}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric', t)}) is a common goal; food and other drinks count toward what you need too.`}
             </Text>
           </FieldGroup>
           <FieldGroup label="Water reminders">

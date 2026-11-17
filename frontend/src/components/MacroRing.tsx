@@ -6,6 +6,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
+import { useT } from '../i18n';
 import { macroRing } from '../lib/macro-ring';
 import { resolveColor, tc } from '../theme/palette';
 import { usePalette } from '../theme/appearance';
@@ -17,6 +18,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function MacroRing({ label, consumed, target, color }: { label: string; consumed: number; target: number; color: string }) {
   const pal = usePalette();
+  const t = useT();
   const ring = macroRing(consumed, target);
   const arc = (share: number, stroke: string, width = STROKE) =>
     share > 0 ? (
@@ -38,7 +40,9 @@ export function MacroRing({ label, consumed, target, color }: { label: string; c
   return (
     <View
       style={styles.card}
-      accessibilityLabel={`${label}: ${Math.round(consumed)} of ${Math.round(target)} grams${ring.over ? `, ${ring.footer} over` : ''}`}
+      accessibilityLabel={`${t('macros.ringLabel', { label, eaten: Math.round(consumed), target: Math.round(target) })}${
+        ring.over ? t('macros.ringOver', { amount: ring.footer }) : ''
+      }`}
     >
       <View style={styles.wrap}>
         <Svg width={SIZE} height={SIZE}>
@@ -47,8 +51,8 @@ export function MacroRing({ label, consumed, target, color }: { label: string; c
           {arc(ring.overLap, pal.fg_b91c1c, STROKE - 2)}
         </Svg>
         <View style={styles.center} pointerEvents="none">
-          <Text style={[styles.grams, ring.over && styles.over]}>{Math.round(consumed)} g</Text>
-          <Text style={styles.of}>of {Math.round(target)}</Text>
+          <Text style={[styles.grams, ring.over && styles.over]}>{t('macros.grams', { grams: Math.round(consumed) })}</Text>
+          <Text style={styles.of}>{t('macros.of', { target: Math.round(target) })}</Text>
         </View>
       </View>
       <Text style={styles.label}>{label}</Text>

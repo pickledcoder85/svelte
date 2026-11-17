@@ -6,6 +6,7 @@ import { tc } from '../theme/palette';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import type { WheelColumn } from '../lib/wheel-picker';
 import { WheelPicker } from './WheelPicker';
 
@@ -30,6 +31,7 @@ export function PickerSheet({
   /** A line under the toolbar, e.g. the last weigh-in. */
   note?: string | null;
 }) {
+  const t = useT();
   const [indexes, setIndexes] = useState(initialIndexes);
   // 0 = open, 1 = closed. The dim fades while the opaque sheet slides, both ways, as on iOS.
   const progress = useRef(new Animated.Value(1)).current;
@@ -64,19 +66,19 @@ export function PickerSheet({
     <Modal visible transparent animationType="none" onRequestClose={() => close(onCancel)}>
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={styles.backdropPress} onPress={() => close(onCancel)} accessibilityLabel="Cancel" />
+          <Pressable style={styles.backdropPress} onPress={() => close(onCancel)} accessibilityLabel={t('common.cancel')} />
         </Animated.View>
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]} accessibilityViewIsModal>
           <View style={styles.toolbar}>
             <View style={styles.toolbarSide}>
               <Pressable onPress={() => close(onCancel)} accessibilityRole="button" hitSlop={10}>
-                <Text style={styles.cancel}>Cancel</Text>
+                <Text style={styles.cancel}>{t('common.cancel')}</Text>
               </Pressable>
             </View>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
             <View style={[styles.toolbarSide, styles.toolbarSideEnd]}>
               <Pressable onPress={() => close(() => onDone(indexes))} accessibilityRole="button" hitSlop={10}>
-                <Text style={styles.done}>Done</Text>
+                <Text style={styles.done}>{t('common.done')}</Text>
               </Pressable>
             </View>
           </View>
@@ -92,7 +94,7 @@ export function PickerSheet({
           </View>
           {onClear ? (
             <Pressable style={styles.clear} onPress={() => close(onClear)} accessibilityRole="button">
-              <Text style={styles.clearLabel}>{clearLabel ?? 'Clear'}</Text>
+              <Text style={styles.clearLabel}>{clearLabel ?? t('common.clear')}</Text>
             </Pressable>
           ) : null}
           {/* Keeps the wheels above the iPhone home indicator (the inset can read 0 without

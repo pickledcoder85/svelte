@@ -7,6 +7,7 @@ import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { useT } from '../i18n';
 import { addDaysToDateKey } from '../lib/dates';
 import { dayLabel, weekDays } from '../lib/week-strip';
 import { usePalette } from '../theme/appearance';
@@ -39,8 +40,10 @@ export function DayHeader({
   onSelect(day: string): void;
 }) {
   const pal = usePalette();
+  const t = useT();
   const touchStartX = useRef<number | null>(null);
-  const days = weekDays(selected, today);
+  const days = weekDays(selected, today, t);
+  const label = dayLabel(selected, today, t);
 
   return (
     <View style={styles.root}>
@@ -49,7 +52,7 @@ export function DayHeader({
           style={styles.arrow}
           onPress={() => onSelect(addDaysToDateKey(selected, -1))}
           accessibilityRole="button"
-          accessibilityLabel="Previous day"
+          accessibilityLabel={t('day.previous')}
           hitSlop={6}
         >
           <Chevron left color={pal.fg_17324d} />
@@ -59,17 +62,17 @@ export function DayHeader({
           onPress={() => onSelect(today)}
           disabled={selected === today}
           accessibilityRole="button"
-          accessibilityLabel={selected === today ? dayLabel(selected, today) : `${dayLabel(selected, today)}. Go to today`}
+          accessibilityLabel={selected === today ? label : t('day.goToToday', { label })}
         >
           <Text style={styles.label} numberOfLines={1}>
-            {dayLabel(selected, today)}
+            {label}
           </Text>
         </Pressable>
         <Pressable
           style={styles.arrow}
           onPress={() => onSelect(addDaysToDateKey(selected, 1))}
           accessibilityRole="button"
-          accessibilityLabel="Next day"
+          accessibilityLabel={t('day.next')}
           hitSlop={6}
         >
           <Chevron color={pal.fg_17324d} />
@@ -100,7 +103,7 @@ export function DayHeader({
             onPress={() => onSelect(day.key)}
             accessibilityRole="tab"
             accessibilityState={{ selected: day.isSelected }}
-            accessibilityLabel={dayLabel(day.key, today)}
+            accessibilityLabel={dayLabel(day.key, today, t)}
           >
             <Text style={[styles.dayLetter, day.isFuture && styles.dayFuture, day.isSelected && styles.dayTextSelected]}>
               {day.letter}

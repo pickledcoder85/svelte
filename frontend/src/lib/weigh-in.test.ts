@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WeightEntry } from '../types';
+import { translatorFor } from '../i18n/dictionaries';
 import { displayWeight, initialWeighInIndexes, weighInColumns, weighInLbs, weighInSummary } from './weigh-in';
 
 const entry = (day: string, lbs: number): WeightEntry => ({ id: day, user_id: 'u', recorded_at: day, weight_lbs: lbs });
+
+const en = translatorFor('en');
+const es = translatorFor('es');
 
 describe('weigh-in', () => {
   it('starts at the last weight, to the tenth', () => {
@@ -28,9 +32,10 @@ describe('weigh-in', () => {
   });
 
   it('summarises the last weigh-in and the week', () => {
-    expect(weighInSummary([], 'imperial', '2026-11-15')).toBeNull();
+    expect(weighInSummary([], 'imperial', '2026-11-15', en)).toBeNull();
     const entries = [entry('2026-11-07', 182.6), entry('2026-11-14', 181.4)];
-    expect(weighInSummary(entries, 'imperial', '2026-11-15')).toBe('Last: 181.4 lb on Nov 14 · −1.2 lb in a week');
-    expect(weighInSummary([entry('2026-11-15', 181)], 'imperial', '2026-11-15')).toBe('Last: 181 lb today');
+    expect(weighInSummary(entries, 'imperial', '2026-11-15', en)).toBe('Last: 181.4 lb on Nov 14 · −1.2 lb in a week');
+    expect(weighInSummary(entries, 'imperial', '2026-11-15', es)).toBe('Último: 181,4 lb el 14 de nov · −1,2 lb en una semana');
+    expect(weighInSummary([entry('2026-11-15', 181)], 'imperial', '2026-11-15', en)).toBe('Last: 181 lb today');
   });
 });

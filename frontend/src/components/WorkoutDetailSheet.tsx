@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Dimensions, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import type { DetailRow, WorkoutDetail } from '../lib/workout-detail';
 import { tc } from '../theme/palette';
 
@@ -19,6 +20,7 @@ function Rows({ rows }: { rows: DetailRow[] }) {
 }
 
 export function WorkoutDetailSheet({ detail, onClose }: { detail: WorkoutDetail; onClose(): void }) {
+  const t = useT();
   const progress = useRef(new Animated.Value(1)).current;
   const closing = useRef(false);
 
@@ -41,7 +43,7 @@ export function WorkoutDetailSheet({ detail, onClose }: { detail: WorkoutDetail;
     <Modal visible transparent animationType="none" onRequestClose={close}>
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={styles.fill} onPress={close} accessibilityLabel="Close" />
+          <Pressable style={styles.fill} onPress={close} accessibilityLabel={t('common.close')} />
         </Animated.View>
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]} accessibilityViewIsModal>
           <View style={styles.handle} />
@@ -50,17 +52,17 @@ export function WorkoutDetailSheet({ detail, onClose }: { detail: WorkoutDetail;
               <Text style={styles.title}>{detail.title}</Text>
               <Text style={styles.subtitle}>
                 {detail.subtitle}
-                {detail.sourceLabel ? ` · from ${detail.sourceLabel}` : ''}
+                {detail.sourceLabel ? t('workouts.detail.from', { source: detail.sourceLabel }) : ''}
               </Text>
             </View>
             {detail.recorded ? (
               <View style={styles.section}>
-                <Text style={styles.eyebrow}>{detail.sourceLabel} recorded</Text>
+                <Text style={styles.eyebrow}>{t('workouts.detail.recorded', { source: detail.sourceLabel ?? '' })}</Text>
                 <Rows rows={detail.recorded} />
               </View>
             ) : null}
             <View style={styles.section}>
-              <Text style={styles.eyebrow}>Relish counts</Text>
+              <Text style={styles.eyebrow}>{t('workouts.detail.relishCounts')}</Text>
               <Rows rows={detail.relish} />
             </View>
             {detail.notes.map((note) => (
@@ -69,7 +71,7 @@ export function WorkoutDetailSheet({ detail, onClose }: { detail: WorkoutDetail;
               </Text>
             ))}
             <Pressable style={styles.done} onPress={close} accessibilityRole="button">
-              <Text style={styles.doneLabel}>Done</Text>
+              <Text style={styles.doneLabel}>{t('common.done')}</Text>
             </Pressable>
           </ScrollView>
           <div style={{ height: 'max(12px, env(safe-area-inset-bottom))' }} />

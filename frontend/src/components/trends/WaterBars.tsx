@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
 
+import { useT } from '../../i18n';
 import { glasses, waterSummary, type WaterDay } from '../../lib/water';
 import { usePalette } from '../../theme/appearance';
 import { tc } from '../../theme/palette';
@@ -21,6 +22,8 @@ function shortDate(date: string): string {
 
 export function WaterBars({ days, goalMl, metric, today }: { days: WaterDay[]; goalMl: number; metric: boolean; today: string }) {
   const pal = usePalette();
+  // Only the summary shared with Today is translated so far; the rest of Trends is pass 2.
+  const t = useT();
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const logged = days.filter((day) => day.ml > 0);
@@ -33,7 +36,7 @@ export function WaterBars({ days, goalMl, metric, today }: { days: WaterDay[]; g
   const y = (value: number) => PAD.top + (1 - value / max) * innerH;
   const tapped = logged.find((day) => day.date === selected) ?? null;
   const shown = tapped ?? logged.at(-1) ?? null;
-  const detail = shown ? `${shown.date === today ? 'Today' : shortDate(shown.date)} · ${waterSummary(shown.ml, goalMl, metric)}` : 'nothing logged';
+  const detail = shown ? `${shown.date === today ? 'Today' : shortDate(shown.date)} · ${waterSummary(shown.ml, goalMl, metric, t)}` : 'nothing logged';
 
   return (
     <View style={styles.block}>
@@ -81,7 +84,7 @@ export function WaterBars({ days, goalMl, metric, today }: { days: WaterDay[]; g
                   disabled={day.ml <= 0}
                   onPress={() => setSelected((current) => (current === day.date ? null : day.date))}
                   accessibilityRole="button"
-                  accessibilityLabel={day.ml > 0 ? `${shortDate(day.date)}: ${waterSummary(day.ml, goalMl, metric)}` : `${shortDate(day.date)}: nothing logged`}
+                  accessibilityLabel={day.ml > 0 ? `${shortDate(day.date)}: ${waterSummary(day.ml, goalMl, metric, t)}` : `${shortDate(day.date)}: nothing logged`}
                 />
               ))}
             </View>

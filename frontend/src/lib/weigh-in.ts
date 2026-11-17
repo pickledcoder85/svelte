@@ -1,4 +1,6 @@
 /** The quick weigh-in: whole units plus tenths (daily trends need the decimal), in lb or kg. */
+import { translatorFor } from '../i18n/dictionaries';
+import { formatDate, formatNumber, type TFunction } from '../i18n/translate';
 import type { UnitSystem } from './body-units';
 import type { WeightEntry } from '../types';
 import { wheelRange, nearestIndex, type WheelColumn } from './wheel-picker';
@@ -7,13 +9,28 @@ const KG_PER_LB = 0.45359237;
 const RANGE: Record<UnitSystem, [number, number]> = { imperial: [70, 450], metric: [30, 205] };
 const TENTHS = wheelRange(0, 9);
 
-export function weighInColumns(units: UnitSystem): WheelColumn[] {
+/** The wheels; `t` labels them (the values are the same in every language). */
+export function weighInColumns(units: UnitSystem, t: TFunction = translatorFor('en')): WheelColumn[] {
   const metric = units === 'metric';
   const [min, max] = RANGE[units];
   const whole = wheelRange(min, max);
+  // ".5" in English, ",5" in Spanish.
+  const decimalMark = formatNumber(1.5, undefined, t.locale).charAt(1);
   return [
-    { key: 'whole', values: whole, labels: whole.map(String), unit: '', accessibilityLabel: metric ? 'Kilograms' : 'Pounds' },
-    { key: 'tenth', values: TENTHS, labels: TENTHS.map((tenth) => `.${tenth}`), unit: metric ? 'kg' : 'lb', accessibilityLabel: 'Tenths' }
+    {
+      key: 'whole',
+      values: whole,
+      labels: whole.map(String),
+      unit: '',
+      accessibilityLabel: metric ? t('weighIn.kilograms') : t('weighIn.pounds')
+    },
+    {
+      key: 'tenth',
+      values: TENTHS,
+      labels: TENTHS.map((tenth) => `${decimalMark}${tenth}`),
+      unit: metric ? 'kg' : 'lb',
+      accessibilityLabel: t('weighIn.tenths')
+    }
   ];
 }
 
@@ -38,7 +55,7 @@ export function weighInLbs(units: UnitSystem, indexes: number[]): number {
 }
 
 /** "Last: 181.4 lb on Nov 14 · −1.2 lb this week" */
-export function weighInSummary(entries: WeightEntry[], units: UnitSystem, today: string): string | null {
+export function weighInSummary(entries: WeightEntry[], units: UnitSystem, today: string, t: TFunction): string | null {
   const sorted = [...entries].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   const last = sorted.at(-1);
   if (!last) {
@@ -46,11 +63,12 @@ export function weighInSummary(entries: WeightEntry[], units: UnitSystem, today:
   }
   const unit = units === 'metric' ? 'kg' : 'lb';
   const lastDay = last.recorded_at.slice(0, 10);
+  const weight = (value: number) => formatNumber(value, { maximumFractionDigits: 1, useGrouping: false }, t.locale);
   const when =
     lastDay === today
-      ? 'today'
-      : `on ${new Date(`${lastDay}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-  const parts = [`Last: ${displayWeight(last.weight_lbs, units)} ${unit} ${when}`];
+      ? t('weighIn.whenToday')
+      : t('weighIn.whenOn', { date: formatDate(new Date(`${lastDay}T00:00:00`), { month: 'short', day: 'numeric' }, t.locale) });
+  const parts = [t('weighIn.last', { weight: weight(displayWeight(last.weight_lbs, units)), unit, when })];
   const weekAgo = new Date(`${today}T00:00:00`);
   weekAgo.setDate(weekAgo.getDate() - 7);
   const weekKey = weekAgo.toISOString().slice(0, 10);
@@ -58,7 +76,7 @@ export function weighInSummary(entries: WeightEntry[], units: UnitSystem, today:
   if (before) {
     const change = displayWeight(last.weight_lbs, units) - displayWeight(before.weight_lbs, units);
     const rounded = Math.round(change * 10) / 10;
-    parts.push(`${rounded > 0 ? '+' : rounded < 0 ? '−' : '±'}${Math.abs(rounded)} ${unit} in a week`);
+    parts.push(t('weighIn.weekChange', { change: `${rounded > 0 ? '+' : rounded < 0 ? '−' : '±'}${weight(Math.abs(rounded))}`, unit }));
   }
   return parts.join(' · ');
 }

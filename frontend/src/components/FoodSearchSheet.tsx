@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useT } from '../i18n';
 import { fetchFoodBank, searchFoodsWithSession } from '../lib/api';
 import { tc } from '../theme/palette';
 import type { FoodItem } from '../types';
@@ -25,6 +26,7 @@ export function FoodSearchSheet({
   onAdded(food: FoodItem): void;
   onClose(): void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ export function FoodSearchSheet({
           })
           .catch((searchError) => {
             if (id === requestId.current) {
-              setError(searchError instanceof Error ? searchError.message : 'Search failed.');
+              setError(searchError instanceof Error ? searchError.message : t('search.error'));
             }
           })
           .finally(() => {
@@ -60,6 +62,8 @@ export function FoodSearchSheet({
       trimmed ? SEARCH_DELAY_MS : 0
     );
     return () => clearTimeout(timer);
+    // t only labels a failure; a language switch needn't search again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, accessToken]);
 
   if (picked) {
@@ -80,29 +84,29 @@ export function FoodSearchSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />
           <View style={styles.body}>
-            <Text style={styles.title}>Search foods</Text>
+            <Text style={styles.title}>{t('search.title')}</Text>
             <TextInput
               style={styles.input}
               value={query}
               onChangeText={setQuery}
-              placeholder="Your foods or USDA, e.g. green apple"
+              placeholder={t('search.placeholder')}
               placeholderTextColor={tc.fg_8a97a8}
               autoFocus
               autoCorrect={false}
               returnKeyType="search"
-              accessibilityLabel="Search foods"
+              accessibilityLabel={t('search.title')}
             />
-            {!query.trim() ? <Text style={styles.muted}>Your foods, most used first</Text> : null}
+            {!query.trim() ? <Text style={styles.muted}>{t('search.mostUsed')}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
           <ScrollView style={styles.list} contentContainerStyle={styles.listBody} keyboardShouldPersistTaps="handled">
             {loading && results.length === 0 ? <ActivityIndicator color={tc.brand_primary} /> : null}
             {!loading && results.length === 0 && !error ? (
-              <Text style={styles.muted}>{query.trim() ? 'Nothing found. Try fewer words.' : 'No saved foods yet. Search for one.'}</Text>
+              <Text style={styles.muted}>{query.trim() ? t('search.nothingFound') : t('search.noSavedFoods')}</Text>
             ) : null}
             {results.map((food) => (
               <Pressable
@@ -117,12 +121,12 @@ export function FoodSearchSheet({
                     {food.name}
                   </Text>
                   <Text style={styles.rowDetail} numberOfLines={1}>
-                    {[food.brand, food.serving_text ?? `${food.serving_size} ${food.serving_unit}`, food.in_bank ? 'Your food' : food.source === 'USDA' ? 'USDA' : null]
+                    {[food.brand, food.serving_text ?? `${food.serving_size} ${food.serving_unit}`, food.in_bank ? t('search.yourFood') : food.source === 'USDA' ? 'USDA' : null]
                       .filter(Boolean)
                       .join(' · ')}
                   </Text>
                 </View>
-                <Text style={styles.rowCalories}>{Math.round(food.calories)} kcal</Text>
+                <Text style={styles.rowCalories}>{t('common.kcal', { value: Math.round(food.calories) })}</Text>
               </Pressable>
             ))}
           </ScrollView>

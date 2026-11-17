@@ -29,6 +29,15 @@ type Paths<T, Prefix extends string = ''> = {
 export type TranslationKey = Paths<typeof en>;
 export type TranslationVars = Record<string, string | number>;
 
+/**
+ * t('dotted.key', vars) for one language, carrying that language and its locale so pure
+ * helpers that build text can also format dates and numbers with a single argument.
+ */
+export type TFunction = ((key: TranslationKey, vars?: TranslationVars) => string) & {
+  readonly language: Language;
+  readonly locale: Locale;
+};
+
 export function localeFor(language: Language): Locale {
   return LOCALES[language];
 }
