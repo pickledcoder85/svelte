@@ -1414,13 +1414,6 @@ class SQLiteRepository:
             )
             return True
 
-    def delete_food_log_entries_by_meal_plan_slot(self, meal_plan_slot_id: str) -> None:
-        with self._lock, self._connection:
-            self._connection.execute(
-                "DELETE FROM food_log_entries WHERE meal_plan_slot_id = ?",
-                (meal_plan_slot_id,),
-            )
-
     def reconcile_meal_plan_food_log_links(self, user_id: str) -> None:
         with self._lock, self._connection:
             rows = self._connection.execute(

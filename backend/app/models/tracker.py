@@ -77,27 +77,11 @@ class PlannedWorkoutSegmentInput(BaseModel):
     calories_estimate: int | None = Field(default=None, ge=0)
 
 
-class PlannedWorkoutSegment(PlannedWorkoutSegmentInput):
-    id: str
-    block_id: str
-    position: int
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
 class PlannedWorkoutBlockInput(BaseModel):
     block_kind: Literal["warmup", "activity", "cooldown"]
     title: str = Field(min_length=1)
     notes: str | None = None
     segments: list[PlannedWorkoutSegmentInput] = Field(default_factory=list)
-
-
-class PlannedWorkoutBlock(PlannedWorkoutBlockInput):
-    id: str
-    session_id: str
-    position: int
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
 
 class PlannedWorkoutSessionCreateRequest(BaseModel):
