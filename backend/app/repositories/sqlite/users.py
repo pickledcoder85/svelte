@@ -117,9 +117,10 @@ class UsersMixin:
         meals_per_day: int | None = None,
         meal_split: list[int] | None = None,
         water_goal_ml: int | None = None,
+        language: str | None = None,
     ) -> None:
         """Set timezone, units, the workout calories share, and/or the meals a day and their
-        split (already validated); None keeps the saved value."""
+        split (already validated), the water goal, and/or the language; None keeps the saved value."""
         with self._lock, self._connection:
             self._connection.execute(
                 """
@@ -130,6 +131,7 @@ class UsersMixin:
                     meals_per_day = COALESCE(?, meals_per_day),
                     meal_split = COALESCE(?, meal_split),
                     water_goal_ml = COALESCE(?, water_goal_ml),
+                    language = COALESCE(?, language),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
@@ -140,6 +142,7 @@ class UsersMixin:
                     meals_per_day,
                     json.dumps(meal_split) if meal_split is not None else None,
                     water_goal_ml,
+                    language,
                     user_id,
                 ),
             )
@@ -303,6 +306,7 @@ class UsersMixin:
                 COALESCE(p.calorie_floor, 'recommended') AS calorie_floor,
                 COALESCE(p.workout_calories_share, 75) AS workout_calories_share,
                 COALESCE(p.water_goal_ml, 2000) AS water_goal_ml,
+                COALESCE(p.language, 'en') AS language,
                 p.meals_per_day,
                 p.meal_split
             FROM users u

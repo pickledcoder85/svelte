@@ -1,4 +1,5 @@
 import { startAppearance, useAppearance } from './src/theme/appearance';
+import { LanguageProvider, parseLanguage, useLanguage, useT, type Language } from './src/i18n';
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
@@ -249,7 +250,17 @@ if (Platform.OS === 'web') {
 }
 
 export default function App(): ReactElement {
+  return (
+    <LanguageProvider>
+      <RelishApp />
+    </LanguageProvider>
+  );
+}
+
+function RelishApp(): ReactElement {
   const appearance = useAppearance();
+  const t = useT();
+  const { language, setLanguage } = useLanguage();
   const [ribeyeLoaded, ribeyeError] = useRibeyeFonts({
     Ribeye_400Regular
   });
@@ -311,6 +322,13 @@ export default function App(): ReactElement {
   const [isSubmittingSearch, setIsSubmittingSearch] = useState(false);
   const [foodFavoriteSavingId, setFoodFavoriteSavingId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  // The profile's language once loaded (the device's until then).
+  const profileLanguage = parseLanguage(profile?.language);
+  useEffect(() => {
+    if (profileLanguage) {
+      setLanguage(profileLanguage);
+    }
+  }, [profileLanguage, setLanguage]);
   const [profileGoals, setProfileGoals] = useState<UserGoal[]>([]);
   const [profileTone, setProfileTone] = useState<'checking' | 'live'>('checking');
   const [profileStatus, setProfileStatus] = useState('Loading profile settings');
@@ -2614,6 +2632,30 @@ export default function App(): ReactElement {
     }
   }
 
+  /** Settings > Language: switches at once, saves to the profile, and switches back if saving fails. */
+  async function applyLanguage(next: Language) {
+    if (!profile || !foodSessionToken || settingsSaving || next === language) {
+      return;
+    }
+    const previous = language;
+    setLanguage(next);
+    setSettingsSaving(true);
+    setSettingsError(null);
+    try {
+      setProfile(
+        await updateProfile(
+          { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, language: next },
+          foodSessionToken
+        )
+      );
+    } catch (error) {
+      setLanguage(previous);
+      setSettingsError(error instanceof Error ? error.message : t('settings.language.error'));
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
   /** Today: log a drink on the day shown. */
   async function addHomeWater(ml: number) {
     if (!foodSessionToken || waterBusy) {
@@ -3655,6 +3697,8 @@ export default function App(): ReactElement {
             profile={profile}
             isOwnerSession={isOwnerSession}
             appearance={appearance}
+            language={language}
+            applyLanguage={applyLanguage}
             profileUnitsDraft={profileUnitsDraft}
             setProfileUnitsDraft={setProfileUnitsDraft}
             profileTimezoneDraft={profileTimezoneDraft}
