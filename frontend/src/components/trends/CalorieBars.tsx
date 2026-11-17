@@ -1,8 +1,8 @@
 /**
- * One bar per day. The see-through outline is the day's allowance: the base target, plus a
- * lighter cap for the workout calories added. It fills with what was eaten (the brand colour
- * within the allowance, amber for anything over, sticking out above the outline). Days with
- * nothing logged show only the outline. No gridlines: one small label marks the base target.
+ * One bar per logged day: its height is the day's allowance (the base target plus the workout
+ * calories added), see-through, and it fills with what was eaten (amber for anything above the
+ * allowance). Days with nothing logged have no bar. No gridlines: one small label marks the base
+ * target.
  */
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -39,24 +39,19 @@ export function CalorieBars({ days }: { days: DayPoint[] }) {
             const left = PAD.left + slot * index + (slot - barW) / 2;
             const within = Math.min(day.eaten, day.allowance);
             const over = Math.max(0, day.eaten - day.allowance);
-            const dayBase = Math.min(day.baseTarget, day.allowance);
+            if (!day.logged) {
+              return null;
+            }
             return (
               <G key={day.date}>
                 {day.allowance > 0 ? (
-                  <>
-                    {/* The allowance: base target, then the workout cap. */}
-                    <Rect x={left} y={y(dayBase)} width={barW} height={Math.max(0, y(0) - y(dayBase))} rx={radius}
-                      fill={pal.brand_primary} fillOpacity={0.08} stroke={pal.fg_8a97a8} strokeOpacity={0.55} strokeWidth={outline} />
-                    {day.allowance > dayBase ? (
-                      <Rect x={left} y={y(day.allowance)} width={barW} height={Math.max(0, y(dayBase) - y(day.allowance))} rx={radius}
-                        fill={pal.brand_primary} fillOpacity={0.18} stroke={pal.brand_primary} strokeOpacity={0.5} strokeWidth={outline} strokeDasharray="2 2" />
-                    ) : null}
-                  </>
+                  <Rect x={left} y={y(day.allowance)} width={barW} height={Math.max(0, y(0) - y(day.allowance))} rx={radius}
+                    fill={pal.brand_primary} fillOpacity={0.1} stroke={pal.fg_8a97a8} strokeOpacity={0.55} strokeWidth={outline} />
                 ) : null}
-                {day.logged && within > 0 ? (
+                {within > 0 ? (
                   <Rect x={left} y={y(within)} width={barW} height={Math.max(1, y(0) - y(within))} rx={radius} fill={pal.brand_primary} />
                 ) : null}
-                {day.logged && over > 0 ? (
+                {over > 0 ? (
                   <Rect x={left} y={y(day.eaten)} width={barW} height={Math.max(1, y(day.allowance) - y(day.eaten))} rx={radius} fill={pal.fg_f59e0b} />
                 ) : null}
               </G>
