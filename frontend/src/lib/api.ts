@@ -927,6 +927,46 @@ export async function fetchExerciseEntries(accessToken: string): Promise<Exercis
   );
 }
 
+export interface NotificationStatus {
+  /** The server has VAPID keys (reminders can be sent). */
+  configured: boolean;
+  public_key: string | null;
+  /** A phone is subscribed. */
+  subscribed: boolean;
+  water_times: string[];
+}
+
+async function notificationsCall(path: string, accessToken: string, init: RequestInit = {}): Promise<NotificationStatus> {
+  return readJson<NotificationStatus>(
+    await apiFetch(buildApiUrl(`/notifications${path}`), {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken), ...(init.headers ?? {}) }
+    })
+  );
+}
+
+export function fetchNotificationStatus(accessToken: string): Promise<NotificationStatus> {
+  return notificationsCall('', accessToken);
+}
+
+export function savePushSubscription(body: { endpoint: string; keys: { p256dh: string; auth: string } }, accessToken: string) {
+  return notificationsCall('/subscription', accessToken, { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function removePushSubscription(endpoint: string, accessToken: string) {
+  return notificationsCall('/subscription/remove', accessToken, { method: 'POST', body: JSON.stringify({ endpoint }) });
+}
+
+export function setWaterReminderTimes(times: string[], accessToken: string) {
+  return notificationsCall('/reminders', accessToken, { method: 'PUT', body: JSON.stringify({ kind: 'water', times }) });
+}
+
+export async function sendTestNotification(accessToken: string): Promise<{ sent: number }> {
+  return readJson<{ sent: number }>(
+    await apiFetch(buildApiUrl('/notifications/test'), { method: 'POST', headers: authHeaders(accessToken) })
+  );
+}
+
 /** Drinks logged between two dates (inclusive), oldest first. */
 export async function fetchWater(start: string, end: string, accessToken: string): Promise<WaterEntry[]> {
   const query = new URLSearchParams({ start, end });

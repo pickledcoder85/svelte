@@ -130,6 +130,7 @@ import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
 import { WaterRow } from './src/components/WaterRow';
+import { RemindersSettings } from './src/components/RemindersSettings';
 import { WaterBars } from './src/components/trends/WaterBars';
 import { DEFAULT_WATER_GOAL_ML, GLASS_ML, volumeLabel, WATER_GOAL_GLASSES, waterDays, waterForDay } from './src/lib/water';
 import { groupByMeal } from './src/lib/meal-slots';
@@ -1123,6 +1124,24 @@ export default function App(): ReactElement {
   const appBusyRef = useRef(appBusy);
   appBusyRef.current = appBusy;
   const [updatePending, setUpdatePending] = useState(false);
+  // A tapped reminder: the service worker brings the app forward and asks for Today (never a
+  // reload, so nothing in progress is lost; when something is open, the app just stays put).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      return;
+    }
+    if (typeof window !== 'undefined' && window.location.search.includes('water=1')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'relish-open' && !appBusyRef.current) {
+        setSection('dashboard');
+        setSelectedHomeDate(localDateKey());
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, []);
   useEffect(() => {
     if (Platform.OS !== 'web' || IS_DEVELOPMENT_BUILD || typeof document === 'undefined') {
       return;
@@ -6714,6 +6733,9 @@ export default function App(): ReactElement {
                   <Text style={styles.settingsHint}>
                     {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric')} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric')}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric')}) is a common goal; food and other drinks count toward what you need too.`}
                   </Text>
+                </FieldGroup>
+                <FieldGroup label="Water reminders">
+                  {foodSessionToken ? <RemindersSettings accessToken={foodSessionToken} /> : null}
                 </FieldGroup>
                 <FieldGroup label="Workout calories">
                   <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Workout calories">

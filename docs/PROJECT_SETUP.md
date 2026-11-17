@@ -66,6 +66,8 @@ Create `.env` from `.env.example` and define:
 
 - `USDA_API_KEY`
 - `OPENAI_API_KEY`
+- `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY` (optional; reminder notifications. Generate on the server straight into the env file so the private key is never shown: `sudo sh -c 'cd /opt/relish/app && /opt/relish/venv/bin/python -m scripts.generate_vapid_keys >> /etc/relish/relish.env'`, then restart). `VAPID_SUBJECT` (optional, generic contact), `REMINDERS_BACKGROUND` (default true)
+- Python packages added for reminders: `py-vapid` and `http-ece` (with `cryptography`); `pip install -e .` picks them up
 - `GARMIN_PERSONAL_API_KEY` (optional; Garmin Connect personal API key. Keep it only in the root-only env file on the server; it is exchanged for a 24-hour token and never logged or stored)
 - `GARMIN_BACKGROUND_SYNC` (default `true`: sync Garmin every 30 minutes while a key is set)
 - `VISION_MODEL` (default `gpt-6-luna`, the cheapest current OpenAI model with image input) and `VISION_REASONING_EFFORT` (default `none`)

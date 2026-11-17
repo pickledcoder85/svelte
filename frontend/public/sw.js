@@ -104,3 +104,43 @@ async function trimCache(cache) {
     await cache.delete(keys[index]);
   }
 }
+
+/* Reminder notifications (Web Push). The server encrypts each message for this phone. */
+self.addEventListener('push', (event) => {
+  let message = {};
+  try {
+    message = event.data ? event.data.json() : {};
+  } catch (error) {
+    message = { body: event.data ? event.data.text() : '' };
+  }
+  const title = message.title || 'Relish';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: message.body || '',
+      icon: '/icons/apple-touch-icon.png',
+      badge: '/icons/apple-touch-icon.png',
+      tag: message.tag || 'relish',
+      data: { url: message.url || '/' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin);
+  if (target.origin !== self.location.origin) {
+    return; // only ever open Relish itself
+  }
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => 'focus' in client);
+      if (open) {
+        // Bring the open app forward and let it switch screens itself (never reload it: that
+        // could lose unsaved edits).
+        open.postMessage({ type: 'relish-open', url: target.pathname + target.search });
+        return open.focus();
+      }
+      return self.clients.openWindow(target.href);
+    })
+  );
+});
