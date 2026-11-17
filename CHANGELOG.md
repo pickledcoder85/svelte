@@ -19,6 +19,13 @@ The format should remain simple:
 
 ### Added
 
+- The installed app picks up new deploys by itself: on returning to it (and hourly while open) it fetches a fresh index.html, compares the app script it names with the one running, and reloads when they differ, but only on Today or Trends with no sheet or editor open and nothing being typed (other screens can hold unsaved edits, so it waits until you're back). iOS resumes home-screen apps from memory, so before this a deploy needed the app closed and reopened. The service worker never caches the check (`?relish-update-check`).
+
+### Changed
+
+- Trends opens on 1W instead of 1M.
+- Trends → Macros: no more on / over / under day counts. Each macro's header shows one day (the latest logged, or the one tapped): "Today · 85 of 142 g · 60%", and on 1W each bar has its % of target above it.
+
 - Workout days' macros grow with the allowance, by setup's own rules: protein stays (it comes from body weight), fat gets its share of the bigger number, carbs the rest (e.g. +300 kcal on 1,500: fat 42 → 50 g, carbs 102 → 159 g). Used by the Today rings, Trends, and Gus's meal budgets.
 - Trends → Macros: one see-through bar per logged day, as tall as that day's target, filled with the grams eaten in each macro's colour (protein teal, carbs orange, fat blue) and a darker shade above the target; tap a day for "Nov 14 · 85 of 120 g · 71%". Replaces the over/under bars.
 
