@@ -26,6 +26,8 @@ export interface DayPoint {
   /** Food was logged that day (a day with nothing logged isn't counted as 0 in averages). */
   logged: boolean;
   workoutCalories: number;
+  /** The day's base calorie target; the allowance is this plus the workout calories added. */
+  baseTarget: number;
   allowance: number;
 }
 
@@ -60,6 +62,7 @@ export function buildDaySeries({
       },
       logged: Boolean(log && log.entries.length > 0),
       workoutCalories,
+      baseTarget: Math.max(0, Math.round(calorieTarget)),
       allowance: dailyAllowance(calorieTarget, workoutCalories, sharePercent).allowance
     });
   }
@@ -160,4 +163,124 @@ export function historyDayLabel(date: string, today: string): string {
     return 'Yesterday';
   }
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// ---- macros over time ---------------------------------------------------------------------------
+
+export type MacroKey = 'protein' | 'carbs' | 'fat';
+/** Within this many percent of the target counts as on target. */
+export const MACRO_ON_TARGET_PERCENT = 10;
+export type MacroStatus = 'on' | 'over' | 'under' | 'none';
+
+export interface MacroDay {
+  date: string;
+  /** How far from the target, in percent of it (+40 = 40% over); null when nothing was logged. */
+  percent: number | null;
+  status: MacroStatus;
+}
+
+/** Each day's distance from a macro target, for bars above (over) and below (under) the target. */
+export function macroDays(days: DayPoint[], macro: MacroKey, target: number): MacroDay[] {
+  return days.map((day) => {
+    if (!day.logged || target <= 0) {
+      return { date: day.date, percent: null, status: 'none' };
+    }
+    const percent = Math.round(((day.macros[macro] - target) / target) * 100);
+    const status: MacroStatus =
+      Math.abs(percent) <= MACRO_ON_TARGET_PERCENT ? 'on' : percent > 0 ? 'over' : 'under';
+    return { date: day.date, percent, status };
+  });
+}
+
+export function macroCounts(days: MacroDay[]): { on: number; over: number; under: number } {
+  return {
+    on: days.filter((day) => day.status === 'on').length,
+    over: days.filter((day) => day.status === 'over').length,
+    under: days.filter((day) => day.status === 'under').length
+  };
+}
+
+/** Whether a day's miss is the kind to watch: protein is a minimum (short is the problem);
+ * carbs and fat are limits (over is the problem). */
+export function macroMissIsBad(macro: MacroKey, status: MacroStatus): boolean {
+  return macro === 'protein' ? status === 'under' : status === 'over';
+}
+
+// ---- weight projection --------------------------------------------------------------------------
+
+export type ProjectionHorizon = '1M' | '2M' | '3M';
+export const PROJECTION_HORIZONS: ProjectionHorizon[] = ['1M', '2M', '3M'];
+export const HORIZON_DAYS: Record<ProjectionHorizon, number> = { '1M': 30, '2M': 60, '3M': 90 };
+/** About 3,500 kcal per pound, the rule setup uses for the weekly rate. */
+const KCAL_PER_LB = 3500;
+/** A trend needs about a week of weigh-ins before it's worth carrying forward. */
+export const MIN_TREND_DAYS = 7;
+/** Goal dates further out than this aren't shown ("not at this rate"). */
+const MAX_GOAL_DAYS = 730;
+
+/** The planned weekly change (lb) at a calorie target, from the daily burn: negative to lose. */
+export function plannedWeeklyChange(calorieTarget: number, dailyBurn: number | null | undefined): number | null {
+  if (!(calorieTarget > 0) || !dailyBurn || !(dailyBurn > 0)) {
+    return null;
+  }
+  return Math.round((((calorieTarget - dailyBurn) * 7) / KCAL_PER_LB) * 10) / 10;
+}
+
+/** The trend's weekly rate when there is at least a week of weigh-ins, else null. */
+export function projectableRate(points: WeightPoint[]): number | null {
+  const first = points[0];
+  const last = points.at(-1);
+  if (!first || !last || daysBetween(first.date, last.date) < MIN_TREND_DAYS) {
+    return null;
+  }
+  return weeklyRate(points);
+}
+
+/** A straight projection: from a weight on a date, at a weekly rate, for some days. */
+export function projectLine(from: { date: string; weight: number }, weekly: number, days: number): Array<{ date: string; weight: number }> {
+  return [
+    { date: from.date, weight: from.weight },
+    { date: addDaysToDateKey(from.date, days), weight: Math.round((from.weight + (weekly * days) / 7) * 10) / 10 }
+  ];
+}
+
+/** When the goal is reached at a weekly rate; the start date if already there (or past it in
+ * the goal's direction: below it when losing, above it when gaining); null when the rate moves
+ * away from it (or is flat), or it's more than two years out. */
+export function goalDate(
+  from: { date: string; weight: number },
+  weekly: number | null,
+  goal: number | null,
+  direction: 'lose' | 'gain' | 'maintain' | null = null
+): string | null {
+  if (goal === null || weekly === null) {
+    return null;
+  }
+  const gap = goal - from.weight;
+  if (Math.abs(gap) < 0.05 || (direction === 'lose' && gap >= 0) || (direction === 'gain' && gap <= 0)) {
+    return from.date;
+  }
+  if (weekly === 0 || Math.sign(weekly) !== Math.sign(gap)) {
+    return null;
+  }
+  const days = Math.ceil((gap / weekly) * 7);
+  return days > MAX_GOAL_DAYS ? null : addDaysToDateKey(from.date, days);
+}
+
+export type PaceStatus = 'on' | 'ahead' | 'behind' | 'drifting';
+
+/** The trend against the plan. Close enough (a quarter of the plan, at least 0.2 lb a week) is
+ * on pace; maintaining, any real drift is "drifting". */
+export function paceStatus(actual: number | null, planned: number | null): PaceStatus | null {
+  if (actual === null || planned === null) {
+    return null;
+  }
+  const tolerance = Math.max(0.2, Math.abs(planned) * 0.25);
+  if (Math.abs(actual - planned) <= tolerance) {
+    return 'on';
+  }
+  if (Math.abs(planned) < 0.1) {
+    return 'drifting';
+  }
+  return (planned < 0 ? actual < planned : actual > planned) ? 'ahead' : 'behind';
 }
