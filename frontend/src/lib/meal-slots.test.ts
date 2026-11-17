@@ -42,11 +42,11 @@ describe('meal slots', () => {
     expect(addButtonLabel('today', 'dinner', en)).toBe("Add to today's dinner");
     expect(addButtonLabel('Tuesday', 'lunch', en)).toBe("Add to Tuesday's lunch");
     expect(addButtonLabel('today', 'dinner', en, true)).toBe("Add all to today's dinner");
-    expect(addButtonLabel('today', 'dinner', es)).toBe('Agregue a la cena de hoy');
-    expect(addButtonLabel('martes', 'lunch', es)).toBe('Agregue al almuerzo del martes');
-    expect(addButtonLabel('martes', 'snack', es, true)).toBe('Agregue todo a la merienda del martes');
+    expect(addButtonLabel('today', 'dinner', es)).toBe('Agregar a la cena de hoy');
+    expect(addButtonLabel('martes', 'lunch', es)).toBe('Agregar al almuerzo del martes');
+    expect(addButtonLabel('martes', 'snack', es, true)).toBe('Agregar todo al refrigerio del martes');
     expect(addToDayLabel('today', en)).toBe('Add to today');
     expect(addToDayLabel('Tuesday', en)).toBe('Add to Tuesday');
-    expect(addToDayLabel('martes', es)).toBe('Agregue al martes');
+    expect(addToDayLabel('martes', es)).toBe('Agregar al martes');
   });
 });

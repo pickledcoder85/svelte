@@ -210,7 +210,9 @@ export const en = {
     addGlassA11y: 'Add a glass of water',
     addGlassHint: 'Press and hold to add a bottle',
     addBottle: '＋ Bottle',
-    addBottleA11y: 'Add a bottle of water'
+    addBottleA11y: 'Add a bottle of water',
+    today: 'Today',
+    nothingLogged: 'nothing logged'
   },
   workouts: {
     title: 'Workouts',

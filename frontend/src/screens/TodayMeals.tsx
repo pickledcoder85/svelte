@@ -76,7 +76,7 @@ export function TodayMeals({
             return (
               <View key={slot.id} style={styles.todayRow}>
                 <View style={styles.listRowCopyFlex}>
-                  <Text style={styles.todayRowTag}>{t('meals.planned', { meal: slot.meal_label })}</Text>
+                  <Text style={styles.todayRowTag}>{t('meals.planned', { meal: plannedMealLabel(slot.meal_label, t) })}</Text>
                   <Text style={styles.listTitle}>{slot.title}</Text>
                   <Text style={styles.listCaption}>{t('common.kcal', { value: slot.calories })}</Text>
                 </View>
@@ -193,4 +193,10 @@ export function TodayMeals({
       ))}
     </View>
   );
+}
+
+/** A planned meal's label in the app's language ("Breakfast" is stored in English). */
+function plannedMealLabel(label: string, t: ReturnType<typeof useT>): string {
+  const key = label.trim().toLowerCase();
+  return key === 'breakfast' || key === 'lunch' || key === 'dinner' || key === 'snack' ? t(`meals.slots.${key}`) : label;
 }

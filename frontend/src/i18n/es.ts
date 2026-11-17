@@ -46,7 +46,7 @@ export const es: Dictionary = {
       workoutPlan: 'Entrenamientos',
       foods: 'Alimentos',
       recipes: 'Recetas',
-      buildMeal: 'Arme una comida',
+      buildMeal: 'Armar una comida',
       recentScans: 'Escaneos recientes'
     }
   },
@@ -65,8 +65,8 @@ export const es: Dictionary = {
     changeEntryMode: 'Cambiar modo de entrada'
   },
   addFood: {
-    titleToday: 'Agregar comida a hoy',
-    title: 'Agregar comida',
+    titleToday: 'Agregar alimento a hoy',
+    title: 'Agregar alimento',
     search: 'Buscar alimentos',
     searchDetail: 'Primero sus alimentos, luego USDA (p. ej. "manzana verde")',
     scan: 'Escanear',
@@ -83,15 +83,15 @@ export const es: Dictionary = {
     goToToday: '{label}. Ir a hoy',
     previous: 'Día anterior',
     next: 'Día siguiente',
-    letters: 'DLMMJVS',
-    addToToday: 'Agregue a hoy',
-    addToDay: 'Agregue al {day}',
+    letters: 'DLMXJVS',
+    addToToday: 'Agregar a hoy',
+    addToDay: 'Agregar al {day}',
     addedToToday: '✓ Agregado a hoy',
     addedToDay: '✓ Agregado al {day}'
   },
   meals: {
     title: 'Comidas',
-    addFood: 'Agregue un alimento',
+    addFood: 'Agregar un alimento',
     emptyTitle: 'Todavía no ha comido nada.',
     emptyHint: 'Toque + para buscar, escanear o agregar calorías rápidas.',
     planned: 'Planeado · {meal}',
@@ -103,39 +103,39 @@ export const es: Dictionary = {
       breakfast: 'Desayuno',
       lunch: 'Almuerzo',
       dinner: 'Cena',
-      snack: 'Merienda',
+      snack: 'Refrigerio',
       other: 'Otro'
     },
     blocks: {
       breakfast: 'Desayuno',
-      morning_snack: 'Merienda de la mañana',
+      morning_snack: 'Media mañana',
       lunch: 'Almuerzo',
       afternoon_snack: 'Onces',
       dinner: 'Cena'
     },
     addToToday: {
-      breakfast: 'Agregue al desayuno de hoy',
-      lunch: 'Agregue al almuerzo de hoy',
-      dinner: 'Agregue a la cena de hoy',
-      snack: 'Agregue a la merienda de hoy'
+      breakfast: 'Agregar al desayuno de hoy',
+      lunch: 'Agregar al almuerzo de hoy',
+      dinner: 'Agregar a la cena de hoy',
+      snack: 'Agregar al refrigerio de hoy'
     },
     addToDay: {
-      breakfast: 'Agregue al desayuno del {day}',
-      lunch: 'Agregue al almuerzo del {day}',
-      dinner: 'Agregue a la cena del {day}',
-      snack: 'Agregue a la merienda del {day}'
+      breakfast: 'Agregar al desayuno del {day}',
+      lunch: 'Agregar al almuerzo del {day}',
+      dinner: 'Agregar a la cena del {day}',
+      snack: 'Agregar al refrigerio del {day}'
     },
     addAllToToday: {
-      breakfast: 'Agregue todo al desayuno de hoy',
-      lunch: 'Agregue todo al almuerzo de hoy',
-      dinner: 'Agregue todo a la cena de hoy',
-      snack: 'Agregue todo a la merienda de hoy'
+      breakfast: 'Agregar todo al desayuno de hoy',
+      lunch: 'Agregar todo al almuerzo de hoy',
+      dinner: 'Agregar todo a la cena de hoy',
+      snack: 'Agregar todo al refrigerio de hoy'
     },
     addAllToDay: {
-      breakfast: 'Agregue todo al desayuno del {day}',
-      lunch: 'Agregue todo al almuerzo del {day}',
-      dinner: 'Agregue todo a la cena del {day}',
-      snack: 'Agregue todo a la merienda del {day}'
+      breakfast: 'Agregar todo al desayuno del {day}',
+      lunch: 'Agregar todo al almuerzo del {day}',
+      dinner: 'Agregar todo a la cena del {day}',
+      snack: 'Agregar todo al refrigerio del {day}'
     },
     mealPicker: 'Comida'
   },
@@ -168,7 +168,7 @@ export const es: Dictionary = {
     lines: {
       target: 'Objetivo',
       workoutsShare: 'Entrenamientos ({percent} %)',
-      workoutsOff: 'Entrenamientos (apagado)',
+      workoutsOff: 'Entrenamientos (desactivado)',
       allowance: 'Disponible',
       eaten: 'Consumido',
       remaining: 'Restante',
@@ -177,7 +177,7 @@ export const es: Dictionary = {
     bars: {
       bmr: 'En reposo (TMB)',
       activity: 'Actividad diaria',
-      workouts: 'Entrenamientos (activas)'
+      workouts: 'Entrenamientos (calorías activas)'
     },
     pace: {
       deficit: 'Su ritmo (déficit)',
@@ -191,7 +191,7 @@ export const es: Dictionary = {
     todaysBudget: 'Presupuesto de hoy',
     openHistory: 'Abrir el historial en Tendencias',
     keptNote:
-      '{kept} kcal de entrenamiento no se suman de vuelta{share}, así que el déficit de hoy es un poco mayor que el de su objetivo. Cámbielo en Ajustes → Calorías de entrenamiento.',
+      '{kept} kcal de entrenamiento no se suman a su presupuesto{share}, así que el déficit de hoy es un poco mayor que el de su objetivo. Cámbielo en Ajustes → Calorías de entrenamiento.',
     keptShare: ' (usted suma el {percent} %)',
     whereFrom: 'De dónde sale su objetivo',
     targetNote:
@@ -204,14 +204,16 @@ export const es: Dictionary = {
     undoLast: 'Deshacer el último',
     undoLastA11y: 'Deshacer la última bebida',
     addGlass: '＋ Vaso',
-    addGlassA11y: 'Agregue un vaso de agua',
+    addGlassA11y: 'Agregar un vaso de agua',
     addGlassHint: 'Mantenga presionado para agregar una botella',
     addBottle: '＋ Botella',
-    addBottleA11y: 'Agregue una botella de agua'
+    addBottleA11y: 'Agregar una botella de agua',
+    today: 'Hoy',
+    nothingLogged: 'nada registrado'
   },
   workouts: {
     title: 'Entrenamientos',
-    add: 'Agregue un entrenamiento',
+    add: 'Agregar un entrenamiento',
     emptyToday: 'No hay entrenamientos hoy.',
     emptyDay: 'No hay entrenamientos este día.',
     emptyHint: 'Los entrenamientos de Garmin aparecen aquí solos, o toque + para agregar uno.',
@@ -220,10 +222,10 @@ export const es: Dictionary = {
     done: '✓ Hecho',
     showDetail: '{name}: ver cómo se cuentan sus calorías',
     activities: {
-      walk: 'Caminar',
-      run: 'Correr',
-      bike: 'Bici',
-      swim: 'Nadar',
+      walk: 'Caminata',
+      run: 'Carrera',
+      bike: 'Bicicleta',
+      swim: 'Natación',
       strength: 'Fuerza',
       other: 'Otro'
     },
@@ -234,8 +236,8 @@ export const es: Dictionary = {
     },
     effortHints: {
       easy: 'puede conversar',
-      moderate: 'respira más fuerte',
-      hard: 'pocas palabras'
+      moderate: 'respira más rápido',
+      hard: 'casi no puede hablar'
     },
     duration: {
       minutes: '{minutes} min',
@@ -256,7 +258,7 @@ export const es: Dictionary = {
       watchTotal: 'El total de su reloj',
       watchA11y: 'Calorías que marca su reloj',
       watchNote: 'Relish descuenta sus calorías en reposo de estos minutos (su objetivo ya las cuenta).',
-      ownEstimate: ' Su propio cálculo: ≈ {value} kcal activas.',
+      ownEstimate: ' Cálculo de Relish: ≈ {value} kcal activas.',
       useEstimate: 'Usar el cálculo de Relish',
       estimate: '≈ {value} kcal activas',
       estimating: 'Calculando…',
@@ -272,7 +274,7 @@ export const es: Dictionary = {
       recorded: 'Lo que registró {source}',
       relishCounts: 'Lo que cuenta Relish',
       addedShare: 'Sumado a hoy ({percent} %)',
-      addedOff: 'Sumado a hoy (apagado)',
+      addedOff: 'Sumado a hoy (desactivado)',
       estimatedByRelish: 'Calculado por Relish',
       fromPace: 'Según su ritmo',
       metPart: ', MET {met}',
@@ -282,20 +284,20 @@ export const es: Dictionary = {
         'Calorías activas = (MET − 1) × peso × horas: el 1 MET que quema en reposo se deja por fuera porque su objetivo ya lo cuenta.',
       watchSaid: 'Su reloj marcó',
       restingYourBmr: 'En reposo (su TMB)',
-      activeCounted: 'Activas, contadas',
+      activeCounted: 'Activas que se cuentan',
       watchNote:
         'El total de su reloj incluye las calorías que quemaría de todos modos en reposo; Relish descuenta su propio cálculo de reposo (la misma TMB de su objetivo) para no contarlas dos veces.',
       youLogged: 'Usted registró',
       loggedNote: 'Registrado en Relish. Su número se usa como calorías activas.',
       totalBurned: 'Total quemado',
-      restingTheirs: 'En reposo (su cálculo)',
+      restingTheirs: 'En reposo (cálculo del reloj)',
       active: 'Activas',
       restingSource: 'En reposo (de {source}, hasta la configuración)',
       editedNote: 'Usted editó las calorías de este entrenamiento; se usa su número.',
       countsMore:
-        'Relish cuenta {value} más que el número activo de {source} porque su cálculo de reposo es distinto al de ellos. Relish usa la misma TMB de su objetivo, así que las calorías en reposo nunca se cuentan dos veces.',
+        'Relish cuenta {value} más que el número activo de {source} porque su cálculo de reposo es distinto del de ellos. Relish usa la misma TMB de su objetivo, así que las calorías en reposo nunca se cuentan dos veces.',
       countsLess:
-        'Relish cuenta {value} menos que el número activo de {source} porque su cálculo de reposo es distinto al de ellos. Relish usa la misma TMB de su objetivo, así que las calorías en reposo nunca se cuentan dos veces.',
+        'Relish cuenta {value} menos que el número activo de {source} porque su cálculo de reposo es distinto del de ellos. Relish usa la misma TMB de su objetivo, así que las calorías en reposo nunca se cuentan dos veces.',
       shareOnly:
         'Solo el {percent} % de las calorías activas se suma a hoy porque los cálculos de los relojes tienden a quedar altos. Cámbielo en Ajustes → Calorías de entrenamiento.',
       shareNone:
@@ -382,7 +384,7 @@ export const es: Dictionary = {
         holdSteady: 'Manténgalo firme…',
         tooBlurry: 'Acérquese o aléjese un poco hasta que se vea nítido',
         nothingToRead: 'Apunte al empaque o a su tabla nutricional',
-        holdStill: 'Quieto…'
+        holdStill: 'No lo mueva…'
       }
     },
     plate: {
@@ -396,7 +398,7 @@ export const es: Dictionary = {
       nothingLeft: 'No queda nada por agregar.',
       total: 'Total',
       estimateNote: 'Lo que no coincide con USDA usa el cálculo de la foto y se registra como calorías rápidas.',
-      addRest: 'Agregue el resto',
+      addRest: 'Agregar el resto',
       estimateName: '{name} (cálculo, {grams} g)',
       error: 'No se pudieron agregar estos alimentos.',
       partial: 'Algunos se agregaron (marcados con ✓). El resto falló: {message}'
@@ -412,11 +414,11 @@ export const es: Dictionary = {
     letGusChoose: 'Que Gus elija',
     letGusChooseDetail: 'Según lo que le queda hoy',
     thinking: 'Gus está pensando…',
-    budget: 'Presupuesto de {block}: {calories} kcal · P {protein} · C {carbs} · G {fat}',
+    budget: '{block} · presupuesto: {calories} kcal · P {protein} · C {carbs} · G {fat}',
     leftToday: '(le quedan {calories} kcal hoy)',
     sees: 'Gus ve: {items}',
     leftOut: 'Por fuera (sin datos de nutrición): {items}',
-    planned: 'Usted planeó “{title}” ({calories} kcal) para {block}.',
+    planned: 'Usted ya planeó “{title}” ({calories} kcal) para esta comida.',
     replacePlanned: 'Reemplazar lo planeado',
     keepPlanned: 'Conservar lo planeado',
     logIt: 'Registrar',
@@ -433,8 +435,8 @@ export const es: Dictionary = {
     share: 'Compartir',
     notSavedYet: 'Aún sin guardar: se guarda cuando vuelva a tener conexión.',
     allDoneAsk: 'Todo listo 🎉 ¿Eliminar esta lista?',
-    addPlaceholder: '＋ Agregue algo, p. ej. café',
-    addA11y: 'Agregue un artículo',
+    addPlaceholder: '＋ Agregar algo, p. ej. café',
+    addA11y: 'Agregar un artículo',
     tapAgainToDelete: 'Toque otra vez para eliminar esta lista',
     deleteList: 'Eliminar lista',
     opening: 'Abriendo…',
@@ -448,7 +450,7 @@ export const es: Dictionary = {
     },
     shareAllDone: 'Todo listo.',
     roles: {
-      protein: 'Proteína',
+      protein: 'Proteínas',
       carb: 'Harinas y granos',
       veg: 'Verduras',
       fruit: 'Frutas',

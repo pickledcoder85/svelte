@@ -2654,7 +2654,11 @@ function RelishApp(): ReactElement {
 
   /** Settings > Language: switches at once, saves to the profile, and switches back if saving fails. */
   async function applyLanguage(next: Language) {
-    if (!profile || !foodSessionToken || settingsSaving || next === language) {
+    if (next === language || settingsSaving) {
+      return;
+    }
+    if (!profile || !foodSessionToken) {
+      setLanguage(next); // preview mode: switch for this session only
       return;
     }
     const previous = language;

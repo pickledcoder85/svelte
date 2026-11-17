@@ -32,7 +32,7 @@ describe('add a workout', () => {
 
   it('labels activities and efforts in each language', () => {
     expect(activityLabel('walk', en)).toBe('Walk');
-    expect(activityLabel('walk', es)).toBe('Caminar');
+    expect(activityLabel('walk', es)).toBe('Caminata');
     expect(effortLabel('hard', en)).toBe('Hard');
     expect(effortLabel('hard', es)).toBe('Intenso');
     expect(effortHint('easy', en)).toBe('can chat');

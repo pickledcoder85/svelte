@@ -13,7 +13,7 @@ describe('week strip', () => {
       '2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'
     ]);
     expect(week.map((d) => d.letter).join('')).toBe('MTWTFSS');
-    expect(weekDays('2026-11-15', '2026-11-15', es).map((d) => d.letter).join('')).toBe('LMMJVSD');
+    expect(weekDays('2026-11-15', '2026-11-15', es).map((d) => d.letter).join('')).toBe('LMXJVSD');
     expect(week[6]).toMatchObject({ date: 15, isToday: true, isSelected: true, isFuture: false });
   });
 
