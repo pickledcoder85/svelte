@@ -24,8 +24,10 @@ from backend.app.routes.recipes import router as recipes_router
 from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
 from backend.app.routes.water import router as water_router
+from backend.app.routes.notifications import router as notifications_router
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.garmin_sync import garmin_configured, run_background_sync
+from backend.app.services.reminders import reminders_configured, run_reminder_loop
 from backend.app.web import mount_web_app, validate_web_dist
 
 def create_app(
@@ -42,11 +44,13 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        task = None
+        tasks = []
         if settings.garmin_background_sync and garmin_configured(settings) and settings.owner_email.strip():
-            task = asyncio.create_task(run_background_sync(app.state.repository, settings))
+            tasks.append(asyncio.create_task(run_background_sync(app.state.repository, settings)))
+        if settings.reminders_background and reminders_configured(settings):
+            tasks.append(asyncio.create_task(run_reminder_loop(app.state.repository, settings)))
         yield
-        if task is not None:
+        for task in tasks:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -95,6 +99,7 @@ def create_app(
         integrations_router,
         coach_router,
         water_router,
+        notifications_router,
     ):
         app.include_router(router, prefix="/api", dependencies=owner_only)
 
