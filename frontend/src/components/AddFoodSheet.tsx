@@ -323,7 +323,6 @@ const styles = StyleSheet.create({
   },
   handle: { alignSelf: 'center', width: 40, height: 5, borderRadius: 999, backgroundColor: tc.line_d7dee7, marginBottom: 8 },
   body: { paddingHorizontal: 20, paddingBottom: 8, gap: 14 },
-  center: { alignItems: 'center', gap: 10, paddingVertical: 28 },
   header: { gap: 4 },
   title: { color: tc.fg_132536, fontSize: 20, fontWeight: '800', flex: 1 },
   muted: { color: tc.fg_5c6d80, fontSize: 14, lineHeight: 19 },

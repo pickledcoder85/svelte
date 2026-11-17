@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ExerciseEntry, FoodLogSummary, MealPlanDay, UserGoal, UserProfile } from '../types';
+import type { ExerciseEntry, FoodLogSummary, UserGoal, UserProfile } from '../types';
 import {
   buildDailyExerciseSummary,
-  buildDailyMealPlanSummary,
   buildDailyTargetSummary,
   dailyAllowance
 } from './daily-home';
@@ -64,18 +63,6 @@ const exerciseEntries: ExerciseEntry[] = [
   }
 ];
 
-const mealPlanDay: MealPlanDay = {
-  id: 'plan-1',
-  label: 'Wed',
-  focus: 'Recovery day',
-  plan_date: '2026-04-01',
-  slots: [
-    { id: 'breakfast', meal_label: 'Breakfast', title: 'Egg scramble', calories: 410, prep_status: 'Needs prep' },
-    { id: 'lunch', meal_label: 'Lunch', title: 'Chicken salad', calories: 520, prep_status: 'Prepped' },
-    { id: 'dinner', meal_label: 'Dinner', title: 'Protein pasta', calories: 690, prep_status: 'Flexible' }
-  ]
-};
-
 describe('daily home helpers', () => {
   it('builds today target and progress summary from goal, profile, log, and exercise', () => {
     expect(
@@ -120,19 +107,6 @@ describe('daily home helpers', () => {
     const summary = buildDailyTargetSummary({ goal, profile, foodLog, exerciseEntries, workoutCaloriesShare: 0 });
     expect(summary.allowanceCalories).toBe(2200);
     expect(summary.remainingCalories).toBe(2200 - 1685);
-  });
-
-  it('summarizes today meal plan and next remaining meal', () => {
-    expect(buildDailyMealPlanSummary(mealPlanDay, { breakfast: '2026-04-01T07:30:00' })).toEqual({
-      hasPlan: true,
-      dayLabel: 'Wed',
-      focus: 'Recovery day',
-      plannedMeals: 3,
-      completedMeals: 1,
-      plannedCalories: 1620,
-      plannedMacros: { protein: 0, carbs: 0, fat: 0 },
-      nextMealTitle: 'Chicken salad'
-    });
   });
 
   it('summarizes exercise totals for the day', () => {

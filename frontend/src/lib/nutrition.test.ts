@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { demoMeal } from '../mock-data';
-import { mealTotals, progressPercent, recipeScaleLabel, scaleMealIngredients } from './nutrition';
+import { mealTotals, recipeScaleLabel, scaleMealIngredients } from './nutrition';
 
 describe('nutrition helpers', () => {
   it('calculates meal totals and per-serving nutrition', () => {
@@ -15,7 +15,7 @@ describe('nutrition helpers', () => {
     });
   });
 
-  it('scales ingredients and clamps progress', () => {
+  it('scales ingredients', () => {
     const scaled = scaleMealIngredients(demoMeal, 1.5);
     const halfScaled = scaleMealIngredients(demoMeal, 0.5);
 
@@ -23,7 +23,6 @@ describe('nutrition helpers', () => {
     expect(scaled.ingredients[0].grams).toBe(120);
     expect(halfScaled.serving_count).toBe(1);
     expect(halfScaled.ingredients[0].grams).toBe(40);
-    expect(progressPercent(10360, 14800)).toBe(70);
   });
 
   it('formats recipe scale labels', () => {

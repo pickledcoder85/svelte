@@ -6,9 +6,7 @@ import {
   demoMeal,
   demoMealPlanDays,
   demoMealPrepTasks,
-  demoRangeSeries,
   demoWeightEntries,
-  demoProfileProgress,
   demoRecipe,
   demoRecipeFavorites,
   demoRecipeCatalog,
@@ -21,10 +19,8 @@ describe('frontend demo data', () => {
     expect(demoMeal.ingredients).toHaveLength(3);
   });
 
-  it('exposes recipe import sources and dashboard ranges', () => {
+  it('exposes recipe import sources', () => {
     expect(demoRecipeImports.sources).toHaveLength(3);
-    expect(demoRangeSeries).toHaveLength(4);
-    expect(demoRangeSeries[0].range).toBe('1D');
   });
 
   it('seeds a persisted daily log for the new log screen', () => {
@@ -37,7 +33,6 @@ describe('frontend demo data', () => {
     expect(demoMealPlanDays).toHaveLength(3);
     expect(demoMealPrepTasks).toHaveLength(4);
     expect(demoWeightEntries).toHaveLength(4);
-    expect(demoProfileProgress.weight_entries).toBe(demoWeightEntries.length);
   });
 
   it('seeds recipe favorites for the new recipes screen', () => {

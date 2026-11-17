@@ -146,10 +146,4 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 }
   },
-  plusLabel: {
-    color: tc.fg_ffffff,
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '600'
-  }
 });

@@ -9,7 +9,6 @@ export interface AppShellSectionMeta {
 
 export const appShellSections: AppShellSectionMeta[] = [
   { id: 'dashboard', label: 'Home', detail: "Today's targets and plan", group: 'primary' },
-  { id: 'tracker', label: 'Tracker', detail: 'Exercise and today logs', group: 'primary' },
   { id: 'foods', label: 'Food Search', detail: 'Find and favorite foods', group: 'primary' },
   { id: 'ingestion', label: 'Scan Food', detail: 'Photograph labels and packages', group: 'primary' },
   { id: 'meals', label: 'Meals', detail: 'Compose and scale meals', group: 'organize' },

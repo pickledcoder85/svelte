@@ -283,8 +283,6 @@ const styles = StyleSheet.create({
   chipLabel: { color: tc.fg_132536, fontSize: 14, fontWeight: '600' },
   chipLabelActive: { color: tc.fg_ffffff },
   input: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7, paddingHorizontal: 14, fontSize: 16, color: tc.fg_132536, backgroundColor: tc.bg_ffffff },
-  primary: { alignItems: 'center', paddingVertical: 14, borderRadius: 14, backgroundColor: tc.brand_primary },
-  primaryLabel: { color: tc.fg_ffffff, fontSize: 17, fontWeight: '800' },
   disabled: { opacity: 0.5 },
   error: { color: tc.fg_b42318, fontSize: 14 },
   budget: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '600' },

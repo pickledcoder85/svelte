@@ -1,4 +1,4 @@
-import type { FoodLogSummary, MacroTargets, MealPlanDay, UserGoal, UserProfile } from '../types';
+import type { FoodLogSummary, MacroTargets, UserGoal, UserProfile } from '../types';
 import { fatShareFor, macroAllowance } from './macro-allowance';
 
 type ExerciseLike = {
@@ -25,17 +25,6 @@ export interface DailyTargetSummary {
   macroAllowance: MacroTargets;
   macroPercentages: MacroTargets;
   fiberTarget: number;
-}
-
-export interface DailyMealPlanSummary {
-  hasPlan: boolean;
-  dayLabel: string | null;
-  focus: string | null;
-  plannedMeals: number;
-  completedMeals: number;
-  plannedCalories: number;
-  plannedMacros: MacroTargets;
-  nextMealTitle: string | null;
 }
 
 export interface DailyExerciseSummary {
@@ -121,55 +110,6 @@ export function buildDailyTargetSummary({
     macroAllowance: macroAllowance(macroTargets, calorieTarget, allowance, fatShareFor(profile?.goal_type, profile?.goal_pace)),
     macroPercentages: calculateMacroPercentages(macroTargets),
     fiberTarget: Math.round(goal?.fiber_goal ?? profile?.fiber_target_g ?? 0)
-  };
-}
-
-export function buildDailyMealPlanSummary(
-  mealPlanDay: MealPlanDay | null,
-  eatenSlots: Record<string, string>
-): DailyMealPlanSummary {
-  if (!mealPlanDay) {
-    return {
-      hasPlan: false,
-      dayLabel: null,
-      focus: null,
-      plannedMeals: 0,
-      completedMeals: 0,
-      plannedCalories: 0,
-      plannedMacros: { protein: 0, carbs: 0, fat: 0 },
-      nextMealTitle: null
-    };
-  }
-
-  const completedMeals = mealPlanDay.slots.filter((slot) => Boolean(eatenSlots[slot.id])).length;
-  const nextMeal = mealPlanDay.slots.find((slot) => !eatenSlots[slot.id]) ?? null;
-
-  return {
-    hasPlan: true,
-    dayLabel: mealPlanDay.label,
-    focus: mealPlanDay.focus,
-    plannedMeals: mealPlanDay.slots.length,
-    completedMeals,
-    plannedCalories: mealPlanDay.slots.reduce((sum, slot) => sum + slot.calories, 0),
-    plannedMacros: mealPlanDay.slots.reduce(
-      (totals, slot) => {
-        const slotTotals = (slot.items ?? []).reduce(
-          (itemTotals, item) => ({
-            protein: itemTotals.protein + item.macros.protein,
-            carbs: itemTotals.carbs + item.macros.carbs,
-            fat: itemTotals.fat + item.macros.fat
-          }),
-          { protein: 0, carbs: 0, fat: 0 }
-        );
-        return {
-          protein: Math.round((totals.protein + slotTotals.protein) * 10) / 10,
-          carbs: Math.round((totals.carbs + slotTotals.carbs) * 10) / 10,
-          fat: Math.round((totals.fat + slotTotals.fat) * 10) / 10
-        };
-      },
-      { protein: 0, carbs: 0, fat: 0 }
-    ),
-    nextMealTitle: nextMeal?.title ?? null
   };
 }
 
