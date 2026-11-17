@@ -118,8 +118,9 @@ The service worker belongs to the live app, not development. It caches the app s
 
 ### Phase 6: refactor
 
-- [ ] Split `frontend/App.tsx` (about 7,800 lines) into screens and hooks, and `backend/app/repositories/sqlite.py` by domain.
-- [ ] Remove dead code (unused frontend components and API wrappers; the unused backend repositories went in 1.5).
+- [x] Split `backend/app/repositories/sqlite.py` by domain (2026-11-17): a package of mixins (`users`, `goals`, `foods`, `food_logs`, `meal_plans`, `recipes`, `exercise`, `integrations`, `ingestion`, `water`, `notifications`, `shopping`) on `SQLiteRepositoryBase`; the lock guard and a duplicate-method test cover every module.
+- [ ] Split `frontend/App.tsx` into screens and hooks.
+- [x] Remove dead code (2026-11-17): Tracker leftovers, unused dashboard code, components, API wrappers and styles in the frontend; old starter-plan generators, unused models and imports in the backend.
 - [ ] Generate `frontend/src/types.ts` from the OpenAPI schema.
 
 ## Feature backlog

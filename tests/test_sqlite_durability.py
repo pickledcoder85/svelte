@@ -152,36 +152,77 @@ async def test_export_requires_a_session(client):
     assert (await client.get("/api/export")).status_code == 401
 
 
-def test_every_repository_connection_use_holds_the_lock():
-    """Static guard: each use of self._connection is inside `with self._lock` or a
-    @_synchronized method, so the shared connection is never used by two threads at once."""
+def _repository_package_classes():
+    """Yield (module name, ClassDef) for every class in every module of the
+    backend.app.repositories.sqlite package (the base class and each domain mixin)."""
     import ast
     import inspect
+    import pkgutil
 
-    import backend.app.repositories.sqlite as module
+    import backend.app.repositories.sqlite as package
 
-    tree = ast.parse(inspect.getsource(module))
-    repository = next(
-        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SQLiteRepository"
+    module_names = [package.__name__] + [
+        f"{package.__name__}.{info.name}" for info in pkgutil.iter_modules(package.__path__)
+    ]
+    for module_name in module_names:
+        module = __import__(module_name, fromlist=["_"])
+        tree = ast.parse(inspect.getsource(module))
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                yield module_name, node
+
+
+def test_repository_package_split_covers_every_domain_module():
+    """The guard tests below walk the package; make sure they actually see the mixins."""
+    names = {module_name.rsplit(".", 1)[-1] for module_name, _ in _repository_package_classes()}
+    assert {"_base", "users", "foods", "food_logs", "exercise", "meal_plans"} <= names
+    methods = sum(
+        1
+        for _, cls in _repository_package_classes()
+        for node in cls.body
+        if node.__class__.__name__ == "FunctionDef"
     )
+    assert methods >= 100
+
+
+def test_every_repository_connection_use_holds_the_lock():
+    """Static guard: each use of self._connection is inside `with self._lock` or a
+    @_synchronized method, so the shared connection is never used by two threads at once.
+    Walks every class in every module of the repository package (base and mixins)."""
+    import ast
+
     exempt = {"__init__", "_configure_durability"}
     offenders: list[str] = []
 
-    def visit(node: ast.AST, locked: bool, method: str) -> None:
+    def visit(node: ast.AST, locked: bool, where: str) -> None:
         if isinstance(node, ast.With) and any(
             "self._lock" in ast.unparse(item.context_expr) for item in node.items
         ):
             locked = True
         if isinstance(node, ast.Attribute) and node.attr == "_connection" and not locked:
-            offenders.append(f"{method}:{node.lineno}")
+            offenders.append(f"{where}:{node.lineno}")
         for child in ast.iter_child_nodes(node):
-            visit(child, locked, method)
+            visit(child, locked, where)
 
-    for method in repository.body:
-        if not isinstance(method, ast.FunctionDef) or method.name in exempt:
-            continue
-        synchronized = any(ast.unparse(d) == "_synchronized" for d in method.decorator_list)
-        for statement in method.body:
-            visit(statement, synchronized, method.name)
+    for module_name, cls in _repository_package_classes():
+        for method in cls.body:
+            if not isinstance(method, ast.FunctionDef) or method.name in exempt:
+                continue
+            synchronized = any(ast.unparse(d) == "_synchronized" for d in method.decorator_list)
+            for statement in method.body:
+                visit(statement, synchronized, f"{module_name}.{cls.name}.{method.name}")
 
     assert offenders == []
+
+
+def test_no_repository_method_is_defined_in_two_mixins():
+    """The MRO would silently pick one copy, so a name must live in exactly one class."""
+    import ast
+
+    owners: dict[str, list[str]] = {}
+    for module_name, cls in _repository_package_classes():
+        for node in cls.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                owners.setdefault(node.name, []).append(f"{module_name}.{cls.name}")
+    duplicates = {name: where for name, where in owners.items() if len(where) > 1}
+    assert duplicates == {}

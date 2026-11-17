@@ -29,6 +29,8 @@ The format should remain simple:
 
 ### Changed
 
+- Housekeeping (no behaviour change): `backend/app/repositories/sqlite.py` is now a package of per-domain mixins composed into `SQLiteRepository` (imports unchanged); the lock guard test walks every module and a new test refuses a method defined twice. Dead code removed: about 3,450 lines in the frontend (Tracker leftovers, the unused dashboard chart chain, 18 unused files, 14 unused API wrappers, 90+ unused styles) and 255 in the backend.
+
 - Trends opens on 1W instead of 1M.
 - Trends → Macros: no more on / over / under day counts. Each macro's header shows one day (the latest logged, or the one tapped): "Today · 85 of 142 g · 60%", and on 1W each bar has its % of target above it.
 
