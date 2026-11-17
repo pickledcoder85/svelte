@@ -1,25 +1,17 @@
-import { MASCOT_OUTLINE, tc } from './src/theme/palette';
-import { APPEARANCE_OPTIONS, setAppearance, startAppearance, useAppearance } from './src/theme/appearance';
+import { startAppearance, useAppearance } from './src/theme/appearance';
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   AppState,
-  type DimensionValue,
   Image,
-  type ImageSourcePropType,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
-  TextInput,
-  View,
-  useWindowDimensions
+  View
 } from 'react-native';
 
 import {
@@ -80,28 +72,15 @@ import {
 import {
   buildDailyTargetSummary,
   DEFAULT_WORKOUT_CALORIES_SHARE,
-  WORKOUT_CALORIE_SHARES,
   type WorkoutCaloriesShare
 } from './src/lib/daily-home';
 import { buildCalorieBudget } from './src/lib/calorie-budget';
-import { CalorieBudgetCard } from './src/components/CalorieBudgetCard';
 import { WorkoutDetailSheet } from './src/components/WorkoutDetailSheet';
-import { DayHeader } from './src/components/DayHeader';
-import { MacroRing } from './src/components/MacroRing';
 import { SuggestMealSheet } from './src/components/SuggestMealSheet';
 import { CreateMealPlan } from './src/components/CreateMealPlan';
 import { defaultMealSlot } from './src/lib/meal-slots';
-import { MEAL_STYLES, styleForSplit, type MealBlockKey, type MealStyleId } from './src/lib/meal-split';
-
-/** The breakfast / lunch / dinner split for a meal balance style. */
-function mealStyleSplit(style: MealStyleId): number[] {
-  return (MEAL_STYLES.find((option) => option.id === style) ?? MEAL_STYLES[0]).splits[3];
-}
-import { CalorieBars } from './src/components/trends/CalorieBars';
-import { DayHistory } from './src/components/trends/DayHistory';
-import { MacroBars } from './src/components/trends/MacroBars';
+import { styleForSplit, type MealBlockKey, type MealStyleId } from './src/lib/meal-split';
 import { fatShareFor } from './src/lib/macro-allowance';
-import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
 import {
   buildDaySeries,
   calorieSummary,
@@ -111,9 +90,7 @@ import {
   paceStatus,
   plannedWeeklyChange,
   projectableRate,
-  PROJECTION_HORIZONS,
   rangeStart,
-  TREND_RANGES,
   weeklyRate,
   weightTrend,
   type ProjectionHorizon,
@@ -124,22 +101,17 @@ import { QuickScanAdd } from './src/components/QuickScanAdd';
 import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
-import { WaterRow } from './src/components/WaterRow';
-import { RemindersSettings } from './src/components/RemindersSettings';
 import { ShoppingListsSheet } from './src/components/ShoppingListsSheet';
 import { flushTicks as flushShoppingTicks, pendingCount as pendingShoppingTicks } from './src/lib/shopping-queue';
-import { WaterBars } from './src/components/trends/WaterBars';
-import { DEFAULT_WATER_GOAL_ML, GLASS_ML, volumeLabel, WATER_GOAL_GLASSES, waterDays, waterForDay } from './src/lib/water';
+import { waterDays, waterForDay } from './src/lib/water';
 import { groupByMeal } from './src/lib/meal-slots';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
-import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
+import { garminSyncIsStale } from './src/lib/garmin';
 import { APP_TABS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
 import { ActionSheet } from './src/components/ActionSheet';
 import { SubTabs } from './src/components/SubTabs';
 import { TabBar } from './src/components/TabBar';
 import {
-  formatMealPlanCardDate,
-  formatMealPlanCardWeekday,
   resolveSelectedMealPlanDate,
   selectMealPlanDay,
   sortMealPlanDaysByDate
@@ -149,28 +121,16 @@ import {
   calculateFoodGrams,
   clampFoodQuantity,
   filterFoodsFuzzy,
-  foodMacroLine,
-  formatFoodQuantity,
-  formatFoodReference,
   mergeFoodsById,
   selectFoodById,
-  sortFoodsForPicker,
-  formatFoodAmount
+  sortFoodsForPicker
 } from './src/lib/foods';
-import { mealTotals, recipeScaleLabel, round1, scaleMealIngredients } from './src/lib/nutrition';
-import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
-import { ChoiceSheet } from './src/components/ChoiceSheet';
-import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
+import { mealTotals, round1, scaleMealIngredients } from './src/lib/nutrition';
 import { formatAllergySelection, missingOtherAllergy, parseAllergySelection, type AllergyChoice } from './src/lib/allergies';
-import { ACTIVITY_LEVELS, maintenanceForLevel } from './src/lib/activity-level';
-import appConfig from './app.json';
-import { FIELD_BOX, FIELD_HEIGHT, FieldGroup, PickerField } from './src/components/FormField';
+import { maintenanceForLevel } from './src/lib/activity-level';
 import { PickerSheet } from './src/components/PickerSheet';
 import {
   draftsFromWheel,
-  formatBodyField,
-  initialWheelIndexes,
-  wheelColumns,
   type BodyField,
   type WheelDrafts
 } from './src/lib/wheel-picker';
@@ -180,8 +140,6 @@ import {
   buildOptimisticPlannedWorkoutSession,
   mapPlannedWorkoutSessionToEntry,
   sortPlannedWorkoutSessions,
-  defaultWarmupTitle,
-  defaultCooldownTitle,
   buildPlannedWorkoutEditDraft
 } from './src/lib/planned-workouts';
 import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
@@ -192,35 +150,22 @@ import { registerServiceWorker } from './src/lib/service-worker';
 import {
   FONT_WAIT_MS,
   holdSplashForFonts,
-  launchSplashSize,
   msSinceLaunch,
   splashHoldRemaining
 } from './src/lib/launch-splash';
-import { ONBOARDING_WELCOME } from './src/lib/onboarding-welcome';
-import { explainerBefore, ONBOARDING_EXPLAINERS, type ExplainerStep } from './src/lib/onboarding-explainers';
+import { explainerBefore, type ExplainerStep } from './src/lib/onboarding-explainers';
 import {
   DEFAULT_PACE,
-  GOAL_OPTIONS,
-  PACE_OPTIONS,
-  estimateGoalDate,
   findPreviewOption,
-  formatApproximateDate,
-  formatCalories,
-  formatWeeklyRate,
-  goalLabel,
   isPaceForGoal,
-  caloriesToMoveMore,
   needsFloorWarning,
   paceDisplay,
-  paceLabel,
-  VERY_LOW_CALORIE_LIMIT,
   withCalorieFloor,
   type CalorieFloorChoice,
   type GoalPace,
   type TargetPreview,
   type TargetPreviewOption
 } from './src/lib/setup-goals';
-import { dismissLaunchSplash } from './src/lib/launch-splash-dom';
 import {
   bodyMeasurementsFromDrafts,
   convertBodyDrafts,
@@ -261,196 +206,42 @@ import {
   demoPlannedExerciseEntries,
   demoWeightEntries
 } from './src/mock-data';
-const scaleStops = [0.5, 1, 1.25, 1.5, 2] as const;
-type ScaleStop = (typeof scaleStops)[number];
-const mascotDefaultImage = require('./assets/mascot.png');
-const mascotAvatarImage = require('./assets/mascot-avatar.png');
-const mascotWeightsImage = require('./assets/weights.png');
-const mascotBikeImage = require('./assets/bike.png');
-const mascotRunImage = require('./assets/run.png');
-const mascotSwimImage = require('./assets/swim.png');
-const RELISH_COLORS = {
-  canvas: tc.bg_f6f1e7,
-  surface: tc.bg_fffdf8,
-  text: tc.fg_163127,
-  muted: tc.fg_63776a,
-  primary: tc.brand_primary,
-  primaryDeep: tc.brand_primaryDeep,
-  primarySoft: tc.brand_primarySoft,
-  accent: tc.brand_accent,
-  accentSoft: tc.brand_accentSoft,
-  stroke: tc.brand_stroke
-} as const;
-const exercisePresets: Array<{
-  id: 'weights' | 'bike' | 'run' | 'swim';
-  label: string;
-  title: string;
-  minutes: string;
-  calories: string;
-  image: ImageSourcePropType;
-}> = [
-  {
-    id: 'weights',
-    label: 'Weights',
-    title: 'Strength session',
-    minutes: '45',
-    calories: '280',
-    image: mascotWeightsImage
-  },
-  {
-    id: 'bike',
-    label: 'Bike',
-    title: 'Bike ride',
-    minutes: '30',
-    calories: '220',
-    image: mascotBikeImage
-  },
-  {
-    id: 'run',
-    label: 'Run',
-    title: 'Run',
-    minutes: '35',
-    calories: '320',
-    image: mascotRunImage
-  },
-  {
-    id: 'swim',
-    label: 'Swim',
-    title: 'Swim laps',
-    minutes: '40',
-    calories: '340',
-    image: mascotSwimImage
-  }
-];
-type DietaryPattern = 'vegan' | 'vegetarian' | 'pescatarian' | 'omnivore' | 'carnivore';
-type NutritionStyle = 'balanced' | 'high_protein' | 'low_carb' | 'keto' | 'mediterranean' | 'paleo';
-// 'welcome' is the intro card before the numbered steps; it is not in onboardingSteps.
-type OnboardingStep = 'welcome' | 'basics' | 'goal' | 'pace' | 'activity' | 'diet' | 'style' | 'balance' | 'allergies' | 'review';
-
-// Activity comes before the goal so the goal screens can show real calorie numbers.
-const onboardingSteps: Array<{ id: OnboardingStep; label: string }> = [
-  { id: 'basics', label: 'About you' },
-  { id: 'activity', label: 'Activity' },
-  { id: 'goal', label: 'Your goal' },
-  { id: 'pace', label: 'Pace or focus' },
-  { id: 'diet', label: 'Diet' },
-  { id: 'style', label: 'Nutrition style' },
-  { id: 'balance', label: 'Meal balance' },
-  { id: 'allergies', label: 'Allergies' },
-  { id: 'review', label: 'Review' }
-];
-
-const dietaryPatternOptions: Array<{
-  id: DietaryPattern;
-  /** Emoji, drawn by the phone's own emoji font (no images to ship). */
-  icon: string;
-  title: string;
-  subtitle: string;
-}> = [
-  { id: 'vegan', icon: '🥦', title: 'Vegan', subtitle: 'Plants only' },
-  { id: 'vegetarian', icon: '🥗', title: 'Vegetarian', subtitle: 'No meat or fish' },
-  { id: 'pescatarian', icon: '🐟', title: 'Pescatarian', subtitle: 'Fish, dairy, and plants' },
-  { id: 'omnivore', icon: '🍗', title: 'Omnivore', subtitle: 'Balanced mixed diet' },
-  { id: 'carnivore', icon: '🥩', title: 'Carnivore', subtitle: 'Animal-based focus' }
-];
-
-const nutritionStyleOptions: Array<{
-  id: NutritionStyle;
-  /** Emoji, drawn by the phone's own emoji font (no images to ship). */
-  icon: string;
-  title: string;
-  subtitle: string;
-}> = [
-  { id: 'balanced', icon: '🍽️', title: 'Balanced', subtitle: 'Flexible mixed approach' },
-  { id: 'high_protein', icon: '🍳', title: 'High protein', subtitle: 'Protein at every meal, for strength and keeping muscle' },
-  { id: 'low_carb', icon: '🥬', title: 'Low carb', subtitle: 'Fewer carbs: about 50–130 g a day' },
-  { id: 'keto', icon: '🥑', title: 'Keto', subtitle: 'Very low carb: under about 50 g a day, higher fat' },
-  { id: 'mediterranean', icon: '🫒', title: 'Mediterranean', subtitle: 'Whole foods, olive oil, fish, plants' },
-  { id: 'paleo', icon: '🍖', title: 'Paleo', subtitle: 'Meat, fish, vegetables, fruit, and nuts; no grains or dairy' }
-];
-
-const allergyOptions: Array<{
-  id: AllergyChoice;
-  /** Emoji, drawn by the phone's own emoji font (no images to ship). */
-  icon: string;
-  title: string;
-  subtitle: string;
-}> = [
-  { id: 'none', icon: '✅', title: 'None', subtitle: 'No major food allergies' },
-  { id: 'milk', icon: '🥛', title: 'Milk', subtitle: 'Avoid dairy milk proteins' },
-  { id: 'egg', icon: '🥚', title: 'Egg', subtitle: 'Avoid eggs and egg ingredients' },
-  { id: 'peanut', icon: '🥜', title: 'Peanut', subtitle: 'Avoid peanuts' },
-  { id: 'tree_nuts', icon: '🌰', title: 'Tree nuts', subtitle: 'Avoid almonds, cashews, walnuts' },
-  { id: 'wheat', icon: '🌾', title: 'Wheat', subtitle: 'Avoid wheat-based foods' },
-  { id: 'shellfish', icon: '🦐', title: 'Shellfish', subtitle: 'Avoid shrimp, crab, lobster' },
-  { id: 'other', icon: '✏️', title: 'Other', subtitle: 'Add a custom restriction' }
-];
-
-// Titles and descriptions live with the setup step (src/lib/activity-level.ts).
-const activityLevelCards = ACTIVITY_LEVELS.map((level) => ({
-  id: level.id,
-  title: level.title,
-  subtitle: `${level.description} · ${level.steps}`
-}));
-
-function toneColor(tone: 'checking' | 'live'): string {
-  if (tone === 'live') {
-    return tc.line_0f766e;
-  }
-  return tc.line_1d4ed8;
-}
-
-function formatGoalTypeLabel(goalType: 'lose' | 'maintain' | 'gain' | null | undefined): string {
-  return goalLabel(goalType);
-}
-
-/** The first word of a name, for greetings ("Brian Miner" → "Brian"). */
-function firstName(name: string | null | undefined): string {
-  return (name ?? '').trim().split(/\s+/)[0] ?? '';
-}
-
-function formatGoalPaceLabel(goalType: 'lose' | 'maintain' | 'gain', goalPace: GoalPace | null): string {
-  return paceLabel(goalType, goalPace);
-}
-
-function splitHeightCm(heightCm: number | null | undefined): { feet: string; inches: string } {
-  if (heightCm === null || heightCm === undefined || !Number.isFinite(heightCm) || heightCm <= 0) {
-    return { feet: '5', inches: '10' };
-  }
-
-  const totalInches = heightCm / 2.54;
-  const feet = Math.floor(totalInches / 12);
-  const inches = Math.round(totalInches - feet * 12);
-
-  if (inches === 12) {
-    return { feet: String(feet + 1), inches: '0' };
-  }
-
-  return { feet: String(feet), inches: String(inches) };
-}
-
-function createEmptyMealDraft(): MealInput {
-  return {
-    id: 'meal-draft',
-    name: 'Untitled meal',
-    serving_count: 1,
-    ingredients: []
-  };
-}
-
-function selectExercisePreset(title: string): (typeof exercisePresets)[number] {
-  const normalized = title.trim().toLowerCase();
-  if (normalized.includes('bike') || normalized.includes('cycle')) {
-    return exercisePresets[1];
-  }
-  if (normalized.includes('run') || normalized.includes('jog')) {
-    return exercisePresets[2];
-  }
-  if (normalized.includes('swim')) {
-    return exercisePresets[3];
-  }
-  return exercisePresets[0];
-}
+import { LaunchSplash } from './src/components/LaunchSplash';
+import {
+  createEmptyFoodLog,
+  createEmptyMealDraft,
+  deriveExerciseIntensity,
+  mealStyleSplit,
+  sortPlannedExerciseEntries,
+  splitHeightCm
+} from './src/lib/app-format';
+import {
+  estimatePlannedExerciseCalories,
+  IS_DEVELOPMENT_BUILD,
+  mascotAvatarImage,
+  onboardingSteps,
+  selectExercisePreset,
+  type DietaryPattern,
+  type NutritionStyle,
+  type OnboardingStep,
+  type ScaleStop
+} from './src/screens/shared/constants';
+import { styles } from './src/screens/shared/styles';
+import { EntryScreen } from './src/screens/EntryScreen';
+import { FoodsScreen } from './src/screens/FoodsScreen';
+import { IngestionScreen } from './src/screens/IngestionScreen';
+import { MealPlanScreen } from './src/screens/MealPlanScreen';
+import { MealPrepScreen } from './src/screens/MealPrepScreen';
+import { MealsScreen } from './src/screens/MealsScreen';
+import { OnboardingExplainer } from './src/screens/onboarding/OnboardingExplainer';
+import { OnboardingWelcome } from './src/screens/onboarding/OnboardingWelcome';
+import { OnboardingWizard } from './src/screens/onboarding/OnboardingWizard';
+import { ProfileScreen } from './src/screens/ProfileScreen';
+import { RecipesScreen } from './src/screens/RecipesScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { TodayScreen } from './src/screens/TodayScreen';
+import { TrendsScreen } from './src/screens/TrendsScreen';
+import { WorkoutPlanScreen } from './src/screens/WorkoutPlanScreen';
 
 // Colour variables and the light/dark choice, before the first render.
 if (Platform.OS === 'web') {
@@ -3519,159 +3310,28 @@ export default function App(): ReactElement {
 
   if (entryMode === null) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <KeyboardAvoidingView
-          style={styles.screen}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
-        >
-          <ScrollView
-            style={styles.screen}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.welcomeShell}>
-              <Text style={[styles.welcomeAppName, ribeyeLoaded && styles.welcomeAppNameDisplay]}>Relish</Text>
-              <Text style={styles.welcomeSubtitle}>Fitness & Nutrition</Text>
-              <View style={styles.welcomeMascotWrap}>
-                <Image source={mascotDefaultImage} style={styles.welcomeMascotImage} resizeMode="contain" />
-              </View>
-
-              {ownerAccess === 'blocked' ? (
-                <View style={styles.entryCard}>
-                  <View style={styles.entryCardHeader}>
-                    <Text style={styles.entryCardEyebrow}>Private app</Text>
-                    <Text style={styles.panelTitle}>Connect Tailscale to open Relish</Text>
-                  </View>
-                  <Text style={styles.welcomeStatusDetail}>{ownerAccessMessage}</Text>
-                  <Pressable
-                    style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
-                    onPress={() => setOwnerCheckNonce((nonce) => nonce + 1)}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.setupActionButtonLabelPrimary}>Try again</Text>
-                  </Pressable>
-                </View>
-              ) : ownerAccess === 'checking' ? (
-                <View style={styles.entryCard}>
-                  <Text style={styles.welcomeStatusDetail}>Checking sign-in…</Text>
-                </View>
-              ) : entryIntent === null ? (
-                <View style={styles.welcomeActions}>
-                  <Pressable
-                    style={styles.welcomePrimaryButton}
-                    onPress={() => {
-                      setEntryEmailError(null);
-                      setEntryError(null);
-                      setEntryIntent('signup');
-                    }}
-                    disabled={entryLoading}
-                  >
-                    <Text style={styles.welcomePrimaryButtonLabel}>Sign up</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.welcomeSecondaryButton}
-                    onPress={() => {
-                      setEntryEmailError(null);
-                      setEntryError(null);
-                      setEntryIntent('signin');
-                    }}
-                    disabled={entryLoading}
-                  >
-                    <Text style={styles.welcomeSecondaryButtonLabel}>Sign in</Text>
-                  </Pressable>
-                  <Pressable style={styles.welcomeLinkButton} onPress={enterPreviewMode} disabled={entryLoading}>
-                    <Text style={styles.welcomeLinkLabel}>Preview the app</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={styles.entryCard}>
-                  <View style={styles.entryCardHeader}>
-                    <Text style={styles.entryCardEyebrow}>
-                      {entryIntent === 'signup' ? 'Sign up' : 'Sign in'}
-                    </Text>
-                    <Text style={styles.panelTitle}>
-                      {entryIntent === 'signup' ? 'Create your profile' : 'Continue to your profile'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.profileFieldStack}>
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Email</Text>
-                      <TextInput
-                        value={entryEmailDraft}
-                        onChangeText={(value) => {
-                          setEntryEmailDraft(value);
-                          setEntryEmailError(null);
-                        }}
-                        placeholder="dev@example.com"
-                        placeholderTextColor={tc.fg_7c8aa5}
-                        style={[styles.profileFieldInput, entryEmailError && styles.profileFieldInputError]}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                      {entryEmailError ? <Text style={styles.profileFieldError}>{entryEmailError}</Text> : null}
-                    </View>
-
-                    {entryIntent === 'signup' ? (
-                      <View style={styles.profileField}>
-                        <Text style={styles.profileFieldLabel}>Display name</Text>
-                        <TextInput
-                          value={entryDisplayNameDraft}
-                          onChangeText={setEntryDisplayNameDraft}
-                          placeholder="Local Dev User"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                    ) : null}
-                  </View>
-
-                  {entryError ? (
-                    <View style={[styles.inlineStatus, { borderColor: toneColor('checking') }]}>
-                      <Text style={styles.inlineStatusLabel}>Could not create local profile session</Text>
-                      <Text style={styles.inlineStatusDetail}>{entryError}</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.entryAuthActions}>
-                    <Pressable
-                      style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
-                      onPress={() => {
-                        setEntryEmailError(null);
-                        setEntryError(null);
-                        setEntryIntent(null);
-                      }}
-                      disabled={entryLoading}
-                    >
-                      <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
-                      onPress={() => void enterLiveMode()}
-                      disabled={entryLoading}
-                    >
-                      <Text style={styles.setupActionButtonLabelPrimary}>
-                        {entryLoading
-                          ? 'Creating session...'
-                          : entryIntent === 'signup'
-                            ? 'Get started'
-                            : 'Continue'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-
-              <View style={[styles.welcomeStatusStrip, { borderColor: toneColor(entryBackendTone) }]}>
-                <Text style={styles.welcomeStatusLabel}>{entryBackendStatus}</Text>
-                <Text style={styles.welcomeStatusDetail}>{entryBackendDetail}</Text>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+      <EntryScreen
+        ribeyeLoaded={ribeyeLoaded}
+        ownerAccess={ownerAccess}
+        ownerAccessMessage={ownerAccessMessage}
+        setOwnerCheckNonce={setOwnerCheckNonce}
+        entryIntent={entryIntent}
+        setEntryIntent={setEntryIntent}
+        setEntryEmailError={setEntryEmailError}
+        setEntryError={setEntryError}
+        entryLoading={entryLoading}
+        enterPreviewMode={enterPreviewMode}
+        entryEmailDraft={entryEmailDraft}
+        setEntryEmailDraft={setEntryEmailDraft}
+        entryEmailError={entryEmailError}
+        entryDisplayNameDraft={entryDisplayNameDraft}
+        setEntryDisplayNameDraft={setEntryDisplayNameDraft}
+        entryError={entryError}
+        enterLiveMode={enterLiveMode}
+        entryBackendTone={entryBackendTone}
+        entryBackendStatus={entryBackendStatus}
+        entryBackendDetail={entryBackendDetail}
+      />
     );
   }
 
@@ -3682,820 +3342,80 @@ export default function App(): ReactElement {
 
   if (onboardingRequired && onboardingStep === 'welcome') {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-          <View style={styles.setupBackdrop}>
-            <View style={[styles.setupCard, styles.onboardingWelcomeCard]}>
-              <Image source={mascotDefaultImage} style={styles.onboardingWelcomeImage} resizeMode="contain" />
-              <Text style={[styles.onboardingWelcomeTitle, ribeyeLoaded && styles.onboardingWelcomeTitleDisplay]}>
-                {ONBOARDING_WELCOME.title}
-              </Text>
-              <Text style={styles.onboardingWelcomeIntro}>{ONBOARDING_WELCOME.intro}</Text>
-              <View style={styles.onboardingWelcomeList}>
-                {ONBOARDING_WELCOME.sections.map((section) => (
-                  <View key={section.number} style={styles.onboardingWelcomeRow}>
-                    <View style={styles.onboardingWelcomeBadge}>
-                      <Text style={styles.onboardingWelcomeBadgeLabel}>{section.number}</Text>
-                    </View>
-                    <View style={styles.onboardingWelcomeRowCopy}>
-                      <Text style={styles.onboardingWelcomeRowTitle}>{section.title}</Text>
-                      <Text style={styles.onboardingWelcomeRowDetail}>{section.detail}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.onboardingWelcomeFootnote}>{ONBOARDING_WELCOME.footnote}</Text>
-              <Pressable
-                style={[styles.setupActionButton, styles.setupActionButtonPrimary, styles.onboardingWelcomeAction]}
-                onPress={() => {
-                  setOnboardingError(null);
-                  setOnboardingStep('basics');
-                }}
-                accessibilityRole="button"
-              >
-                <Text style={styles.setupActionButtonLabelPrimary}>{ONBOARDING_WELCOME.action} →</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+      <OnboardingWelcome
+        ribeyeLoaded={ribeyeLoaded}
+        setOnboardingError={setOnboardingError}
+        setOnboardingStep={setOnboardingStep}
+      />
     );
   }
 
   if (onboardingRequired && activeExplainer) {
-    const explainer = ONBOARDING_EXPLAINERS[activeExplainer];
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-          <View style={styles.setupBackdrop}>
-            <View style={[styles.setupCard, styles.onboardingWelcomeCard]}>
-              <Image
-                source={activeExplainer === 'activity' ? mascotBikeImage : mascotDefaultImage}
-                style={styles.onboardingWelcomeImage}
-                resizeMode="contain"
-              />
-              <Text
-                style={[styles.onboardingWelcomeTitle, ribeyeLoaded && styles.onboardingWelcomeTitleDisplay]}
-                accessibilityRole="header"
-              >
-                {explainer.title}
-              </Text>
-              <Text style={styles.onboardingWelcomeIntro}>{explainer.intro}</Text>
-              <View style={styles.onboardingWelcomeList}>
-                {explainer.points.map((point) => (
-                  <View key={point} style={styles.onboardingWelcomeRow}>
-                    <View style={styles.onboardingWelcomeBadge}>
-                      <Text style={styles.onboardingWelcomeBadgeLabel}>✓</Text>
-                    </View>
-                    <View style={styles.onboardingWelcomeRowCopy}>
-                      <Text style={styles.onboardingWelcomeRowDetail}>{point}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-              <View style={[styles.setupNavRow, styles.explainerActions]}>
-                <Pressable
-                  style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
-                  onPress={leaveExplainerBack}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
-                  onPress={() => {
-                    // Counts as seen only once acknowledged; Back shows it again next time.
-                    const seen = activeExplainer;
-                    setExplainersSeen((current) => (current.includes(seen) ? current : [...current, seen]));
-                    setActiveExplainer(null);
-                  }}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.setupActionButtonLabelPrimary}>{explainer.action} →</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+      <OnboardingExplainer
+        activeExplainer={activeExplainer}
+        ribeyeLoaded={ribeyeLoaded}
+        leaveExplainerBack={leaveExplainerBack}
+        setExplainersSeen={setExplainersSeen}
+        setActiveExplainer={setActiveExplainer}
+      />
     );
   }
 
   if (onboardingRequired) {
-    const activeStepIndex = onboardingSteps.findIndex((step) => step.id === onboardingStep);
-    const currentStepLabel = onboardingSteps[activeStepIndex]?.label ?? 'Basics';
-    const showOnboardingStatus = onboardingSaving || Boolean(onboardingError);
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="dark" />
-        <KeyboardAvoidingView
-          style={styles.screen}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
-        >
-          <ScrollView
-            style={styles.screen}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.setupBackdrop}>
-              <View style={styles.setupCard}>
-                <View
-                  style={styles.setupProgress}
-                  accessibilityRole="progressbar"
-                  accessibilityLabel={`Step ${activeStepIndex + 1} of ${onboardingSteps.length}: ${currentStepLabel}`}
-                >
-                  <View style={styles.setupProgressTrack}>
-                    {onboardingSteps.map((step, index) => (
-                      <View
-                        key={step.id}
-                        style={[styles.setupProgressSegment, index <= activeStepIndex && styles.setupProgressSegmentDone]}
-                      />
-                    ))}
-                  </View>
-                  <Text style={styles.setupProgressCount}>
-                    {activeStepIndex + 1} of {onboardingSteps.length}
-                  </Text>
-                </View>
-
-                {showOnboardingStatus ? (
-                  <View
-                    style={[
-                      styles.inlineStatus,
-                      { borderColor: onboardingSaving ? toneColor('checking') : tc.line_d97706 }
-                    ]}
-                  >
-                    <Text style={styles.inlineStatusLabel}>
-                      {onboardingSaving ? 'Saving profile...' : 'There is a setup issue to fix'}
-                    </Text>
-                    {onboardingError ? <Text style={styles.inlineStatusDetail}>{onboardingError}</Text> : null}
-                  </View>
-                ) : null}
-
-              {floorWarning ? (
-                (() => {
-                  const pending = calculatedPaceOption(floorWarning.pace);
-                  const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
-                  const calculatedCalories = Math.round(pending?.calorie_target ?? 0);
-                  const who = onboardingSexDraft === 'male' ? 'men' : 'women';
-                  return (
-                    <ChoiceSheet
-                      title="Below the recommended minimum"
-                      primaryLabel={`Use ${minimum.toLocaleString('en-US')} kcal`}
-                      primaryDetail="Recommended"
-                      secondaryLabel={`Keep ${calculatedCalories.toLocaleString('en-US')} kcal`}
-                      secondaryDetail="Opt out of the minimum"
-                      onPrimary={() => answerFloorWarning('recommended')}
-                      onSecondary={() => answerFloorWarning('off')}
-                      onDismiss={() => setFloorWarning(null)}
-                    >
-                      <View style={styles.floorCompare}>
-                        <View style={styles.floorCompareTile}>
-                          <Text style={styles.floorCompareLabel}>
-                            {onboardingGoalTypeDraft === 'maintain' ? 'Maintaining' : 'This pace'}
-                          </Text>
-                          <Text style={[styles.floorCompareValue, styles.paceRowCaloriesBelow]}>
-                            {calculatedCalories.toLocaleString('en-US')} kcal
-                          </Text>
-                        </View>
-                        <View style={styles.floorCompareTile}>
-                          <Text style={styles.floorCompareLabel}>Recommended minimum</Text>
-                          <Text style={styles.floorCompareValue}>{minimum.toLocaleString('en-US')} kcal</Text>
-                          <Text style={styles.floorCompareNote}>for {who}</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.floorWarningText}>
-                        Going lower without a doctor makes it hard to get enough protein and nutrients, and raises the risk
-                        of muscle loss, fatigue, and regaining the weight.
-                      </Text>
-                      {pending && caloriesToMoveMore(pending, minimum) > 0 ? (
-                        <View style={styles.floorTip}>
-                          <Text style={styles.floorWarningText}>
-                            <Text style={styles.floorWarningStrong}>Better:</Text> eat {minimum.toLocaleString('en-US')} kcal and burn
-                            the other {caloriesToMoveMore(pending, minimum).toLocaleString('en-US')} kcal by moving more, like a longer
-                            daily walk.
-                          </Text>
-                        </View>
-                      ) : null}
-                      {calculatedCalories < VERY_LOW_CALORIE_LIMIT ? (
-                        <Text style={styles.floorWarningText}>
-                          Under {VERY_LOW_CALORIE_LIMIT} kcal a day is a very-low-calorie diet, normally done only with medical
-                          supervision.
-                        </Text>
-                      ) : null}
-                      <Text style={styles.floorWarningHint}>Opting out turns off the minimum. You can change it in Settings.</Text>
-                    </ChoiceSheet>
-                  );
-                })()
-              ) : null}
-
-              {bodyPicker ? (
-                <PickerSheet
-                  key={`${bodyPicker}-${onboardingUnitsDraft}`}
-                  title={{ height: 'Height', weight: 'Weight', goalWeight: 'Goal weight', age: 'Age' }[bodyPicker]}
-                  columns={wheelColumns(bodyPicker, onboardingUnitsDraft)}
-                  initialIndexes={initialWheelIndexes(
-                    bodyPicker,
-                    onboardingUnitsDraft,
-                    onboardingWheelDrafts(),
-                    onboardingGoalTypeDraft ?? 'maintain'
-                  )}
-                  onDone={(indexes) => applyBodyPicker(bodyPicker, indexes)}
-                  onCancel={() => setBodyPicker(null)}
-                  {...(bodyPicker === 'goalWeight'
-                    ? {
-                        clearLabel: 'No goal weight',
-                        onClear: () => {
-                          setOnboardingTargetWeightDraft('');
-                          setBodyPicker(null);
-                        }
-                      }
-                    : {})}
-                />
-              ) : null}
-
-              {onboardingStep === 'basics' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>About you</Text>
-                  <Text style={styles.setupIntroText}>
-                    We use these to estimate how many calories your body uses each day.
-                  </Text>
-
-                  <View style={styles.unitToggle} accessibilityRole="radiogroup" accessibilityLabel="Units">
-                    {(
-                      [
-                        { id: 'imperial' as const, label: 'lb · ft/in' },
-                        { id: 'metric' as const, label: 'kg · cm' }
-                      ]
-                    ).map((option) => {
-                      const active = onboardingUnitsDraft === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.unitToggleOption, active && styles.unitToggleOptionActive]}
-                          onPress={() => switchOnboardingUnits(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.unitToggleLabel, active && styles.unitToggleLabelActive]}>{option.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <FieldGroup label="Your name">
-                    <TextInput
-                      value={profileDisplayNameDraft}
-                      onChangeText={setProfileDisplayNameDraft}
-                      placeholder="What should I call you?"
-                      placeholderTextColor={tc.fg_9aa6b8}
-                      style={styles.settingsInput}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      autoComplete="name"
-                      maxLength={60}
-                      accessibilityLabel="Your name"
-                    />
-                  </FieldGroup>
-
-                  <FieldGroup label="Sex">
-                    <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
-                      {(['female', 'male'] as const).map((option) => {
-                        const active = onboardingSexDraft === option;
-                        return (
-                          <Pressable
-                            key={option}
-                            style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                            onPress={() => setOnboardingSexDraft(option)}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: active }}
-                          >
-                            <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
-                              {option === 'male' ? 'Male' : 'Female'}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </FieldGroup>
-
-                  <PickerField
-                    label="Height"
-                    value={formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts())}
-                    placeholder="Choose"
-                    onPress={() => setBodyPicker('height')}
-                    accessibilityLabel="Height"
-                  />
-
-                  <View style={styles.profileFieldRow}>
-                    <PickerField
-                      style={styles.profileFieldHalf}
-                      label="Weight"
-                      value={formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts())}
-                      placeholder="Choose"
-                      onPress={() => setBodyPicker('weight')}
-                      accessibilityLabel="Weight"
-                    />
-                    <PickerField
-                      style={styles.profileFieldHalf}
-                      label="Age"
-                      value={formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts())}
-                      placeholder="Choose"
-                      onPress={() => setBodyPicker('age')}
-                      accessibilityLabel="Age"
-                    />
-                  </View>
-                </View>
-              ) : null}
-
-              {onboardingStep === 'activity' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Daily activity</Text>
-                  <Text style={styles.setupIntroText}>
-                    Count everyday movement like walking, chores, and your job. Workouts are tracked separately.
-                  </Text>
-
-                  <ActivityEnergyBars
-                    bmr={energyPreview?.bmr_calories ?? null}
-                    maintenance={energyMaintenance}
-                    maintenanceByLevel={energyPreview?.maintenance_by_activity}
-                  />
-
-                  <ActivityCaption value={onboardingActivityLevelDraft} />
-
-                  {/* The control sits under what it changes, by the thumb. */}
-                  <ActivitySlider value={onboardingActivityLevelDraft} onChange={setOnboardingActivityLevelDraft} />
-
-                  <Pressable
-                    onPress={() => setShowBmrExplainer((current) => !current)}
-                    accessibilityRole="button"
-                    accessibilityLabel="What's BMR?"
-                    accessibilityState={{ expanded: showBmrExplainer }}
-                    hitSlop={12}
-                    style={styles.bmrLinkButton}
-                  >
-                    <Text style={styles.bmrLink}>{showBmrExplainer ? 'Hide BMR info' : "What's BMR?"}</Text>
-                  </Pressable>
-                  {showBmrExplainer ? (
-                    <Text style={styles.bmrExplainer}>
-                      BMR (basal metabolic rate) is the energy your body needs at complete rest: breathing, circulation, staying
-                      warm. Relish estimates it from your height, weight, age, and sex with the Mifflin-St Jeor formula. With
-                      your activity added, that is about what you burn in a day: eat that much and your weight stays put.
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {onboardingStep === 'goal' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Your goal</Text>
-                  {targetPreview ? (
-                    <Text style={styles.setupIntroText}>
-                      You burn about {formatCalories(targetPreview.maintenance_calories)}.
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.setupGoalGrid}>
-                    {GOAL_OPTIONS.map((option) => {
-                      const active = onboardingGoalTypeDraft === option.id;
-                      const preview = displayedPace(option.id, DEFAULT_PACE[option.id]);
-                      const image =
-                        option.id === 'lose' ? mascotRunImage : option.id === 'gain' ? mascotWeightsImage : mascotDefaultImage;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupGoalCard, active && styles.setupGoalCardActive]}
-                          onPress={() => setOnboardingGoalTypeDraft(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Image source={image} style={styles.setupGoalImage} resizeMode="contain" />
-                          <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                          <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
-                          {preview ? (
-                            <Text
-                              style={[
-                                styles.setupGoalCalories,
-                                (preview.state === 'below' || preview.state === 'opted_out') && styles.paceRowCaloriesBelow
-                              ]}
-                            >
-                              About {formatCalories(preview.calories)}
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              {onboardingStep === 'pace' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>
-                    {onboardingGoalTypeDraft === 'maintain' ? 'Your focus' : 'How fast?'}
-                  </Text>
-                  <Text style={styles.setupIntroText}>
-                    {onboardingGoalTypeDraft === 'maintain'
-                      ? 'Same calories either way. Your focus changes how they split between protein, carbs, and fat.'
-                      : 'A slower pace is easier to keep up. You can change it any time.'}
-                  </Text>
-
-                  <View style={styles.setupOptionStack}>
-                    {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
-                      const active = onboardingGoalPaceDraft === option.id;
-                      const calculated = calculatedPaceOption(option.id);
-                      const minimum = targetPreview?.recommended_minimum_calories ?? 1200;
-                      // The honest number until the user decides; red when below the minimum.
-                      const display = calculated
-                        ? paceDisplay(calculated, onboardingCalorieFloorDraft, floorAnswered(option.id))
-                        : null;
-                      const rate =
-                        display && onboardingGoalTypeDraft !== 'maintain'
-                          ? formatWeeklyRate(display.weeklyChangeLbs, onboardingUnitsDraft)
-                          : '';
-                      // The recommended minimum can turn a loss pace into a small surplus.
-                      const wrongDirection =
-                        display !== null &&
-                        ((onboardingGoalTypeDraft === 'lose' && display.weeklyChangeLbs >= 0) ||
-                          (onboardingGoalTypeDraft === 'gain' && display.weeklyChangeLbs <= 0));
-                      const belowShown = display?.state === 'below' || display?.state === 'opted_out';
-                      const kcal = (value: number) => `${Math.round(value).toLocaleString('en-US')} kcal`;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
-                          onPress={() => chooseOnboardingPace(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <View style={styles.paceRowHeader}>
-                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                              {option.title}
-                            </Text>
-                            {display ? (
-                              <Text style={[styles.paceRowCalories, belowShown && styles.paceRowCaloriesBelow]}>
-                                {formatCalories(display.calories)}
-                              </Text>
-                            ) : null}
-                          </View>
-                          {rate && !wrongDirection ? (
-                            <Text style={styles.setupChoiceDetail}>
-                              {display && display.weeklyChangeLbs < 0 ? 'Lose ' : 'Gain '}
-                              {rate}
-                            </Text>
-                          ) : null}
-                          {option.note ? <Text style={styles.setupGoalNote}>{option.note}</Text> : null}
-                          {display?.state === 'below' ? (
-                            <Text style={styles.paceRowWarning}>Below the {kcal(minimum)} recommended minimum</Text>
-                          ) : display?.state === 'opted_out' ? (
-                            <Text style={styles.paceRowWarning}>Below the {kcal(minimum)} recommended minimum (floor off)</Text>
-                          ) : display?.state === 'using_minimum' ? (
-                            <Text style={styles.setupChoiceDetail}>
-                              Calculated {kcal(display.calculatedCalories)} · using the recommended minimum
-                            </Text>
-                          ) : null}
-                          {wrongDirection ? (
-                            <Text style={styles.paceRowWarning}>
-                              At the {kcal(minimum)} minimum you would not lose weight, because it is above what you burn. Move
-                              more to keep this pace, or tap this pace to opt out of the minimum.
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  {onboardingGoalTypeDraft !== 'maintain' ? (
-                    <View style={styles.goalWeightBlock}>
-                      <PickerField
-                        label="Goal weight (optional)"
-                        value={formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}
-                        placeholder="Choose"
-                        onPress={() => setBodyPicker('goalWeight')}
-                        accessibilityLabel="Goal weight"
-                      />
-                      {(() => {
-                        const goalLbs = onboardingTargetWeightLbs();
-                        const current = bodyMeasurementsFromDrafts(onboardingUnitsDraft, onboardingBodyDrafts());
-                        // The same rate the selected card shows.
-                        const preview = displayedPace();
-                        if (goalLbs === null || !current || !preview) {
-                          return null;
-                        }
-                        const goalOnRightSide =
-                          onboardingGoalTypeDraft === 'lose' ? goalLbs < current.weight_lbs : goalLbs > current.weight_lbs;
-                        const estimate = estimateGoalDate(current.weight_lbs, goalLbs, preview.weeklyChangeLbs);
-                        if (goalOnRightSide && !estimate) {
-                          return null;
-                        }
-                        return estimate ? (
-                          <Text style={styles.goalWeightEstimate}>
-                            At this pace: about {estimate.weeks} {estimate.weeks === 1 ? 'week' : 'weeks'}, around{' '}
-                            {formatApproximateDate(estimate.date)}.
-                          </Text>
-                        ) : (
-                          <Text style={styles.paceRowWarning}>
-                            {onboardingGoalTypeDraft === 'lose'
-                              ? 'Goal weight should be below your current weight.'
-                              : 'Goal weight should be above your current weight.'}
-                          </Text>
-                        );
-                      })()}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {onboardingStep === 'diet' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>How you eat</Text>
-                  <Text style={styles.setupIntroText}>
-                    Helps Relish suggest foods and meals that fit. It doesn't change your calories.
-                  </Text>
-                  <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
-                    {dietaryPatternOptions.map((option) => {
-                      const active = onboardingDietaryPatternDraft === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupOptionRow, styles.setupIconRow, active && styles.setupOptionRowActive]}
-                          onPress={() => setOnboardingDietaryPatternDraft(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={styles.setupIcon} accessibilityElementsHidden importantForAccessibility="no">
-                            {option.icon}
-                          </Text>
-                          <View style={styles.setupIconRowCopy}>
-                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                            <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              {onboardingStep === 'style' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Nutrition style</Text>
-                  <Text style={styles.setupIntroText}>The kind of eating you prefer. You can change it any time in Profile.</Text>
-                  <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
-                    {nutritionStyleOptions.map((option) => {
-                      const active = onboardingNutritionStyleDraft === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupOptionRow, styles.setupIconRow, active && styles.setupOptionRowActive]}
-                          onPress={() => setOnboardingNutritionStyleDraft(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={styles.setupIcon} accessibilityElementsHidden importantForAccessibility="no">
-                            {option.icon}
-                          </Text>
-                          <View style={styles.setupIconRowCopy}>
-                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>{option.title}</Text>
-                            <Text style={styles.setupChoiceDetail}>{option.subtitle}</Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              {onboardingStep === 'balance' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>How do you balance your meals?</Text>
-                  <Text style={styles.setupIntroText}>
-                    How your day's calories split across breakfast, lunch, and dinner. Gus uses it to size the meals he plans. You can
-                    change it any time in Profile.
-                  </Text>
-                  <View style={styles.setupOptionStack} accessibilityRole="radiogroup">
-                    {MEAL_STYLES.map((option) => {
-                      const active = onboardingMealStyleDraft === option.id;
-                      const [breakfast, lunch, dinner] = option.splits[3];
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupOptionRow, active && styles.setupOptionRowActive]}
-                          onPress={() => setOnboardingMealStyleDraft(option.id)}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <View style={styles.setupIconRowCopy}>
-                            <Text style={[styles.setupChoiceTitle, active && styles.setupChoiceTitleActive]}>
-                              {option.label}
-                              {option.id === 'balanced' ? ' (default)' : ''}
-                            </Text>
-                            <Text style={styles.setupChoiceDetail}>{option.detail}</Text>
-                            <Text style={styles.setupChoiceDetail}>
-                              Breakfast {breakfast}% · Lunch {lunch}% · Dinner {dinner}%
-                            </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              {onboardingStep === 'allergies' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>Allergies and foods to avoid</Text>
-                  <Text style={styles.setupIntroText}>Pick all that apply, or None. Saved to your profile.</Text>
-                  {/* Two columns of compact tiles, so all eight fit on a phone screen. */}
-                  <View style={styles.allergyGrid}>
-                    {allergyOptions.map((option) => {
-                      const active = onboardingAllergySelectionsDraft.includes(option.id);
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.allergyTile, active && styles.setupOptionRowActive]}
-                          onPress={() => toggleOnboardingAllergy(option.id)}
-                          accessibilityRole="checkbox"
-                          accessibilityState={{ checked: active }}
-                          accessibilityLabel={option.title}
-                        >
-                          <Text style={styles.allergyIcon} accessibilityElementsHidden importantForAccessibility="no">
-                            {option.icon}
-                          </Text>
-                          <Text
-                            style={[styles.allergyLabel, active && styles.setupChoiceTitleActive]}
-                            numberOfLines={1}
-                          >
-                            {option.title}
-                          </Text>
-                          <View style={[styles.setupCheckBox, styles.allergyCheck, active && styles.setupCheckBoxActive]}>
-                            {active ? <Text style={styles.setupCheckMark}>✓</Text> : null}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  {onboardingAllergySelectionsDraft.includes('other') ? (
-                    <FieldGroup label="Other">
-                      <TextInput
-                        value={onboardingAllergyOtherDraft}
-                        onChangeText={setOnboardingAllergyOtherDraft}
-                        placeholder="For example sesame or soy"
-                        placeholderTextColor={tc.fg_9aa6b8}
-                        style={styles.settingsInput}
-                      />
-                    </FieldGroup>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {onboardingStep === 'review' ? (
-                <View style={styles.setupPanel}>
-                  <Text style={styles.panelTitle}>
-                    {firstName(profileDisplayNameDraft) ? `Looking good, ${firstName(profileDisplayNameDraft)}!` : 'Looking good!'}
-                  </Text>
-                  <Text style={styles.setupIntroText}>
-                    Check everything, then create your profile. You can change any of this later.
-                  </Text>
-
-                  {effectivePaceOption() ? (
-                    <View style={styles.reviewTarget}>
-                      <Text style={styles.reviewTargetLabel}>Your daily target</Text>
-                      <Text style={styles.reviewTargetValue}>{formatCalories(effectivePaceOption()?.calorie_target ?? 0)}</Text>
-                      <Text style={styles.reviewTargetMacros}>
-                        Protein {Math.round(effectivePaceOption()?.protein_target_g ?? 0)} g · Carbs{' '}
-                        {Math.round(effectivePaceOption()?.carbs_target_g ?? 0)} g · Fat {Math.round(effectivePaceOption()?.fat_target_g ?? 0)} g
-                      </Text>
-                      {onboardingCalorieFloorDraft === 'off' ? (
-                        <Text style={styles.paceRowWarning}>
-                          {calculatedPaceOption()?.below_recommended_minimum
-                            ? 'Below the recommended minimum (calorie floor off)'
-                            : 'Calorie floor off: future targets can go below the recommended minimum'}
-                        </Text>
-                      ) : calculatedPaceOption()?.below_recommended_minimum ? (
-                        <Text style={styles.setupChoiceDetail}>Set to the recommended minimum</Text>
-                      ) : null}
-                    </View>
-                  ) : null}
-
-                  <View style={styles.reviewList}>
-                    {(
-                      [
-                        {
-                          step: 'basics' as const,
-                          label: 'About you',
-                          value: [
-                            profileDisplayNameDraft.trim(),
-                            onboardingSexDraft === 'male' ? 'Male' : 'Female',
-                            formatBodyField('age', onboardingUnitsDraft, onboardingWheelDrafts()),
-                            formatBodyField('height', onboardingUnitsDraft, onboardingWheelDrafts()),
-                            formatBodyField('weight', onboardingUnitsDraft, onboardingWheelDrafts())
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')
-                        },
-                        {
-                          step: 'activity' as const,
-                          label: 'Daily activity',
-                          value: activityLevelCards.find((option) => option.id === onboardingActivityLevelDraft)?.title ?? 'Sedentary'
-                        },
-                        {
-                          step: 'goal' as const,
-                          label: 'Goal',
-                          value: [
-                            formatGoalTypeLabel(onboardingGoalTypeDraft),
-                            onboardingGoalTypeDraft ? formatGoalPaceLabel(onboardingGoalTypeDraft, onboardingGoalPaceDraft) : '',
-                            onboardingGoalTypeDraft !== 'maintain'
-                              ? formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())
-                                ? `goal ${formatBodyField('goalWeight', onboardingUnitsDraft, onboardingWheelDrafts())}`
-                                : ''
-                              : ''
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')
-                        },
-                        {
-                          step: 'diet' as const,
-                          label: 'How you eat',
-                          value: dietaryPatternOptions.find((option) => option.id === onboardingDietaryPatternDraft)?.title ?? 'Not chosen'
-                        },
-                        {
-                          step: 'style' as const,
-                          label: 'Nutrition style',
-                          value: nutritionStyleOptions.find((option) => option.id === onboardingNutritionStyleDraft)?.title ?? 'Not chosen'
-                        },
-                        {
-                          step: 'balance' as const,
-                          label: 'Meal balance',
-                          value: MEAL_STYLES.find((option) => option.id === onboardingMealStyleDraft)?.label ?? 'Balanced'
-                        },
-                        {
-                          step: 'allergies' as const,
-                          label: 'Avoid',
-                          value: formatAllergySelection(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft) || 'Nothing'
-                        }
-                      ]
-                    ).map((row) => (
-                      <View key={row.step} style={styles.reviewRow}>
-                        <View style={styles.reviewRowCopy}>
-                          <Text style={styles.reviewRowLabel}>{row.label}</Text>
-                          <Text style={styles.reviewRowValue}>{row.value}</Text>
-                        </View>
-                        <Pressable
-                          onPress={() => {
-                            setOnboardingError(null);
-                            setOnboardingStep(row.step);
-                          }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Edit ${row.label}`}
-                          hitSlop={10}
-                        >
-                          <Text style={styles.reviewEdit}>Edit</Text>
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
-                <View style={styles.setupFooter}>
-                  <View style={styles.setupNavRow}>
-                    <Pressable
-                      style={[styles.setupActionButton, styles.setupActionButtonSecondary]}
-                      onPress={goToPreviousOnboardingStep}
-                      disabled={onboardingSaving}
-                    >
-                      <Text style={styles.setupActionButtonLabelSecondary}>Back</Text>
-                    </Pressable>
-
-                    {onboardingStep === 'review' ? (
-                      <Pressable
-                        style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
-                        onPress={() => void completeOnboardingSetup()}
-                        disabled={onboardingSaving}
-                      >
-                        <Text style={styles.setupActionButtonLabelPrimary}>
-                          {onboardingSaving ? 'Saving...' : 'Create profile'}
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        style={[styles.setupActionButton, styles.setupActionButtonPrimary]}
-                        onPress={goToNextOnboardingStep}
-                        disabled={onboardingSaving}
-                      >
-                        <Text style={styles.setupActionButtonLabelPrimary}>Next</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+      <OnboardingWizard
+        onboardingStep={onboardingStep}
+        setOnboardingStep={setOnboardingStep}
+        onboardingSaving={onboardingSaving}
+        onboardingError={onboardingError}
+        setOnboardingError={setOnboardingError}
+        floorWarning={floorWarning}
+        setFloorWarning={setFloorWarning}
+        calculatedPaceOption={calculatedPaceOption}
+        effectivePaceOption={effectivePaceOption}
+        displayedPace={displayedPace}
+        floorAnswered={floorAnswered}
+        chooseOnboardingPace={chooseOnboardingPace}
+        answerFloorWarning={answerFloorWarning}
+        targetPreview={targetPreview}
+        energyPreview={energyPreview}
+        energyMaintenance={energyMaintenance}
+        onboardingSexDraft={onboardingSexDraft}
+        setOnboardingSexDraft={setOnboardingSexDraft}
+        onboardingGoalTypeDraft={onboardingGoalTypeDraft}
+        setOnboardingGoalTypeDraft={setOnboardingGoalTypeDraft}
+        onboardingGoalPaceDraft={onboardingGoalPaceDraft}
+        onboardingCalorieFloorDraft={onboardingCalorieFloorDraft}
+        bodyPicker={bodyPicker}
+        setBodyPicker={setBodyPicker}
+        applyBodyPicker={applyBodyPicker}
+        onboardingUnitsDraft={onboardingUnitsDraft}
+        switchOnboardingUnits={switchOnboardingUnits}
+        onboardingWheelDrafts={onboardingWheelDrafts}
+        onboardingBodyDrafts={onboardingBodyDrafts}
+        onboardingTargetWeightLbs={onboardingTargetWeightLbs}
+        setOnboardingTargetWeightDraft={setOnboardingTargetWeightDraft}
+        profileDisplayNameDraft={profileDisplayNameDraft}
+        setProfileDisplayNameDraft={setProfileDisplayNameDraft}
+        onboardingActivityLevelDraft={onboardingActivityLevelDraft}
+        setOnboardingActivityLevelDraft={setOnboardingActivityLevelDraft}
+        showBmrExplainer={showBmrExplainer}
+        setShowBmrExplainer={setShowBmrExplainer}
+        onboardingDietaryPatternDraft={onboardingDietaryPatternDraft}
+        setOnboardingDietaryPatternDraft={setOnboardingDietaryPatternDraft}
+        onboardingNutritionStyleDraft={onboardingNutritionStyleDraft}
+        setOnboardingNutritionStyleDraft={setOnboardingNutritionStyleDraft}
+        onboardingMealStyleDraft={onboardingMealStyleDraft}
+        setOnboardingMealStyleDraft={setOnboardingMealStyleDraft}
+        onboardingAllergySelectionsDraft={onboardingAllergySelectionsDraft}
+        toggleOnboardingAllergy={toggleOnboardingAllergy}
+        onboardingAllergyOtherDraft={onboardingAllergyOtherDraft}
+        setOnboardingAllergyOtherDraft={setOnboardingAllergyOtherDraft}
+        goToPreviousOnboardingStep={goToPreviousOnboardingStep}
+        goToNextOnboardingStep={goToNextOnboardingStep}
+        completeOnboardingSetup={completeOnboardingSetup}
+      />
     );
   }
 
@@ -4527,2004 +3447,294 @@ export default function App(): ReactElement {
         </View>
 
         {section === 'dashboard' && (
-          <View style={styles.dashboardStack}>
-            <View style={styles.homeSection}>
-              <DayHeader selected={selectedHomeDate} today={todayKey} onSelect={setSelectedHomeDate} />
-            </View>
-
-            {/* Overview: calories left, the eaten bar, then the three macros. */}
-            <View style={styles.homeSection}>
-              {dailyHomeTargets.calorieTarget > 0 ? (
-                <CalorieBudgetCard
-                  budget={homeCalorieBudget}
-                  sharePercent={profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}
-                  onOpenDiary={() => handleSectionChange('trends')}
-                />
-              ) : (
-                <Text style={styles.dailyHomeEmptyState}>Finish setup to see your daily calories.</Text>
-              )}
-              <View style={styles.dailyHomeMacroRingRow}>
-                <MacroRing
-                  label="Protein"
-                  consumed={homeConsumedMacros.protein}
-                  target={dailyHomeTargets.macroAllowance.protein}
-                  color={tc.fg_0f766e}
-                />
-                <MacroRing
-                  label="Carbs"
-                  consumed={homeConsumedMacros.carbs}
-                  target={dailyHomeTargets.macroAllowance.carbs}
-                  color={tc.fg_ea580c}
-                />
-                <MacroRing
-                  label="Fat"
-                  consumed={homeConsumedMacros.fat}
-                  target={dailyHomeTargets.macroAllowance.fat}
-                  color={tc.fg_2563eb}
-                />
-              </View>
-            </View>
-
-            {/* Water: glasses against the daily goal. */}
-            <View style={styles.homeSection}>
-              <WaterRow
-                totalMl={homeWaterMl}
-                goalMl={profile?.water_goal_ml ?? DEFAULT_WATER_GOAL_ML}
-                metric={profile?.units === 'metric'}
-                busy={waterBusy}
-                canUndo={homeWaterToday.length > 0}
-                onAdd={(ml) => void addHomeWater(ml)}
-                onUndo={() => void undoHomeWater()}
-              />
-            </View>
-
-            {/* Workouts: planned first (done or skip), then what was recorded. */}
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Workouts</Text>
-                <Pressable
-                  style={styles.todayAddButton}
-                  onPress={() => setOpenSheet('add-workout')}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a workout"
-                >
-                  <Text style={styles.todayAddButtonLabel}>+</Text>
-                </Pressable>
-              </View>
-              {homeOpenPlannedWorkouts.length === 0 && homeCompletedExerciseEntries.length === 0 ? (
-                <View style={styles.todayEmpty}>
-                  <Text style={styles.dailyHomeEmptyState}>No workouts {selectedHomeDate === todayKey ? 'today' : 'this day'}.</Text>
-                  <Text style={styles.todayHint}>Garmin workouts show up here on their own, or tap + to add one.</Text>
-                </View>
-              ) : null}
-              {homeOpenPlannedWorkouts.map((entry) => {
-                const deleteKey = `planned:${entry.id}`;
-                return (
-                  <View key={entry.id} style={styles.todayRow}>
-                    <View style={styles.listRowCopyFlex}>
-                      <Text style={styles.todayRowTag}>Planned</Text>
-                      <Text style={styles.listTitle}>{entry.title}</Text>
-                      <Text style={styles.listCaption}>
-                        {entry.planned_at} · {entry.duration_minutes} min · {entry.calories_burned} kcal
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={styles.inlinePillButton}
-                      onPress={() => void togglePlannedExerciseCompletion(entry)}
-                      disabled={plannedExerciseUpdatingId === entry.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Mark ${entry.title} done`}
-                    >
-                      <Text style={styles.inlinePillButtonLabel}>{plannedExerciseUpdatingId === entry.id ? 'Saving…' : '✓ Done'}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
-                      onPress={() => {
-                        if (confirmDeleteKey === deleteKey) {
-                          setConfirmDeleteKey(null);
-                          void removePlannedExerciseEntry(entry);
-                        } else {
-                          setConfirmDeleteKey(deleteKey);
-                        }
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm skipping ${entry.title}` : `Skip ${entry.title}`}
-                    >
-                      <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                        {confirmDeleteKey === deleteKey ? 'Skip?' : '✕'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-              {homeCompletedExerciseEntries.map((entry) => {
-                const deleteKey = `exercise:${entry.id}`;
-                return (
-                  <View key={entry.id} style={styles.todayRow}>
-                    <Pressable
-                      style={styles.todayRowMain}
-                      onPress={() => setWorkoutDetailId(entry.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${entry.title}: show how its calories are counted`}
-                    >
-                      <View style={styles.listRowCopyFlex}>
-                        <Text style={styles.listTitle}>{entry.title}</Text>
-                        <Text style={styles.listCaption}>
-                          {entry.logged_at} · {entry.duration_minutes} min
-                          {workoutSourceLabel(entry.source) ? ` · ${workoutSourceLabel(entry.source)}` : ''}
-                        </Text>
-                      </View>
-                      <Text style={styles.listMetric}>{entry.calories_burned} kcal ›</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
-                      onPress={() => void removeExerciseEntry(entry)}
-                      disabled={entryActionBusyKey === deleteKey}
-                      accessibilityRole="button"
-                      accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.title}` : `Delete ${entry.title}`}
-                    >
-                      <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                        {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Meals: planned meals first (ate it or skip), then what was eaten. */}
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Meals</Text>
-                <Pressable
-                  style={styles.todayAddButton}
-                  onPress={() => setOpenSheet('add-food')}
-                  disabled={!foodSessionToken}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a food"
-                >
-                  <Text style={styles.todayAddButtonLabel}>+</Text>
-                </Pressable>
-              </View>
-              {homeOpenPlannedMeals.length === 0 && homeFoodLog.entries.length === 0 ? (
-                <View style={styles.todayEmpty}>
-                  <Text style={styles.dailyHomeEmptyState}>Nothing eaten yet.</Text>
-                  <Text style={styles.todayHint}>Tap + to search, scan, or add quick calories.</Text>
-                </View>
-              ) : null}
-              {homeMealPlanDay
-                ? homeOpenPlannedMeals.map((slot) => {
-                    const deleteKey = `slot:${slot.id}`;
-                    return (
-                      <View key={slot.id} style={styles.todayRow}>
-                        <View style={styles.listRowCopyFlex}>
-                          <Text style={styles.todayRowTag}>Planned · {slot.meal_label}</Text>
-                          <Text style={styles.listTitle}>{slot.title}</Text>
-                          <Text style={styles.listCaption}>{slot.calories} kcal</Text>
-                        </View>
-                        <Pressable
-                          style={styles.inlinePillButton}
-                          onPress={() => void toggleMealPlanMeal(homeMealPlanDay, slot.id, slot.meal_label)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`I ate ${slot.title}`}
-                        >
-                          <Text style={styles.inlinePillButtonLabel}>✓ Ate it</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
-                          onPress={() => void removeMealPlanSlot(slot.id)}
-                          disabled={entryActionBusyKey === deleteKey}
-                          accessibilityRole="button"
-                          accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm skipping ${slot.title}` : `Skip ${slot.title}`}
-                        >
-                          <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                            {confirmDeleteKey === deleteKey ? 'Skip?' : '✕'}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    );
-                  })
-                : null}
-              {foodLogError ? <Text style={styles.settingsError}>{foodLogError}</Text> : null}
-              {homeMealGroups.map((group) => (
-                <View key={group.slot} style={styles.todayMealGroup}>
-                  <View style={styles.todayMealGroupHeader}>
-                    <Text style={styles.todayMealGroupLabel}>{group.label}</Text>
-                    <Text style={styles.todayMealGroupCalories}>{group.calories.toLocaleString('en-US')} kcal</Text>
-                  </View>
-                  {group.entries.map((entry) => {
-                    const deleteKey = `food:${entry.id}`;
-                    return (
-                      <View key={entry.id} style={styles.todayRow}>
-                        {editingFoodEntryId === entry.id ? (
-                          <View style={[styles.listRowCopyFlex, styles.todayEditRow]}>
-                            <Text style={styles.listTitle} numberOfLines={1}>{entry.food_name}</Text>
-                            <View style={styles.todayEditControls}>
-                              <TextInput
-                                style={styles.todayEditInput}
-                                value={editingFoodGramsDraft}
-                                onChangeText={(text) => setEditingFoodGramsDraft(text.replace(/[^0-9.]/g, ''))}
-                                keyboardType="decimal-pad"
-                                inputMode="decimal"
-                                autoFocus
-                                accessibilityLabel={`Amount of ${entry.food_name} in grams`}
-                              />
-                              <Text style={styles.listCaption}>g</Text>
-                              <Pressable
-                                style={styles.inlinePillButton}
-                                disabled={entryActionBusyKey === deleteKey}
-                                onPress={() => void saveHomeFoodEntryEdit(entry)}
-                                accessibilityRole="button"
-                              >
-                                <Text style={styles.inlinePillButtonLabel}>{entryActionBusyKey === deleteKey ? 'Saving…' : 'Save'}</Text>
-                              </Pressable>
-                              <Pressable style={styles.inlinePillButton} onPress={() => setEditingFoodEntryId(null)} accessibilityRole="button">
-                                <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        ) : (
-                          <Pressable
-                            style={styles.listRowCopyFlex}
-                            onPress={() => {
-                              if (entry.grams > 0) {
-                                setEditingFoodEntryId(entry.id);
-                                setEditingFoodGramsDraft(String(Math.round(entry.grams * 10) / 10));
-                                setConfirmDeleteKey(null);
-                                setFoodLogError(null);
-                              }
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${entry.food_name}${entry.grams > 0 ? `, ${Math.round(entry.grams)} g. Tap to change the amount` : ''}`}
-                          >
-                            <Text style={styles.listTitle}>{entry.food_name}</Text>
-                            <Text style={styles.listCaption}>
-                              {entry.quantity_label ? `${entry.quantity_label} · ` : entry.grams > 0 ? `${Math.round(entry.grams)} g · ` : ''}P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
-                            </Text>
-                          </Pressable>
-                        )}
-                        <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
-                        <Pressable
-                          style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
-                          onPress={() => void removeHomeFoodEntry(entry)}
-                          disabled={entryActionBusyKey === deleteKey}
-                          accessibilityRole="button"
-                          accessibilityLabel={confirmDeleteKey === deleteKey ? `Confirm deleting ${entry.food_name}` : `Delete ${entry.food_name}`}
-                        >
-                          <Text style={[styles.todayRemoveLabel, confirmDeleteKey === deleteKey && styles.todayRemoveConfirmLabel]}>
-                            {confirmDeleteKey === deleteKey ? 'Delete?' : '✕'}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </View>
+          <TodayScreen
+            selectedHomeDate={selectedHomeDate}
+            todayKey={todayKey}
+            setSelectedHomeDate={setSelectedHomeDate}
+            dailyHomeTargets={dailyHomeTargets}
+            homeCalorieBudget={homeCalorieBudget}
+            profile={profile}
+            handleSectionChange={handleSectionChange}
+            homeConsumedMacros={homeConsumedMacros}
+            homeWaterMl={homeWaterMl}
+            waterBusy={waterBusy}
+            homeWaterToday={homeWaterToday}
+            addHomeWater={addHomeWater}
+            undoHomeWater={undoHomeWater}
+            setOpenSheet={setOpenSheet}
+            homeOpenPlannedWorkouts={homeOpenPlannedWorkouts}
+            homeCompletedExerciseEntries={homeCompletedExerciseEntries}
+            togglePlannedExerciseCompletion={togglePlannedExerciseCompletion}
+            plannedExerciseUpdatingId={plannedExerciseUpdatingId}
+            confirmDeleteKey={confirmDeleteKey}
+            setConfirmDeleteKey={setConfirmDeleteKey}
+            removePlannedExerciseEntry={removePlannedExerciseEntry}
+            setWorkoutDetailId={setWorkoutDetailId}
+            removeExerciseEntry={removeExerciseEntry}
+            entryActionBusyKey={entryActionBusyKey}
+            foodSessionToken={foodSessionToken}
+            homeOpenPlannedMeals={homeOpenPlannedMeals}
+            homeFoodLog={homeFoodLog}
+            homeMealPlanDay={homeMealPlanDay}
+            toggleMealPlanMeal={toggleMealPlanMeal}
+            removeMealPlanSlot={removeMealPlanSlot}
+            foodLogError={foodLogError}
+            setFoodLogError={setFoodLogError}
+            homeMealGroups={homeMealGroups}
+            editingFoodEntryId={editingFoodEntryId}
+            setEditingFoodEntryId={setEditingFoodEntryId}
+            editingFoodGramsDraft={editingFoodGramsDraft}
+            setEditingFoodGramsDraft={setEditingFoodGramsDraft}
+            saveHomeFoodEntryEdit={saveHomeFoodEntryEdit}
+            removeHomeFoodEntry={removeHomeFoodEntry}
+          />
         )}
 
         {section === 'trends' && (
-          <View style={styles.dashboardStack}>
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Trends</Text>
-                <View style={styles.trendRangeRow} accessibilityRole="tablist">
-                  {TREND_RANGES.map((range) => (
-                    <Pressable
-                      key={range}
-                      style={[styles.trendRange, trendRange === range && styles.trendRangeActive]}
-                      onPress={() => setTrendRange(range)}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: trendRange === range }}
-                    >
-                      <Text style={[styles.trendRangeLabel, trendRange === range && styles.trendRangeLabelActive]}>{range}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              {trendsError ? <Text style={styles.settingsError}>{trendsError}</Text> : null}
-            </View>
-
-            {/* Weight: weigh-ins and the smoothed trend, with the goal. */}
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Weight</Text>
-                <Text style={styles.trendHeadline}>
-                  {trendWeight.latest !== null ? `${trendWeight.latest} ${trendUnit}` : '—'}
-                </Text>
-              </View>
-              <Text style={styles.todayHint}>
-                {[
-                  trendWeight.rate !== null
-                    ? `Trend ${trendWeight.rate > 0 ? '+' : trendWeight.rate < 0 ? '−' : '±'}${Math.abs(trendWeight.rate)} ${trendUnit} a week`
-                    : 'Weigh in a few more days to see your weekly trend',
-                  trendWeight.toGoal !== null ? `${trendWeight.toGoal} ${trendUnit} to goal` : null
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-              <WeightTrendChart
-                points={trendWeightPoints}
-                start={trendStart}
-                end={todayKey}
-                goal={profile?.target_weight_lbs ?? null}
-                unit={trendUnit}
-                toUnit={(lbs) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : lbs)}
-                projection={{ days: trendProjection.days, trendRate: trendProjection.trendRate, paceRate: trendProjection.paceRate }}
-              />
-              <View style={styles.trendProjectionRow}>
-                <Text style={styles.trendProjectionLabel}>Projection</Text>
-                <View style={styles.trendRangeRow} accessibilityRole="tablist">
-                  {PROJECTION_HORIZONS.map((horizon) => (
-                    <Pressable
-                      key={horizon}
-                      style={[styles.trendRange, weightHorizon === horizon && styles.trendRangeActive]}
-                      onPress={() => setWeightHorizon(horizon)}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: weightHorizon === horizon }}
-                      accessibilityLabel={`Project ${horizon.replace('M', '')} month${horizon === '1M' ? '' : 's'} ahead`}
-                    >
-                      <Text style={[styles.trendRangeLabel, weightHorizon === horizon && styles.trendRangeLabelActive]}>{horizon}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              {trendProjection.lines.map((line, index) => (
-                <Text
-                  key={line}
-                  style={[
-                    index === 0 ? styles.trendProjectionText : styles.trendPaceText,
-                    index > 0 && trendProjection.status === 'on' && styles.trendPaceGood,
-                    index > 0 && (trendProjection.status === 'behind' || trendProjection.status === 'drifting') && styles.trendPaceWarn
-                  ]}
-                >
-                  {line}
-                </Text>
-              ))}
-            </View>
-
-            {/* Calories: each day against its allowance. */}
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Calories</Text>
-                <Text style={styles.trendHeadline}>
-                  {trendCalories.loggedDays > 0 ? `${trendCalories.averageEaten.toLocaleString('en-US')} avg` : '—'}
-                </Text>
-              </View>
-              <Text style={styles.todayHint}>
-                {trendCalories.loggedDays > 0
-                  ? `${trendCalories.loggedDays} of ${trendDays.length} days logged · allowance avg ${trendCalories.averageAllowance.toLocaleString('en-US')} · ${trendCalories.daysOnTarget} on target${trendCalories.daysOver ? ` · ${trendCalories.daysOver} over` : ''}`
-                  : 'Nothing logged in this range yet.'}
-              </Text>
-              <CalorieBars days={trendDays} />
-            </View>
-
-            {/* Macros: each day above or below its target. */}
-            <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>Macros</Text>
-              <Text style={styles.todayHint}>Each day’s bar is its target (bigger on workout days), filled with what you ate. Tap a day for its grams and %.</Text>
-              {(['protein', 'carbs', 'fat'] as const).map((macro) => (
-                <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} today={todayKey} />
-              ))}
-            </View>
-
-            {/* Water: each day against the goal. */}
-            <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>Water</Text>
-              <WaterBars
-                days={trendWaterDays}
-                goalMl={profile?.water_goal_ml ?? DEFAULT_WATER_GOAL_ML}
-                metric={profile?.units === 'metric'}
-                today={todayKey}
-              />
-            </View>
-
-            {/* History: every day in the range, newest first. */}
-            <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>History</Text>
-              <DayHistory
-                days={[...trendDays].reverse()}
-                logs={trendLogs}
-                exercise={exerciseEntries}
-                today={todayKey}
-                onDeleteFood={deleteTrendFood}
-                onOpenWorkout={setWorkoutDetailId}
-              />
-            </View>
-          </View>
+          <TrendsScreen
+            trendRange={trendRange}
+            setTrendRange={setTrendRange}
+            trendsError={trendsError}
+            trendWeight={trendWeight}
+            trendUnit={trendUnit}
+            trendWeightPoints={trendWeightPoints}
+            trendStart={trendStart}
+            todayKey={todayKey}
+            profile={profile}
+            trendProjection={trendProjection}
+            weightHorizon={weightHorizon}
+            setWeightHorizon={setWeightHorizon}
+            trendCalories={trendCalories}
+            trendDays={trendDays}
+            trendMacroDays={trendMacroDays}
+            dailyHomeTargets={dailyHomeTargets}
+            trendWaterDays={trendWaterDays}
+            trendLogs={trendLogs}
+            exerciseEntries={exerciseEntries}
+            deleteTrendFood={deleteTrendFood}
+            setWorkoutDetailId={setWorkoutDetailId}
+          />
         )}
 
         {section === 'profile' && (
-          <>
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>Profile</Text>
-                  <Text style={styles.panelTitle}>Your body and goals</Text>
-                </View>
-                <Text style={styles.panelDetail}>Update your weight, body stats, and goal here; your daily targets recalculate when you save. Units, time zone, and your name are in Settings.</Text>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
-                {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
-              </View>
-
-              {profile ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>Body and goal</Text>
-
-                  <View style={styles.profileFieldStack}>
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Sex</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(['female', 'male'] as const).map((option) => {
-                          const active = onboardingSexDraft === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingSexDraft(option)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {option === 'male' ? 'Male' : 'Female'}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Age</Text>
-                        <TextInput
-                          value={onboardingAgeDraft}
-                          onChangeText={setOnboardingAgeDraft}
-                          keyboardType="numeric"
-                          placeholder="34"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
-                        <TextInput
-                          value={onboardingCurrentWeightDraft}
-                          onChangeText={setOnboardingCurrentWeightDraft}
-                          keyboardType="decimal-pad"
-                          placeholder="180"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Height, ft</Text>
-                        <TextInput
-                          value={onboardingHeightFeetDraft}
-                          onChangeText={setOnboardingHeightFeetDraft}
-                          keyboardType="numeric"
-                          placeholder="5"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Height, in</Text>
-                        <TextInput
-                          value={onboardingHeightInchesDraft}
-                          onChangeText={setOnboardingHeightInchesDraft}
-                          keyboardType="numeric"
-                          placeholder="10"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Goal</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(['lose', 'maintain', 'gain'] as const).map((option) => {
-                          const active = onboardingGoalTypeDraft === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingGoalTypeDraft(option)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {goalLabel(option)}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>{onboardingGoalTypeDraft === 'maintain' ? 'Focus' : 'Pace'}</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
-                          const active = onboardingGoalPaceDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingGoalPaceDraft(option.id)}
-                              accessibilityRole="radio"
-                              accessibilityState={{ checked: active }}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {option.title}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
-                        <TextInput
-                          value={onboardingTargetWeightDraft}
-                          onChangeText={setOnboardingTargetWeightDraft}
-                          keyboardType="decimal-pad"
-                          placeholder="170"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Activity level</Text>
-                        <View style={styles.profileToggleRow}>
-                          {(['sedentary', 'light', 'moderate', 'very_active', 'extra_active'] as const).map((option) => {
-                            const active = onboardingActivityLevelDraft === option;
-                            return (
-                              <Pressable
-                                key={option}
-                                style={[styles.profileToggle, active && styles.profileToggleActive]}
-                                onPress={() => setOnboardingActivityLevelDraft(option)}
-                              >
-                                <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                  {option === 'very_active'
-                                    ? 'Very active'
-                                    : option === 'extra_active'
-                                      ? 'Extra active'
-                                      : option === 'sedentary'
-                                        ? 'Sedentary'
-                                        : option === 'light'
-                                          ? 'Light'
-                                          : 'Moderate'}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>How you eat</Text>
-                      <View style={styles.profileToggleRow}>
-                        {dietaryPatternOptions.map((option) => {
-                          const active = onboardingDietaryPatternDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingDietaryPatternDraft(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Nutrition style</Text>
-                      <View style={styles.profileToggleRow}>
-                        {nutritionStyleOptions.map((option) => {
-                          const active = onboardingNutritionStyleDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingNutritionStyleDraft(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Meal balance</Text>
-                      <View style={styles.profileToggleRow}>
-                        {MEAL_STYLES.map((option) => {
-                          const active = onboardingMealStyleDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingMealStyleDraft(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.label}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Avoid</Text>
-                      <View style={styles.profileToggleRow}>
-                        {allergyOptions.map((option) => {
-                          const active = onboardingAllergySelectionsDraft.includes(option.id);
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => toggleOnboardingAllergy(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                      {onboardingAllergySelectionsDraft.includes('other') ? (
-                        <TextInput
-                          value={onboardingAllergyOtherDraft}
-                          onChangeText={setOnboardingAllergyOtherDraft}
-                          placeholder="For example sesame or soy"
-                          placeholderTextColor={tc.fg_9aa6b8}
-                          style={styles.settingsInput}
-                        />
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <Pressable
-                    style={styles.primaryButton}
-                    onPress={() => void saveProfileSettings()}
-                    disabled={profileSaving}
-                  >
-                    <Text style={styles.primaryButtonLabel}>
-                      {profileSaving ? 'Saving...' : 'Save profile and recalculate targets'}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Goals</Text>
-              <Text style={styles.panelTitle}>Target management</Text>
-              <Text style={styles.panelDetail}>The profile form above now drives the active targets. Manual goal entries remain available below for temporary overrides or experiments.</Text>
-
-              {latestProfileGoal ? (
-                <View style={styles.detailCard}>
-                  <View style={styles.recipeRowTitleWrap}>
-                    <View>
-                      <Text style={styles.panelEyebrow}>Active target</Text>
-                      <Text style={styles.detailTitle}>Latest generated target block</Text>
-                    </View>
-                    <Text style={styles.detailSubtitle}>{latestProfileGoal.effective_at}</Text>
-                  </View>
-                  <View style={styles.metricRow}>
-                    <MetricTile label="Calories" value={`${latestProfileGoal.calorie_goal} kcal`} />
-                    <MetricTile label="Protein" value={`${latestProfileGoal.protein_goal} g`} />
-                    <MetricTile label="Carbs" value={`${latestProfileGoal.carbs_goal} g`} />
-                    <MetricTile label="Fat" value={`${latestProfileGoal.fat_goal} g`} />
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={styles.foodList}>
-                {profileGoals.length > 0 ? (
-                  profileGoals.map((goal, index) => (
-                    <View key={goal.id} style={styles.goalCard}>
-                      <View style={styles.recipeRowTitleWrap}>
-                        <Text style={styles.listTitle}>
-                          Goal {profileGoals.length - index}
-                        </Text>
-                        <Text style={styles.listCaption}>{goal.effective_at}</Text>
-                      </View>
-                      <View style={styles.goalMetaRow}>
-                        <Text style={styles.goalMetaChip}>{goal.calorie_goal} kcal</Text>
-                        <Text style={styles.goalMetaChip}>{goal.protein_goal}P</Text>
-                        <Text style={styles.goalMetaChip}>{goal.carbs_goal}C</Text>
-                        <Text style={styles.goalMetaChip}>{goal.fat_goal}F</Text>
-                        {goal.target_weight_lbs !== null ? (
-                          <Text style={styles.goalMetaChip}>{goal.target_weight_lbs} lb</Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No goals saved yet</Text>
-                    <Text style={styles.detailSubtitle}>Create a starting target block below to populate this list.</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.profileFieldStack}>
-                <View style={styles.profileField}>
-                  <Text style={styles.profileFieldLabel}>Effective date</Text>
-                  <TextInput
-                    value={goalEffectiveAtDraft}
-                    onChangeText={setGoalEffectiveAtDraft}
-                    placeholder="2026-03-30"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-
-                <View style={styles.profileFieldRow}>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Calories</Text>
-                    <TextInput
-                      value={goalCaloriesDraft}
-                      onChangeText={setGoalCaloriesDraft}
-                      placeholder="2100"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Protein</Text>
-                    <TextInput
-                      value={goalProteinDraft}
-                      onChangeText={setGoalProteinDraft}
-                      placeholder="180"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.profileFieldRow}>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Carbs</Text>
-                    <TextInput
-                      value={goalCarbsDraft}
-                      onChangeText={setGoalCarbsDraft}
-                      placeholder="190"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Fat</Text>
-                    <TextInput
-                      value={goalFatDraft}
-                      onChangeText={setGoalFatDraft}
-                      placeholder="60"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.profileField}>
-                  <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
-                  <TextInput
-                    value={goalWeightDraft}
-                    onChangeText={setGoalWeightDraft}
-                    placeholder="178.5"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    keyboardType="numeric"
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-
-                <Pressable
-                  style={styles.primaryButton}
-                  onPress={() => void addGoal()}
-                  disabled={goalSaving}
-                >
-                  <Text style={styles.primaryButtonLabel}>{goalSaving ? 'Saving...' : 'Add goal'}</Text>
-                </Pressable>
-              </View>
-            </View>
-
-          </>
+          <ProfileScreen
+            profileTone={profileTone}
+            profileStatus={profileStatus}
+            profileError={profileError}
+            profile={profile}
+            onboardingSexDraft={onboardingSexDraft}
+            setOnboardingSexDraft={setOnboardingSexDraft}
+            onboardingAgeDraft={onboardingAgeDraft}
+            setOnboardingAgeDraft={setOnboardingAgeDraft}
+            onboardingCurrentWeightDraft={onboardingCurrentWeightDraft}
+            setOnboardingCurrentWeightDraft={setOnboardingCurrentWeightDraft}
+            onboardingHeightFeetDraft={onboardingHeightFeetDraft}
+            setOnboardingHeightFeetDraft={setOnboardingHeightFeetDraft}
+            onboardingHeightInchesDraft={onboardingHeightInchesDraft}
+            setOnboardingHeightInchesDraft={setOnboardingHeightInchesDraft}
+            onboardingGoalTypeDraft={onboardingGoalTypeDraft}
+            setOnboardingGoalTypeDraft={setOnboardingGoalTypeDraft}
+            onboardingGoalPaceDraft={onboardingGoalPaceDraft}
+            setOnboardingGoalPaceDraft={setOnboardingGoalPaceDraft}
+            onboardingTargetWeightDraft={onboardingTargetWeightDraft}
+            setOnboardingTargetWeightDraft={setOnboardingTargetWeightDraft}
+            onboardingActivityLevelDraft={onboardingActivityLevelDraft}
+            setOnboardingActivityLevelDraft={setOnboardingActivityLevelDraft}
+            onboardingDietaryPatternDraft={onboardingDietaryPatternDraft}
+            setOnboardingDietaryPatternDraft={setOnboardingDietaryPatternDraft}
+            onboardingNutritionStyleDraft={onboardingNutritionStyleDraft}
+            setOnboardingNutritionStyleDraft={setOnboardingNutritionStyleDraft}
+            onboardingMealStyleDraft={onboardingMealStyleDraft}
+            setOnboardingMealStyleDraft={setOnboardingMealStyleDraft}
+            onboardingAllergySelectionsDraft={onboardingAllergySelectionsDraft}
+            toggleOnboardingAllergy={toggleOnboardingAllergy}
+            onboardingAllergyOtherDraft={onboardingAllergyOtherDraft}
+            setOnboardingAllergyOtherDraft={setOnboardingAllergyOtherDraft}
+            saveProfileSettings={saveProfileSettings}
+            profileSaving={profileSaving}
+            latestProfileGoal={latestProfileGoal}
+            profileGoals={profileGoals}
+            goalEffectiveAtDraft={goalEffectiveAtDraft}
+            setGoalEffectiveAtDraft={setGoalEffectiveAtDraft}
+            goalCaloriesDraft={goalCaloriesDraft}
+            setGoalCaloriesDraft={setGoalCaloriesDraft}
+            goalProteinDraft={goalProteinDraft}
+            setGoalProteinDraft={setGoalProteinDraft}
+            goalCarbsDraft={goalCarbsDraft}
+            setGoalCarbsDraft={setGoalCarbsDraft}
+            goalFatDraft={goalFatDraft}
+            setGoalFatDraft={setGoalFatDraft}
+            goalWeightDraft={goalWeightDraft}
+            setGoalWeightDraft={setGoalWeightDraft}
+            addGoal={addGoal}
+            goalSaving={goalSaving}
+          />
         )}
 
         {section === 'workout-plan' && (
-          <>
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Planned exercise</Text>
-              <Text style={styles.panelTitle}>Plan a workout for the selected Home date</Text>
-              <Text style={styles.panelDetail}>
-                Save a future or same-day training session so Home can show planned movement separately from completed tracker logs.
-              </Text>
-
-              <View style={styles.inlinePillRow}>
-                <Text style={styles.inlinePillText}>Planning for {formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
-              </View>
-
-              {plannedExerciseEditingId ? (
-                <View style={styles.searchRow}>
-                  <View style={styles.inlinePillRow}>
-                    <Text style={styles.inlinePillText}>Editing planned session</Text>
-                  </View>
-                  <Pressable style={styles.inlinePillButton} onPress={resetPlannedExerciseDrafts}>
-                    <Text style={styles.inlinePillButtonLabel}>Cancel edit</Text>
-                  </Pressable>
-                </View>
-              ) : null}
-
-              <View style={styles.exercisePresetGrid}>
-                {exercisePresets.map((preset) => {
-                  const active = preset.id === activePlannedExercisePreset.id;
-                  return (
-                    <Pressable
-                      key={`planned-${preset.id}`}
-                      style={[styles.exercisePresetCard, active && styles.exercisePresetCardActive]}
-                      onPress={() => {
-                        setPlannedExerciseTitleDraft(preset.title);
-                        setPlannedExerciseMinutesDraft(preset.minutes);
-                      }}
-                    >
-                      <Image source={preset.image} style={styles.exercisePresetImage} resizeMode="contain" />
-                      <Text style={styles.exercisePresetLabel}>{preset.label}</Text>
-                      <Text style={styles.exercisePresetMeta}>
-                        {preset.minutes} min · est. {preset.calories} kcal
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={plannedExerciseTitleDraft}
-                  onChangeText={setPlannedExerciseTitleDraft}
-                  placeholder="Swim, walk, lift..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCorrect={false}
-                />
-                <Pressable style={styles.primaryButton} onPress={() => void addPlannedExerciseEntry()}>
-                  <Text style={styles.primaryButtonLabel}>
-                    {plannedExerciseSaving ? 'Saving...' : plannedExerciseEditingId ? 'Update plan' : 'Plan exercise'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={plannedExerciseMinutesDraft}
-                  onChangeText={setPlannedExerciseMinutesDraft}
-                  placeholder="Main set minutes"
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  keyboardType="numeric"
-                  autoCorrect={false}
-                />
-                <View style={styles.metricTileCompact}>
-                  <Text style={styles.metricLabel}>Estimated burn</Text>
-                  <Text style={styles.metricValue}>{estimatedPlannedExerciseCalories} kcal</Text>
-                </View>
-              </View>
-
-              <View style={styles.listActionRow}>
-                <Pressable
-                  style={[styles.inlinePillButton, plannedExerciseWarmupEnabled ? styles.inlinePillButtonComplete : null]}
-                  onPress={() => setPlannedExerciseWarmupEnabled((current) => !current)}
-                >
-                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseWarmupEnabled ? styles.inlinePillButtonLabelComplete : null]}>
-                    {plannedExerciseWarmupEnabled ? 'Remove warmup' : 'Add warmup'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.inlinePillButton, plannedExerciseCooldownEnabled ? styles.inlinePillButtonComplete : null]}
-                  onPress={() => setPlannedExerciseCooldownEnabled((current) => !current)}
-                >
-                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseCooldownEnabled ? styles.inlinePillButtonLabelComplete : null]}>
-                    {plannedExerciseCooldownEnabled ? 'Remove cooldown' : 'Add cooldown'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {plannedExerciseWarmupEnabled ? (
-                <View style={styles.searchRow}>
-                  <TextInput
-                    value={plannedExerciseWarmupMinutesDraft}
-                    onChangeText={setPlannedExerciseWarmupMinutesDraft}
-                    placeholder="Warmup minutes"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    style={styles.searchInput}
-                    keyboardType="numeric"
-                    autoCorrect={false}
-                  />
-                  <View style={styles.inlinePillRow}>
-                    <Text style={styles.inlinePillText}>{defaultWarmupTitle(activePlannedExercisePreset.id)}</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              {plannedExerciseCooldownEnabled ? (
-                <View style={styles.searchRow}>
-                  <TextInput
-                    value={plannedExerciseCooldownMinutesDraft}
-                    onChangeText={setPlannedExerciseCooldownMinutesDraft}
-                    placeholder="Cooldown minutes"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    style={styles.searchInput}
-                    keyboardType="numeric"
-                    autoCorrect={false}
-                  />
-                  <View style={styles.inlinePillRow}>
-                    <Text style={styles.inlinePillText}>{defaultCooldownTitle(activePlannedExercisePreset.id)}</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Minutes" value={`${plannedExerciseMinutesDraft} min`} compact />
-                <MetricTile label="Estimated burn" value={`${estimatedPlannedExerciseCalories} kcal`} compact />
-              </View>
-
-              <View style={styles.foodList}>
-                {plannedExerciseEntries.length > 0 ? (
-                  plannedExerciseEntries.map((entry) => (
-                    <View key={entry.id} style={styles.foodRow}>
-                      <View style={styles.foodRowCopy}>
-                        <Text style={styles.listTitle}>{entry.title}</Text>
-                        <Text style={styles.listCaption}>
-                          {formatHomeDateLabel(entry.planned_on, todayKey)} · {entry.duration_minutes} min · {entry.intensity} · {entry.completed_at ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}` : entry.planned_at}
-                        </Text>
-                        {plannedWorkoutSessions.find((session) => session.id === entry.id)?.blocks.length ? (
-                          <Text style={styles.listCaption}>
-                            {plannedWorkoutSessions
-                              .find((session) => session.id === entry.id)
-                              ?.blocks.map((block) => `${block.title}: ${block.segments.map((segment) => segment.title).join(', ')}`)
-                              .join(' · ')}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.listRowActions}>
-                        <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
-                        <View style={styles.listActionRow}>
-                          <Pressable
-                            style={styles.inlinePillButton}
-                            onPress={() => beginPlannedExerciseEdit(entry)}
-                            disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
-                          >
-                            <Text style={styles.inlinePillButtonLabel}>Edit</Text>
-                          </Pressable>
-                          <Pressable
-                            style={styles.inlinePillButton}
-                            onPress={() => void removePlannedExerciseEntry(entry)}
-                            disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
-                          >
-                            <Text style={styles.inlinePillButtonLabel}>
-                              {plannedExerciseDeletingId === entry.id ? 'Deleting...' : 'Delete'}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.inlinePillButton, entry.completed_at ? styles.inlinePillButtonComplete : null]}
-                            onPress={() => void togglePlannedExerciseCompletion(entry)}
-                            disabled={plannedExerciseUpdatingId === entry.id || plannedExerciseDeletingId === entry.id}
-                          >
-                            <Text style={[styles.inlinePillButtonLabel, entry.completed_at ? styles.inlinePillButtonLabelComplete : null]}>
-                              {plannedExerciseUpdatingId === entry.id
-                                ? 'Saving...'
-                                : entry.completed_at
-                                  ? 'Undo'
-                                  : 'Complete'}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No planned sessions yet</Text>
-                    <Text style={styles.detailSubtitle}>
-                      Add a workout above to populate Home with future planned exercise.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-          </>
+          <WorkoutPlanScreen
+            selectedHomeDate={selectedHomeDate}
+            todayKey={todayKey}
+            plannedExerciseEditingId={plannedExerciseEditingId}
+            activePlannedExercisePreset={activePlannedExercisePreset}
+            plannedExerciseTitleDraft={plannedExerciseTitleDraft}
+            setPlannedExerciseTitleDraft={setPlannedExerciseTitleDraft}
+            plannedExerciseMinutesDraft={plannedExerciseMinutesDraft}
+            setPlannedExerciseMinutesDraft={setPlannedExerciseMinutesDraft}
+            plannedExerciseSaving={plannedExerciseSaving}
+            estimatedPlannedExerciseCalories={estimatedPlannedExerciseCalories}
+            plannedExerciseWarmupEnabled={plannedExerciseWarmupEnabled}
+            setPlannedExerciseWarmupEnabled={setPlannedExerciseWarmupEnabled}
+            plannedExerciseCooldownEnabled={plannedExerciseCooldownEnabled}
+            setPlannedExerciseCooldownEnabled={setPlannedExerciseCooldownEnabled}
+            plannedExerciseWarmupMinutesDraft={plannedExerciseWarmupMinutesDraft}
+            setPlannedExerciseWarmupMinutesDraft={setPlannedExerciseWarmupMinutesDraft}
+            plannedExerciseCooldownMinutesDraft={plannedExerciseCooldownMinutesDraft}
+            setPlannedExerciseCooldownMinutesDraft={setPlannedExerciseCooldownMinutesDraft}
+            plannedExerciseEntries={plannedExerciseEntries}
+            plannedWorkoutSessions={plannedWorkoutSessions}
+            plannedExerciseDeletingId={plannedExerciseDeletingId}
+            plannedExerciseUpdatingId={plannedExerciseUpdatingId}
+            resetPlannedExerciseDrafts={resetPlannedExerciseDrafts}
+            addPlannedExerciseEntry={addPlannedExerciseEntry}
+            beginPlannedExerciseEdit={beginPlannedExerciseEdit}
+            removePlannedExerciseEntry={removePlannedExerciseEntry}
+            togglePlannedExerciseCompletion={togglePlannedExerciseCompletion}
+          />
         )}
 
         {section === 'foods' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelTitle}>Your foods</Text>
-            <Text style={styles.panelDetail}>Your food bank and favorites first; searching also finds USDA foods. ✕ removes a food from your bank.</Text>
-            <View style={styles.searchRow}>
-              <TextInput
-                value={foodDraft}
-                onChangeText={setFoodDraft}
-                placeholder="Search yogurt, oats, blueberries..."
-                placeholderTextColor={tc.fg_7c8aa5}
-                style={styles.searchInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-                <Pressable style={styles.primaryButton} onPress={submitFoodSearch}>
-                <Text style={styles.primaryButtonLabel}>{isSubmittingSearch ? '...' : 'Refresh'}</Text>
-              </Pressable>
-            </View>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(foodTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{foodStatus}</Text>
-              {foodError ? <Text style={styles.inlineStatusDetail}>{foodError}</Text> : null}
-            </View>
-
-            <View style={styles.foodList}>
-              {foodResults.map((food) => {
-                const active = food.id === selectedFood?.id;
-                const quantity = foodQuantityForId(food.id);
-                return (
-                  <Pressable
-                    key={food.id}
-                    style={[styles.foodRow, active && styles.foodRowActive]}
-                    onPress={() => setSelectedFoodId(food.id)}
-                  >
-                    <View style={styles.foodCardCopy}>
-                      <View style={styles.foodRowHeader}>
-                        <View style={styles.foodRowCopy}>
-                          <Text style={styles.listTitle}>{food.name}</Text>
-                          <Text style={styles.listCaption}>
-                            {(food.brand ?? 'Unbranded')} · {food.source} · {food.favorite ? 'Favorite' : 'Search match'}
-                          </Text>
-                        </View>
-                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
-                      </View>
-
-                      <View style={styles.foodCardMetaRow}>
-                        <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(food)}`}</Text>
-                        <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(quantity)}`}</Text>
-                      </View>
-
-                      <View style={styles.foodCardActionsRow}>
-                        <View style={styles.quantityStepper}>
-                          <Pressable
-                            style={styles.quantityStepperButton}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              adjustFoodQuantity(food.id, -0.5);
-                            }}
-                            disabled={quantity <= 0.5}
-                          >
-                            <Text style={styles.quantityStepperButtonLabel}>−</Text>
-                          </Pressable>
-                          <Text style={styles.quantityStepperValue}>{formatFoodQuantity(quantity)}</Text>
-                          <Pressable
-                            style={styles.quantityStepperButton}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              adjustFoodQuantity(food.id, 0.5);
-                            }}
-                          >
-                            <Text style={styles.quantityStepperButtonLabel}>+</Text>
-                          </Pressable>
-                        </View>
-
-                        <Pressable
-                          style={styles.inlinePillButton}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void quickAddFoodToToday(food);
-                          }}
-                          disabled={isSavingLogEntry}
-                        >
-                          <Text style={styles.inlinePillButtonLabel}>
-                            {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(food, foodQuantityForId(food.id))} to today`}
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          style={[
-                            styles.favoriteToggleButton,
-                            food.favorite && styles.favoriteToggleButtonActive
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void toggleFoodFavorite(food);
-                          }}
-                          disabled={foodFavoriteSavingId === food.id}
-                        >
-                          <Text
-                            style={[
-                              styles.favoriteToggleButtonLabel,
-                              food.favorite && styles.favoriteToggleButtonLabelActive
-                            ]}
-                          >
-                            {foodFavoriteSavingId === food.id ? '...' : food.favorite ? '♥' : '♡'}
-                          </Text>
-                        </Pressable>
-                        {food.in_bank ? (
-                          <Pressable
-                            style={[styles.todayRemoveButton, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirm]}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              void removeFromBank(food);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={confirmDeleteKey === `bank:${food.id}` ? `Confirm removing ${food.name}` : `Remove ${food.name} from your food bank`}
-                          >
-                            <Text style={[styles.todayRemoveLabel, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirmLabel]}>
-                              {confirmDeleteKey === `bank:${food.id}` ? 'Remove?' : '✕'}
-                            </Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {selectedFood ? (
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.detailTitle}>{selectedFood.name}</Text>
-                    <Text style={styles.detailSubtitle}>
-                      {selectedFood.brand ?? 'Unbranded'} · {selectedFood.source}
-                    </Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>{selectedFood.favorite ? 'Favorite' : 'Search match'}</Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <MetricTile label="Calories" value={`${selectedFood.calories}`} compact />
-                  <MetricTile label="Macros" value={foodMacroLine(selectedFood)} compact />
-                </View>
-                <View style={styles.foodCardMetaRow}>
-                  <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(selectedFood)}`}</Text>
-                  <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(foodQuantityForId(selectedFood.id))}`}</Text>
-                </View>
-                <View style={styles.foodCardActionsRow}>
-                  <View style={styles.quantityStepper}>
-                    <Pressable
-                      style={styles.quantityStepperButton}
-                      onPress={() => adjustFoodQuantity(selectedFood.id, -0.5)}
-                      disabled={foodQuantityForId(selectedFood.id) <= 0.5}
-                    >
-                      <Text style={styles.quantityStepperButtonLabel}>−</Text>
-                    </Pressable>
-                    <Text style={styles.quantityStepperValue}>{formatFoodQuantity(foodQuantityForId(selectedFood.id))}</Text>
-                    <Pressable
-                      style={styles.quantityStepperButton}
-                      onPress={() => adjustFoodQuantity(selectedFood.id, 0.5)}
-                    >
-                      <Text style={styles.quantityStepperButtonLabel}>+</Text>
-                    </Pressable>
-                  </View>
-
-                  <Pressable
-                    style={styles.inlinePillButton}
-                    onPress={() => void quickAddFoodToToday(selectedFood)}
-                    disabled={isSavingLogEntry}
-                  >
-                    <Text style={styles.inlinePillButtonLabel}>
-                      {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(selectedFood, foodQuantityForId(selectedFood.id))} to today`}
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.favoriteToggleButton,
-                      selectedFood.favorite && styles.favoriteToggleButtonActive
-                    ]}
-                    onPress={() => void toggleFoodFavorite(selectedFood)}
-                    disabled={foodFavoriteSavingId === selectedFood.id}
-                  >
-                    <Text
-                      style={[
-                        styles.favoriteToggleButtonLabel,
-                        selectedFood.favorite && styles.favoriteToggleButtonLabelActive
-                      ]}
-                    >
-                      {foodFavoriteSavingId === selectedFood.id ? '...' : selectedFood.favorite ? '♥' : '♡'}
-                    </Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.detailSubtitle}>
-                  {selectedFood.favorite
-                    ? 'Already cached in this session’s favorite foods.'
-                    : 'Tap the heart to save this search result into favorites.'}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+          <FoodsScreen
+            foodDraft={foodDraft}
+            setFoodDraft={setFoodDraft}
+            submitFoodSearch={submitFoodSearch}
+            isSubmittingSearch={isSubmittingSearch}
+            foodTone={foodTone}
+            foodStatus={foodStatus}
+            foodError={foodError}
+            foodResults={foodResults}
+            selectedFood={selectedFood}
+            setSelectedFoodId={setSelectedFoodId}
+            foodQuantityForId={foodQuantityForId}
+            adjustFoodQuantity={adjustFoodQuantity}
+            quickAddFoodToToday={quickAddFoodToToday}
+            isSavingLogEntry={isSavingLogEntry}
+            toggleFoodFavorite={toggleFoodFavorite}
+            foodFavoriteSavingId={foodFavoriteSavingId}
+            removeFromBank={removeFromBank}
+            confirmDeleteKey={confirmDeleteKey}
+          />
         )}
 
         {section === 'meal-plan' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Meal plan</Text>
-            <Pressable
-              style={styles.primaryButton}
-              onPress={() => foodSessionToken && setCreatePlanOpen(true)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.primaryButtonLabel}>✨ Create a meal plan</Text>
-            </Pressable>
-            <Text style={styles.panelDetail}>
-              Meal balance:{' '}
-              {(() => {
-                // The saved pattern, not an unsaved Profile tap.
-                const count = profile?.meals_per_day ?? 3;
-                const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count as 3 | 4 | 5, profile?.meal_split ?? []));
-                if (!profile?.meal_pattern_chosen) {
-                  return 'Balanced';
-                }
-                return style ? `${style.label}${count === 3 ? '' : ` (${count} meals a day)`}` : `Custom (${count} meals a day)`;
-              })()}{' '}
-              (change it in Profile).
-            </Text>
-            <Text style={styles.panelDetail}>
-              Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(mealPlanTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{mealPlanStatus}</Text>
-              {mealPlanError ? <Text style={styles.inlineStatusDetail}>{mealPlanError}</Text> : null}
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mealPlanDateStrip}
-            >
-              {sortedMealPlanDays.map((day) => {
-                const active = day.plan_date === selectedMealPlanDate;
-                const isToday = day.plan_date === todayKey;
-
-                return (
-                  <Pressable
-                    key={day.id}
-                    style={[styles.mealPlanDateCard, active && styles.mealPlanDateCardActive]}
-                    onPress={() => {
-                      setSelectedMealPlanDate(day.plan_date ?? null);
-                      setMealPlanTone('live');
-                      setMealPlanStatus(`Showing ${formatMealPlanCardDate(day.plan_date)} plan`);
-                    }}
-                  >
-                    <Text style={[styles.mealPlanDateWeekday, active && styles.mealPlanDateWeekdayActive]}>
-                      {formatMealPlanCardWeekday(day.plan_date)}
-                    </Text>
-                    <Text style={[styles.mealPlanDateLabel, active && styles.mealPlanDateLabelActive]}>
-                      {formatMealPlanCardDate(day.plan_date)}
-                    </Text>
-                    <Text style={[styles.mealPlanDateMeta, active && styles.mealPlanDateMetaActive]}>
-                      {day.label}
-                      {isToday ? ' · Today' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {selectedMealPlanDay ? (
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.detailTitle}>{selectedMealPlanDay.label}</Text>
-                    <Text style={styles.detailSubtitle}>
-                      {selectedMealPlanDay.focus} · {formatMealPlanCardDate(selectedMealPlanDay.plan_date)}
-                    </Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    {selectedMealPlanDay.slots.length} planned meal{selectedMealPlanDay.slots.length === 1 ? '' : 's'}
-                  </Text>
-                </View>
-
-                <View style={styles.foodList}>
-                  {selectedMealPlanDay.slots.map((slot) => {
-                    const logged = mealPlanEatenSlots[selectedMealPlanDay.id]?.[slot.id] ?? false;
-                    const slotItems = slot.items ?? [];
-
-                    return (
-                      <Pressable
-                        key={slot.id}
-                        style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
-                        onPress={() => toggleMealPlanMeal(selectedMealPlanDay, slot.id, slot.meal_label)}
-                      >
-                        <View style={styles.mealPlanSlotHeader}>
-                          <View style={styles.foodRowCopy}>
-                            <View style={styles.mealPlanSlotTitleRow}>
-                              <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                              <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
-                            </View>
-                            <Text style={styles.listCaption}>{slot.title}</Text>
-                          </View>
-                          <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
-                            <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
-                              {logged ? '☑' : '☐'}
-                            </Text>
-                          </View>
-                        </View>
-                        {slotItems.length > 0 ? (
-                          <View style={styles.mealPlanItemList}>
-                              {slotItems.map((item, index) => (
-                                <View key={`${slot.id}-plan-item-${index}`} style={styles.mealPlanItemRow}>
-                                  <View style={styles.mealPlanItemCopy}>
-                                    <Text style={styles.mealPlanItemName}>
-                                      {item.name}
-                                      <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
-                                    </Text>
-                                  </View>
-                                  <View style={styles.mealPlanItemInlineMeta}>
-                                  <Text style={styles.mealPlanItemMacroLine}>
-                                    P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
-                                  </Text>
-                                  <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                        ) : null}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>No meal plan saved yet</Text>
-                <Text style={styles.detailSubtitle}>Save a weekly plan to populate the date cards here.</Text>
-              </View>
-            )}
-          </View>
+          <MealPlanScreen
+            foodSessionToken={foodSessionToken}
+            setCreatePlanOpen={setCreatePlanOpen}
+            profile={profile}
+            mealPlanTone={mealPlanTone}
+            setMealPlanTone={setMealPlanTone}
+            mealPlanStatus={mealPlanStatus}
+            setMealPlanStatus={setMealPlanStatus}
+            mealPlanError={mealPlanError}
+            sortedMealPlanDays={sortedMealPlanDays}
+            selectedMealPlanDate={selectedMealPlanDate}
+            setSelectedMealPlanDate={setSelectedMealPlanDate}
+            todayKey={todayKey}
+            selectedMealPlanDay={selectedMealPlanDay}
+            mealPlanEatenSlots={mealPlanEatenSlots}
+            toggleMealPlanMeal={toggleMealPlanMeal}
+          />
         )}
 
         {section === 'settings' && (
-          <>
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Settings</Text>
-              <Text style={styles.panelTitle}>Account</Text>
-              {settingsMessage ? <Text style={styles.settingsMessage}>{settingsMessage}</Text> : null}
-              {settingsError ? <Text style={styles.settingsError}>{settingsError}</Text> : null}
-              <FieldGroup label="Name">
-                <TextInput
-                  value={profileDisplayNameDraft}
-                  onChangeText={setProfileDisplayNameDraft}
-                  placeholder="Your name"
-                  placeholderTextColor={tc.fg_9aa6b8}
-                  style={styles.settingsInput}
-                  autoCorrect={false}
-                />
-              </FieldGroup>
-              <FieldGroup label="Signed in as">
-                <View style={styles.settingsReadOnly}>
-                  <Text style={styles.settingsValue}>{profile?.email ?? '—'}</Text>
-                  <Text style={styles.settingsHint}>
-                    {isOwnerSession ? 'Through Tailscale on this device. No password needed.' : 'Local session'}
-                  </Text>
-                </View>
-              </FieldGroup>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Settings</Text>
-              <Text style={styles.panelTitle}>Preferences</Text>
-              <FieldGroup label="Appearance">
-                <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Appearance">
-                  {APPEARANCE_OPTIONS.map((option) => {
-                    const active = appearance.preference === option.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                        onPress={() => setAppearance(option.id)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: active }}
-                      >
-                        <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                <Text style={styles.settingsHint}>
-                  {appearance.preference === 'system'
-                    ? `Follows your iPhone (${appearance.scheme === 'dark' ? 'dark' : 'light'} right now). Saved on this device.`
-                    : 'Saved on this device. Applies right away.'}
-                </Text>
-              </FieldGroup>
-              <FieldGroup label="Units">
-                <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
-                  {(
-                    [
-                      { id: 'imperial' as const, label: 'lb · ft/in' },
-                      { id: 'metric' as const, label: 'kg · cm' }
-                    ]
-                  ).map((option) => {
-                    const active = profileUnitsDraft === option.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                        onPress={() => setProfileUnitsDraft(option.id)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: active }}
-                      >
-                        <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </FieldGroup>
-              <FieldGroup label="Time zone">
-                <TextInput
-                  value={profileTimezoneDraft}
-                  onChangeText={setProfileTimezoneDraft}
-                  placeholder="America/New_York"
-                  placeholderTextColor={tc.fg_9aa6b8}
-                  style={styles.settingsInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {deviceTimeZone() && deviceTimeZone() !== profileTimezoneDraft ? (
-                  <Pressable onPress={() => setProfileTimezoneDraft(deviceTimeZone() as string)} accessibilityRole="button">
-                    <Text style={styles.settingsLink}>Use this iPhone's time zone ({deviceTimeZone()})</Text>
-                  </Pressable>
-                ) : null}
-              </FieldGroup>
-              <Pressable
-                style={[styles.primaryButton, (settingsSaving || !profile) && styles.buttonDisabled]}
-                onPress={() => void saveSettings()}
-                disabled={settingsSaving || !profile}
-                accessibilityRole="button"
-              >
-                <Text style={styles.primaryButtonLabel}>{settingsSaving ? 'Saving…' : 'Save settings'}</Text>
-              </Pressable>
-            </View>
-
-            {profile?.setup_complete ? (
-              <View style={styles.panel}>
-                <Text style={styles.panelEyebrow}>Settings</Text>
-                <Text style={styles.panelTitle}>Nutrition</Text>
-                {floorMessage ? <Text style={styles.settingsMessage}>{floorMessage}</Text> : null}
-                <FieldGroup label="Calorie floor">
-                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Calorie floor">
-                    {(
-                      [
-                        { id: 'recommended' as const, label: 'Recommended' },
-                        { id: 'off' as const, label: 'Off' }
-                      ]
-                    ).map((option) => {
-                      const active = (profile.calorie_floor ?? 'recommended') === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                          onPress={() => {
-                            if (active || settingsSaving) {
-                              return;
-                            }
-                            if (option.id === 'off') {
-                              setSettingsFloorWarning(true);
-                            } else {
-                              void applyCalorieFloor('recommended');
-                            }
-                          }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.settingsHint}>
-                    {(profile.calorie_floor ?? 'recommended') === 'off'
-                      ? 'Off: your daily target is used as calculated, even below the recommended minimum.'
-                      : `Your daily target never goes below ${profile.sex === 'male' ? '1,500' : '1,200'} kcal, the minimum dietitians recommend for ${profile.sex === 'male' ? 'men' : 'women'}.`}
-                  </Text>
-                </FieldGroup>
-                <FieldGroup label="Water goal">
-                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Water goal">
-                    {WATER_GOAL_GLASSES.map((count) => {
-                      const active = (profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML) === count * GLASS_ML;
-                      return (
-                        <Pressable
-                          key={count}
-                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                          onPress={() => {
-                            if (!active && !settingsSaving) {
-                              void applyWaterGoal(count * GLASS_ML);
-                            }
-                          }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                          accessibilityLabel={`${count} glasses`}
-                        >
-                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{count}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.settingsHint}>
-                    {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric')} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric')}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric')}) is a common goal; food and other drinks count toward what you need too.`}
-                  </Text>
-                </FieldGroup>
-                <FieldGroup label="Water reminders">
-                  {foodSessionToken ? <RemindersSettings accessToken={foodSessionToken} /> : null}
-                </FieldGroup>
-                <FieldGroup label="Workout calories">
-                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Workout calories">
-                    {WORKOUT_CALORIE_SHARES.map((share) => {
-                      const active = (profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === share;
-                      return (
-                        <Pressable
-                          key={share}
-                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                          onPress={() => {
-                            if (!active && !settingsSaving) {
-                              void applyWorkoutCaloriesShare(share);
-                            }
-                          }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
-                            {share === 0 ? 'Off' : `${share}%`}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.settingsHint}>
-                    {(profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === 0
-                      ? "Off: workouts you log don't change your daily allowance."
-                      : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
-                  </Text>
-                </FieldGroup>
-                <FieldGroup label="Garmin">
-                  <Text style={styles.settingsHint}>{garminStatusText(garminStatus, new Date())}</Text>
-                  {garminStatus?.configured ? (
-                    <Pressable
-                      style={[styles.secondaryButton, garminSyncing && styles.buttonDisabled]}
-                      onPress={() => {
-                        if (foodSessionToken) {
-                          void runGarminSync(foodSessionToken, true);
-                        }
-                      }}
-                      disabled={garminSyncing}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.secondaryButtonLabel}>{garminSyncing ? 'Syncing…' : 'Sync now'}</Text>
-                    </Pressable>
-                  ) : null}
-                  {garminNote ? <Text style={styles.settingsHint}>{garminNote}</Text> : null}
-                  <Text style={styles.settingsHint}>
-                    Workouts sync every 30 minutes and when you open Relish. Garmin's numbers are kept as recorded. Relish counts the active part: the
-                    watch's total minus your own resting calories for those minutes, so resting calories aren't counted twice.
-                  </Text>
-                </FieldGroup>
-              </View>
-            ) : null}
-
-            {settingsFloorWarning ? (
-              <ChoiceSheet
-                title="Turn off the calorie floor?"
-                primaryLabel="Keep the minimum"
-                primaryDetail="Recommended"
-                secondaryLabel="Turn it off"
-                onPrimary={() => setSettingsFloorWarning(false)}
-                onSecondary={() => {
-                  setSettingsFloorWarning(false);
-                  void applyCalorieFloor('off');
-                }}
-                onDismiss={() => setSettingsFloorWarning(false)}
-              >
-                <Text style={styles.floorWarningText}>
-                  Dietitians generally recommend at least {profile?.sex === 'male' ? '1,500 kcal a day for men' : '1,200 kcal a day for women'}{' '}
-                  unless a doctor is supervising. With the floor off, your target can go below that.
-                </Text>
-                <Text style={styles.floorWarningText}>
-                  Eating less makes it hard to get enough protein, vitamins, and minerals, speeds up muscle loss, and often brings
-                  fatigue and rebound weight gain. Proceed with care.
-                </Text>
-              </ChoiceSheet>
-            ) : null}
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Start over</Text>
-              <Text style={styles.panelTitle}>Reset profile</Text>
-              <Text style={styles.panelDetail}>
-                Runs setup again from the welcome screen, and clears your goals and meal pattern (the meal-planning guide runs
-                again). Your foods, logged meals and workouts, weigh-ins, and plans are kept. To change your weight or goal, edit
-                the profile above instead.
-              </Text>
-              <Pressable
-                style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}
-                onPress={() => void resetProfile()}
-                disabled={profileResetting}
-                accessibilityRole="button"
-              >
-                <Text
-                  style={[styles.secondaryButtonLabel, confirmDeleteKey === 'profile-reset' && styles.entryDeleteConfirmLabel]}
-                >
-                  {profileResetting
-                    ? 'Resetting…'
-                    : confirmDeleteKey === 'profile-reset'
-                      ? 'Tap again to reset and start setup'
-                      : 'Reset profile'}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>About</Text>
-              <Text style={styles.panelTitle}>Relish {appConfig.expo.version}</Text>
-              <Text style={styles.panelDetail}>
-                Packaged food data from Open Food Facts (openfoodfacts.org), available under the Open Database License (ODbL).
-                Food data from USDA FoodData Central.
-              </Text>
-            </View>
-          </>
+          <SettingsScreen
+            settingsMessage={settingsMessage}
+            settingsError={settingsError}
+            profileDisplayNameDraft={profileDisplayNameDraft}
+            setProfileDisplayNameDraft={setProfileDisplayNameDraft}
+            profile={profile}
+            isOwnerSession={isOwnerSession}
+            appearance={appearance}
+            profileUnitsDraft={profileUnitsDraft}
+            setProfileUnitsDraft={setProfileUnitsDraft}
+            profileTimezoneDraft={profileTimezoneDraft}
+            setProfileTimezoneDraft={setProfileTimezoneDraft}
+            settingsSaving={settingsSaving}
+            saveSettings={saveSettings}
+            floorMessage={floorMessage}
+            setSettingsFloorWarning={setSettingsFloorWarning}
+            applyCalorieFloor={applyCalorieFloor}
+            applyWaterGoal={applyWaterGoal}
+            foodSessionToken={foodSessionToken}
+            applyWorkoutCaloriesShare={applyWorkoutCaloriesShare}
+            garminStatus={garminStatus}
+            garminSyncing={garminSyncing}
+            runGarminSync={runGarminSync}
+            garminNote={garminNote}
+            settingsFloorWarning={settingsFloorWarning}
+            confirmDeleteKey={confirmDeleteKey}
+            resetProfile={resetProfile}
+            profileResetting={profileResetting}
+          />
         )}
 
         {/* Prep sits under the week's meal plan: it serves those meals. */}
         {(section === 'meal-plan' || section === 'meal-prep') && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Meal prep</Text>
-            <Text style={styles.panelTitle}>Prep the week in batches</Text>
-            <Text style={styles.panelDetail}>
-              Track what to cook, portion, and assemble so the meal plan is realistic.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(mealPrepTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{mealPrepStatus}</Text>
-              {mealPrepError ? <Text style={styles.inlineStatusDetail}>{mealPrepError}</Text> : null}
-            </View>
-
-            <View style={styles.foodList}>
-              {mealPrepTasks.map((task) => (
-                <Pressable
-                  key={task.id}
-                  style={styles.foodRow}
-                  onPress={() => void cycleMealPrepStatus(task.id)}
-                  disabled={mealPrepSavingId === task.id}
-                >
-                  <View style={styles.foodRowCopy}>
-                    <Text style={styles.listTitle}>{task.title}</Text>
-                    <Text style={styles.listCaption}>
-                      {task.category} · {task.portions}
-                    </Text>
-                  </View>
-                  <View style={styles.foodRowActions}>
-                    <Text style={styles.listMetric}>{mealPrepSavingId === task.id ? 'Saving...' : task.status}</Text>
-                    <Text style={styles.listCaption}>Tap to cycle</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <MealPrepScreen
+            mealPrepTone={mealPrepTone}
+            mealPrepStatus={mealPrepStatus}
+            mealPrepError={mealPrepError}
+            mealPrepTasks={mealPrepTasks}
+            cycleMealPrepStatus={cycleMealPrepStatus}
+            mealPrepSavingId={mealPrepSavingId}
+          />
         )}
 
         {section === 'meals' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Meal builder</Text>
-            <TextInput
-              value={mealDraft.name}
-              onChangeText={updateMealName}
-              placeholder="Untitled meal"
-              placeholderTextColor={tc.fg_7c8aa5}
-              style={styles.mealNameInput}
-              autoCapitalize="words"
-            />
-            <Text style={styles.panelDetail}>
-              Adjust the draft ingredients, then snap the serving scale to a fixed stop for a fast mobile-friendly preview.
-            </Text>
-
-            <View style={styles.mealBuilderHeaderRow}>
-              <View style={styles.mealServingWrap}>
-                <Text style={styles.mealMetaLabel}>Servings</Text>
-                <TextInput
-                  value={String(mealDraft.serving_count)}
-                  onChangeText={updateMealServings}
-                  keyboardType="numeric"
-                  inputMode="decimal"
-                  style={styles.mealServingInput}
-                />
-              </View>
-              <View style={styles.mealBuilderHintWrap}>
-                <Text style={styles.mealBuilderHint}>
-                  Local draft only until meal persistence lands on the backend contract.
-                </Text>
-              </View>
-            </View>
-
-            <ScaleStopSelector
-              label="Meal scale"
-              helperText="Fixed stops keep the preview predictable while you edit the draft."
-              value={mealScale}
-              values={scaleStops}
-              onChange={setMealScale}
-            />
-
-            <View style={styles.mealBuilderActionsRow}>
-              <Pressable style={styles.inlinePillButton} onPress={resetMealDraft}>
-                <Text style={styles.inlinePillButtonLabel}>Reset draft</Text>
-              </Pressable>
-              <Text style={styles.mealBuilderHint}>Meal save is still backend-gated, so this stays as a live preview.</Text>
-            </View>
-
-            <View style={styles.mealIngredientEditor}>
-              {mealDraft.ingredients.map((ingredient) => (
-                <View key={ingredient.id} style={styles.mealIngredientRow}>
-                  <View style={styles.foodRowCopy}>
-                    <Text style={styles.listTitle}>{ingredient.name}</Text>
-                    <Text style={styles.listCaption}>
-                      {ingredient.food_id} · {ingredient.calories_per_100g} kcal / 100g
-                    </Text>
-                  </View>
-                  <View style={styles.mealIngredientInputWrap}>
-                    <TextInput
-                      value={String(ingredient.grams)}
-                      onChangeText={(value) => updateMealIngredientGrams(ingredient.id, value)}
-                      keyboardType="numeric"
-                      inputMode="decimal"
-                      style={styles.mealIngredientInput}
-                    />
-                    <Text style={styles.mealIngredientUnit}>g</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.detailCard}>
-              <Text style={styles.recipeMetaLabel}>Scaled preview</Text>
-              {mealPreview.ingredients.map((ingredient) => (
-                <View key={ingredient.id} style={styles.listRow}>
-                  <View>
-                    <Text style={styles.listTitle}>{ingredient.name}</Text>
-                    <Text style={styles.listCaption}>{ingredient.grams} g · {ingredient.food_id}</Text>
-                  </View>
-                  <Text style={styles.listMetric}>
-                    {Math.round((ingredient.calories_per_100g * ingredient.grams) / 100)} kcal
-                  </Text>
-                </View>
-              ))}
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Meal calories" value={`${mealTotalsPreview.calories} kcal`} />
-                <MetricTile label="Per serving" value={`${mealTotalsPreview.per_serving_calories} kcal`} />
-              </View>
-            </View>
-          </View>
+          <MealsScreen
+            mealDraft={mealDraft}
+            updateMealName={updateMealName}
+            updateMealServings={updateMealServings}
+            mealScale={mealScale}
+            setMealScale={setMealScale}
+            resetMealDraft={resetMealDraft}
+            updateMealIngredientGrams={updateMealIngredientGrams}
+            mealPreview={mealPreview}
+            mealTotalsPreview={mealTotalsPreview}
+          />
         )}
 
         {section === 'recipes' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Recipes</Text>
-            <Text style={styles.panelTitle}>Recipe library and import review</Text>
-            <Text style={styles.panelDetail}>
-              Browse the full recipe catalog in alphabetical order, narrow it with fuzzy search, and open each recipe inline to review the details.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(recipeTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{recipeStatus}</Text>
-              {recipeError ? <Text style={styles.inlineStatusDetail}>{recipeError}</Text> : null}
-            </View>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(recipeImportTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{recipeImportStatus}</Text>
-              {recipeImportError ? <Text style={styles.inlineStatusDetail}>{recipeImportError}</Text> : null}
-            </View>
-
-            <View style={styles.recipeImportCard}>
-              <Text style={styles.recipeMetaLabel}>Import review</Text>
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>No live recipe import selected</Text>
-                <Text style={styles.detailSubtitle}>
-                  Imported recipes will appear here after a real text, PDF, or image upload is submitted.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.recipeSection}>
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={recipeSearchTerm}
-                  onChangeText={setRecipeSearchTerm}
-                  placeholder="Find oats, chicken, parfait..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              {recipeLoading ? (
-                <View style={styles.detailCard}>
-                  <ActivityIndicator size="small" color={tc.fg_17324d} />
-                  <Text style={styles.detailSubtitle}>Fetching recipes...</Text>
-                </View>
-              ) : filteredRecipeCatalog.length === 0 ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>No recipe matches yet</Text>
-                  <Text style={styles.detailSubtitle}>
-                    Try another title or ingredient term to narrow the recipe list.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.foodList}>
-                  {filteredRecipeCatalog.map((recipe) => {
-                    const active = recipe.id === selectedRecipeId;
-                    const saving = recipeSavingId === recipe.id;
-                    const detailRecipe = active && selectedRecipe?.id === recipe.id ? selectedRecipe : recipe;
-                    const scaledRecipe = active && selectedRecipePreview?.id === recipe.id ? selectedRecipePreview : detailRecipe;
-                    const scaledTotals =
-                      active && selectedRecipeTotals && selectedRecipe?.id === recipe.id
-                        ? selectedRecipeTotals
-                        : mealTotals({
-                            id: detailRecipe.id,
-                            name: detailRecipe.title,
-                            serving_count: detailRecipe.default_yield,
-                            ingredients: detailRecipe.ingredients
-                          });
-
-                    return (
-                      <View key={recipe.id} style={[styles.recipeAccordionCard, active && styles.recipeAccordionCardActive]}>
-                        <Pressable
-                          style={styles.recipeAccordionHeader}
-                          onPress={() => setSelectedRecipeId((current) => (current === recipe.id ? null : recipe.id))}
-                        >
-                          <View style={styles.foodRowCopy}>
-                            <View style={styles.recipeRowTitleWrap}>
-                              <Text style={styles.listTitle}>{recipe.title}</Text>
-                              <Pressable
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  void toggleRecipeFavorite(recipe, !recipe.favorite);
-                                }}
-                                style={[styles.recipeStarButton, recipe.favorite && styles.recipeStarButtonActive]}
-                                disabled={saving}
-                              >
-                                <Text style={styles.recipeStarButtonLabel}>
-                                  {saving ? 'Saving...' : recipe.favorite ? '★' : '☆'}
-                                </Text>
-                              </Pressable>
-                            </View>
-                            <Text style={styles.listCaption}>
-                              {recipe.steps.length} steps · {recipe.ingredients.length} ingredients · {recipe.assets.length} assets
-                            </Text>
-                          </View>
-                          <View style={styles.recipeAccordionMeta}>
-                            <Text style={styles.listMetric}>{recipe.default_yield} servings</Text>
-                            <Text style={styles.recipeAccordionCaret}>{active ? '▲' : '▼'}</Text>
-                          </View>
-                        </Pressable>
-
-                        {active ? (
-                          <View style={styles.recipeAccordionBody}>
-                            {recipeDetailLoading && selectedRecipe?.id === recipe.id ? (
-                              <View style={styles.recipeDetailLoading}>
-                                <ActivityIndicator size="small" color={tc.fg_17324d} />
-                                <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
-                              </View>
-                            ) : (
-                              <>
-                                <View style={styles.recipeDetailHeader}>
-                                  <View style={styles.recipeDetailHeaderCopy}>
-                                    <View style={styles.recipeRowTitleWrap}>
-                                      <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
-                                    </View>
-                                    <Text style={styles.detailSubtitle}>
-                                      {detailRecipe.steps.length} steps · {detailRecipe.ingredients.length} ingredients ·{' '}
-                                      {detailRecipe.assets.length} assets · {detailRecipe.default_yield} servings
-                                    </Text>
-                                  </View>
-                                </View>
-
-                                <ScaleStopSelector
-                                  label="Recipe scale"
-                                  helperText="The fixed stops keep the serving preview readable while you step through the accordion."
-                                  value={recipeScale}
-                                  values={scaleStops}
-                                  onChange={setRecipeScale}
-                                />
-
-                                <View style={styles.metricRow}>
-                                  <MetricTile
-                                    label="Scaled yield"
-                                    value={`${round1(detailRecipe.default_yield * recipeScale)} servings`}
-                                  />
-                                  <MetricTile label="Recipe calories" value={`${scaledTotals.calories} kcal`} />
-                                  <MetricTile
-                                    label="Per serving"
-                                    value={`${scaledTotals.per_serving_calories} kcal`}
-                                  />
-                                </View>
-
-                                {detailRecipe.steps.length > 0 ? (
-                                  <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Steps</Text>
-                                    {detailRecipe.steps.map((step, index) => (
-                                      <Text key={`${detailRecipe.id}-step-${index}`} style={styles.recipeStep}>
-                                        {index + 1}. {step}
-                                      </Text>
-                                    ))}
-                                  </View>
-                                ) : null}
-
-                                {scaledRecipe.ingredients.length > 0 ? (
-                                  <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Ingredients</Text>
-                                    {scaledRecipe.ingredients.map((ingredient) => (
-                                      <Text key={`${detailRecipe.id}-${ingredient.id}`} style={styles.recipeMetaItem}>
-                                        {ingredient.name} · {ingredient.grams} g
-                                      </Text>
-                                    ))}
-                                  </View>
-                                ) : null}
-
-                                <View style={styles.recipeMetaBlock}>
-                                  <Text style={styles.recipeMetaLabel}>Assets</Text>
-                                  {detailRecipe.assets.length === 0 ? (
-                                    <Text style={styles.recipeMetaItem}>No imported assets attached yet.</Text>
-                                  ) : (
-                                    detailRecipe.assets.map((asset, index) => (
-                                      <Text key={`${detailRecipe.id}-asset-${index}`} style={styles.recipeMetaItem}>
-                                        {asset.kind.toUpperCase()} asset {asset.url ? 'linked' : 'embedded'}
-                                      </Text>
-                                    ))
-                                  )}
-                                </View>
-                              </>
-                            )}
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            <View style={styles.recipeSecondaryCard}>
-              <Text style={styles.panelEyebrow}>Import and scale</Text>
-              <Text style={styles.panelDetail}>
-                Text, PDF, and image ingestion will appear here once the import composer is wired in.
-              </Text>
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>No live import composer yet</Text>
-                <Text style={styles.detailSubtitle}>
-                  Imported recipes will show up here after a real text, PDF, or image submission.
-                </Text>
-              </View>
-            </View>
-          </View>
+          <RecipesScreen
+            recipeTone={recipeTone}
+            recipeStatus={recipeStatus}
+            recipeError={recipeError}
+            recipeImportTone={recipeImportTone}
+            recipeImportStatus={recipeImportStatus}
+            recipeImportError={recipeImportError}
+            recipeSearchTerm={recipeSearchTerm}
+            setRecipeSearchTerm={setRecipeSearchTerm}
+            recipeLoading={recipeLoading}
+            filteredRecipeCatalog={filteredRecipeCatalog}
+            selectedRecipeId={selectedRecipeId}
+            setSelectedRecipeId={setSelectedRecipeId}
+            recipeSavingId={recipeSavingId}
+            selectedRecipe={selectedRecipe}
+            selectedRecipePreview={selectedRecipePreview}
+            selectedRecipeTotals={selectedRecipeTotals}
+            toggleRecipeFavorite={toggleRecipeFavorite}
+            recipeDetailLoading={recipeDetailLoading}
+            recipeScale={recipeScale}
+            setRecipeScale={setRecipeScale}
+          />
         )}
 
         {section === 'ingestion' && (
-          <IngestionReviewPanel
-            accessToken={foodSessionToken}
-            autoStartScan={scanAutoStart}
-            onAutoStartHandled={() => setScanAutoStart(false)}
-            onFoodLogged={() => {
-              const token = foodSessionToken;
-              if (token) {
-                void fetchTodaysFoodLog(token)
-                  .then(setFoodLog)
-                  .catch(() => undefined);
-              }
-            }}
+          <IngestionScreen
+            foodSessionToken={foodSessionToken}
+            scanAutoStart={scanAutoStart}
+            setScanAutoStart={setScanAutoStart}
+            setFoodLog={setFoodLog}
           />
         )}
 
@@ -6773,1828 +3983,3 @@ export default function App(): ReactElement {
     </SafeAreaView>
   );
 }
-
-// Native builds draw the splash image here; on web the HTML layer in public/index.html shows it.
-const launchSplashSource: ImageSourcePropType = require('./public/splash.jpg');
-
-function LaunchSplash(): ReactElement {
-  const { width } = useWindowDimensions();
-  const size = launchSplashSize(width);
-  // On web the HTML splash layer (public/index.html) stays on top the whole time; this only
-  // keeps the background behind it. When the app stops rendering LaunchSplash (its first real
-  // screen is ready), the layer fades out.
-  useEffect(() => () => {
-    dismissLaunchSplash();
-  }, []);
-  if (Platform.OS === 'web') {
-    return <View style={styles.launchSplash} />;
-  }
-  return (
-    <View style={styles.launchSplash} accessibilityLabel="Relish is loading">
-      <StatusBar style="dark" />
-      <Image source={launchSplashSource} style={size} resizeMode="contain" accessibilityIgnoresInvertColors />
-    </View>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-  compact = false
-}: {
-  label: string;
-  value: string;
-  compact?: boolean;
-}): ReactElement {
-  return (
-    <View style={[styles.metricTile, compact && styles.metricTileCompact]}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
-  );
-}
-
-function ScaleStopSelector({
-  label,
-  helperText,
-  value,
-  values,
-  onChange
-}: {
-  label: string;
-  helperText?: string;
-  value: ScaleStop;
-  values: readonly ScaleStop[];
-  onChange: (value: ScaleStop) => void;
-}): ReactElement {
-  const activeIndex = Math.max(values.indexOf(value), 0);
-  const fillWidth = (values.length > 1 ? `${(activeIndex / (values.length - 1)) * 100}%` : '100%') as DimensionValue;
-
-  return (
-    <View style={styles.scaleSelectorCard}>
-      <View style={styles.scaleSelectorHeader}>
-        <View>
-          <Text style={styles.scaleSelectorLabel}>{label}</Text>
-          {helperText ? <Text style={styles.scaleSelectorHint}>{helperText}</Text> : null}
-        </View>
-        <Text style={styles.scaleSelectorValue}>{recipeScaleLabel(value)}</Text>
-      </View>
-      <View style={styles.scaleSelectorRailWrap}>
-        <View style={styles.scaleSelectorRail} />
-        <View style={[styles.scaleSelectorRailFill, { width: fillWidth }]} />
-        <View style={styles.scaleSelectorStops}>
-          {values.map((option) => {
-            const active = option === value;
-
-            return (
-              <Pressable
-                key={option}
-                style={styles.scaleSelectorStop}
-                onPress={() => onChange(option)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={recipeScaleLabel(option)}
-              >
-                <View style={[styles.scaleSelectorDot, active && styles.scaleSelectorDotActive]} />
-                <Text style={[styles.scaleSelectorStopLabel, active && styles.scaleSelectorStopLabelActive]}>
-                  {recipeScaleLabel(option)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function formatHomeDateLabel(value: string, todayKey: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  const base = date.toLocaleDateString([], {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric'
-  });
-  if (value === todayKey) {
-    return `Today · ${base}`;
-  }
-  return base;
-}
-
-function formatCompletionTimeLabel(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  });
-}
-
-function deriveExerciseIntensity(
-  durationMinutes: number,
-  caloriesBurned: number
-): PlannedExerciseEntry['intensity'] {
-  if (caloriesBurned >= 300) {
-    return 'High';
-  }
-  if (durationMinutes >= 30) {
-    return 'Moderate';
-  }
-  return 'Low';
-}
-
-function estimatePlannedExerciseCalories(
-  durationMinutes: number,
-  preset: (typeof exercisePresets)[number]
-): number {
-  const presetMinutes = Number(preset.minutes);
-  const presetCalories = Number(preset.calories);
-  if (!Number.isFinite(presetMinutes) || presetMinutes <= 0 || !Number.isFinite(presetCalories) || presetCalories <= 0) {
-    return 0;
-  }
-  return Math.max(1, Math.round((presetCalories / presetMinutes) * durationMinutes));
-}
-
-function sortPlannedExerciseEntries(entries: PlannedExerciseEntry[]): PlannedExerciseEntry[] {
-  return [...entries].sort((left, right) =>
-    `${left.planned_on}T${left.planned_at}`.localeCompare(`${right.planned_on}T${right.planned_at}`)
-  );
-}
-
-// Expo replaces process.env.NODE_ENV at build time; production web builds hide developer hints.
-const IS_DEVELOPMENT_BUILD = process.env.NODE_ENV !== 'production';
-
-function createEmptyFoodLog(date = localDateKey()): FoodLogSummary {
-  return {
-    date,
-    entries: [],
-    totals: {
-      calories: 0,
-      macros: { protein: 0, carbs: 0, fat: 0 }
-    }
-  };
-}
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: RELISH_COLORS.canvas
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: RELISH_COLORS.canvas
-  },
-  content: {
-    padding: 16,
-    gap: 16
-  },
-  onboardingWelcomeCard: {
-    alignItems: 'center',
-    gap: 14
-  },
-  onboardingWelcomeImage: {
-    ...MASCOT_OUTLINE,
-    width: 170,
-    height: 210
-  },
-  onboardingWelcomeTitle: {
-    color: RELISH_COLORS.text,
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '900',
-    textAlign: 'center'
-  },
-  onboardingWelcomeTitleDisplay: {
-    fontFamily: 'Ribeye_400Regular',
-    fontWeight: '400'
-  },
-  onboardingWelcomeIntro: {
-    color: RELISH_COLORS.text,
-    fontSize: 16,
-    lineHeight: 23,
-    textAlign: 'center',
-    maxWidth: 420
-  },
-  onboardingWelcomeList: {
-    alignSelf: 'stretch',
-    gap: 10,
-    marginTop: 4
-  },
-  onboardingWelcomeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: tc.bg_ffffff,
-    borderWidth: 1,
-    borderColor: tc.line_e7e0cf
-  },
-  onboardingWelcomeBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: RELISH_COLORS.text
-  },
-  onboardingWelcomeBadgeLabel: {
-    color: tc.fg_f4efe4,
-    fontWeight: '800'
-  },
-  onboardingWelcomeRowCopy: {
-    flex: 1
-  },
-  onboardingWelcomeRowTitle: {
-    color: RELISH_COLORS.text,
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  onboardingWelcomeRowDetail: {
-    color: tc.fg_5b6b62,
-    fontSize: 13,
-    marginTop: 2
-  },
-  onboardingWelcomeFootnote: {
-    color: tc.fg_5b6b62,
-    fontSize: 13,
-    textAlign: 'center'
-  },
-  onboardingWelcomeAction: {
-    alignSelf: 'stretch'
-  },
-  launchSplash: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tc.bg_f4efe4
-  },
-  setupBackdrop: {
-    minHeight: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 8
-  },
-  setupCard: {
-    width: '100%',
-    maxWidth: 640,
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: tc.line_dde6ee,
-    padding: 18,
-    gap: 14,
-    shadowColor: '#132536',
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4
-  },
-  bmrLink: {
-    color: tc.fg_2f6b4f,
-    fontSize: 13,
-    fontWeight: '700',
-    textDecorationLine: 'underline'
-  },
-  bmrLinkButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 8
-  },
-  bmrExplainer: {
-    color: tc.fg_5b6b62,
-    fontSize: 13,
-    lineHeight: 19
-  },
-  setupGoalCalories: {
-    color: RELISH_COLORS.text,
-    fontSize: 13,
-    fontWeight: '800',
-    marginTop: 4
-  },
-  paceRowHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8
-  },
-  paceRowCalories: {
-    color: RELISH_COLORS.text,
-    fontSize: 13,
-    fontWeight: '800'
-  },
-  // A calculated target below the recommended minimum, before the user decides (or opted out).
-  allergyGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  allergyTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 50,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    backgroundColor: tc.bg_f7f4ef
-  },
-  allergyIcon: {
-    fontSize: 22
-  },
-  allergyLabel: {
-    flex: 1,
-    color: tc.fg_132536,
-    fontSize: 15,
-    fontWeight: '700'
-  },
-  allergyCheck: {
-    width: 22,
-    height: 22,
-    borderRadius: 7
-  },
-  // An emoji at the left of a setup choice row.
-  setupIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
-  setupIconRowCopy: {
-    flex: 1,
-    gap: 2
-  },
-  setupIcon: {
-    fontSize: 30,
-    width: 40,
-    textAlign: 'center'
-  },
-  setupCheckBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: tc.line_cbd5e1,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  setupCheckBoxActive: {
-    backgroundColor: tc.bg_17324d,
-    borderColor: tc.line_17324d
-  },
-  setupCheckMark: {
-    color: tc.fg_ffffff,
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  reviewTarget: {
-    ...FIELD_BOX,
-    padding: 16,
-    gap: 4
-  },
-  reviewTargetLabel: {
-    color: tc.fg_5c6d80,
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  reviewTargetValue: {
-    color: tc.fg_132536,
-    fontSize: 26,
-    fontWeight: '800'
-  },
-  reviewTargetMacros: {
-    color: tc.fg_5c6d80,
-    fontSize: 14
-  },
-  reviewList: {
-    gap: 2
-  },
-  reviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: tc.line_dbe3ec
-  },
-  reviewRowCopy: {
-    flex: 1,
-    gap: 2
-  },
-  reviewRowLabel: {
-    color: tc.fg_5c6d80,
-    fontSize: 13,
-    fontWeight: '700'
-  },
-  reviewRowValue: {
-    color: tc.fg_132536,
-    fontSize: 16
-  },
-  reviewEdit: {
-    color: tc.fg_0f766e,
-    fontSize: 15,
-    fontWeight: '700'
-  },
-  explainerActions: {
-    alignSelf: 'stretch'
-  },
-  paceRowCaloriesBelow: {
-    color: tc.fg_b42318
-  },
-  paceRowWarning: {
-    color: tc.fg_b45309,
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2
-  },
-  goalWeightBlock: {
-    gap: 6
-  },
-  goalWeightEstimate: {
-    color: RELISH_COLORS.text,
-    fontSize: 13
-  },
-  setupProgress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  setupProgressTrack: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 4
-  },
-  setupProgressSegment: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: tc.bg_e3dccb
-  },
-  setupProgressSegmentDone: {
-    backgroundColor: RELISH_COLORS.text
-  },
-  setupProgressCount: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  setupIntroText: {
-    color: tc.fg_5b6b62,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: -6
-  },
-  unitToggle: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    padding: 3,
-    borderRadius: 12,
-    backgroundColor: tc.bg_ece6d6
-  },
-  unitToggleOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 9
-  },
-  unitToggleOptionActive: {
-    backgroundColor: tc.bg_ffffff
-  },
-  unitToggleLabel: {
-    color: tc.fg_5b6b62,
-    fontSize: 13,
-    fontWeight: '700'
-  },
-  unitToggleLabelActive: {
-    color: RELISH_COLORS.text
-  },
-  setupSegmentRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  // Same height as the picker fields, so every row on About you lines up.
-  setupSegmentChoice: {
-    ...FIELD_BOX,
-    flex: 1,
-    height: FIELD_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  setupSegmentLabel: {
-    color: tc.fg_132536,
-    fontSize: 16,
-    fontWeight: '600'
-  },
-  setupPanel: {
-    gap: 14
-  },
-  setupChoiceCardActive: {
-    backgroundColor: tc.bg_eef3f8,
-    borderColor: tc.line_17324d
-  },
-  setupChoiceTitle: {
-    color: tc.fg_132536,
-    fontSize: 16,
-    fontWeight: '800'
-  },
-  setupChoiceTitleActive: {
-    color: tc.fg_17324d
-  },
-  setupChoiceDetail: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    lineHeight: 17
-  },
-  setupGoalGrid: {
-    flexDirection: 'column',
-    gap: 10
-  },
-  setupGoalCard: {
-    width: '100%',
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-    alignItems: 'center'
-  },
-  setupGoalCardActive: {
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_eef3f8
-  },
-  setupGoalImage: {
-    ...MASCOT_OUTLINE,
-    width: '100%',
-    height: 72
-  },
-  setupGoalNote: {
-    color: tc.fg_0f766e,
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  setupOptionStack: {
-    gap: 10
-  },
-  setupOptionRow: {
-    backgroundColor: tc.bg_f7f4ef,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 14,
-    gap: 4
-  },
-  setupOptionRowActive: {
-    backgroundColor: tc.bg_eef3f8,
-    borderColor: tc.line_17324d
-  },
-  setupFooter: {
-    gap: 10,
-    paddingTop: 4
-  },
-  setupNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  setupActionButton: {
-    minHeight: 50,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1
-  },
-  setupActionButtonPrimary: {
-    backgroundColor: tc.bg_17324d
-  },
-  setupActionButtonSecondary: {
-    backgroundColor: tc.bg_ffffff,
-    borderWidth: 1,
-    borderColor: tc.line_17324d
-  },
-  setupActionButtonLabelPrimary: {
-    color: tc.fg_ffffff,
-    fontWeight: '800',
-    fontSize: 15
-  },
-  setupActionButtonLabelSecondary: {
-    color: tc.fg_17324d,
-    fontWeight: '800',
-    fontSize: 15
-  },
-  appHeader: {
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-    gap: 0
-  },
-  appShellTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12
-  },
-  appHeaderTitleWrap: {
-    gap: 2,
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 4
-  },
-  appShellActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0
-  },
-  appBrandTitle: {
-    color: tc.fg_132536,
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '800'
-  },
-  appBrandTitleDisplay: {
-    fontFamily: 'Ribeye_400Regular',
-    fontSize: 32,
-    lineHeight: 34,
-    fontWeight: '400',
-    letterSpacing: 0.4
-  },
-  avatarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    backgroundColor: tc.bg_f7f4ef,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  avatarBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%'
-  },
-  entryCard: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: RELISH_COLORS.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: RELISH_COLORS.stroke,
-    padding: 18,
-    gap: 14,
-    shadowColor: '#163127',
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3
-  },
-  entryCardHeader: {
-    gap: 4
-  },
-  entryCardEyebrow: {
-    color: RELISH_COLORS.primary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.9,
-    textTransform: 'uppercase'
-  },
-  secondaryButton: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: RELISH_COLORS.primary,
-    backgroundColor: RELISH_COLORS.primarySoft,
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  secondaryButtonLabel: {
-    color: RELISH_COLORS.primaryDeep,
-    fontWeight: '800'
-  },
-  welcomeShell: {
-    minHeight: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 18
-  },
-  welcomeAppName: {
-    color: RELISH_COLORS.text,
-    fontSize: 38,
-    lineHeight: 42,
-    fontWeight: '900',
-    textAlign: 'center'
-  },
-  welcomeAppNameDisplay: {
-    fontFamily: 'Ribeye_400Regular',
-    fontSize: 48,
-    lineHeight: 54,
-    fontWeight: '400',
-    letterSpacing: 0.8
-  },
-  welcomeSubtitle: {
-    color: RELISH_COLORS.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    letterSpacing: 0.3
-  },
-  welcomeMascotWrap: {
-    width: 244,
-    height: 244,
-    paddingVertical: 0,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  welcomeMascotImage: {
-    ...MASCOT_OUTLINE,
-    width: 206,
-    height: 206
-  },
-  welcomeActions: {
-    width: '100%',
-    maxWidth: 360,
-    gap: 6,
-    alignItems: 'center'
-  },
-  welcomePrimaryButton: {
-    minWidth: 180,
-    borderRadius: 18,
-    backgroundColor: RELISH_COLORS.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  welcomePrimaryButtonLabel: {
-    color: tc.fg_ffffff,
-    fontWeight: '800'
-  },
-  welcomeSecondaryButton: {
-    minWidth: 180,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: RELISH_COLORS.primary,
-    backgroundColor: RELISH_COLORS.surface,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  welcomeSecondaryButtonLabel: {
-    color: RELISH_COLORS.primaryDeep,
-    fontWeight: '800'
-  },
-  welcomeLinkButton: {
-    alignItems: 'center',
-    paddingVertical: 6
-  },
-  welcomeLinkLabel: {
-    color: RELISH_COLORS.muted,
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  welcomeStatusStrip: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: tc.bg_fffaf0,
-    gap: 2
-  },
-  welcomeStatusLabel: {
-    color: RELISH_COLORS.text,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  welcomeStatusDetail: {
-    color: tc.fg_8a5a1d,
-    fontSize: 11,
-    lineHeight: 16
-  },
-  entryAuthActions: {
-    flexDirection: 'row',
-    gap: 10,
-    width: '100%'
-  },
-  exercisePresetGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10
-  },
-  exercisePresetCard: {
-    flexGrow: 1,
-    flexBasis: 136,
-    backgroundColor: tc.bg_f7f4ef,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    padding: 12,
-    gap: 6,
-    alignItems: 'center'
-  },
-  exercisePresetCardActive: {
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_eef3f8
-  },
-  exercisePresetImage: {
-    ...MASCOT_OUTLINE,
-    width: '100%',
-    height: 112
-  },
-  exercisePresetLabel: {
-    color: tc.fg_132536,
-    fontSize: 14,
-    fontWeight: '800'
-  },
-  exercisePresetMeta: {
-    color: tc.fg_66778c,
-    fontSize: 12,
-    textAlign: 'center'
-  },
-  panel: {
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 24,
-    padding: 18,
-    gap: 14
-  },
-  panelHeader: {
-    gap: 6
-  },
-  panelEyebrow: {
-    color: tc.fg_0f766e,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1.1
-  },
-  panelTitle: {
-    color: tc.fg_132536,
-    fontSize: 22,
-    fontWeight: '800'
-  },
-  panelDetail: {
-    color: tc.fg_66778c,
-    fontSize: 13,
-    lineHeight: 18
-  },
-  dashboardStack: {
-    gap: 0
-  },
-  trendRangeRow: { flexDirection: 'row', gap: 6 },
-  todayEditRow: { gap: 6 },
-  todayEditControls: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  todayEditInput: {
-    width: 80,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: tc.line_d7dee7,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    color: tc.fg_132536,
-    backgroundColor: tc.bg_ffffff
-  },
-  trendProjectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  trendProjectionLabel: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '600' },
-  trendProjectionText: { color: tc.fg_17324d, fontSize: 14, lineHeight: 20, marginTop: 6 },
-  trendPaceText: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '600' },
-  trendPaceGood: { color: tc.fg_0f766e },
-  trendPaceWarn: { color: tc.fg_b45309 },
-  trendRange: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7 },
-  trendRangeActive: { backgroundColor: tc.bg_17324d, borderColor: tc.line_17324d },
-  trendRangeLabel: { color: tc.fg_132536, fontSize: 13, fontWeight: '700' },
-  trendRangeLabelActive: { color: tc.fg_ffffff },
-  trendHeadline: { color: tc.fg_132536, fontSize: 20, fontWeight: '800' },
-  toast: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
-    bottom: 110,
-    alignItems: 'center'
-  },
-  toastLabel: {
-    overflow: 'hidden',
-    backgroundColor: tc.bg_17324d,
-    color: tc.fg_ffffff,
-    fontSize: 15,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999
-  },
-  todayMealGroup: { gap: 0, marginTop: 6 },
-  todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
-  todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
-  todayMealGroupCalories: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '700' },
-  todaySectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  todayAddButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: tc.brand_primary,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  todayAddButtonLabel: { color: tc.fg_ffffff, fontSize: 24, lineHeight: 26, fontWeight: '600' },
-  todayEmpty: { gap: 6, alignItems: 'flex-start' },
-  todayHint: { color: tc.fg_6b7b90, fontSize: 13 },
-  todayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: tc.line_e2e8f0
-  },
-  todayRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  todayRowTag: { color: tc.fg_0f766e, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
-  todayRemoveButton: {
-    minWidth: 36,
-    height: 36,
-    paddingHorizontal: 8,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tc.bg_eef2f6
-  },
-  todayRemoveConfirm: { backgroundColor: tc.bg_fff4f0 },
-  todayRemoveLabel: { color: tc.fg_5c6d80, fontSize: 14, fontWeight: '700' },
-  todayRemoveConfirmLabel: { color: tc.fg_b42318 },
-  homeSection: {
-    paddingVertical: 16,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: tc.line_dbe3ec
-  },
-  dailyHomeMacroRingRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-    justifyContent: 'center'
-  },
-  mealPlanSlotCard: {
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_dfe7ef,
-    padding: 14,
-    gap: 10
-  },
-  mealPlanSlotHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12
-  },
-  mealPlanSlotTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 12
-  },
-  mealPlanSlotTotal: {
-    color: tc.fg_17324d,
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  mealPlanItemList: {
-    gap: 10,
-    marginTop: 6
-  },
-  mealPlanItemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 12
-  },
-  mealPlanItemCopy: {
-    flex: 1,
-    paddingRight: 12
-  },
-  mealPlanItemName: {
-    color: tc.fg_17324d,
-    fontSize: 15,
-    fontWeight: '700'
-  },
-  mealPlanItemQuantityInline: {
-    color: tc.fg_7c8aa5,
-    fontSize: 13,
-    fontWeight: '500'
-  },
-  mealPlanItemInlineMeta: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 16,
-    justifyContent: 'flex-end',
-    flexWrap: 'wrap'
-  },
-  mealPlanItemMacroLine: {
-    color: tc.fg_73859d,
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'right'
-  },
-  mealPlanItemCalories: {
-    color: tc.fg_17324d,
-    fontSize: 13,
-    fontWeight: '700'
-  },
-  dailyHomeEmptyState: {
-    color: tc.fg_66778c,
-    fontSize: 14,
-    lineHeight: 19,
-    textAlign: 'center'
-  },
-  scaleSelectorCard: {
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: tc.line_dbe3ec,
-    padding: 14,
-    gap: 12
-  },
-  scaleSelectorHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12
-  },
-  scaleSelectorLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8
-  },
-  scaleSelectorValue: {
-    color: tc.fg_17324d,
-    fontSize: 18,
-    fontWeight: '800'
-  },
-  scaleSelectorHint: {
-    color: tc.fg_7c8aa5,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4
-  },
-  scaleSelectorRailWrap: {
-    gap: 8
-  },
-  scaleSelectorRail: {
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: tc.bg_e2e8f0
-  },
-  scaleSelectorRailFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: tc.bg_0f766e
-  },
-  scaleSelectorStops: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: -2
-  },
-  scaleSelectorStop: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 2,
-    paddingBottom: 2
-  },
-  scaleSelectorDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: tc.line_cbd5e1,
-    backgroundColor: tc.bg_f8fafc
-  },
-  scaleSelectorDotActive: {
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_17324d
-  },
-  scaleSelectorStopLabel: {
-    color: tc.fg_7c8aa5,
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  scaleSelectorStopLabelActive: {
-    color: tc.fg_17324d
-  },
-  mealPlanDateStrip: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  mealPlanDateCard: {
-    minWidth: 96,
-    borderRadius: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    backgroundColor: tc.bg_f3f6fb,
-    borderWidth: 1,
-    borderColor: tc.line_dbe3ec,
-    gap: 4
-  },
-  mealPlanDateCardActive: {
-    backgroundColor: tc.bg_17324d,
-    borderColor: tc.line_17324d
-  },
-  mealPlanDateWeekday: {
-    color: tc.fg_6b7b90,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8
-  },
-  mealPlanDateWeekdayActive: {
-    color: tc.fg_dbe7f2
-  },
-  mealPlanDateLabel: {
-    color: tc.fg_17324d,
-    fontSize: 18,
-    fontWeight: '800'
-  },
-  mealPlanDateLabelActive: {
-    color: tc.fg_ffffff
-  },
-  mealPlanDateMeta: {
-    color: tc.fg_66778c,
-    fontSize: 12
-  },
-  mealPlanDateMetaActive: {
-    color: tc.fg_dbe7f2
-  },
-  metricRow: {
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap'
-  },
-  mealBuilderActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-    flexWrap: 'wrap'
-  },
-  mealBuilderHint: {
-    flex: 1,
-    minWidth: 180,
-    color: tc.fg_7c8aa5,
-    fontSize: 12,
-    lineHeight: 17
-  },
-  mealIngredientEditor: {
-    gap: 10
-  },
-  mealIngredientRow: {
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_dbe3ec,
-    padding: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12
-  },
-  mealIngredientInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: tc.bg_ffffff,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    paddingHorizontal: 10,
-    paddingVertical: 8
-  },
-  mealIngredientInput: {
-    minWidth: 64,
-    color: tc.fg_17324d,
-    fontWeight: '800',
-    textAlign: 'right',
-    fontSize: 16
-  },
-  mealIngredientUnit: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  mealNameInput: {
-    borderWidth: 1,
-    borderColor: tc.line_d4dbe3,
-    borderRadius: 16,
-    backgroundColor: tc.bg_ffffff,
-    color: tc.fg_132536,
-    fontSize: 18,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    paddingVertical: 12
-  },
-  mealBuilderHeaderRow: {
-    gap: 12,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between'
-  },
-  mealServingWrap: {
-    gap: 6,
-    minWidth: 120
-  },
-  mealMetaLabel: {
-    color: tc.fg_7a8797,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  mealServingInput: {
-    borderWidth: 1,
-    borderColor: tc.line_d4dbe3,
-    borderRadius: 12,
-    backgroundColor: tc.bg_ffffff,
-    color: tc.fg_132536,
-    fontSize: 16,
-    fontWeight: '700',
-    minWidth: 88,
-    paddingHorizontal: 14,
-    paddingVertical: 10
-  },
-  mealBuilderHintWrap: {
-    flex: 1,
-    minWidth: 220
-  },
-  metricTile: {
-    flexGrow: 1,
-    minWidth: 96,
-    backgroundColor: tc.bg_f7f4ef,
-    borderRadius: 18,
-    padding: 14,
-    gap: 6
-  },
-  metricTileCompact: {
-    minWidth: 140
-  },
-  metricLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  metricValue: {
-    color: tc.fg_17324d,
-    fontWeight: '800',
-    fontSize: 18
-  },
-  listRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: tc.line_edf1f5
-  },
-  listTitle: {
-    color: tc.fg_132536,
-    fontSize: 15,
-    fontWeight: '700'
-  },
-  listCaption: {
-    color: tc.fg_7c8aa5,
-    fontSize: 12
-  },
-  listMetric: {
-    color: tc.fg_17324d,
-    fontWeight: '700'
-  },
-  searchRow: {
-    gap: 10
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'web' ? 12 : 14,
-    color: tc.fg_132536,
-    fontSize: 16
-  },
-  primaryButton: {
-    borderRadius: 18,
-    backgroundColor: tc.bg_17324d,
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  primaryButtonLabel: {
-    color: tc.fg_ffffff,
-    fontWeight: '800'
-  },
-  inlineStatus: {
-    backgroundColor: tc.bg_fffaf0,
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
-    gap: 4
-  },
-  inlineStatusLabel: {
-    color: tc.fg_132536,
-    fontWeight: '700'
-  },
-  inlineStatusDetail: {
-    color: tc.fg_8a5a1d,
-    fontSize: 12,
-    lineHeight: 18,
-    flexShrink: 1
-  },
-  foodList: {
-    gap: 8
-  },
-  entryDeleteConfirmLabel: {
-    color: tc.fg_b42318
-  },
-  buttonDisabled: {
-    opacity: 0.5
-  },
-  settingsInput: {
-    ...FIELD_BOX,
-    height: FIELD_HEIGHT,
-    paddingHorizontal: 16,
-    color: tc.fg_132536,
-    fontSize: 16
-  },
-  settingsReadOnly: {
-    gap: 2
-  },
-  settingsValue: {
-    color: tc.fg_132536,
-    fontSize: 16,
-    fontWeight: '600'
-  },
-  settingsHint: {
-    color: tc.fg_6b7b90,
-    fontSize: 13
-  },
-  settingsLink: {
-    color: tc.fg_0f766e,
-    fontSize: 14,
-    fontWeight: '700'
-  },
-  settingsMessage: {
-    color: tc.fg_0f766e,
-    fontSize: 14,
-    fontWeight: '700'
-  },
-  settingsError: {
-    color: tc.fg_b42318,
-    fontSize: 14
-  },
-  floorCompare: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  floorCompareTile: {
-    ...FIELD_BOX,
-    flex: 1,
-    padding: 12,
-    gap: 2
-  },
-  floorCompareLabel: {
-    color: tc.fg_5c6d80,
-    fontSize: 13,
-    fontWeight: '700'
-  },
-  floorCompareValue: {
-    color: tc.fg_132536,
-    fontSize: 20,
-    fontWeight: '800'
-  },
-  floorCompareNote: {
-    color: tc.fg_5c6d80,
-    fontSize: 12
-  },
-  floorTip: {
-    backgroundColor: tc.brand_primarySoft,
-    borderRadius: 14,
-    padding: 12
-  },
-  floorWarningText: {
-    color: tc.fg_132536,
-    fontSize: 15,
-    lineHeight: 21
-  },
-  floorWarningStrong: {
-    fontWeight: '800'
-  },
-  floorWarningHint: {
-    color: tc.fg_5c6d80,
-    fontSize: 13,
-    lineHeight: 18
-  },
-  resetConfirmButton: {
-    borderColor: tc.line_f2c8be,
-    backgroundColor: tc.bg_fff4f0
-  },
-  foodRow: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_e2e8f0,
-    backgroundColor: tc.bg_ffffff,
-    padding: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12
-  },
-  foodCardCopy: {
-    flex: 1,
-    gap: 10
-  },
-  foodRowActive: {
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_eef3f8
-  },
-  mealPlanLoggedRow: {
-    borderColor: tc.line_0f766e,
-    backgroundColor: tc.bg_effaf7
-  },
-  foodRowCopy: {
-    flex: 1,
-    gap: 2
-  },
-  foodRowActions: {
-    alignItems: 'flex-end',
-    gap: 8
-  },
-  foodRowHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'flex-start'
-  },
-  foodCardMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  foodCardChip: {
-    backgroundColor: tc.bg_edf1f5,
-    color: tc.fg_17324d,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  foodCardActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8
-  },
-  quantityStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    overflow: 'hidden',
-    backgroundColor: tc.bg_ffffff
-  },
-  quantityStepperButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: tc.bg_f8fafc
-  },
-  quantityStepperButtonLabel: {
-    color: tc.fg_17324d,
-    fontSize: 16,
-    fontWeight: '800'
-  },
-  quantityStepperValue: {
-    minWidth: 56,
-    paddingHorizontal: 10,
-    textAlign: 'center',
-    color: tc.fg_17324d,
-    fontWeight: '800'
-  },
-  mealPlanCheck: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tc.bg_ffffff
-  },
-  mealPlanCheckActive: {
-    borderColor: tc.line_0f766e,
-    backgroundColor: tc.bg_0f766e
-  },
-  mealPlanCheckLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 16,
-    fontWeight: '800'
-  },
-  mealPlanCheckLabelActive: {
-    color: tc.fg_ffffff
-  },
-  inlinePillButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_eef3f8,
-    paddingHorizontal: 12,
-    paddingVertical: 7
-  },
-  inlinePillButtonLabel: {
-    color: tc.fg_17324d,
-    fontSize: 12,
-    fontWeight: '800'
-  },
-  inlinePillRow: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_cdd8e5,
-    backgroundColor: tc.bg_f6f9fc,
-    paddingHorizontal: 12,
-    paddingVertical: 7
-  },
-  inlinePillText: {
-    color: tc.fg_4c627a,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  inlinePillButtonComplete: {
-    borderColor: tc.line_15803d,
-    backgroundColor: tc.bg_edf8f1
-  },
-  inlinePillButtonLabelComplete: {
-    color: tc.fg_15803d
-  },
-  listRowCopyFlex: {
-    flex: 1,
-    minWidth: 0
-  },
-  listRowActions: {
-    alignItems: 'flex-end',
-    gap: 8
-  },
-  listActionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: 8
-  },
-  favoriteToggleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_f59e0b,
-    backgroundColor: tc.bg_fff8ea,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  favoriteToggleButtonActive: {
-    backgroundColor: tc.bg_17324d,
-    borderColor: tc.line_17324d
-  },
-  favoriteToggleButtonLabel: {
-    color: tc.fg_b45309,
-    fontSize: 16,
-    fontWeight: '800'
-  },
-  favoriteToggleButtonLabelActive: {
-    color: tc.fg_ffffff
-  },
-  recipeSection: {
-    gap: 12
-  },
-  recipeRowTitleWrap: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10
-  },
-  recipeStarButton: {
-    borderRadius: 999,
-    backgroundColor: tc.bg_17324d,
-    paddingHorizontal: 10,
-    paddingVertical: 6
-  },
-  recipeStarButtonActive: {
-    backgroundColor: tc.bg_0f766e
-  },
-  recipeStarButtonLabel: {
-    color: tc.fg_ffffff,
-    fontSize: 12,
-    fontWeight: '800'
-  },
-  recipeAccordionCard: {
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_dbe3ec,
-    padding: 14,
-    gap: 10
-  },
-  recipeAccordionCardActive: {
-    borderColor: tc.line_17324d,
-    backgroundColor: tc.bg_f7f4ef
-  },
-  recipeAccordionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12
-  },
-  recipeAccordionMeta: {
-    alignItems: 'flex-end',
-    gap: 6
-  },
-  recipeAccordionCaret: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '800'
-  },
-  recipeAccordionBody: {
-    gap: 10,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: tc.line_dbe3ec
-  },
-  detailCard: {
-    backgroundColor: tc.bg_f7f4ef,
-    borderRadius: 20,
-    padding: 16,
-    gap: 10
-  },
-  profileFieldStack: {
-    gap: 12
-  },
-  profileFieldRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  profileFieldHalf: {
-    flex: 1,
-    gap: 6
-  },
-  profileField: {
-    gap: 6
-  },
-  profileFieldLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  profileFieldInput: {
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'web' ? 12 : 14,
-    color: tc.fg_132536,
-    fontSize: 16
-  },
-  profileFieldInputError: {
-    borderColor: tc.line_2563eb
-  },
-  profileFieldError: {
-    color: tc.fg_1d4ed8,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600'
-  },
-  profileToggleRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap'
-  },
-  profileToggle: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc.line_cbd5e1,
-    backgroundColor: tc.bg_f8fafc,
-    paddingHorizontal: 14,
-    paddingVertical: 10
-  },
-  profileToggleActive: {
-    backgroundColor: tc.bg_17324d,
-    borderColor: tc.line_17324d
-  },
-  profileToggleLabel: {
-    color: tc.fg_17324d,
-    fontWeight: '700'
-  },
-  profileToggleLabelActive: {
-    color: tc.fg_ffffff
-  },
-  goalCard: {
-    backgroundColor: tc.bg_f8fafc,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: tc.line_dbe3ec,
-    padding: 14,
-    gap: 10
-  },
-  goalMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  goalMetaChip: {
-    borderRadius: 999,
-    backgroundColor: tc.bg_eef3f8,
-    color: tc.fg_17324d,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 12,
-    fontWeight: '700'
-  },
-  recipeDetailHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12
-  },
-  recipeDetailHeaderCopy: {
-    flex: 1,
-    gap: 4
-  },
-  recipeMetaBlock: {
-    gap: 6,
-    paddingTop: 4
-  },
-  recipeMetaLabel: {
-    color: tc.fg_6b7b90,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  },
-  recipeStep: {
-    color: tc.fg_132536,
-    fontSize: 13,
-    lineHeight: 18
-  },
-  recipeMetaItem: {
-    color: tc.fg_132536,
-    fontSize: 13,
-    lineHeight: 18
-  },
-  recipeDetailLoading: {
-    gap: 8
-  },
-  recipeImportCard: {
-    backgroundColor: tc.bg_f3efe8,
-    borderRadius: 20,
-    padding: 16,
-    gap: 10
-  },
-  recipeSecondaryCard: {
-    backgroundColor: tc.bg_f2f6fb,
-    borderRadius: 20,
-    padding: 16,
-    gap: 10
-  },
-  detailTitle: {
-    color: tc.fg_132536,
-    fontSize: 20,
-    fontWeight: '800'
-  },
-  detailSubtitle: {
-    color: tc.fg_66778c
-  },
-  footer: {
-    color: tc.fg_66778c,
-    textAlign: 'center',
-    fontSize: 12,
-    lineHeight: 18,
-    paddingBottom: 16
-  }
-});
