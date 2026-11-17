@@ -55,9 +55,10 @@ class Settings(BaseSettings):
     # Web Push (reminder notifications). Base64url raw P-256 keys from
     # `python -m scripts.generate_vapid_keys`; empty: reminders are off. The subject is sent to
     # push services as a contact (a mailto: or https URL); keep it generic, never personal.
+    # Apple refuses a reserved .invalid domain (403 BadJwtToken) but accepts example.com.
     vapid_private_key: str = ""
     vapid_public_key: str = ""
-    vapid_subject: str = "mailto:push@relish-app.invalid"
+    vapid_subject: str = "mailto:relish@example.com"
     # Check for due reminders every minute while the app runs (when keys are set).
     reminders_background: bool = True
     # Cheapest current, non-deprecated OpenAI model with image input (decided 2026-11-14).

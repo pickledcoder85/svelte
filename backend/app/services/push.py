@@ -100,7 +100,10 @@ async def send_push(
     if response.status_code in (404, 410):
         return PushResult(ok=False, gone=True, status=response.status_code)
     if response.status_code >= 400:
-        logger.warning("Push to %s refused: %s", urlparse(subscription.endpoint).netloc, response.status_code)
+        # The push service's reason (e.g. {"reason":"BadJwtToken"}); it never echoes secrets.
+        logger.warning(
+            "Push to %s refused: %s %s", urlparse(subscription.endpoint).netloc, response.status_code, response.text[:120]
+        )
     return PushResult(ok=response.status_code < 300, gone=False, status=response.status_code)
 
 
