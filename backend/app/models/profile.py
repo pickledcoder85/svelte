@@ -23,6 +23,8 @@ class UserProfile(BaseModel):
     water_goal_ml: int = 2000
     # Display language: English or (Colombian) Spanish.
     language: Literal["en", "es"] = "en"
+    # False until the user picks a language in Settings: until then the app follows the phone.
+    language_chosen: bool = False
     # Meals a day (3-5, snacks between meals) and the daily target's split across them, in day
     # order (percent; macros follow). See services/meal_split.py.
     meals_per_day: Literal[3, 4, 5] = 3

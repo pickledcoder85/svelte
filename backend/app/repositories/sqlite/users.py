@@ -132,6 +132,7 @@ class UsersMixin:
                     meal_split = COALESCE(?, meal_split),
                     water_goal_ml = COALESCE(?, water_goal_ml),
                     language = COALESCE(?, language),
+                    language_chosen = CASE WHEN ? IS NULL THEN language_chosen ELSE 1 END,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
@@ -142,6 +143,7 @@ class UsersMixin:
                     meals_per_day,
                     json.dumps(meal_split) if meal_split is not None else None,
                     water_goal_ml,
+                    language,
                     language,
                     user_id,
                 ),
@@ -307,6 +309,7 @@ class UsersMixin:
                 COALESCE(p.workout_calories_share, 75) AS workout_calories_share,
                 COALESCE(p.water_goal_ml, 2000) AS water_goal_ml,
                 COALESCE(p.language, 'en') AS language,
+                COALESCE(p.language_chosen, 0) AS language_chosen,
                 p.meals_per_day,
                 p.meal_split
             FROM users u
