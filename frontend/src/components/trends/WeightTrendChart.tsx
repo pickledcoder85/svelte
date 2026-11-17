@@ -1,9 +1,14 @@
-/** Weigh-ins as faint dots and the smoothed trend as a line, with the goal weight dashed. */
+/**
+ * Weigh-ins as faint dots and the smoothed trend as a line, with the goal weight dashed. With a
+ * projection, the chart runs past today: the trend carried forward (dashed, when there's a week
+ * of weigh-ins) and the planned pace (dotted), both from the latest trend value.
+ */
 import { useState } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
-import type { WeightPoint } from '../../lib/trends';
+import { addDaysToDateKey } from '../../lib/dates';
+import { projectLine, type WeightPoint } from '../../lib/trends';
 import { usePalette } from '../../theme/appearance';
 import { tc } from '../../theme/palette';
 
@@ -16,7 +21,8 @@ export function WeightTrendChart({
   end,
   goal,
   unit,
-  toUnit
+  toUnit,
+  projection
 }: {
   points: WeightPoint[];
   start: string;
@@ -25,6 +31,8 @@ export function WeightTrendChart({
   unit: string;
   /** Pounds to the shown unit. */
   toUnit(lbs: number): number;
+  /** Carry the trend and the planned pace this many days forward (rates in lb a week). */
+  projection?: { days: number; trendRate: number | null; paceRate: number | null };
 }) {
   const pal = usePalette();
   const [width, setWidth] = useState(0);
@@ -32,7 +40,16 @@ export function WeightTrendChart({
   if (shown.length === 0) {
     return <Text style={styles.empty}>No weigh-ins in this range. Tap Weigh in to add today’s.</Text>;
   }
-  const values = shown.flatMap((point) => [toUnit(point.weight), toUnit(point.trend)]);
+  const last = shown.at(-1)!;
+  const from = { date: last.date, weight: last.trend };
+  const chartEnd = projection ? addDaysToDateKey(end, projection.days) : end;
+  const ahead = projection ? Math.max(1, Math.round((Date.parse(`${chartEnd}T00:00:00Z`) - Date.parse(`${from.date}T00:00:00Z`)) / 86400000)) : 0;
+  const trendLine = projection && projection.trendRate !== null ? projectLine(from, projection.trendRate, ahead) : null;
+  const paceLine = projection && projection.paceRate !== null ? projectLine(from, projection.paceRate, ahead) : null;
+  const values = [
+    ...shown.flatMap((point) => [toUnit(point.weight), toUnit(point.trend)]),
+    ...[trendLine, paceLine].flatMap((line) => (line ? line.map((point) => toUnit(point.weight)) : []))
+  ];
   const goalValue = goal !== null ? toUnit(goal) : null;
   let min = Math.min(...values);
   let max = Math.max(...values);
@@ -44,21 +61,23 @@ export function WeightTrendChart({
     min -= 1;
     max += 1;
   }
-  const span = Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`) || 1;
+  const span = Date.parse(`${chartEnd}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`) || 1;
   const innerW = Math.max(1, width - PAD.left - PAD.right);
   const innerH = HEIGHT - PAD.top - PAD.bottom;
   const x = (date: string) => PAD.left + ((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / span) * innerW;
   const y = (value: number) => PAD.top + (1 - (value - min) / (max - min)) * innerH;
   const trendPath = shown.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(point.date).toFixed(1)},${y(toUnit(point.trend)).toFixed(1)}`).join(' ');
   const label = (value: number) => `${Math.round(value)}`;
+  const linePath = (line: Array<{ date: string; weight: number }>) =>
+    line.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(point.date).toFixed(1)},${y(toUnit(point.weight)).toFixed(1)}`).join(' ');
 
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={`Weight trend, ${shown.length} weigh-ins`}>
       {width > 0 ? (
         <Svg width={width} height={HEIGHT}>
-          {[max, (max + min) / 2, min].map((value) => (
-            <Line key={value} x1={PAD.left} x2={width - PAD.right} y1={y(value)} y2={y(value)} stroke={pal.line_e2e8f0} strokeWidth={1} />
-          ))}
+          {projection ? (
+            <Line x1={x(end)} x2={x(end)} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke={pal.line_e2e8f0} strokeWidth={1} />
+          ) : null}
           {goalValue !== null && goalValue >= min && goalValue <= max ? (
             <Line x1={PAD.left} x2={width - PAD.right} y1={y(goalValue)} y2={y(goalValue)} stroke={pal.fg_0f766e} strokeWidth={1.5} strokeDasharray="5 4" />
           ) : null}
@@ -66,6 +85,8 @@ export function WeightTrendChart({
             <Circle key={point.date} cx={x(point.date)} cy={y(toUnit(point.weight))} r={2.6} fill={pal.fg_8a97a8} opacity={0.7} />
           ))}
           <Path d={trendPath} stroke={pal.brand_primary} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          {paceLine ? <Path d={linePath(paceLine)} stroke={pal.fg_5c6d80} strokeWidth={2} fill="none" strokeDasharray="1 4" strokeLinecap="round" /> : null}
+          {trendLine ? <Path d={linePath(trendLine)} stroke={pal.brand_primary} strokeWidth={2.5} fill="none" strokeDasharray="6 5" strokeLinecap="round" /> : null}
         </Svg>
       ) : (
         <View style={{ height: HEIGHT }} />
@@ -80,9 +101,11 @@ export function WeightTrendChart({
           <View style={styles.footer}>
             <Text style={styles.axisDate}>{new Date(`${start}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
             <Text style={styles.legend}>
-              ● weigh-ins  — trend{goalValue !== null && goalValue >= min && goalValue <= max ? '  - - goal' : ''} ({unit})
+              {projection
+                ? `— trend${trendLine ? '  - - if it continues' : ''}${paceLine ? '  ··· plan' : ''}${goalValue !== null && goalValue >= min && goalValue <= max ? '  - - goal' : ''} (${unit})`
+                : `● weigh-ins  — trend${goalValue !== null && goalValue >= min && goalValue <= max ? '  - - goal' : ''} (${unit})`}
             </Text>
-            <Text style={styles.axisDate}>{new Date(`${end}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+            <Text style={styles.axisDate}>{new Date(`${chartEnd}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
           </View>
         </>
       ) : null}

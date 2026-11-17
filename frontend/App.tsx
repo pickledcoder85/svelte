@@ -101,15 +101,23 @@ function mealStyleSplit(style: MealStyleId): number[] {
 }
 import { CalorieBars } from './src/components/trends/CalorieBars';
 import { DayHistory } from './src/components/trends/DayHistory';
+import { MacroDeviationChart } from './src/components/trends/MacroDeviationChart';
 import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
 import {
-  averageMacros,
   buildDaySeries,
   calorieSummary,
+  goalDate,
+  HORIZON_DAYS,
+  macroDays,
+  paceStatus,
+  plannedWeeklyChange,
+  projectableRate,
+  PROJECTION_HORIZONS,
   rangeStart,
   TREND_RANGES,
   weeklyRate,
   weightTrend,
+  type ProjectionHorizon,
   type TrendRange
 } from './src/lib/trends';
 import { initialWeighInIndexes, weighInColumns, weighInLbs, weighInSummary } from './src/lib/weigh-in';
@@ -539,6 +547,7 @@ export default function App(): ReactElement {
   const [scanAutoStart, setScanAutoStart] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [trendRange, setTrendRange] = useState<TrendRange>('1M');
+  const [weightHorizon, setWeightHorizon] = useState<ProjectionHorizon>('1M');
   // Gus's single-meal suggestion (Today → Meals).
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
@@ -2019,7 +2028,14 @@ export default function App(): ReactElement {
     [trendStart, todayKey, trendLogs, exerciseEntries, dailyHomeTargets.calorieTarget, profile?.workout_calories_share]
   );
   const trendCalories = useMemo(() => calorieSummary(trendDays), [trendDays]);
-  const trendMacros = useMemo(() => averageMacros(trendDays), [trendDays]);
+  const trendMacroDays = useMemo(
+    () => ({
+      protein: macroDays(trendDays, 'protein', dailyHomeTargets.macroTargets.protein),
+      carbs: macroDays(trendDays, 'carbs', dailyHomeTargets.macroTargets.carbs),
+      fat: macroDays(trendDays, 'fat', dailyHomeTargets.macroTargets.fat)
+    }),
+    [trendDays, dailyHomeTargets.macroTargets]
+  );
   const trendWeightPoints = useMemo(() => weightTrend(weightEntries), [weightEntries]);
   const trendWeight = useMemo(() => {
     const toUnit = (lbs: number) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : Math.round(lbs * 10) / 10);
@@ -2034,6 +2050,55 @@ export default function App(): ReactElement {
       toGoal: last && goal ? Math.abs(Math.round((toUnit(last.trend) - toUnit(goal)) * 10) / 10) : null
     };
   }, [trendWeightPoints, trendStart, trendUnit, profile?.target_weight_lbs]);
+  // Where the weight is heading: the trend carried forward (with a week of weigh-ins) and the
+  // planned pace from the calorie target and the daily burn.
+  const trendProjection = useMemo(() => {
+    const toUnit = (lbs: number) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : Math.round(lbs * 10) / 10);
+    const last = trendWeightPoints.at(-1) ?? null;
+    const trendRate = projectableRate(trendWeightPoints);
+    const paceRate = plannedWeeklyChange(dailyHomeTargets.calorieTarget, profile?.tdee_calories);
+    const goal = profile?.target_weight_lbs ?? null;
+    const days = HORIZON_DAYS[weightHorizon];
+    const from = last ? { date: last.date, weight: last.trend } : null;
+    const shortDate = (date: string) =>
+      new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        ...(date.slice(0, 4) !== todayKey.slice(0, 4) ? { year: 'numeric' as const } : {})
+      });
+    const signed = (lbs: number) => {
+      const value = toUnit(lbs);
+      return `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value)}`;
+    };
+    const direction = profile?.goal_type ?? null;
+    const lines: string[] = [];
+    if (from && trendRate !== null) {
+      const horizonEnd = addDaysToDateKey(todayKey, days);
+      const ahead = Math.max(0, Math.round((Date.parse(`${horizonEnd}T00:00:00Z`) - Date.parse(`${from.date}T00:00:00Z`)) / 86400000));
+      const reach = goalDate(from, trendRate, goal, direction);
+      lines.push(
+        `At your current trend: ${toUnit(from.weight + (trendRate * ahead) / 7)} ${trendUnit} by ${shortDate(horizonEnd)}` +
+          (goal !== null ? ` · goal ${reach ? (reach <= todayKey ? 'reached' : `by ${shortDate(reach)}`) : 'not at this rate'}` : '')
+      );
+    } else if (from) {
+      const reach = paceRate !== null ? goalDate(from, paceRate, goal, direction) : null;
+      lines.push(`Weigh in for about a week to see where your trend is heading${reach ? ` · at your planned pace, goal by ${shortDate(reach)}` : ''}`);
+    }
+    const status = paceStatus(trendRate, paceRate);
+    if (status && trendRate !== null && paceRate !== null) {
+      const rates = `${signed(trendRate)} vs ${signed(paceRate)} ${trendUnit} a week`;
+      lines.push(
+        status === 'on'
+          ? `On pace (${rates})`
+          : status === 'ahead'
+            ? `Ahead of pace (${rates})`
+            : status === 'behind'
+              ? `Behind pace (${rates})`
+              : `Drifting ${signed(trendRate)} ${trendUnit} a week (planned: steady)`
+      );
+    }
+    return { trendRate, paceRate, days, lines, status };
+  }, [trendWeightPoints, dailyHomeTargets.calorieTarget, profile?.tdee_calories, profile?.target_weight_lbs, profile?.goal_type, weightHorizon, trendUnit, todayKey]);
   const homeOpenPlannedMeals = useMemo(
     () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
     [homeMealPlanDay, homeMealPlanEatenSlots]
@@ -5204,7 +5269,37 @@ export default function App(): ReactElement {
                 goal={profile?.target_weight_lbs ?? null}
                 unit={trendUnit}
                 toUnit={(lbs) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : lbs)}
+                projection={{ days: trendProjection.days, trendRate: trendProjection.trendRate, paceRate: trendProjection.paceRate }}
               />
+              <View style={styles.trendProjectionRow}>
+                <Text style={styles.trendProjectionLabel}>Projection</Text>
+                <View style={styles.trendRangeRow} accessibilityRole="tablist">
+                  {PROJECTION_HORIZONS.map((horizon) => (
+                    <Pressable
+                      key={horizon}
+                      style={[styles.trendRange, weightHorizon === horizon && styles.trendRangeActive]}
+                      onPress={() => setWeightHorizon(horizon)}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: weightHorizon === horizon }}
+                      accessibilityLabel={`Project ${horizon.replace('M', '')} month${horizon === '1M' ? '' : 's'} ahead`}
+                    >
+                      <Text style={[styles.trendRangeLabel, weightHorizon === horizon && styles.trendRangeLabelActive]}>{horizon}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              {trendProjection.lines.map((line, index) => (
+                <Text
+                  key={line}
+                  style={[
+                    index === 0 ? styles.trendProjectionText : styles.trendPaceText,
+                    index > 0 && trendProjection.status === 'on' && styles.trendPaceGood,
+                    index > 0 && (trendProjection.status === 'behind' || trendProjection.status === 'drifting') && styles.trendPaceWarn
+                  ]}
+                >
+                  {line}
+                </Text>
+              ))}
             </View>
 
             {/* Calories: each day against its allowance. */}
@@ -5220,35 +5315,16 @@ export default function App(): ReactElement {
                   ? `${trendCalories.loggedDays} of ${trendDays.length} days logged · allowance avg ${trendCalories.averageAllowance.toLocaleString('en-US')} · ${trendCalories.daysOnTarget} on target${trendCalories.daysOver ? ` · ${trendCalories.daysOver} over` : ''}`
                   : 'Nothing logged in this range yet.'}
               </Text>
-              <CalorieBars days={trendDays} average={trendCalories.averageEaten} />
+              <CalorieBars days={trendDays} />
             </View>
 
-            {/* Macros: averages on logged days against the targets. */}
+            {/* Macros: each day above or below its target. */}
             <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>Macros (daily average)</Text>
-              {(['protein', 'carbs', 'fat'] as const).map((macro) => {
-                const average = trendMacros[macro];
-                const target = Math.round(dailyHomeTargets.macroTargets[macro]);
-                const share = target > 0 ? Math.min(1, average / target) : 0;
-                return (
-                  <View key={macro} style={styles.trendMacro}>
-                    <View style={styles.todaySectionHeader}>
-                      <Text style={styles.trendMacroLabel}>{macro[0].toUpperCase() + macro.slice(1)}</Text>
-                      <Text style={styles.trendMacroValue}>
-                        {average} g{target > 0 ? ` of ${target} g` : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.trendMacroTrack}>
-                      <View
-                        style={[
-                          styles.trendMacroFill,
-                          { width: `${Math.round(share * 100)}%`, backgroundColor: macro === 'protein' ? tc.fg_0f766e : macro === 'carbs' ? tc.fg_ea580c : tc.fg_2563eb }
-                        ]}
-                      />
-                    </View>
-                  </View>
-                );
-              })}
+              <Text style={styles.detailTitle}>Macros</Text>
+              <Text style={styles.todayHint}>Each day against its target: bars up when over, down when under; ±10% counts as on target.</Text>
+              {(['protein', 'carbs', 'fat'] as const).map((macro) => (
+                <MacroDeviationChart key={macro} macro={macro} days={trendMacroDays[macro]} target={dailyHomeTargets.macroTargets[macro]} />
+              ))}
             </View>
 
             {/* History: every day in the range, newest first. */}
@@ -8604,16 +8680,17 @@ const styles = StyleSheet.create({
     gap: 0
   },
   trendRangeRow: { flexDirection: 'row', gap: 6 },
+  trendProjectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  trendProjectionLabel: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '600' },
+  trendProjectionText: { color: tc.fg_17324d, fontSize: 14, lineHeight: 20, marginTop: 6 },
+  trendPaceText: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '600' },
+  trendPaceGood: { color: tc.fg_0f766e },
+  trendPaceWarn: { color: tc.fg_b45309 },
   trendRange: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: tc.line_d7dee7 },
   trendRangeActive: { backgroundColor: tc.bg_17324d, borderColor: tc.line_17324d },
   trendRangeLabel: { color: tc.fg_132536, fontSize: 13, fontWeight: '700' },
   trendRangeLabelActive: { color: tc.fg_ffffff },
   trendHeadline: { color: tc.fg_132536, fontSize: 20, fontWeight: '800' },
-  trendMacro: { gap: 6, marginTop: 6 },
-  trendMacroLabel: { color: tc.fg_132536, fontSize: 14, fontWeight: '700' },
-  trendMacroValue: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '700' },
-  trendMacroTrack: { height: 8, borderRadius: 999, backgroundColor: tc.bg_e2e8f0, overflow: 'hidden' },
-  trendMacroFill: { height: '100%', borderRadius: 999 },
   toast: {
     position: 'absolute',
     left: 24,

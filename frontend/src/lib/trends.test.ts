@@ -32,7 +32,7 @@ describe('trends', () => {
     });
     expect(days).toHaveLength(7);
     expect(days[0].date).toBe('2026-11-09');
-    expect(days[5]).toMatchObject({ date: '2026-11-14', eaten: 1800, logged: true, workoutCalories: 600, allowance: 1950 });
+    expect(days[5]).toMatchObject({ date: '2026-11-14', eaten: 1800, logged: true, workoutCalories: 600, baseTarget: 1500, allowance: 1950 });
     expect(days[4]).toMatchObject({ logged: false, eaten: 0, allowance: 1500 });
 
     const summary = calorieSummary(days);

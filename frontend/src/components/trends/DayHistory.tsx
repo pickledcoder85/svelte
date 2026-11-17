@@ -27,7 +27,7 @@ export function DayHistory({
   onDeleteFood(log: FoodLogSummary, entry: FoodLogEntry): Promise<void>;
   onOpenWorkout(id: string): void;
 }) {
-  const [open, setOpen] = useState<Set<string>>(() => new Set([today]));
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const byDate = new Map(logs.map((log) => [log.date, log]));
