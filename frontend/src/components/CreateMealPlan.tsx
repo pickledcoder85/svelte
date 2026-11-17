@@ -11,7 +11,8 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { createMealPlan, proposePlanMeals } from '../lib/api';
+import { createMealPlan, createShoppingList, proposePlanMeals } from '../lib/api';
+import { isShoppingRole, planListTitle } from '../lib/shopping';
 import { addDaysToDateKey, localDateKey } from '../lib/dates';
 import {
   dayCount,
@@ -48,7 +49,7 @@ const VARIETIES: Array<{ id: PlanVariety; label: string; detail: string }> = [
   { id: 'daily', label: 'Different every day', detail: 'A new meal each day' }
 ];
 
-type Step = 'days' | 'meals' | 'time' | 'variety' | 'propose' | 'review' | 'done' | 'shopping';
+type Step = 'days' | 'meals' | 'time' | 'variety' | 'propose' | 'review' | 'done';
 type Kept = Record<PlanMeal, ProposedPlanMeal | undefined>;
 
 function dateLabel(key: string): string {
@@ -59,12 +60,15 @@ export function CreateMealPlan({
   accessToken,
   existingPlans,
   onCreated,
+  onShoppingList,
   onClose
 }: {
   accessToken: string;
   /** To find days that already have a meal planned in the same slot. */
   existingPlans: MealPlanDay[];
   onCreated(): void;
+  /** A shopping list was saved: open it (closes this sheet). */
+  onShoppingList(listId: string): void;
   onClose(): void;
 }) {
   const [step, setStep] = useState<Step>('days');
@@ -84,6 +88,10 @@ export function CreateMealPlan({
   const [result, setResult] = useState<{ created: number; replaced: number; kept: number } | null>(null);
   // The meals actually created (a "Keep planned" slot wasn't): the shopping list's source.
   const [createdMeals, setCreatedMeals] = useState<Array<{ name: string; items: ShoppingItem[] }>>([]);
+  // The days the created meals landed on (for the shopping list's title), and the saved list.
+  const [createdDates, setCreatedDates] = useState<string[]>([]);
+  const [savedListId, setSavedListId] = useState<string | null>(null);
+  const [savingList, setSavingList] = useState(false);
 
   const steps = stepCount(variety, dayCount(days));
   const stepIndex = chosen.length;
@@ -228,12 +236,44 @@ export function CreateMealPlan({
             }))
           }))
       );
+      setCreatedDates([
+        ...new Set(sent.filter((entry) => !entry.conflicted || entry.onConflict === 'replace').map((entry) => entry.date))
+      ]);
+      setSavedListId(null);
       setStep('done');
       onCreated();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'Unable to create the plan.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Save the plan's shopping list (once) and open it to tick off. */
+  async function saveShoppingList() {
+    if (savingList) {
+      return;
+    }
+    if (savedListId) {
+      onShoppingList(savedListId);
+      return;
+    }
+    setSavingList(true);
+    setError(null);
+    try {
+      const list = await createShoppingList(
+        planListTitle(createdDates),
+        shopping.flatMap((group) =>
+          group.items.map((item) => ({ name: item.name, amount: shoppingAmount(item), role: isShoppingRole(group.role) ? group.role : 'other' }))
+        ),
+        accessToken
+      );
+      setSavedListId(list.id);
+      onShoppingList(list.id);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save the shopping list.');
+    } finally {
+      setSavingList(false);
     }
   }
 
@@ -524,48 +564,18 @@ export function CreateMealPlan({
                 {result.replaced ? ` · ${result.replaced} replaced` : ''}
                 {result.kept ? ` · ${result.kept} kept as they were` : ''}. They show on Today as Planned: tick ✓ Ate it to log one.
               </Text>
-              <Pressable style={styles.primary} onPress={() => setStep('shopping')}>
-                <Text style={styles.primaryLabel}>🛒 Make a shopping list</Text>
-              </Pressable>
+              {shopping.length > 0 ? (
+                <Pressable style={[styles.primary, savingList && styles.disabled]} onPress={() => void saveShoppingList()} disabled={savingList}>
+                  <Text style={styles.primaryLabel}>{savingList ? 'Saving…' : '🛒 Make a shopping list'}</Text>
+                </Pressable>
+              ) : null}
+              {error ? <Text style={styles.error}>{error}</Text> : null}
               <Pressable style={styles.secondary} onPress={onClose}>
                 <Text style={styles.secondaryLabel}>Done</Text>
               </Pressable>
             </>
           ) : null}
 
-          {step === 'shopping' ? (
-            <>
-              <Text style={styles.title}>Shopping list</Text>
-              {shopping.map((group) => (
-                <View key={group.role} style={styles.dayCard}>
-                  <Text style={styles.dayTitle}>{group.label}</Text>
-                  {group.items.map((item) => (
-                    <Text key={`${item.name}|${item.unit ?? ''}`} style={styles.item}>
-                      ☐ {item.name} · {shoppingAmount(item)}
-                    </Text>
-                  ))}
-                </View>
-              ))}
-              <Pressable
-                style={styles.primary}
-                onPress={() => {
-                  const text = shopping
-                    .map((group) => `${group.label}\n${group.items.map((item) => `- ${item.name}: ${shoppingAmount(item)}`).join('\n')}`)
-                    .join('\n\n');
-                  if (typeof navigator !== 'undefined' && navigator.share) {
-                    void navigator.share({ title: 'Shopping list', text }).catch(() => undefined);
-                  } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    void navigator.clipboard.writeText(text);
-                  }
-                }}
-              >
-                <Text style={styles.primaryLabel}>Share or copy the list</Text>
-              </Pressable>
-              <Pressable style={styles.secondary} onPress={onClose}>
-                <Text style={styles.secondaryLabel}>Done</Text>
-              </Pressable>
-            </>
-          ) : null}
         </ScrollView>
       </View>
     </Modal>
