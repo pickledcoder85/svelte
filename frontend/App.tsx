@@ -124,6 +124,7 @@ import { initialWeighInIndexes, weighInColumns, weighInLbs, weighInSummary } fro
 import { QuickScanAdd } from './src/components/QuickScanAdd';
 import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
+import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
 import { groupByMeal } from './src/lib/meal-slots';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
@@ -541,7 +542,7 @@ export default function App(): ReactElement {
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
-  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'food-search' | 'quick-calories' | null>(null);
+  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'add-workout' | 'food-search' | 'quick-calories' | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
@@ -2774,6 +2775,34 @@ export default function App(): ReactElement {
   }
 
   /** Today page: delete a food from the chosen day (tap ✕, then tap again to confirm). */
+  /** Today page: change a logged food's amount (grams) on the day shown. */
+  async function saveHomeFoodEntryEdit(entry: FoodLogEntry) {
+    if (selectedHomeDate === todayKey) {
+      await saveFoodEntryEdit(entry);
+      return;
+    }
+    const payload = scaleEntryToGrams(entry, Number(editingFoodGramsDraft));
+    if (!foodSessionToken || !homeFoodLog.log_id) {
+      setFoodLogError('Sign in again to edit this entry.');
+      return;
+    }
+    if (!payload) {
+      setFoodLogError('Enter an amount in grams greater than 0.');
+      return;
+    }
+    const key = `food:${entry.id}`;
+    setEntryActionBusyKey(key);
+    setFoodLogError(null);
+    try {
+      setHomeFoodLog(await updateFoodLogEntry(homeFoodLog.log_id, entry.id, payload, foodSessionToken));
+      setEditingFoodEntryId(null);
+    } catch (error) {
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to update this entry.');
+    } finally {
+      setEntryActionBusyKey((current) => (current === key ? null : current));
+    }
+  }
+
   async function removeHomeFoodEntry(entry: FoodLogEntry) {
     if (selectedHomeDate === todayKey) {
       await removeFoodEntry(entry);
@@ -5011,7 +5040,7 @@ export default function App(): ReactElement {
                 <CalorieBudgetCard
                   budget={homeCalorieBudget}
                   sharePercent={profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}
-                  onOpenDiary={() => handleSectionChange('tracker')}
+                  onOpenDiary={() => handleSectionChange('trends')}
                 />
               ) : (
                 <Text style={styles.dailyHomeEmptyState}>Finish setup to see your daily calories.</Text>
@@ -5044,7 +5073,7 @@ export default function App(): ReactElement {
                 <Text style={styles.detailTitle}>Workouts</Text>
                 <Pressable
                   style={styles.todayAddButton}
-                  onPress={() => handleSectionChange('tracker')}
+                  onPress={() => setOpenSheet('add-workout')}
                   accessibilityRole="button"
                   accessibilityLabel="Add a workout"
                 >
@@ -5185,6 +5214,7 @@ export default function App(): ReactElement {
                     );
                   })
                 : null}
+              {foodLogError ? <Text style={styles.settingsError}>{foodLogError}</Text> : null}
               {homeMealGroups.map((group) => (
                 <View key={group.slot} style={styles.todayMealGroup}>
                   <View style={styles.todayMealGroupHeader}>
@@ -5195,12 +5225,53 @@ export default function App(): ReactElement {
                     const deleteKey = `food:${entry.id}`;
                     return (
                       <View key={entry.id} style={styles.todayRow}>
-                        <View style={styles.listRowCopyFlex}>
-                          <Text style={styles.listTitle}>{entry.food_name}</Text>
-                          <Text style={styles.listCaption}>
-                            {entry.quantity_label ? `${entry.quantity_label} · ` : ''}P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
-                          </Text>
-                        </View>
+                        {editingFoodEntryId === entry.id ? (
+                          <View style={[styles.listRowCopyFlex, styles.todayEditRow]}>
+                            <Text style={styles.listTitle} numberOfLines={1}>{entry.food_name}</Text>
+                            <View style={styles.todayEditControls}>
+                              <TextInput
+                                style={styles.todayEditInput}
+                                value={editingFoodGramsDraft}
+                                onChangeText={(text) => setEditingFoodGramsDraft(text.replace(/[^0-9.]/g, ''))}
+                                keyboardType="decimal-pad"
+                                inputMode="decimal"
+                                autoFocus
+                                accessibilityLabel={`Amount of ${entry.food_name} in grams`}
+                              />
+                              <Text style={styles.listCaption}>g</Text>
+                              <Pressable
+                                style={styles.inlinePillButton}
+                                disabled={entryActionBusyKey === deleteKey}
+                                onPress={() => void saveHomeFoodEntryEdit(entry)}
+                                accessibilityRole="button"
+                              >
+                                <Text style={styles.inlinePillButtonLabel}>{entryActionBusyKey === deleteKey ? 'Saving…' : 'Save'}</Text>
+                              </Pressable>
+                              <Pressable style={styles.inlinePillButton} onPress={() => setEditingFoodEntryId(null)} accessibilityRole="button">
+                                <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        ) : (
+                          <Pressable
+                            style={styles.listRowCopyFlex}
+                            onPress={() => {
+                              if (entry.grams > 0) {
+                                setEditingFoodEntryId(entry.id);
+                                setEditingFoodGramsDraft(String(Math.round(entry.grams * 10) / 10));
+                                setConfirmDeleteKey(null);
+                                setFoodLogError(null);
+                              }
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${entry.food_name}${entry.grams > 0 ? `, ${Math.round(entry.grams)} g. Tap to change the amount` : ''}`}
+                          >
+                            <Text style={styles.listTitle}>{entry.food_name}</Text>
+                            <Text style={styles.listCaption}>
+                              {entry.quantity_label ? `${entry.quantity_label} · ` : entry.grams > 0 ? `${Math.round(entry.grams)} g · ` : ''}P {Math.round(entry.macros.protein)}g · C {Math.round(entry.macros.carbs)}g · F {Math.round(entry.macros.fat)}g
+                            </Text>
+                          </Pressable>
+                        )}
                         <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
                         <Pressable
                           style={[styles.todayRemoveButton, confirmDeleteKey === deleteKey && styles.todayRemoveConfirm]}
@@ -5951,391 +6022,6 @@ export default function App(): ReactElement {
               </View>
             </View>
 
-          </>
-        )}
-
-        {section === 'tracker' && (
-          <>
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>Tracker</Text>
-                  <Text style={styles.panelTitle}>Food eaten and exercise performed</Text>
-                </View>
-                <Text style={styles.panelDetail}>Use one home for intake and output while backend exercise persistence is still pending.</Text>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(trackerTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{trackerStatus}</Text>
-                {trackerError ? <Text style={styles.inlineStatusDetail}>{trackerError}</Text> : null}
-              </View>
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Calories" value={`${foodLog.totals.calories.toLocaleString()} kcal`} />
-                <MetricTile
-                  label="Exercise burn"
-                  value={`${exerciseEntries.reduce((sum, entry) => sum + entry.calories_burned, 0)} kcal`}
-                />
-                <MetricTile
-                  label="Macros"
-                  value={`${round1(foodLog.totals.macros.protein)}P / ${round1(foodLog.totals.macros.carbs)}C / ${round1(foodLog.totals.macros.fat)}F`}
-                />
-                <MetricTile label="Tracked items" value={`${foodLog.entries.length + exerciseEntries.length}`} />
-              </View>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Food eaten</Text>
-              <Text style={styles.panelTitle}>Search and log an item</Text>
-              <Text style={styles.panelDetail}>
-                Type a food, choose a result, enter grams, and save it to today’s log.
-              </Text>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(foodLogTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{foodLogStatus}</Text>
-                {foodLogError ? <Text style={styles.inlineStatusDetail}>{foodLogError}</Text> : null}
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={logFoodDraft}
-                  onChangeText={setLogFoodDraft}
-                  placeholder="Search yogurt, oats, blueberries..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Pressable
-                  style={styles.primaryButton}
-                  onPress={() => {
-                    setLogFoodSearchTerm(logFoodDraft);
-                  }}
-                >
-                  <Text style={styles.primaryButtonLabel}>Search</Text>
-                </Pressable>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(logSearchTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{logSearchStatus}</Text>
-                {logSearchError ? <Text style={styles.inlineStatusDetail}>{logSearchError}</Text> : null}
-              </View>
-
-              <View style={styles.foodList}>
-                {logFoodResults.length > 0 ? (
-                  logFoodResults.map((food) => {
-                    const active = food.id === selectedLogFood?.id;
-
-                    return (
-                      <Pressable
-                        key={food.id}
-                        style={[styles.foodRow, active && styles.foodRowActive]}
-                        onPress={() => setSelectedLogFoodId(food.id)}
-                      >
-                        <View style={styles.foodRowCopy}>
-                          <Text style={styles.listTitle}>{food.name}</Text>
-                          <Text style={styles.listCaption}>
-                            {(food.brand ?? 'Unbranded')} · {food.source}
-                          </Text>
-                        </View>
-                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
-                      </Pressable>
-                    );
-                  })
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No search results yet</Text>
-                    <Text style={styles.detailSubtitle}>
-                      Search for a food to load live USDA-backed matches and log one to today.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {selectedLogFood ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>{selectedLogFood.name}</Text>
-                  <Text style={styles.detailSubtitle}>
-                    {selectedLogFood.brand ?? selectedLogFood.source} · {selectedLogFood.serving_size}
-                    {selectedLogFood.serving_unit} base serving
-                  </Text>
-
-                  <View style={styles.searchRow}>
-                    <TextInput
-                      value={logGrams}
-                      onChangeText={setLogGrams}
-                      placeholder="100"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      style={styles.searchInput}
-                      keyboardType="numeric"
-                      autoCorrect={false}
-                    />
-                    <Pressable
-                      style={styles.primaryButton}
-                      onPress={submitFoodLogEntry}
-                      disabled={isSavingLogEntry}
-                    >
-                      <Text style={styles.primaryButtonLabel}>
-                        {isSavingLogEntry ? 'Saving...' : 'Add to today'}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  {logEntryPreview ? (
-                    <View style={styles.metricRow}>
-                      <MetricTile label="Preview calories" value={`${logEntryPreview.calories} kcal`} compact />
-                      <MetricTile
-                        label="Preview macros"
-                        value={`${logEntryPreview.macros.protein}P / ${logEntryPreview.macros.carbs}C / ${logEntryPreview.macros.fat}F`}
-                        compact
-                      />
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Exercise performed</Text>
-              <Text style={styles.panelTitle}>Log activity output</Text>
-              <Text style={styles.panelDetail}>
-                Capture completed exercise separately so tracker history reflects performed movement rather than planned sessions.
-              </Text>
-
-              <View style={styles.exercisePresetGrid}>
-                {exercisePresets.map((preset) => {
-                  const active = preset.id === activeExercisePreset.id;
-                  return (
-                    <Pressable
-                      key={preset.id}
-                      style={[styles.exercisePresetCard, active && styles.exercisePresetCardActive]}
-                      onPress={() => {
-                        setExerciseTitleDraft(preset.title);
-                        setExerciseMinutesDraft(preset.minutes);
-                        setExerciseCaloriesDraft(preset.calories);
-                      }}
-                    >
-                      <Image source={preset.image} style={styles.exercisePresetImage} resizeMode="contain" />
-                      <Text style={styles.exercisePresetLabel}>{preset.label}</Text>
-                      <Text style={styles.exercisePresetMeta}>
-                        {preset.minutes} min · {preset.calories} kcal
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={exerciseTitleDraft}
-                  onChangeText={setExerciseTitleDraft}
-                  placeholder="Walk, bike, lift..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCorrect={false}
-                />
-                <Pressable style={styles.primaryButton} onPress={() => void addExerciseEntry()}>
-                  <Text style={styles.primaryButtonLabel}>{exerciseSaving ? 'Saving...' : 'Add exercise'}</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={exerciseMinutesDraft}
-                  onChangeText={setExerciseMinutesDraft}
-                  placeholder="Minutes"
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  keyboardType="numeric"
-                  autoCorrect={false}
-                />
-                <TextInput
-                  value={exerciseCaloriesDraft}
-                  onChangeText={setExerciseCaloriesDraft}
-                  placeholder="Calories burned"
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  keyboardType="numeric"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Minutes" value={`${exerciseMinutesDraft} min`} compact />
-                <MetricTile label="Burn" value={`${exerciseCaloriesDraft} kcal`} compact />
-              </View>
-
-              <View style={styles.foodList}>
-                {exerciseEntries.length > 0 ? (
-                  exerciseEntries.map((entry) => {
-                    const key = `exercise:${entry.id}`;
-                    const editing = editingExerciseId === entry.id;
-                    const busy = entryActionBusyKey !== null;
-                    // Optimistic rows (not saved yet) have client ids; plan-made rows are edited via the plan.
-                    const savedOnServer = !entry.id.startsWith('exercise-');
-                    const fromPlan = plannedWorkoutSessions.some((session) => session.completed_exercise_entry_id === entry.id);
-                    return (
-                      <View key={entry.id} style={styles.logEntryCard}>
-                        <Pressable
-                          style={styles.foodRow}
-                          onPress={() => setWorkoutDetailId(entry.id)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${entry.title}: show how its calories are counted`}
-                        >
-                          <View style={styles.foodRowCopy}>
-                            <Text style={styles.listTitle}>{entry.title}</Text>
-                            <Text style={styles.listCaption}>
-                              {entry.duration_minutes} min · {entry.intensity} · {entry.logged_at}
-                              {workoutSourceLabel(entry.source) ? ` · ${workoutSourceLabel(entry.source)}` : ''}
-                            </Text>
-                          </View>
-                          <Text style={styles.listMetric}>{entry.calories_burned} kcal ›</Text>
-                        </Pressable>
-                        {editing ? (
-                          <View style={styles.entryEditRow}>
-                            <TextInput
-                              value={editingExerciseMinutesDraft}
-                              onChangeText={setEditingExerciseMinutesDraft}
-                              keyboardType="number-pad"
-                              style={styles.entryEditInput}
-                              accessibilityLabel="Minutes"
-                            />
-                            <Text style={styles.listCaption}>min</Text>
-                            <TextInput
-                              value={editingExerciseCaloriesDraft}
-                              onChangeText={setEditingExerciseCaloriesDraft}
-                              keyboardType="number-pad"
-                              style={styles.entryEditInput}
-                              accessibilityLabel="Calories burned"
-                            />
-                            <Text style={styles.listCaption}>kcal</Text>
-                          </View>
-                        ) : null}
-                        {entryMode === 'live' && foodSessionToken && savedOnServer ? (
-                          <View style={styles.entryActionRow}>
-                            {fromPlan ? (
-                              <Text style={styles.listCaption}>From a planned workout</Text>
-                            ) : editing ? (
-                              <>
-                                <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void saveExerciseEdit(entry)}>
-                                  <Text style={styles.inlinePillButtonLabel}>{busy ? 'Saving…' : 'Save'}</Text>
-                                </Pressable>
-                                <Pressable style={styles.inlinePillButton} onPress={() => setEditingExerciseId(null)}>
-                                  <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
-                                </Pressable>
-                              </>
-                            ) : (
-                              <Pressable
-                                style={styles.inlinePillButton}
-                                onPress={() => {
-                                  setEditingExerciseId(entry.id);
-                                  setEditingExerciseMinutesDraft(String(entry.duration_minutes));
-                                  setEditingExerciseCaloriesDraft(String(entry.calories_burned));
-                                  setConfirmDeleteKey(null);
-                                }}
-                              >
-                                <Text style={styles.inlinePillButtonLabel}>Edit</Text>
-                              </Pressable>
-                            )}
-                            <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void removeExerciseEntry(entry)}>
-                              <Text style={[styles.inlinePillButtonLabel, confirmDeleteKey === key && styles.entryDeleteConfirmLabel]}>
-                                {confirmDeleteKey === key ? 'Tap again to delete' : 'Delete'}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No exercise entries yet</Text>
-                    <Text style={styles.detailSubtitle}>
-                      Add a workout above to start tracking calories burned and movement.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Today</Text>
-              <Text style={styles.panelTitle}>{foodLogLoading ? 'Loading entries' : formatLogDate(foodLog.date)}</Text>
-              {foodLogLoading ? (
-                <View style={styles.detailCard}>
-                  <ActivityIndicator size="small" color={tc.fg_17324d} />
-                  <Text style={styles.detailSubtitle}>Fetching today’s persisted log...</Text>
-                </View>
-              ) : foodLog.entries.length === 0 ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>No entries yet</Text>
-                  <Text style={styles.detailSubtitle}>Add a searched food above to start today’s log.</Text>
-                </View>
-              ) : (
-                <View style={styles.foodList}>
-                  {foodLog.entries.map((entry) => {
-                    const key = `food:${entry.id}`;
-                    const editing = editingFoodEntryId === entry.id;
-                    const busy = entryActionBusyKey !== null;
-                    return (
-                      <View key={entry.id} style={styles.logEntryCard}>
-                        <View style={styles.foodRow}>
-                          <View style={styles.foodRowCopy}>
-                            <Text style={styles.listTitle}>{entry.food_name}</Text>
-                            <Text style={styles.listCaption}>
-                              {Math.round(entry.grams * 10) / 10} g · {entry.logged_at} · {(entry.brand ?? 'Unbranded')} · {entry.source}
-                            </Text>
-                          </View>
-                          <Text style={styles.listMetric}>{Math.round(entry.calories)} kcal</Text>
-                        </View>
-                        {editing ? (
-                          <View style={styles.entryEditRow}>
-                            <TextInput
-                              value={editingFoodGramsDraft}
-                              onChangeText={setEditingFoodGramsDraft}
-                              keyboardType="decimal-pad"
-                              style={styles.entryEditInput}
-                              accessibilityLabel="Amount in grams"
-                            />
-                            <Text style={styles.listCaption}>grams</Text>
-                          </View>
-                        ) : null}
-                        {entryMode === 'live' && foodSessionToken && foodLog.log_id ? (
-                          <View style={styles.entryActionRow}>
-                            {editing ? (
-                              <>
-                                <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void saveFoodEntryEdit(entry)}>
-                                  <Text style={styles.inlinePillButtonLabel}>{busy ? 'Saving…' : 'Save'}</Text>
-                                </Pressable>
-                                <Pressable style={styles.inlinePillButton} onPress={() => setEditingFoodEntryId(null)}>
-                                  <Text style={styles.inlinePillButtonLabel}>Cancel</Text>
-                                </Pressable>
-                              </>
-                            ) : entry.grams > 0 ? (
-                              <Pressable
-                                style={styles.inlinePillButton}
-                                onPress={() => {
-                                  setEditingFoodEntryId(entry.id);
-                                  setEditingFoodGramsDraft(String(entry.grams));
-                                  setConfirmDeleteKey(null);
-                                }}
-                              >
-                                <Text style={styles.inlinePillButtonLabel}>Edit</Text>
-                              </Pressable>
-                            ) : null}
-                            <Pressable style={styles.inlinePillButton} disabled={busy} onPress={() => void removeFoodEntry(entry)}>
-                              <Text style={[styles.inlinePillButtonLabel, confirmDeleteKey === key && styles.entryDeleteConfirmLabel]}>
-                                {confirmDeleteKey === key ? 'Tap again to delete' : 'Delete'}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
           </>
         )}
 
@@ -7324,7 +7010,7 @@ export default function App(): ReactElement {
         const entry = workoutDetailId ? exerciseEntries.find((item) => item.id === workoutDetailId) : undefined;
         return entry ? (
           <WorkoutDetailSheet
-            detail={buildWorkoutDetail(entry, profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE)}
+            detail={buildWorkoutDetail(entry, profile?.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE, profile?.units === 'metric')}
             onClose={() => setWorkoutDetailId(null)}
           />
         ) : null;
@@ -7424,6 +7110,23 @@ export default function App(): ReactElement {
           onAdded={() => {
             setOpenSheet(null);
             void refreshHomeFoodLog();
+          }}
+        />
+      ) : null}
+
+      {openSheet === 'add-workout' && foodSessionToken ? (
+        <AddWorkoutSheet
+          accessToken={foodSessionToken}
+          logDate={selectedHomeDate}
+          dayName={homeDayName}
+          metric={profile?.units === 'metric'}
+          onClose={() => setOpenSheet(null)}
+          onAdded={() => {
+            setOpenSheet(null);
+            const token = foodSessionToken;
+            void fetchExerciseEntries(token)
+              .then((entries) => setExerciseEntries(entries))
+              .catch(() => undefined);
           }}
         />
       ) : null}
@@ -8680,6 +8383,19 @@ const styles = StyleSheet.create({
     gap: 0
   },
   trendRangeRow: { flexDirection: 'row', gap: 6 },
+  todayEditRow: { gap: 6 },
+  todayEditControls: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  todayEditInput: {
+    width: 80,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: tc.line_d7dee7,
+    paddingHorizontal: 10,
+    fontSize: 16,
+    color: tc.fg_132536,
+    backgroundColor: tc.bg_ffffff
+  },
   trendProjectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   trendProjectionLabel: { color: tc.fg_5c6d80, fontSize: 13, fontWeight: '600' },
   trendProjectionText: { color: tc.fg_17324d, fontSize: 14, lineHeight: 20, marginTop: 6 },

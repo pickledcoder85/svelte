@@ -32,6 +32,10 @@ class ExerciseEntry(ExerciseEntryCreateRequest):
     relish_resting_calories: int | None = None
     weight_lbs_at_time: float | None = None
     calc_version: str | None = None
+    # 'estimated' (Relish, from MET values) or 'device' (a watch total entered by hand); None
+    # for older manual entries and imports.
+    calories_method: str | None = None
+    met: float | None = None
 
 
 class PlannedExerciseEntryCreateRequest(BaseModel):

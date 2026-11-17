@@ -65,7 +65,7 @@ export function CalorieBudgetCard({
               </View>
             );
             return line.key === 'eaten' && onOpenDiary ? (
-              <Pressable key={line.key} onPress={onOpenDiary} accessibilityRole="link" accessibilityLabel="Open the diary">
+              <Pressable key={line.key} onPress={onOpenDiary} accessibilityRole="link" accessibilityLabel="Open history in Trends">
                 {row}
               </Pressable>
             ) : (

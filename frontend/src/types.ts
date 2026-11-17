@@ -229,6 +229,24 @@ export interface ExerciseEntry {
   source_bmr_calories?: number | null;
   /** Relish's resting calories for the workout's minutes (removed from the source total). */
   relish_resting_calories?: number | null;
+  /** Added by hand: 'estimated' by Relish (MET values) or 'device' (a watch total entered). */
+  calories_method?: 'estimated' | 'device' | string | null;
+  /** How Relish counted it, e.g. "met1:pace" or "w1:relish_bmr". */
+  calc_version?: string | null;
+  met?: number | null;
+  weight_lbs_at_time?: number | null;
+}
+
+export type WorkoutActivity = 'walk' | 'run' | 'bike' | 'swim' | 'strength' | 'other';
+export type WorkoutEffort = 'easy' | 'moderate' | 'hard';
+
+export interface WorkoutEstimate {
+  met: number;
+  active_calories: number;
+  basis: 'pace' | 'effort';
+  weight_lbs: number;
+  /** False when no weight is known yet and a typical weight was used. */
+  weight_known: boolean;
 }
 
 export interface GarminStatus {

@@ -19,6 +19,13 @@ The format should remain simple:
 
 ### Added
 
+- Add a workout (Today → Workouts ＋) opens a sheet instead of the old Tracker screen: activity (Walk, Run, Bike, Swim, Strength, Other with a name), duration on a wheel, effort (Easy, Moderate, Hard), and an optional distance for walks, runs, and rides that sets the pace. Relish shows its estimate live: (MET − 1) × weight × hours, with MET values from the Compendium of Physical Activities by effort or pace and the weight on that day, so resting calories aren't counted twice. "My watch says…" takes the watch's total and removes Relish's resting calories for those minutes, as for Garmin imports. Each workout records how its calories were counted (migration 010: `exercise_entries.calories_method`, `met`), and its detail sheet explains it. New routes: `POST /api/tracker/workouts/estimate`, `POST /api/tracker/workouts`.
+
+### Removed
+
+- The old all-in-one Tracker screen (food search, exercise presets and forms, every logged item). Today, the camera, and Trends → History cover it; the kcal-left card's Eaten line now opens Trends.
+- Changing a logged food's amount moved to Today: tap a food row to edit its grams (on any day shown). Today's food rows now show the amount too. Editing a saved workout is not available yet (delete and re-add).
+
 - Trends redesign. Weight: a 1M · 2M · 3M projection carries the smoothed trend forward (after about a week of weigh-ins) next to the planned pace ((calorie target − daily burn) × 7 ÷ 3,500 lb a week), with where you'll be, when you'd reach the goal, and on pace / ahead / behind. Calories: one see-through bar per logged day, as tall as that day's allowance (target plus workout calories), filled with what was eaten, amber above the allowance; days with nothing logged have no bar; no gridlines or average line. Macros: the daily averages are replaced by one chart per macro with the target as the middle line and each day's bar above (over) or below (under), ±10% on target, the miss to watch in amber (short on protein, over on carbs or fat), and on / over / under day counts. History starts with every day closed.
 
 - Counted foods: Gus's meals and plans show foods you count as whole items ("2 large eggs (100 g)", "1 medium sweet potato (150 g)", "2 slices of whole wheat bread") instead of odd weights. One item's weight comes from USDA's household measures when the matched food has them, else from Gus's estimate. Counted foods stay whole (halves for big ones like a sweet potato) and the weighed foods make up the meal's calories. Logged suggestions keep the count on Today until the amount is edited (migration 009 `food_log_entries.quantity_label`), and the shopping list adds counts across days ("Eggs: 12 large eggs"). Plate photos stay in grams for now.

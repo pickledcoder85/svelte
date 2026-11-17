@@ -24,7 +24,11 @@ export interface WorkoutDetail {
 
 const kcal = (value: number) => `${Math.round(value).toLocaleString('en-US')} kcal`;
 
-function formatDistance(meters: number): string {
+function formatDistance(meters: number, metric = false): string {
+  if (metric) {
+    const km = meters / 1000;
+    return `${km.toFixed(km < 10 ? 2 : 1)} km`;
+  }
   const miles = meters / 1609.344;
   return `${miles.toFixed(miles < 10 ? 2 : 1)} mi`;
 }
@@ -33,11 +37,11 @@ function addedToday(calories: number, sharePercent: number): number {
   return Math.round((Math.max(0, calories) * Math.min(100, Math.max(0, sharePercent))) / 100);
 }
 
-export function buildWorkoutDetail(entry: ExerciseEntry, sharePercent: number): WorkoutDetail {
+export function buildWorkoutDetail(entry: ExerciseEntry, sharePercent: number, metric = false): WorkoutDetail {
   const sourceLabel = workoutSourceLabel(entry.source);
   const facts = [`${entry.duration_minutes} min`];
   if (entry.distance_m) {
-    facts.push(formatDistance(entry.distance_m));
+    facts.push(formatDistance(entry.distance_m, metric));
   }
   facts.push(entry.logged_at);
 
@@ -47,6 +51,41 @@ export function buildWorkoutDetail(entry: ExerciseEntry, sharePercent: number): 
     value: `+${kcal(added)}`,
     strong: true
   };
+
+  if (entry.calories_method === 'estimated') {
+    const effort = { Low: 'Easy', Moderate: 'Moderate', High: 'Hard' }[entry.intensity] ?? entry.intensity;
+    const weight = entry.weight_lbs_at_time
+      ? ` at ${metric ? `${Math.round(entry.weight_lbs_at_time * 0.45359237)} kg` : `${Math.round(entry.weight_lbs_at_time)} lb`}`
+      : '';
+    const fromPace = String(entry.calc_version ?? '').endsWith(':pace');
+    return {
+      title: entry.title,
+      subtitle: facts.join(' · '),
+      sourceLabel: null,
+      recorded: null,
+      relish: [{ label: 'Estimated by Relish', value: kcal(entry.calories_burned) }, addedRow],
+      notes: [
+        `${fromPace ? 'From your pace' : effort}${entry.met ? `, MET ${entry.met}` : ''}${weight}.`,
+        'Active calories = (MET − 1) × weight × hours: the 1 MET you burn at rest is left out because your target already counts it.'
+      ]
+    };
+  }
+
+  if (entry.calories_method === 'device' && entry.source_calories_total != null) {
+    const relish: DetailRow[] = [{ label: 'Your watch said', value: kcal(entry.source_calories_total) }];
+    if (entry.relish_resting_calories != null) {
+      relish.push({ label: 'Resting (your BMR)', value: `−${kcal(entry.relish_resting_calories)}` });
+    }
+    relish.push({ label: 'Active, counted', value: kcal(entry.calories_burned), strong: true }, addedRow);
+    return {
+      title: entry.title,
+      subtitle: facts.join(' · '),
+      sourceLabel: null,
+      recorded: null,
+      relish,
+      notes: ['Your watch’s total includes the calories you’d burn anyway at rest; Relish takes off its own resting estimate (the same BMR as your target) so they aren’t counted twice.']
+    };
+  }
 
   if (!sourceLabel || entry.source_calories_total == null) {
     return {

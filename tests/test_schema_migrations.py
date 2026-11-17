@@ -152,7 +152,7 @@ def test_existing_baseline_database_gets_the_barcode_column(tmp_path, monkeypatc
     apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", real_dir)
 
-    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes", "003_calorie_floor", "004_workout_calories_share", "005_food_bank", "006_workout_provenance", "007_food_log_meal_slot", "008_meal_split", "009_food_log_quantity_label"]
+    assert apply_migrations(f"sqlite:///{tmp_path / 'upgrade.db'}") == ["002_food_barcodes", "003_calorie_floor", "004_workout_calories_share", "005_food_bank", "006_workout_provenance", "007_food_log_meal_slot", "008_meal_split", "009_food_log_quantity_label", "010_workout_calories_method"]
     connection = sqlite3.connect(tmp_path / "upgrade.db")
     columns = {row[1] for row in connection.execute("PRAGMA table_info(food_catalog)")}
     floor = connection.execute("SELECT dflt_value FROM pragma_table_info('user_profiles') WHERE name = 'calorie_floor'").fetchone()
