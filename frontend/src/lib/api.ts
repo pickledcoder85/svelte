@@ -34,6 +34,9 @@ import type {
   WeightEntry,
   UserProfile,
   UserProfileUpdate,
+  ShoppingList,
+  ShoppingListSummary,
+  ShoppingRole,
   WaterEntry,
   WeeklyMetrics,
   WorkoutActivity,
@@ -965,6 +968,52 @@ export async function sendTestNotification(accessToken: string): Promise<{ sent:
   return readJson<{ sent: number }>(
     await apiFetch(buildApiUrl('/notifications/test'), { method: 'POST', headers: authHeaders(accessToken) })
   );
+}
+
+async function shoppingCall<T>(path: string, accessToken: string, init: RequestInit = {}): Promise<T> {
+  return readJson<T>(
+    await apiFetch(buildApiUrl(`/shopping-lists${path}`), {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken), ...(init.headers ?? {}) }
+    })
+  );
+}
+
+export function fetchShoppingLists(accessToken: string): Promise<ShoppingListSummary[]> {
+  return shoppingCall('', accessToken);
+}
+
+export function fetchShoppingList(listId: string, accessToken: string): Promise<ShoppingList> {
+  return shoppingCall(`/${encodeURIComponent(listId)}`, accessToken);
+}
+
+export function createShoppingList(
+  title: string,
+  items: Array<{ name: string; amount: string; role: ShoppingRole }>,
+  accessToken: string
+): Promise<ShoppingList> {
+  return shoppingCall('', accessToken, { method: 'POST', body: JSON.stringify({ title, items }) });
+}
+
+export function setShoppingItemChecked(listId: string, itemId: string, checked: boolean, accessToken: string): Promise<ShoppingList> {
+  return shoppingCall(`/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ checked })
+  });
+}
+
+export function addShoppingItem(listId: string, name: string, accessToken: string): Promise<ShoppingList> {
+  return shoppingCall(`/${encodeURIComponent(listId)}/items`, accessToken, { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+export async function deleteShoppingList(listId: string, accessToken: string): Promise<void> {
+  const response = await apiFetch(buildApiUrl(`/shopping-lists/${encodeURIComponent(listId)}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken)
+  });
+  if (!response.ok && response.status !== 404) {
+    await readJson<unknown>(response);
+  }
 }
 
 /** Drinks logged between two dates (inclusive), oldest first. */

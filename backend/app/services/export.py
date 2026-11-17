@@ -32,6 +32,7 @@ def build_user_export(repository: SQLiteRepository, user_id: str) -> dict[str, A
         "food_logs": food_logs,
         "exercise_entries": repository.list_exercise_entries(user_id),
         "water_entries": repository.list_water_entries(user_id, date(2000, 1, 1), date(2100, 1, 1)),
+        "shopping_lists": [repository.get_shopping_list(user_id, row["id"]) for row in repository.list_shopping_lists(user_id)],
         "planned_workout_sessions": repository.list_planned_workout_sessions(user_id),
         "meal_plan_days": repository.list_meal_plan_days(user_id),
         "meal_prep_tasks": repository.list_meal_prep_tasks(user_id),

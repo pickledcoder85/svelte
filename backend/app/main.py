@@ -25,6 +25,7 @@ from backend.app.routes.tracker import router as tracker_router
 from backend.app.routes.vision import router as vision_router
 from backend.app.routes.water import router as water_router
 from backend.app.routes.notifications import router as notifications_router
+from backend.app.routes.shopping import router as shopping_router
 from backend.app.repositories.sqlite import SQLiteRepository
 from backend.app.services.garmin_sync import garmin_configured, run_background_sync
 from backend.app.services.reminders import reminders_configured, run_reminder_loop
@@ -100,6 +101,7 @@ def create_app(
         coach_router,
         water_router,
         notifications_router,
+        shopping_router,
     ):
         app.include_router(router, prefix="/api", dependencies=owner_only)
 

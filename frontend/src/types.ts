@@ -650,3 +650,31 @@ export interface WaterEntry {
   amount_ml: number;
   created_at: string;
 }
+
+export type ShoppingRole = 'protein' | 'carb' | 'veg' | 'fruit' | 'fat' | 'other';
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  /** Display text: "12 large eggs (600 g)", "450 g", or empty for an added item. */
+  amount: string;
+  role: ShoppingRole | string;
+  checked: boolean;
+  position: number;
+}
+
+export interface ShoppingList {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  items: ShoppingItem[];
+}
+
+export interface ShoppingListSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  total: number;
+  remaining: number;
+}

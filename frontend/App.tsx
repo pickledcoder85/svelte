@@ -131,6 +131,8 @@ import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
 import { WaterRow } from './src/components/WaterRow';
 import { RemindersSettings } from './src/components/RemindersSettings';
+import { ShoppingListsSheet } from './src/components/ShoppingListsSheet';
+import { flushTicks as flushShoppingTicks, pendingCount as pendingShoppingTicks } from './src/lib/shopping-queue';
 import { WaterBars } from './src/components/trends/WaterBars';
 import { DEFAULT_WATER_GOAL_ML, GLASS_ML, volumeLabel, WATER_GOAL_GLASSES, waterDays, waterForDay } from './src/lib/water';
 import { groupByMeal } from './src/lib/meal-slots';
@@ -552,7 +554,9 @@ export default function App(): ReactElement {
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
-  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'add-workout' | 'food-search' | 'quick-calories' | null>(null);
+  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'add-workout' | 'food-search' | 'quick-calories' | 'shopping-lists' | null>(null);
+  // The shopping list to open straight away (after Create a Meal Plan), or null for all lists.
+  const [shoppingListId, setShoppingListId] = useState<string | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [scanAutoStart, setScanAutoStart] = useState(false);
@@ -1124,6 +1128,25 @@ export default function App(): ReactElement {
   const appBusyRef = useRef(appBusy);
   appBusyRef.current = appBusy;
   const [updatePending, setUpdatePending] = useState(false);
+  // Shopping-list ticks made without signal: retried in the background until saved.
+  useEffect(() => {
+    if (!foodSessionToken) {
+      return;
+    }
+    const token = foodSessionToken;
+    const retry = () => {
+      if (pendingShoppingTicks() > 0) {
+        void flushShoppingTicks(token);
+      }
+    };
+    retry();
+    const timer = setInterval(retry, 20_000);
+    window.addEventListener('online', retry);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', retry);
+    };
+  }, [foodSessionToken]);
   // A tapped reminder: the service worker brings the app forward and asks for Today (never a
   // reload, so nothing in progress is lost; when something is open, the app just stays put).
   useEffect(() => {
@@ -7270,6 +7293,11 @@ export default function App(): ReactElement {
           accessToken={foodSessionToken}
           existingPlans={mealPlanDays}
           onClose={() => setCreatePlanOpen(false)}
+          onShoppingList={(listId) => {
+            setCreatePlanOpen(false);
+            setShoppingListId(listId);
+            setOpenSheet('shopping-lists');
+          }}
           onCreated={() => {
             const token = foodSessionToken;
             void fetchMealPlanDays(token)
@@ -7355,6 +7383,10 @@ export default function App(): ReactElement {
         />
       ) : null}
 
+      {openSheet === 'shopping-lists' && foodSessionToken ? (
+        <ShoppingListsSheet accessToken={foodSessionToken} initialListId={shoppingListId} onClose={() => setOpenSheet(null)} />
+      ) : null}
+
       {openSheet === 'quick-calories' && foodSessionToken ? (
         <QuickCaloriesSheet
           accessToken={foodSessionToken}
@@ -7411,6 +7443,16 @@ export default function App(): ReactElement {
           actions={[
             { id: 'profile', label: 'Profile', detail: 'Body, goal, and targets', icon: '🥒', onPress: () => handleSectionChange('profile') },
             { id: 'food-bank', label: 'Food bank', detail: 'Your foods, recipes, and recent scans', icon: '🥫', onPress: () => handleSectionChange('foods') },
+            {
+              id: 'shopping-lists',
+              label: 'Shopping lists',
+              detail: 'Tick off what you buy',
+              icon: '🛒',
+              onPress: () => {
+                setShoppingListId(null);
+                setOpenSheet('shopping-lists');
+              }
+            },
             { id: 'settings', label: 'Settings', detail: 'Appearance, units, nutrition, account', icon: '⚙️', onPress: () => handleSectionChange('settings') },
             // Development sessions only: the owner never sees these.
             ...(isOwnerSession
