@@ -13,6 +13,7 @@ function summary(extra: Partial<DailyTargetSummary>): DailyTargetSummary {
     allowanceCalories: 1500,
     remainingCalories: 410,
     macroTargets: { protein: 0, carbs: 0, fat: 0 },
+    macroAllowance: { protein: 0, carbs: 0, fat: 0 },
     macroPercentages: { protein: 0, carbs: 0, fat: 0 },
     fiberTarget: 0,
     ...extra

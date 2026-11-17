@@ -63,3 +63,34 @@ def generate_macro_targets(
 
 def generate_fiber_target(calorie_target: int) -> float:
     return float(round((calorie_target / 1000) * 14))
+
+
+def fat_share_for(goal_type: str | None, goal_pace: str | None = None) -> float:
+    """The share of calories that fat gets for a goal (the same table setup uses)."""
+    if goal_type == "maintain" and goal_pace in MAINTENANCE_FOCUS_MACROS:
+        return MAINTENANCE_FOCUS_MACROS[goal_pace]["fat_share"]
+    return FAT_CALORIE_SHARE.get(goal_type or "", FAT_CALORIE_SHARE["lose"])
+
+
+def macros_for_allowance(
+    *,
+    base_calories: float,
+    protein: float,
+    carbs: float,
+    fat: float,
+    allowance: float,
+    fat_share: float,
+) -> tuple[float, float, float]:
+    """A workout day's macro targets: the same split as setup, at the day's allowance.
+
+    Protein comes from body weight, so it stays. Fat gets its share of the bigger number (never
+    less than the day's base fat, which already covers the per-kg floor), but grows by no more
+    than its share of the extra calories (so a custom goal with less fat doesn't jump on a short
+    walk, and the macros never add up to more than the allowance). Carbs get the rest. Days
+    without workout calories keep the base targets."""
+    extra = allowance - base_calories
+    if extra <= 0 or base_calories <= 0:
+        return protein, carbs, fat
+    grown_fat = max(fat, min(allowance * fat_share / 9, fat + extra * fat_share / 9))
+    grown_carbs = carbs + max(0.0, extra - (grown_fat - fat) * 9) / 4
+    return protein, float(round(grown_carbs)), float(round(grown_fat))

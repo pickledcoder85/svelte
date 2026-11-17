@@ -7,6 +7,7 @@
  */
 import { addDaysToDateKey } from './dates';
 import { dailyAllowance } from './daily-home';
+import { macroAllowance } from './macro-allowance';
 import type { ExerciseEntry, FoodLogSummary, MacroTargets, WeightEntry } from '../types';
 
 export type TrendRange = '1W' | '1M' | '3M';
@@ -29,6 +30,8 @@ export interface DayPoint {
   /** The day's base calorie target; the allowance is this plus the workout calories added. */
   baseTarget: number;
   allowance: number;
+  /** The day's macro targets at its allowance (they grow on workout days). */
+  macroAllowance: MacroTargets;
 }
 
 /** One point per day from start to today, oldest first. */
@@ -38,7 +41,9 @@ export function buildDaySeries({
   logs,
   exercise,
   calorieTarget,
-  sharePercent
+  sharePercent,
+  macroTargets = { protein: 0, carbs: 0, fat: 0 },
+  fatShare = 0.25
 }: {
   start: string;
   today: string;
@@ -46,12 +51,16 @@ export function buildDaySeries({
   exercise: ExerciseEntry[];
   calorieTarget: number;
   sharePercent: number;
+  /** The base macro targets and fat's share of calories (for workout days' macros). */
+  macroTargets?: MacroTargets;
+  fatShare?: number;
 }): DayPoint[] {
   const byDate = new Map(logs.map((log) => [log.date, log]));
   const days: DayPoint[] = [];
   for (let date = start; date <= today; date = addDaysToDateKey(date, 1)) {
     const log = byDate.get(date);
     const workoutCalories = exercise.filter((entry) => entry.logged_on === date).reduce((sum, entry) => sum + entry.calories_burned, 0);
+    const allowance = dailyAllowance(calorieTarget, workoutCalories, sharePercent).allowance;
     days.push({
       date,
       eaten: Math.round(log?.totals.calories ?? 0),
@@ -63,7 +72,8 @@ export function buildDaySeries({
       logged: Boolean(log && log.entries.length > 0),
       workoutCalories,
       baseTarget: Math.max(0, Math.round(calorieTarget)),
-      allowance: dailyAllowance(calorieTarget, workoutCalories, sharePercent).allowance
+      allowance,
+      macroAllowance: macroAllowance(macroTargets, calorieTarget, allowance, fatShare)
     });
   }
   return days;
@@ -177,18 +187,22 @@ export interface MacroDay {
   /** How far from the target, in percent of it (+40 = 40% over); null when nothing was logged. */
   percent: number | null;
   status: MacroStatus;
+  /** Grams eaten and the day's target (its allowance). */
+  eaten: number;
+  target: number;
 }
 
-/** Each day's distance from a macro target, for bars above (over) and below (under) the target. */
-export function macroDays(days: DayPoint[], macro: MacroKey, target: number): MacroDay[] {
+/** Each day's distance from its macro target (the day's allowance), in percent of it. */
+export function macroDays(days: DayPoint[], macro: MacroKey): MacroDay[] {
   return days.map((day) => {
+    const target = day.macroAllowance[macro];
     if (!day.logged || target <= 0) {
-      return { date: day.date, percent: null, status: 'none' };
+      return { date: day.date, percent: null, status: 'none', eaten: day.macros[macro], target };
     }
     const percent = Math.round(((day.macros[macro] - target) / target) * 100);
     const status: MacroStatus =
       Math.abs(percent) <= MACRO_ON_TARGET_PERCENT ? 'on' : percent > 0 ? 'over' : 'under';
-    return { date: day.date, percent, status };
+    return { date: day.date, percent, status, eaten: day.macros[macro], target };
   });
 }
 

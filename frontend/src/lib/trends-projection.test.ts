@@ -12,19 +12,20 @@ import {
   projectLine
 } from './trends';
 
-const day = (date: string, protein: number, logged = true): DayPoint => ({
+const day = (date: string, protein: number, logged = true, proteinTarget = 100): DayPoint => ({
   date,
   eaten: 1500,
   macros: { protein, carbs: 0, fat: 0 },
   logged,
   workoutCalories: 0,
   baseTarget: 1500,
-  allowance: 1500
+  allowance: 1500,
+  macroAllowance: { protein: proteinTarget, carbs: 0, fat: 0 }
 });
 
 describe('macros over time', () => {
   it('says how far each day is from the target', () => {
-    const days = macroDays([day('a', 150), day('b', 105), day('c', 60), day('d', 0, false)], 'protein', 100);
+    const days = macroDays([day('a', 150), day('b', 105), day('c', 60), day('d', 0, false)], 'protein');
     expect(days.map((d) => [d.percent, d.status])).toEqual([[50, 'over'], [5, 'on'], [-40, 'under'], [null, 'none']]);
     expect(macroCounts(days)).toEqual({ on: 1, over: 1, under: 1 });
   });
@@ -37,7 +38,13 @@ describe('macros over time', () => {
   });
 
   it('has no bars without a target', () => {
-    expect(macroDays([day('a', 50)], 'protein', 0)[0].status).toBe('none');
+    expect(macroDays([day('a', 50, true, 0)], 'protein')[0].status).toBe('none');
+  });
+
+  it('measures each day against its own target (bigger on workout days)', () => {
+    const [rest, workout] = macroDays([day('a', 120, true, 120), day('b', 120, true, 160)], 'protein');
+    expect(rest).toMatchObject({ status: 'on', eaten: 120, target: 120 });
+    expect(workout).toMatchObject({ status: 'under', percent: -25, target: 160 });
   });
 });
 

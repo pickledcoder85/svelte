@@ -95,6 +95,7 @@ describe('daily home helpers', () => {
       allowanceCalories: 2520,
       remainingCalories: 835,
       macroTargets: { protein: 160, carbs: 200, fat: 65 },
+      macroAllowance: { protein: 160, carbs: 269, fat: 70 },
       macroPercentages: { protein: 32, carbs: 40, fat: 29 },
       fiberTarget: 32
     });

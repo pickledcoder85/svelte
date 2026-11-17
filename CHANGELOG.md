@@ -19,6 +19,9 @@ The format should remain simple:
 
 ### Added
 
+- Workout days' macros grow with the allowance, by setup's own rules: protein stays (it comes from body weight), fat gets its share of the bigger number, carbs the rest (e.g. +300 kcal on 1,500: fat 42 → 50 g, carbs 102 → 159 g). Used by the Today rings, Trends, and Gus's meal budgets.
+- Trends → Macros: one see-through bar per logged day, as tall as that day's target, filled with the grams eaten in each macro's colour (protein teal, carbs orange, fat blue) and a darker shade above the target; tap a day for "Nov 14 · 85 of 120 g · 71%". Replaces the over/under bars.
+
 - Add a workout (Today → Workouts ＋) opens a sheet instead of the old Tracker screen: activity (Walk, Run, Bike, Swim, Strength, Other with a name), duration on a wheel, effort (Easy, Moderate, Hard), and an optional distance for walks, runs, and rides that sets the pace. Relish shows its estimate live: (MET − 1) × weight × hours, with MET values from the Compendium of Physical Activities by effort or pace and the weight on that day, so resting calories aren't counted twice. "My watch says…" takes the watch's total and removes Relish's resting calories for those minutes, as for Garmin imports. Each workout records how its calories were counted (migration 010: `exercise_entries.calories_method`, `met`), and its detail sheet explains it. New routes: `POST /api/tracker/workouts/estimate`, `POST /api/tracker/workouts`.
 
 ### Removed
