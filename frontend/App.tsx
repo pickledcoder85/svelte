@@ -5,7 +5,6 @@ import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-font
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   AppState,
   Image,
   KeyboardAvoidingView,
@@ -129,8 +128,6 @@ import { ActionSheet } from './src/components/ActionSheet';
 import { SubTabs } from './src/components/SubTabs';
 import { TabBar } from './src/components/TabBar';
 import {
-  formatMealPlanCardDate,
-  formatMealPlanCardWeekday,
   resolveSelectedMealPlanDate,
   selectMealPlanDay,
   sortMealPlanDaysByDate
@@ -140,16 +137,11 @@ import {
   calculateFoodGrams,
   clampFoodQuantity,
   filterFoodsFuzzy,
-  foodMacroLine,
-  formatFoodQuantity,
-  formatFoodReference,
   mergeFoodsById,
   selectFoodById,
-  sortFoodsForPicker,
-  formatFoodAmount
+  sortFoodsForPicker
 } from './src/lib/foods';
 import { mealTotals, round1, scaleMealIngredients } from './src/lib/nutrition';
-import { IngestionReviewPanel } from './src/components/IngestionReviewPanel';
 import { ChoiceSheet } from './src/components/ChoiceSheet';
 import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
 import { formatAllergySelection, missingOtherAllergy, parseAllergySelection, type AllergyChoice } from './src/lib/allergies';
@@ -171,8 +163,6 @@ import {
   buildOptimisticPlannedWorkoutSession,
   mapPlannedWorkoutSessionToEntry,
   sortPlannedWorkoutSessions,
-  defaultWarmupTitle,
-  defaultCooldownTitle,
   buildPlannedWorkoutEditDraft
 } from './src/lib/planned-workouts';
 import { fallbackForMode, liveLoadErrorMessage, type EntryMode } from './src/lib/live-fallback';
@@ -251,16 +241,13 @@ import {
 } from './src/mock-data';
 import { LaunchSplash } from './src/components/LaunchSplash';
 import { MetricTile } from './src/components/MetricTile';
-import { ScaleStopSelector } from './src/components/ScaleStopSelector';
 import {
   createEmptyFoodLog,
   createEmptyMealDraft,
   deriveExerciseIntensity,
   firstName,
-  formatCompletionTimeLabel,
   formatGoalPaceLabel,
   formatGoalTypeLabel,
-  formatHomeDateLabel,
   mealStyleSplit,
   sortPlannedExerciseEntries,
   splitHeightCm,
@@ -271,7 +258,6 @@ import {
   allergyOptions,
   dietaryPatternOptions,
   estimatePlannedExerciseCalories,
-  exercisePresets,
   IS_DEVELOPMENT_BUILD,
   mascotAvatarImage,
   mascotBikeImage,
@@ -280,7 +266,6 @@ import {
   mascotWeightsImage,
   nutritionStyleOptions,
   onboardingSteps,
-  scaleStops,
   selectExercisePreset,
   type DietaryPattern,
   type NutritionStyle,
@@ -288,6 +273,13 @@ import {
   type ScaleStop
 } from './src/screens/shared/constants';
 import { styles } from './src/screens/shared/styles';
+import { FoodsScreen } from './src/screens/FoodsScreen';
+import { IngestionScreen } from './src/screens/IngestionScreen';
+import { MealPlanScreen } from './src/screens/MealPlanScreen';
+import { MealPrepScreen } from './src/screens/MealPrepScreen';
+import { MealsScreen } from './src/screens/MealsScreen';
+import { RecipesScreen } from './src/screens/RecipesScreen';
+import { WorkoutPlanScreen } from './src/screens/WorkoutPlanScreen';
 
 // Colour variables and the light/dark choice, before the first render.
 if (Platform.OS === 'web') {
@@ -5181,550 +5173,78 @@ export default function App(): ReactElement {
         )}
 
         {section === 'workout-plan' && (
-          <>
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Planned exercise</Text>
-              <Text style={styles.panelTitle}>Plan a workout for the selected Home date</Text>
-              <Text style={styles.panelDetail}>
-                Save a future or same-day training session so Home can show planned movement separately from completed tracker logs.
-              </Text>
-
-              <View style={styles.inlinePillRow}>
-                <Text style={styles.inlinePillText}>Planning for {formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
-              </View>
-
-              {plannedExerciseEditingId ? (
-                <View style={styles.searchRow}>
-                  <View style={styles.inlinePillRow}>
-                    <Text style={styles.inlinePillText}>Editing planned session</Text>
-                  </View>
-                  <Pressable style={styles.inlinePillButton} onPress={resetPlannedExerciseDrafts}>
-                    <Text style={styles.inlinePillButtonLabel}>Cancel edit</Text>
-                  </Pressable>
-                </View>
-              ) : null}
-
-              <View style={styles.exercisePresetGrid}>
-                {exercisePresets.map((preset) => {
-                  const active = preset.id === activePlannedExercisePreset.id;
-                  return (
-                    <Pressable
-                      key={`planned-${preset.id}`}
-                      style={[styles.exercisePresetCard, active && styles.exercisePresetCardActive]}
-                      onPress={() => {
-                        setPlannedExerciseTitleDraft(preset.title);
-                        setPlannedExerciseMinutesDraft(preset.minutes);
-                      }}
-                    >
-                      <Image source={preset.image} style={styles.exercisePresetImage} resizeMode="contain" />
-                      <Text style={styles.exercisePresetLabel}>{preset.label}</Text>
-                      <Text style={styles.exercisePresetMeta}>
-                        {preset.minutes} min · est. {preset.calories} kcal
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={plannedExerciseTitleDraft}
-                  onChangeText={setPlannedExerciseTitleDraft}
-                  placeholder="Swim, walk, lift..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCorrect={false}
-                />
-                <Pressable style={styles.primaryButton} onPress={() => void addPlannedExerciseEntry()}>
-                  <Text style={styles.primaryButtonLabel}>
-                    {plannedExerciseSaving ? 'Saving...' : plannedExerciseEditingId ? 'Update plan' : 'Plan exercise'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={plannedExerciseMinutesDraft}
-                  onChangeText={setPlannedExerciseMinutesDraft}
-                  placeholder="Main set minutes"
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  keyboardType="numeric"
-                  autoCorrect={false}
-                />
-                <View style={styles.metricTileCompact}>
-                  <Text style={styles.metricLabel}>Estimated burn</Text>
-                  <Text style={styles.metricValue}>{estimatedPlannedExerciseCalories} kcal</Text>
-                </View>
-              </View>
-
-              <View style={styles.listActionRow}>
-                <Pressable
-                  style={[styles.inlinePillButton, plannedExerciseWarmupEnabled ? styles.inlinePillButtonComplete : null]}
-                  onPress={() => setPlannedExerciseWarmupEnabled((current) => !current)}
-                >
-                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseWarmupEnabled ? styles.inlinePillButtonLabelComplete : null]}>
-                    {plannedExerciseWarmupEnabled ? 'Remove warmup' : 'Add warmup'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.inlinePillButton, plannedExerciseCooldownEnabled ? styles.inlinePillButtonComplete : null]}
-                  onPress={() => setPlannedExerciseCooldownEnabled((current) => !current)}
-                >
-                  <Text style={[styles.inlinePillButtonLabel, plannedExerciseCooldownEnabled ? styles.inlinePillButtonLabelComplete : null]}>
-                    {plannedExerciseCooldownEnabled ? 'Remove cooldown' : 'Add cooldown'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {plannedExerciseWarmupEnabled ? (
-                <View style={styles.searchRow}>
-                  <TextInput
-                    value={plannedExerciseWarmupMinutesDraft}
-                    onChangeText={setPlannedExerciseWarmupMinutesDraft}
-                    placeholder="Warmup minutes"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    style={styles.searchInput}
-                    keyboardType="numeric"
-                    autoCorrect={false}
-                  />
-                  <View style={styles.inlinePillRow}>
-                    <Text style={styles.inlinePillText}>{defaultWarmupTitle(activePlannedExercisePreset.id)}</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              {plannedExerciseCooldownEnabled ? (
-                <View style={styles.searchRow}>
-                  <TextInput
-                    value={plannedExerciseCooldownMinutesDraft}
-                    onChangeText={setPlannedExerciseCooldownMinutesDraft}
-                    placeholder="Cooldown minutes"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    style={styles.searchInput}
-                    keyboardType="numeric"
-                    autoCorrect={false}
-                  />
-                  <View style={styles.inlinePillRow}>
-                    <Text style={styles.inlinePillText}>{defaultCooldownTitle(activePlannedExercisePreset.id)}</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Minutes" value={`${plannedExerciseMinutesDraft} min`} compact />
-                <MetricTile label="Estimated burn" value={`${estimatedPlannedExerciseCalories} kcal`} compact />
-              </View>
-
-              <View style={styles.foodList}>
-                {plannedExerciseEntries.length > 0 ? (
-                  plannedExerciseEntries.map((entry) => (
-                    <View key={entry.id} style={styles.foodRow}>
-                      <View style={styles.foodRowCopy}>
-                        <Text style={styles.listTitle}>{entry.title}</Text>
-                        <Text style={styles.listCaption}>
-                          {formatHomeDateLabel(entry.planned_on, todayKey)} · {entry.duration_minutes} min · {entry.intensity} · {entry.completed_at ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}` : entry.planned_at}
-                        </Text>
-                        {plannedWorkoutSessions.find((session) => session.id === entry.id)?.blocks.length ? (
-                          <Text style={styles.listCaption}>
-                            {plannedWorkoutSessions
-                              .find((session) => session.id === entry.id)
-                              ?.blocks.map((block) => `${block.title}: ${block.segments.map((segment) => segment.title).join(', ')}`)
-                              .join(' · ')}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.listRowActions}>
-                        <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
-                        <View style={styles.listActionRow}>
-                          <Pressable
-                            style={styles.inlinePillButton}
-                            onPress={() => beginPlannedExerciseEdit(entry)}
-                            disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
-                          >
-                            <Text style={styles.inlinePillButtonLabel}>Edit</Text>
-                          </Pressable>
-                          <Pressable
-                            style={styles.inlinePillButton}
-                            onPress={() => void removePlannedExerciseEntry(entry)}
-                            disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
-                          >
-                            <Text style={styles.inlinePillButtonLabel}>
-                              {plannedExerciseDeletingId === entry.id ? 'Deleting...' : 'Delete'}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.inlinePillButton, entry.completed_at ? styles.inlinePillButtonComplete : null]}
-                            onPress={() => void togglePlannedExerciseCompletion(entry)}
-                            disabled={plannedExerciseUpdatingId === entry.id || plannedExerciseDeletingId === entry.id}
-                          >
-                            <Text style={[styles.inlinePillButtonLabel, entry.completed_at ? styles.inlinePillButtonLabelComplete : null]}>
-                              {plannedExerciseUpdatingId === entry.id
-                                ? 'Saving...'
-                                : entry.completed_at
-                                  ? 'Undo'
-                                  : 'Complete'}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No planned sessions yet</Text>
-                    <Text style={styles.detailSubtitle}>
-                      Add a workout above to populate Home with future planned exercise.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-          </>
+          <WorkoutPlanScreen
+            selectedHomeDate={selectedHomeDate}
+            todayKey={todayKey}
+            plannedExerciseEditingId={plannedExerciseEditingId}
+            activePlannedExercisePreset={activePlannedExercisePreset}
+            plannedExerciseTitleDraft={plannedExerciseTitleDraft}
+            setPlannedExerciseTitleDraft={setPlannedExerciseTitleDraft}
+            plannedExerciseMinutesDraft={plannedExerciseMinutesDraft}
+            setPlannedExerciseMinutesDraft={setPlannedExerciseMinutesDraft}
+            plannedExerciseSaving={plannedExerciseSaving}
+            estimatedPlannedExerciseCalories={estimatedPlannedExerciseCalories}
+            plannedExerciseWarmupEnabled={plannedExerciseWarmupEnabled}
+            setPlannedExerciseWarmupEnabled={setPlannedExerciseWarmupEnabled}
+            plannedExerciseCooldownEnabled={plannedExerciseCooldownEnabled}
+            setPlannedExerciseCooldownEnabled={setPlannedExerciseCooldownEnabled}
+            plannedExerciseWarmupMinutesDraft={plannedExerciseWarmupMinutesDraft}
+            setPlannedExerciseWarmupMinutesDraft={setPlannedExerciseWarmupMinutesDraft}
+            plannedExerciseCooldownMinutesDraft={plannedExerciseCooldownMinutesDraft}
+            setPlannedExerciseCooldownMinutesDraft={setPlannedExerciseCooldownMinutesDraft}
+            plannedExerciseEntries={plannedExerciseEntries}
+            plannedWorkoutSessions={plannedWorkoutSessions}
+            plannedExerciseDeletingId={plannedExerciseDeletingId}
+            plannedExerciseUpdatingId={plannedExerciseUpdatingId}
+            resetPlannedExerciseDrafts={resetPlannedExerciseDrafts}
+            addPlannedExerciseEntry={addPlannedExerciseEntry}
+            beginPlannedExerciseEdit={beginPlannedExerciseEdit}
+            removePlannedExerciseEntry={removePlannedExerciseEntry}
+            togglePlannedExerciseCompletion={togglePlannedExerciseCompletion}
+          />
         )}
 
         {section === 'foods' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelTitle}>Your foods</Text>
-            <Text style={styles.panelDetail}>Your food bank and favorites first; searching also finds USDA foods. ✕ removes a food from your bank.</Text>
-            <View style={styles.searchRow}>
-              <TextInput
-                value={foodDraft}
-                onChangeText={setFoodDraft}
-                placeholder="Search yogurt, oats, blueberries..."
-                placeholderTextColor={tc.fg_7c8aa5}
-                style={styles.searchInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-                <Pressable style={styles.primaryButton} onPress={submitFoodSearch}>
-                <Text style={styles.primaryButtonLabel}>{isSubmittingSearch ? '...' : 'Refresh'}</Text>
-              </Pressable>
-            </View>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(foodTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{foodStatus}</Text>
-              {foodError ? <Text style={styles.inlineStatusDetail}>{foodError}</Text> : null}
-            </View>
-
-            <View style={styles.foodList}>
-              {foodResults.map((food) => {
-                const active = food.id === selectedFood?.id;
-                const quantity = foodQuantityForId(food.id);
-                return (
-                  <Pressable
-                    key={food.id}
-                    style={[styles.foodRow, active && styles.foodRowActive]}
-                    onPress={() => setSelectedFoodId(food.id)}
-                  >
-                    <View style={styles.foodCardCopy}>
-                      <View style={styles.foodRowHeader}>
-                        <View style={styles.foodRowCopy}>
-                          <Text style={styles.listTitle}>{food.name}</Text>
-                          <Text style={styles.listCaption}>
-                            {(food.brand ?? 'Unbranded')} · {food.source} · {food.favorite ? 'Favorite' : 'Search match'}
-                          </Text>
-                        </View>
-                        <Text style={styles.listMetric}>{food.calories} kcal</Text>
-                      </View>
-
-                      <View style={styles.foodCardMetaRow}>
-                        <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(food)}`}</Text>
-                        <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(quantity)}`}</Text>
-                      </View>
-
-                      <View style={styles.foodCardActionsRow}>
-                        <View style={styles.quantityStepper}>
-                          <Pressable
-                            style={styles.quantityStepperButton}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              adjustFoodQuantity(food.id, -0.5);
-                            }}
-                            disabled={quantity <= 0.5}
-                          >
-                            <Text style={styles.quantityStepperButtonLabel}>−</Text>
-                          </Pressable>
-                          <Text style={styles.quantityStepperValue}>{formatFoodQuantity(quantity)}</Text>
-                          <Pressable
-                            style={styles.quantityStepperButton}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              adjustFoodQuantity(food.id, 0.5);
-                            }}
-                          >
-                            <Text style={styles.quantityStepperButtonLabel}>+</Text>
-                          </Pressable>
-                        </View>
-
-                        <Pressable
-                          style={styles.inlinePillButton}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void quickAddFoodToToday(food);
-                          }}
-                          disabled={isSavingLogEntry}
-                        >
-                          <Text style={styles.inlinePillButtonLabel}>
-                            {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(food, foodQuantityForId(food.id))} to today`}
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          style={[
-                            styles.favoriteToggleButton,
-                            food.favorite && styles.favoriteToggleButtonActive
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void toggleFoodFavorite(food);
-                          }}
-                          disabled={foodFavoriteSavingId === food.id}
-                        >
-                          <Text
-                            style={[
-                              styles.favoriteToggleButtonLabel,
-                              food.favorite && styles.favoriteToggleButtonLabelActive
-                            ]}
-                          >
-                            {foodFavoriteSavingId === food.id ? '...' : food.favorite ? '♥' : '♡'}
-                          </Text>
-                        </Pressable>
-                        {food.in_bank ? (
-                          <Pressable
-                            style={[styles.todayRemoveButton, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirm]}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              void removeFromBank(food);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={confirmDeleteKey === `bank:${food.id}` ? `Confirm removing ${food.name}` : `Remove ${food.name} from your food bank`}
-                          >
-                            <Text style={[styles.todayRemoveLabel, confirmDeleteKey === `bank:${food.id}` && styles.todayRemoveConfirmLabel]}>
-                              {confirmDeleteKey === `bank:${food.id}` ? 'Remove?' : '✕'}
-                            </Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {selectedFood ? (
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.detailTitle}>{selectedFood.name}</Text>
-                    <Text style={styles.detailSubtitle}>
-                      {selectedFood.brand ?? 'Unbranded'} · {selectedFood.source}
-                    </Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>{selectedFood.favorite ? 'Favorite' : 'Search match'}</Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <MetricTile label="Calories" value={`${selectedFood.calories}`} compact />
-                  <MetricTile label="Macros" value={foodMacroLine(selectedFood)} compact />
-                </View>
-                <View style={styles.foodCardMetaRow}>
-                  <Text style={styles.foodCardChip}>{`Base ${formatFoodReference(selectedFood)}`}</Text>
-                  <Text style={styles.foodCardChip}>{`Qty ${formatFoodQuantity(foodQuantityForId(selectedFood.id))}`}</Text>
-                </View>
-                <View style={styles.foodCardActionsRow}>
-                  <View style={styles.quantityStepper}>
-                    <Pressable
-                      style={styles.quantityStepperButton}
-                      onPress={() => adjustFoodQuantity(selectedFood.id, -0.5)}
-                      disabled={foodQuantityForId(selectedFood.id) <= 0.5}
-                    >
-                      <Text style={styles.quantityStepperButtonLabel}>−</Text>
-                    </Pressable>
-                    <Text style={styles.quantityStepperValue}>{formatFoodQuantity(foodQuantityForId(selectedFood.id))}</Text>
-                    <Pressable
-                      style={styles.quantityStepperButton}
-                      onPress={() => adjustFoodQuantity(selectedFood.id, 0.5)}
-                    >
-                      <Text style={styles.quantityStepperButtonLabel}>+</Text>
-                    </Pressable>
-                  </View>
-
-                  <Pressable
-                    style={styles.inlinePillButton}
-                    onPress={() => void quickAddFoodToToday(selectedFood)}
-                    disabled={isSavingLogEntry}
-                  >
-                    <Text style={styles.inlinePillButtonLabel}>
-                      {isSavingLogEntry ? 'Saving...' : `Add ${formatFoodAmount(selectedFood, foodQuantityForId(selectedFood.id))} to today`}
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.favoriteToggleButton,
-                      selectedFood.favorite && styles.favoriteToggleButtonActive
-                    ]}
-                    onPress={() => void toggleFoodFavorite(selectedFood)}
-                    disabled={foodFavoriteSavingId === selectedFood.id}
-                  >
-                    <Text
-                      style={[
-                        styles.favoriteToggleButtonLabel,
-                        selectedFood.favorite && styles.favoriteToggleButtonLabelActive
-                      ]}
-                    >
-                      {foodFavoriteSavingId === selectedFood.id ? '...' : selectedFood.favorite ? '♥' : '♡'}
-                    </Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.detailSubtitle}>
-                  {selectedFood.favorite
-                    ? 'Already cached in this session’s favorite foods.'
-                    : 'Tap the heart to save this search result into favorites.'}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+          <FoodsScreen
+            foodDraft={foodDraft}
+            setFoodDraft={setFoodDraft}
+            submitFoodSearch={submitFoodSearch}
+            isSubmittingSearch={isSubmittingSearch}
+            foodTone={foodTone}
+            foodStatus={foodStatus}
+            foodError={foodError}
+            foodResults={foodResults}
+            selectedFood={selectedFood}
+            setSelectedFoodId={setSelectedFoodId}
+            foodQuantityForId={foodQuantityForId}
+            adjustFoodQuantity={adjustFoodQuantity}
+            quickAddFoodToToday={quickAddFoodToToday}
+            isSavingLogEntry={isSavingLogEntry}
+            toggleFoodFavorite={toggleFoodFavorite}
+            foodFavoriteSavingId={foodFavoriteSavingId}
+            removeFromBank={removeFromBank}
+            confirmDeleteKey={confirmDeleteKey}
+          />
         )}
 
         {section === 'meal-plan' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Meal plan</Text>
-            <Pressable
-              style={styles.primaryButton}
-              onPress={() => foodSessionToken && setCreatePlanOpen(true)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.primaryButtonLabel}>✨ Create a meal plan</Text>
-            </Pressable>
-            <Text style={styles.panelDetail}>
-              Meal balance:{' '}
-              {(() => {
-                // The saved pattern, not an unsaved Profile tap.
-                const count = profile?.meals_per_day ?? 3;
-                const style = MEAL_STYLES.find((item) => item.id === styleForSplit(count as 3 | 4 | 5, profile?.meal_split ?? []));
-                if (!profile?.meal_pattern_chosen) {
-                  return 'Balanced';
-                }
-                return style ? `${style.label}${count === 3 ? '' : ` (${count} meals a day)`}` : `Custom (${count} meals a day)`;
-              })()}{' '}
-              (change it in Profile).
-            </Text>
-            <Text style={styles.panelDetail}>
-              Tap a date card to switch the visible plan, then mark planned meals as eaten for that day.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(mealPlanTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{mealPlanStatus}</Text>
-              {mealPlanError ? <Text style={styles.inlineStatusDetail}>{mealPlanError}</Text> : null}
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mealPlanDateStrip}
-            >
-              {sortedMealPlanDays.map((day) => {
-                const active = day.plan_date === selectedMealPlanDate;
-                const isToday = day.plan_date === todayKey;
-
-                return (
-                  <Pressable
-                    key={day.id}
-                    style={[styles.mealPlanDateCard, active && styles.mealPlanDateCardActive]}
-                    onPress={() => {
-                      setSelectedMealPlanDate(day.plan_date ?? null);
-                      setMealPlanTone('live');
-                      setMealPlanStatus(`Showing ${formatMealPlanCardDate(day.plan_date)} plan`);
-                    }}
-                  >
-                    <Text style={[styles.mealPlanDateWeekday, active && styles.mealPlanDateWeekdayActive]}>
-                      {formatMealPlanCardWeekday(day.plan_date)}
-                    </Text>
-                    <Text style={[styles.mealPlanDateLabel, active && styles.mealPlanDateLabelActive]}>
-                      {formatMealPlanCardDate(day.plan_date)}
-                    </Text>
-                    <Text style={[styles.mealPlanDateMeta, active && styles.mealPlanDateMetaActive]}>
-                      {day.label}
-                      {isToday ? ' · Today' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {selectedMealPlanDay ? (
-              <View style={styles.detailCard}>
-                <View style={styles.recipeRowTitleWrap}>
-                  <View>
-                    <Text style={styles.detailTitle}>{selectedMealPlanDay.label}</Text>
-                    <Text style={styles.detailSubtitle}>
-                      {selectedMealPlanDay.focus} · {formatMealPlanCardDate(selectedMealPlanDay.plan_date)}
-                    </Text>
-                  </View>
-                  <Text style={styles.detailSubtitle}>
-                    {selectedMealPlanDay.slots.length} planned meal{selectedMealPlanDay.slots.length === 1 ? '' : 's'}
-                  </Text>
-                </View>
-
-                <View style={styles.foodList}>
-                  {selectedMealPlanDay.slots.map((slot) => {
-                    const logged = mealPlanEatenSlots[selectedMealPlanDay.id]?.[slot.id] ?? false;
-                    const slotItems = slot.items ?? [];
-
-                    return (
-                      <Pressable
-                        key={slot.id}
-                        style={[styles.mealPlanSlotCard, logged && styles.mealPlanLoggedRow]}
-                        onPress={() => toggleMealPlanMeal(selectedMealPlanDay, slot.id, slot.meal_label)}
-                      >
-                        <View style={styles.mealPlanSlotHeader}>
-                          <View style={styles.foodRowCopy}>
-                            <View style={styles.mealPlanSlotTitleRow}>
-                              <Text style={styles.listTitle}>{slot.meal_label}</Text>
-                              <Text style={styles.mealPlanSlotTotal}>{slot.calories} kcal</Text>
-                            </View>
-                            <Text style={styles.listCaption}>{slot.title}</Text>
-                          </View>
-                          <View style={[styles.mealPlanCheck, logged && styles.mealPlanCheckActive]}>
-                            <Text style={[styles.mealPlanCheckLabel, logged && styles.mealPlanCheckLabelActive]}>
-                              {logged ? '☑' : '☐'}
-                            </Text>
-                          </View>
-                        </View>
-                        {slotItems.length > 0 ? (
-                          <View style={styles.mealPlanItemList}>
-                              {slotItems.map((item, index) => (
-                                <View key={`${slot.id}-plan-item-${index}`} style={styles.mealPlanItemRow}>
-                                  <View style={styles.mealPlanItemCopy}>
-                                    <Text style={styles.mealPlanItemName}>
-                                      {item.name}
-                                      <Text style={styles.mealPlanItemQuantityInline}> · {item.quantity_label}</Text>
-                                    </Text>
-                                  </View>
-                                  <View style={styles.mealPlanItemInlineMeta}>
-                                  <Text style={styles.mealPlanItemMacroLine}>
-                                    P {Math.round(item.macros.protein)}g · C {Math.round(item.macros.carbs)}g · F {Math.round(item.macros.fat)}g
-                                  </Text>
-                                  <Text style={styles.mealPlanItemCalories}>{item.calories} kcal</Text>
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                        ) : null}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>No meal plan saved yet</Text>
-                <Text style={styles.detailSubtitle}>Save a weekly plan to populate the date cards here.</Text>
-              </View>
-            )}
-          </View>
+          <MealPlanScreen
+            foodSessionToken={foodSessionToken}
+            setCreatePlanOpen={setCreatePlanOpen}
+            profile={profile}
+            mealPlanTone={mealPlanTone}
+            setMealPlanTone={setMealPlanTone}
+            mealPlanStatus={mealPlanStatus}
+            setMealPlanStatus={setMealPlanStatus}
+            mealPlanError={mealPlanError}
+            sortedMealPlanDays={sortedMealPlanDays}
+            selectedMealPlanDate={selectedMealPlanDate}
+            setSelectedMealPlanDate={setSelectedMealPlanDate}
+            todayKey={todayKey}
+            selectedMealPlanDay={selectedMealPlanDay}
+            mealPlanEatenSlots={mealPlanEatenSlots}
+            toggleMealPlanMeal={toggleMealPlanMeal}
+          />
         )}
 
         {section === 'settings' && (
@@ -6017,351 +5537,61 @@ export default function App(): ReactElement {
 
         {/* Prep sits under the week's meal plan: it serves those meals. */}
         {(section === 'meal-plan' || section === 'meal-prep') && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Meal prep</Text>
-            <Text style={styles.panelTitle}>Prep the week in batches</Text>
-            <Text style={styles.panelDetail}>
-              Track what to cook, portion, and assemble so the meal plan is realistic.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(mealPrepTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{mealPrepStatus}</Text>
-              {mealPrepError ? <Text style={styles.inlineStatusDetail}>{mealPrepError}</Text> : null}
-            </View>
-
-            <View style={styles.foodList}>
-              {mealPrepTasks.map((task) => (
-                <Pressable
-                  key={task.id}
-                  style={styles.foodRow}
-                  onPress={() => void cycleMealPrepStatus(task.id)}
-                  disabled={mealPrepSavingId === task.id}
-                >
-                  <View style={styles.foodRowCopy}>
-                    <Text style={styles.listTitle}>{task.title}</Text>
-                    <Text style={styles.listCaption}>
-                      {task.category} · {task.portions}
-                    </Text>
-                  </View>
-                  <View style={styles.foodRowActions}>
-                    <Text style={styles.listMetric}>{mealPrepSavingId === task.id ? 'Saving...' : task.status}</Text>
-                    <Text style={styles.listCaption}>Tap to cycle</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <MealPrepScreen
+            mealPrepTone={mealPrepTone}
+            mealPrepStatus={mealPrepStatus}
+            mealPrepError={mealPrepError}
+            mealPrepTasks={mealPrepTasks}
+            cycleMealPrepStatus={cycleMealPrepStatus}
+            mealPrepSavingId={mealPrepSavingId}
+          />
         )}
 
         {section === 'meals' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Meal builder</Text>
-            <TextInput
-              value={mealDraft.name}
-              onChangeText={updateMealName}
-              placeholder="Untitled meal"
-              placeholderTextColor={tc.fg_7c8aa5}
-              style={styles.mealNameInput}
-              autoCapitalize="words"
-            />
-            <Text style={styles.panelDetail}>
-              Adjust the draft ingredients, then snap the serving scale to a fixed stop for a fast mobile-friendly preview.
-            </Text>
-
-            <View style={styles.mealBuilderHeaderRow}>
-              <View style={styles.mealServingWrap}>
-                <Text style={styles.mealMetaLabel}>Servings</Text>
-                <TextInput
-                  value={String(mealDraft.serving_count)}
-                  onChangeText={updateMealServings}
-                  keyboardType="numeric"
-                  inputMode="decimal"
-                  style={styles.mealServingInput}
-                />
-              </View>
-              <View style={styles.mealBuilderHintWrap}>
-                <Text style={styles.mealBuilderHint}>
-                  Local draft only until meal persistence lands on the backend contract.
-                </Text>
-              </View>
-            </View>
-
-            <ScaleStopSelector
-              label="Meal scale"
-              helperText="Fixed stops keep the preview predictable while you edit the draft."
-              value={mealScale}
-              values={scaleStops}
-              onChange={setMealScale}
-            />
-
-            <View style={styles.mealBuilderActionsRow}>
-              <Pressable style={styles.inlinePillButton} onPress={resetMealDraft}>
-                <Text style={styles.inlinePillButtonLabel}>Reset draft</Text>
-              </Pressable>
-              <Text style={styles.mealBuilderHint}>Meal save is still backend-gated, so this stays as a live preview.</Text>
-            </View>
-
-            <View style={styles.mealIngredientEditor}>
-              {mealDraft.ingredients.map((ingredient) => (
-                <View key={ingredient.id} style={styles.mealIngredientRow}>
-                  <View style={styles.foodRowCopy}>
-                    <Text style={styles.listTitle}>{ingredient.name}</Text>
-                    <Text style={styles.listCaption}>
-                      {ingredient.food_id} · {ingredient.calories_per_100g} kcal / 100g
-                    </Text>
-                  </View>
-                  <View style={styles.mealIngredientInputWrap}>
-                    <TextInput
-                      value={String(ingredient.grams)}
-                      onChangeText={(value) => updateMealIngredientGrams(ingredient.id, value)}
-                      keyboardType="numeric"
-                      inputMode="decimal"
-                      style={styles.mealIngredientInput}
-                    />
-                    <Text style={styles.mealIngredientUnit}>g</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.detailCard}>
-              <Text style={styles.recipeMetaLabel}>Scaled preview</Text>
-              {mealPreview.ingredients.map((ingredient) => (
-                <View key={ingredient.id} style={styles.listRow}>
-                  <View>
-                    <Text style={styles.listTitle}>{ingredient.name}</Text>
-                    <Text style={styles.listCaption}>{ingredient.grams} g · {ingredient.food_id}</Text>
-                  </View>
-                  <Text style={styles.listMetric}>
-                    {Math.round((ingredient.calories_per_100g * ingredient.grams) / 100)} kcal
-                  </Text>
-                </View>
-              ))}
-
-              <View style={styles.metricRow}>
-                <MetricTile label="Meal calories" value={`${mealTotalsPreview.calories} kcal`} />
-                <MetricTile label="Per serving" value={`${mealTotalsPreview.per_serving_calories} kcal`} />
-              </View>
-            </View>
-          </View>
+          <MealsScreen
+            mealDraft={mealDraft}
+            updateMealName={updateMealName}
+            updateMealServings={updateMealServings}
+            mealScale={mealScale}
+            setMealScale={setMealScale}
+            resetMealDraft={resetMealDraft}
+            updateMealIngredientGrams={updateMealIngredientGrams}
+            mealPreview={mealPreview}
+            mealTotalsPreview={mealTotalsPreview}
+          />
         )}
 
         {section === 'recipes' && (
-          <View style={styles.panel}>
-            <Text style={styles.panelEyebrow}>Recipes</Text>
-            <Text style={styles.panelTitle}>Recipe library and import review</Text>
-            <Text style={styles.panelDetail}>
-              Browse the full recipe catalog in alphabetical order, narrow it with fuzzy search, and open each recipe inline to review the details.
-            </Text>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(recipeTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{recipeStatus}</Text>
-              {recipeError ? <Text style={styles.inlineStatusDetail}>{recipeError}</Text> : null}
-            </View>
-
-            <View style={[styles.inlineStatus, { borderColor: toneColor(recipeImportTone) }]}>
-              <Text style={styles.inlineStatusLabel}>{recipeImportStatus}</Text>
-              {recipeImportError ? <Text style={styles.inlineStatusDetail}>{recipeImportError}</Text> : null}
-            </View>
-
-            <View style={styles.recipeImportCard}>
-              <Text style={styles.recipeMetaLabel}>Import review</Text>
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>No live recipe import selected</Text>
-                <Text style={styles.detailSubtitle}>
-                  Imported recipes will appear here after a real text, PDF, or image upload is submitted.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.recipeSection}>
-              <View style={styles.searchRow}>
-                <TextInput
-                  value={recipeSearchTerm}
-                  onChangeText={setRecipeSearchTerm}
-                  placeholder="Find oats, chicken, parfait..."
-                  placeholderTextColor={tc.fg_7c8aa5}
-                  style={styles.searchInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              {recipeLoading ? (
-                <View style={styles.detailCard}>
-                  <ActivityIndicator size="small" color={tc.fg_17324d} />
-                  <Text style={styles.detailSubtitle}>Fetching recipes...</Text>
-                </View>
-              ) : filteredRecipeCatalog.length === 0 ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>No recipe matches yet</Text>
-                  <Text style={styles.detailSubtitle}>
-                    Try another title or ingredient term to narrow the recipe list.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.foodList}>
-                  {filteredRecipeCatalog.map((recipe) => {
-                    const active = recipe.id === selectedRecipeId;
-                    const saving = recipeSavingId === recipe.id;
-                    const detailRecipe = active && selectedRecipe?.id === recipe.id ? selectedRecipe : recipe;
-                    const scaledRecipe = active && selectedRecipePreview?.id === recipe.id ? selectedRecipePreview : detailRecipe;
-                    const scaledTotals =
-                      active && selectedRecipeTotals && selectedRecipe?.id === recipe.id
-                        ? selectedRecipeTotals
-                        : mealTotals({
-                            id: detailRecipe.id,
-                            name: detailRecipe.title,
-                            serving_count: detailRecipe.default_yield,
-                            ingredients: detailRecipe.ingredients
-                          });
-
-                    return (
-                      <View key={recipe.id} style={[styles.recipeAccordionCard, active && styles.recipeAccordionCardActive]}>
-                        <Pressable
-                          style={styles.recipeAccordionHeader}
-                          onPress={() => setSelectedRecipeId((current) => (current === recipe.id ? null : recipe.id))}
-                        >
-                          <View style={styles.foodRowCopy}>
-                            <View style={styles.recipeRowTitleWrap}>
-                              <Text style={styles.listTitle}>{recipe.title}</Text>
-                              <Pressable
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  void toggleRecipeFavorite(recipe, !recipe.favorite);
-                                }}
-                                style={[styles.recipeStarButton, recipe.favorite && styles.recipeStarButtonActive]}
-                                disabled={saving}
-                              >
-                                <Text style={styles.recipeStarButtonLabel}>
-                                  {saving ? 'Saving...' : recipe.favorite ? '★' : '☆'}
-                                </Text>
-                              </Pressable>
-                            </View>
-                            <Text style={styles.listCaption}>
-                              {recipe.steps.length} steps · {recipe.ingredients.length} ingredients · {recipe.assets.length} assets
-                            </Text>
-                          </View>
-                          <View style={styles.recipeAccordionMeta}>
-                            <Text style={styles.listMetric}>{recipe.default_yield} servings</Text>
-                            <Text style={styles.recipeAccordionCaret}>{active ? '▲' : '▼'}</Text>
-                          </View>
-                        </Pressable>
-
-                        {active ? (
-                          <View style={styles.recipeAccordionBody}>
-                            {recipeDetailLoading && selectedRecipe?.id === recipe.id ? (
-                              <View style={styles.recipeDetailLoading}>
-                                <ActivityIndicator size="small" color={tc.fg_17324d} />
-                                <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
-                              </View>
-                            ) : (
-                              <>
-                                <View style={styles.recipeDetailHeader}>
-                                  <View style={styles.recipeDetailHeaderCopy}>
-                                    <View style={styles.recipeRowTitleWrap}>
-                                      <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
-                                    </View>
-                                    <Text style={styles.detailSubtitle}>
-                                      {detailRecipe.steps.length} steps · {detailRecipe.ingredients.length} ingredients ·{' '}
-                                      {detailRecipe.assets.length} assets · {detailRecipe.default_yield} servings
-                                    </Text>
-                                  </View>
-                                </View>
-
-                                <ScaleStopSelector
-                                  label="Recipe scale"
-                                  helperText="The fixed stops keep the serving preview readable while you step through the accordion."
-                                  value={recipeScale}
-                                  values={scaleStops}
-                                  onChange={setRecipeScale}
-                                />
-
-                                <View style={styles.metricRow}>
-                                  <MetricTile
-                                    label="Scaled yield"
-                                    value={`${round1(detailRecipe.default_yield * recipeScale)} servings`}
-                                  />
-                                  <MetricTile label="Recipe calories" value={`${scaledTotals.calories} kcal`} />
-                                  <MetricTile
-                                    label="Per serving"
-                                    value={`${scaledTotals.per_serving_calories} kcal`}
-                                  />
-                                </View>
-
-                                {detailRecipe.steps.length > 0 ? (
-                                  <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Steps</Text>
-                                    {detailRecipe.steps.map((step, index) => (
-                                      <Text key={`${detailRecipe.id}-step-${index}`} style={styles.recipeStep}>
-                                        {index + 1}. {step}
-                                      </Text>
-                                    ))}
-                                  </View>
-                                ) : null}
-
-                                {scaledRecipe.ingredients.length > 0 ? (
-                                  <View style={styles.recipeMetaBlock}>
-                                    <Text style={styles.recipeMetaLabel}>Ingredients</Text>
-                                    {scaledRecipe.ingredients.map((ingredient) => (
-                                      <Text key={`${detailRecipe.id}-${ingredient.id}`} style={styles.recipeMetaItem}>
-                                        {ingredient.name} · {ingredient.grams} g
-                                      </Text>
-                                    ))}
-                                  </View>
-                                ) : null}
-
-                                <View style={styles.recipeMetaBlock}>
-                                  <Text style={styles.recipeMetaLabel}>Assets</Text>
-                                  {detailRecipe.assets.length === 0 ? (
-                                    <Text style={styles.recipeMetaItem}>No imported assets attached yet.</Text>
-                                  ) : (
-                                    detailRecipe.assets.map((asset, index) => (
-                                      <Text key={`${detailRecipe.id}-asset-${index}`} style={styles.recipeMetaItem}>
-                                        {asset.kind.toUpperCase()} asset {asset.url ? 'linked' : 'embedded'}
-                                      </Text>
-                                    ))
-                                  )}
-                                </View>
-                              </>
-                            )}
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            <View style={styles.recipeSecondaryCard}>
-              <Text style={styles.panelEyebrow}>Import and scale</Text>
-              <Text style={styles.panelDetail}>
-                Text, PDF, and image ingestion will appear here once the import composer is wired in.
-              </Text>
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>No live import composer yet</Text>
-                <Text style={styles.detailSubtitle}>
-                  Imported recipes will show up here after a real text, PDF, or image submission.
-                </Text>
-              </View>
-            </View>
-          </View>
+          <RecipesScreen
+            recipeTone={recipeTone}
+            recipeStatus={recipeStatus}
+            recipeError={recipeError}
+            recipeImportTone={recipeImportTone}
+            recipeImportStatus={recipeImportStatus}
+            recipeImportError={recipeImportError}
+            recipeSearchTerm={recipeSearchTerm}
+            setRecipeSearchTerm={setRecipeSearchTerm}
+            recipeLoading={recipeLoading}
+            filteredRecipeCatalog={filteredRecipeCatalog}
+            selectedRecipeId={selectedRecipeId}
+            setSelectedRecipeId={setSelectedRecipeId}
+            recipeSavingId={recipeSavingId}
+            selectedRecipe={selectedRecipe}
+            selectedRecipePreview={selectedRecipePreview}
+            selectedRecipeTotals={selectedRecipeTotals}
+            toggleRecipeFavorite={toggleRecipeFavorite}
+            recipeDetailLoading={recipeDetailLoading}
+            recipeScale={recipeScale}
+            setRecipeScale={setRecipeScale}
+          />
         )}
 
         {section === 'ingestion' && (
-          <IngestionReviewPanel
-            accessToken={foodSessionToken}
-            autoStartScan={scanAutoStart}
-            onAutoStartHandled={() => setScanAutoStart(false)}
-            onFoodLogged={() => {
-              const token = foodSessionToken;
-              if (token) {
-                void fetchTodaysFoodLog(token)
-                  .then(setFoodLog)
-                  .catch(() => undefined);
-              }
-            }}
+          <IngestionScreen
+            foodSessionToken={foodSessionToken}
+            scanAutoStart={scanAutoStart}
+            setScanAutoStart={setScanAutoStart}
+            setFoodLog={setFoodLog}
           />
         )}
 
