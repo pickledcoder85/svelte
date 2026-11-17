@@ -44,6 +44,9 @@ import {
   fetchBackendHealth,
   getApiBaseUrl,
   fetchExerciseEntries,
+  fetchWater,
+  addWater,
+  deleteWater,
   fetchGarminStatus,
   fetchFoodLogsBetween,
   fetchFoodBank,
@@ -126,6 +129,9 @@ import { QuickScanAdd } from './src/components/QuickScanAdd';
 import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
+import { WaterRow } from './src/components/WaterRow';
+import { WaterBars } from './src/components/trends/WaterBars';
+import { DEFAULT_WATER_GOAL_ML, GLASS_ML, volumeLabel, WATER_GOAL_GLASSES, waterDays, waterForDay } from './src/lib/water';
 import { groupByMeal } from './src/lib/meal-slots';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
 import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
@@ -259,6 +265,7 @@ import type {
   UserGoal,
   UserProfile,
   WeeklyMetrics,
+  WaterEntry,
   WeightEntry
 } from './src/types';
 import {
@@ -805,6 +812,9 @@ export default function App(): ReactElement {
   const [logSearchStatus, setLogSearchStatus] = useState('Ready to search');
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
+  // Water drunk over the last three months (and any older day shown on Today).
+  const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
+  const [waterBusy, setWaterBusy] = useState(false);
   const [plannedExerciseEntries, setPlannedExerciseEntries] = useState<PlannedExerciseEntry[]>([]);
   const [plannedWorkoutSessions, setPlannedWorkoutSessions] = useState<PlannedWorkoutSession[]>([]);
   const [exerciseTitleDraft, setExerciseTitleDraft] = useState('Bike ride');
@@ -2095,6 +2105,28 @@ export default function App(): ReactElement {
     [trendStart, todayKey, trendLogs, exerciseEntries, dailyHomeTargets.calorieTarget, dailyHomeTargets.macroTargets, profile?.workout_calories_share, profile?.goal_type, profile?.goal_pace]
   );
   const trendCalories = useMemo(() => calorieSummary(trendDays), [trendDays]);
+  const homeWaterToday = useMemo(() => waterForDay(waterEntries, selectedHomeDate), [waterEntries, selectedHomeDate]);
+  const homeWaterMl = homeWaterToday.reduce((sum, entry) => sum + entry.amount_ml, 0);
+  const trendWaterDays = useMemo(() => waterDays(trendStart, todayKey, waterEntries), [trendStart, todayKey, waterEntries]);
+  // Load water for three months back (and any older day shown on Today).
+  const waterStart = selectedHomeDate < rangeStart(todayKey, '3M') ? selectedHomeDate : rangeStart(todayKey, '3M');
+  const waterEnd = selectedHomeDate > todayKey ? selectedHomeDate : todayKey;
+  useEffect(() => {
+    if (!foodSessionToken) {
+      return;
+    }
+    let cancelled = false;
+    fetchWater(waterStart, waterEnd, foodSessionToken)
+      .then((entries) => {
+        if (!cancelled) {
+          setWaterEntries(entries);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [foodSessionToken, waterStart, waterEnd]);
   const trendMacroDays = useMemo(
     () => ({
       protein: macroDays(trendDays, 'protein'),
@@ -3357,6 +3389,60 @@ export default function App(): ReactElement {
   }
 
 
+
+  /** Settings > Water goal. */
+  async function applyWaterGoal(goalMl: number) {
+    if (!profile || !foodSessionToken || settingsSaving) {
+      return;
+    }
+    setSettingsSaving(true);
+    setFloorMessage(null);
+    try {
+      setProfile(
+        await updateProfile(
+          { display_name: profile.display_name ?? null, timezone: profile.timezone, units: profile.units, water_goal_ml: goalMl },
+          foodSessionToken
+        )
+      );
+    } catch (error) {
+      setFloorMessage(error instanceof Error ? error.message : 'Unable to change the water goal.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
+  /** Today: log a drink on the day shown. */
+  async function addHomeWater(ml: number) {
+    if (!foodSessionToken || waterBusy) {
+      return;
+    }
+    setWaterBusy(true);
+    try {
+      const entry = await addWater(selectedHomeDate, ml, foodSessionToken);
+      setWaterEntries((current) => [...current, entry]);
+    } catch (error) {
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to log water.');
+    } finally {
+      setWaterBusy(false);
+    }
+  }
+
+  /** Today: take back the day's last drink. */
+  async function undoHomeWater() {
+    const last = homeWaterToday.at(-1);
+    if (!foodSessionToken || waterBusy || !last) {
+      return;
+    }
+    setWaterBusy(true);
+    try {
+      await deleteWater(last.id, foodSessionToken);
+      setWaterEntries((current) => current.filter((entry) => entry.id !== last.id));
+    } catch (error) {
+      setFoodLogError(error instanceof Error ? error.message : 'Unable to undo.');
+    } finally {
+      setWaterBusy(false);
+    }
+  }
 
   /** Settings > Workout calories. A preference only: targets are not recalculated. */
   async function applyWorkoutCaloriesShare(share: WorkoutCaloriesShare) {
@@ -5133,6 +5219,19 @@ export default function App(): ReactElement {
               </View>
             </View>
 
+            {/* Water: glasses against the daily goal. */}
+            <View style={styles.homeSection}>
+              <WaterRow
+                totalMl={homeWaterMl}
+                goalMl={profile?.water_goal_ml ?? DEFAULT_WATER_GOAL_ML}
+                metric={profile?.units === 'metric'}
+                busy={waterBusy}
+                canUndo={homeWaterToday.length > 0}
+                onAdd={(ml) => void addHomeWater(ml)}
+                onUndo={() => void undoHomeWater()}
+              />
+            </View>
+
             {/* Workouts: planned first (done or skip), then what was recorded. */}
             <View style={styles.homeSection}>
               <View style={styles.todaySectionHeader}>
@@ -5462,6 +5561,17 @@ export default function App(): ReactElement {
               {(['protein', 'carbs', 'fat'] as const).map((macro) => (
                 <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} today={todayKey} />
               ))}
+            </View>
+
+            {/* Water: each day against the goal. */}
+            <View style={styles.homeSection}>
+              <Text style={styles.detailTitle}>Water</Text>
+              <WaterBars
+                days={trendWaterDays}
+                goalMl={profile?.water_goal_ml ?? DEFAULT_WATER_GOAL_ML}
+                metric={profile?.units === 'metric'}
+                today={todayKey}
+              />
             </View>
 
             {/* History: every day in the range, newest first. */}
@@ -6577,6 +6687,32 @@ export default function App(): ReactElement {
                     {(profile.calorie_floor ?? 'recommended') === 'off'
                       ? 'Off: your daily target is used as calculated, even below the recommended minimum.'
                       : `Your daily target never goes below ${profile.sex === 'male' ? '1,500' : '1,200'} kcal, the minimum dietitians recommend for ${profile.sex === 'male' ? 'men' : 'women'}.`}
+                  </Text>
+                </FieldGroup>
+                <FieldGroup label="Water goal">
+                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Water goal">
+                    {WATER_GOAL_GLASSES.map((count) => {
+                      const active = (profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML) === count * GLASS_ML;
+                      return (
+                        <Pressable
+                          key={count}
+                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
+                          onPress={() => {
+                            if (!active && !settingsSaving) {
+                              void applyWaterGoal(count * GLASS_ML);
+                            }
+                          }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: active }}
+                          accessibilityLabel={`${count} glasses`}
+                        >
+                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{count}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.settingsHint}>
+                    {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric')} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric')}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric')}) is a common goal; food and other drinks count toward what you need too.`}
                   </Text>
                 </FieldGroup>
                 <FieldGroup label="Workout calories">

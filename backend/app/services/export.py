@@ -1,6 +1,6 @@
 """Full JSON export of the owner's data: a readable escape hatch next to SQLite backups."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, date
 from typing import Any
 
 from fastapi.encoders import jsonable_encoder
@@ -31,6 +31,7 @@ def build_user_export(repository: SQLiteRepository, user_id: str) -> dict[str, A
         "weight_entries": repository.list_weight_entries(user_id),
         "food_logs": food_logs,
         "exercise_entries": repository.list_exercise_entries(user_id),
+        "water_entries": repository.list_water_entries(user_id, date(2000, 1, 1), date(2100, 1, 1)),
         "planned_workout_sessions": repository.list_planned_workout_sessions(user_id),
         "meal_plan_days": repository.list_meal_plan_days(user_id),
         "meal_prep_tasks": repository.list_meal_prep_tasks(user_id),
