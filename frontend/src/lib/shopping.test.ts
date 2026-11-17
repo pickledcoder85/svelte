@@ -51,3 +51,13 @@ describe('shopping lists', () => {
     expect(planListTitle([])).toBe('Shopping list');
   });
 });
+
+describe('plan list titles in Spanish', () => {
+  it('titles new lists in the display language', () => {
+    expect(planListTitle(['2026-11-20', '2026-11-18'], es).replace(/\s/g, ' ')).toBe('Plan de comidas · 18 a 20 de nov');
+    expect(planListTitle(['2026-11-30', '2026-12-02'], es).replace(/\s/g, ' ')).toBe('Plan de comidas · 30 de nov al 2 de dic');
+    expect(planListTitle(['2026-11-18'], es).replace(/\s/g, ' ')).toBe('Plan de comidas · 18 de nov');
+    expect(planListTitle([], es)).toBe('Lista de mercado');
+    expect(planListTitle(['2026-11-18', '2026-11-20'], en)).toBe('Meal plan · Nov 18–20');
+  });
+});

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
+import { formatDate, formatNumber, useT } from '../../i18n';
 import { addDaysToDateKey } from '../../lib/dates';
 import { projectLine, type WeightPoint } from '../../lib/trends';
 import { usePalette } from '../../theme/appearance';
@@ -35,10 +36,12 @@ export function WeightTrendChart({
   projection?: { days: number; trendRate: number | null; paceRate: number | null };
 }) {
   const pal = usePalette();
+  const t = useT();
+  const shortDate = (date: string) => formatDate(new Date(`${date}T00:00:00`), { month: 'short', day: 'numeric' }, t.locale);
   const [width, setWidth] = useState(0);
   const shown = points.filter((point) => point.date >= start && point.date <= end);
   if (shown.length === 0) {
-    return <Text style={styles.empty}>No weigh-ins in this range. Tap Weigh in to add today’s.</Text>;
+    return <Text style={styles.empty}>{t('trends.weightChart.empty')}</Text>;
   }
   const last = shown.at(-1)!;
   const from = { date: last.date, weight: last.trend };
@@ -67,12 +70,13 @@ export function WeightTrendChart({
   const x = (date: string) => PAD.left + ((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / span) * innerW;
   const y = (value: number) => PAD.top + (1 - (value - min) / (max - min)) * innerH;
   const trendPath = shown.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(point.date).toFixed(1)},${y(toUnit(point.trend)).toFixed(1)}`).join(' ');
-  const label = (value: number) => `${Math.round(value)}`;
+  const label = (value: number) => formatNumber(Math.round(value), undefined, t.locale);
+  const goalShown = goalValue !== null && goalValue >= min && goalValue <= max;
   const linePath = (line: Array<{ date: string; weight: number }>) =>
     line.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(point.date).toFixed(1)},${y(toUnit(point.weight)).toFixed(1)}`).join(' ');
 
   return (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={`Weight trend, ${shown.length} weigh-ins`}>
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={t('trends.weightChart.a11y', { count: shown.length })}>
       {width > 0 ? (
         <Svg width={width} height={HEIGHT}>
           {projection ? (
@@ -99,13 +103,13 @@ export function WeightTrendChart({
             </Text>
           ))}
           <View style={styles.footer}>
-            <Text style={styles.axisDate}>{new Date(`${start}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+            <Text style={styles.axisDate}>{shortDate(start)}</Text>
             <Text style={styles.legend}>
               {projection
-                ? `— trend${trendLine ? '  - - if it continues' : ''}${paceLine ? '  ··· plan' : ''}${goalValue !== null && goalValue >= min && goalValue <= max ? '  - - goal' : ''} (${unit})`
-                : `● weigh-ins  — trend${goalValue !== null && goalValue >= min && goalValue <= max ? '  - - goal' : ''} (${unit})`}
+                ? `${t('trends.weightChart.trend')}${trendLine ? t('trends.weightChart.ifContinues') : ''}${paceLine ? t('trends.weightChart.plan') : ''}${goalShown ? t('trends.weightChart.goal') : ''} (${unit})`
+                : `${t('trends.weightChart.weighIns')}  ${t('trends.weightChart.trend')}${goalShown ? t('trends.weightChart.goal') : ''} (${unit})`}
             </Text>
-            <Text style={styles.axisDate}>{new Date(`${chartEnd}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+            <Text style={styles.axisDate}>{shortDate(chartEnd)}</Text>
           </View>
         </>
       ) : null}

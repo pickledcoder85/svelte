@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { translatorFor } from '../i18n/dictionaries';
 import type { GarminStatus } from '../types';
 import { agoText, garminStatusText, garminSyncIsStale, workoutSourceLabel } from './garmin';
 
@@ -56,5 +57,17 @@ describe('garmin status', () => {
     expect(workoutSourceLabel('garmin')).toBe('Garmin');
     expect(workoutSourceLabel('manual')).toBeNull();
     expect(workoutSourceLabel(undefined)).toBeNull();
+  });
+});
+
+describe('garmin status in Spanish', () => {
+  it('describes the sync in the display language', () => {
+    const es = translatorFor('es');
+    expect(agoText(60 * 50, es)).toBe('hace 2 días');
+    expect(agoText(60 * 24, es)).toBe('hace 1 día');
+    expect(garminStatusText({ ...base, last_status: 'ok', last_success_at: '2026-11-15T17:55:00Z' }, now, es)).toBe(
+      'Última sincronización hace 5 min.'
+    );
+    expect(garminStatusText(base, now, es)).toBe('Aún no se ha sincronizado.');
   });
 });

@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '../i18n';
 import {
   fetchNotificationStatus,
   removePushSubscription,
@@ -26,6 +27,7 @@ import {
 import { tc } from '../theme/palette';
 
 export function RemindersSettings({ accessToken }: { accessToken: string }) {
+  const t = useT();
   const [status, setStatus] = useState<NotificationStatus | null>(null);
   // Whether *this phone* has a push subscription (the server's flag covers any device).
   const [phoneSubscribed, setPhoneSubscribed] = useState(false);
@@ -45,12 +47,14 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load reminders.');
+          setError(loadError instanceof Error ? loadError.message : t('reminders.loadError'));
         }
       });
     return () => {
       cancelled = true;
     };
+    // Reload only for a new session, not when the language changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   async function run(action: () => Promise<void>) {
@@ -63,7 +67,7 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
     try {
       await action();
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'Something went wrong.');
+      setError(actionError instanceof Error ? actionError.message : t('reminders.genericError'));
     } finally {
       setBusy(false);
     }
@@ -76,7 +80,7 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
       }
       const subscription = await subscribeThisPhone(status.public_key);
       if (!subscription) {
-        setError('Notifications are off for Relish. Turn them on in iPhone Settings → Notifications → Relish, then try again.');
+        setError(t('reminders.permissionOff'));
         return;
       }
       let next = await savePushSubscription(subscription, accessToken);
@@ -85,7 +89,7 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
       }
       setStatus(next);
       setPhoneSubscribed(true);
-      setMessage(`Reminders on: ${next.water_times.map(timeLabel).join(' and ')}.`);
+      setMessage(t('reminders.on', { times: next.water_times.map((time) => timeLabel(time, t)).join(t('reminders.and')) }));
     });
 
   const turnOff = () =>
@@ -93,7 +97,7 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
       const endpoint = await unsubscribeThisPhone();
       setStatus(endpoint ? await removePushSubscription(endpoint, accessToken) : await fetchNotificationStatus(accessToken));
       setPhoneSubscribed(false);
-      setMessage('Reminders off on this phone.');
+      setMessage(t('reminders.off'));
     });
 
   const toggleTime = (time: string) =>
@@ -106,20 +110,18 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
   const test = () =>
     run(async () => {
       await sendTestNotification(accessToken);
-      setMessage('Test sent: it should appear in a few seconds.');
+      setMessage(t('reminders.testSent'));
     });
 
   if (!status) {
-    return <Text style={styles.hint}>{error ?? 'Loading…'}</Text>;
+    return <Text style={styles.hint}>{error ?? t('common.loading')}</Text>;
   }
   if (!status.configured) {
-    return <Text style={styles.hint}>Reminders aren’t set up on the server yet.</Text>;
+    return <Text style={styles.hint}>{t('reminders.notConfigured')}</Text>;
   }
   if (!supported) {
     return (
-      <Text style={styles.hint}>
-        Notifications need Relish added to the Home Screen (Share → Add to Home Screen) and opened from there.
-      </Text>
+      <Text style={styles.hint}>{t('reminders.needsHomeScreen')}</Text>
     );
   }
 
@@ -132,13 +134,13 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
         accessibilityRole="button"
       >
         <Text style={phoneSubscribed ? styles.secondaryLabel : styles.primaryLabel}>
-          {phoneSubscribed ? 'Turn off water reminders' : '💧 Turn on water reminders'}
+          {phoneSubscribed ? t('reminders.turnOff') : t('reminders.turnOn')}
         </Text>
       </Pressable>
       {phoneSubscribed ? (
         <>
-          <Text style={styles.label}>Remind me at</Text>
-          <View style={styles.chips} accessibilityLabel="Reminder times">
+          <Text style={styles.label}>{t('reminders.remindAt')}</Text>
+          <View style={styles.chips} accessibilityLabel={t('reminders.timesA11y')}>
             {REMINDER_TIME_OPTIONS.map((time) => {
               const active = status.water_times.includes(time);
               return (
@@ -150,22 +152,22 @@ export function RemindersSettings({ accessToken }: { accessToken: string }) {
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: active }}
                 >
-                  <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{timeLabel(time)}</Text>
+                  <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{timeLabel(time, t)}</Text>
                 </Pressable>
               );
             })}
           </View>
           <Text style={styles.hint}>
             {status.water_times.length
-              ? 'In your time zone. A reminder is skipped once you’ve reached the day’s water goal.'
-              : 'No times picked: no reminders will be sent.'}
+              ? t('reminders.inTimeZone')
+              : t('reminders.noTimes')}
           </Text>
           <Pressable onPress={() => void test()} disabled={busy} accessibilityRole="button">
-            <Text style={styles.link}>Send a test notification</Text>
+            <Text style={styles.link}>{t('reminders.sendTest')}</Text>
           </Pressable>
         </>
       ) : (
-        <Text style={styles.hint}>iOS asks once whether Relish may send notifications.</Text>
+        <Text style={styles.hint}>{t('reminders.iosAsks')}</Text>
       )}
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}

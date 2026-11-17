@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
 
+import { formatDate, useT, type Locale } from '../../i18n';
 import type { MacroDay, MacroKey } from '../../lib/trends';
 import { usePalette } from '../../theme/appearance';
 import { tc } from '../../theme/palette';
@@ -17,14 +18,14 @@ const HEIGHT = 92;
 const PAD = { top: 14, bottom: 4, left: 40, right: 6 };
 /** Bars at least this far apart get their % printed above them. */
 const LABEL_SLOT = 26;
-const LABELS: Record<MacroKey, string> = { protein: 'Protein', carbs: 'Carbs', fat: 'Fat' };
-
-function shortDate(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function shortDate(date: string, locale: Locale): string {
+  return formatDate(new Date(`${date}T00:00:00`), { month: 'short', day: 'numeric' }, locale);
 }
 
 export function MacroBars({ macro, days, baseTarget, today }: { macro: MacroKey; days: MacroDay[]; baseTarget: number; today: string }) {
   const pal = usePalette();
+  const t = useT();
+  const label = t(`macros.${macro}`);
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const fill = { protein: pal.fg_0f766e, carbs: pal.fg_ea580c, fat: pal.fg_2563eb }[macro];
@@ -42,18 +43,23 @@ export function MacroBars({ macro, days, baseTarget, today }: { macro: MacroKey;
   const percent = (day: MacroDay) => Math.round((day.eaten / Math.max(1, day.target)) * 100);
   const showLabels = slot >= LABEL_SLOT;
   const detail = shown
-    ? `${shown.date === today ? 'Today' : shortDate(shown.date)} · ${Math.round(shown.eaten)} of ${Math.round(shown.target)} g · ${percent(shown)}%`
-    : 'nothing logged';
+    ? t('trends.macroChart.detail', {
+        day: shown.date === today ? t('trends.today') : shortDate(shown.date, t.locale),
+        eaten: Math.round(shown.eaten),
+        target: Math.round(shown.target),
+        percent: percent(shown)
+      })
+    : t('trends.macroChart.nothingLogged');
 
   return (
     <View style={styles.block}>
       <View style={styles.header}>
         <Text style={styles.label}>
-          <Text style={{ color: fill }}>■</Text> {LABELS[macro]} <Text style={styles.target}>{Math.round(baseTarget)} g</Text>
+          <Text style={{ color: fill }}>■</Text> {label} <Text style={styles.target}>{Math.round(baseTarget)} g</Text>
         </Text>
         <Text style={[styles.counts, tapped && styles.countsPicked]}>{detail}</Text>
       </View>
-      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={`${LABELS[macro]}: ${detail}`}>
+      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} accessibilityLabel={`${label}: ${detail}`}>
         {width > 0 ? (
           <Svg width={width} height={HEIGHT}>
             {days.map((day, index) => {
@@ -102,7 +108,9 @@ export function MacroBars({ macro, days, baseTarget, today }: { macro: MacroKey;
                   onPress={() => setSelected((current) => (current === day.date ? null : day.date))}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    day.percent === null ? `${shortDate(day.date)}: nothing logged` : `${shortDate(day.date)}: ${Math.round(day.eaten)} of ${Math.round(day.target)} g`
+                    day.percent === null
+                      ? t('trends.macroChart.dayNothing', { day: shortDate(day.date, t.locale) })
+                      : t('trends.macroChart.dayGrams', { day: shortDate(day.date, t.locale), eaten: Math.round(day.eaten), target: Math.round(day.target) })
                   }
                 />
               ))}

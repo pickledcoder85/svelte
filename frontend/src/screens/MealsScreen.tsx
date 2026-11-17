@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { MetricTile } from '../components/MetricTile';
 import { ScaleStopSelector } from '../components/ScaleStopSelector';
+import { useT } from '../i18n';
 import { tc } from '../theme/palette';
 import type { MealInput, MealTotals } from '../types';
 import { scaleStops, type ScaleStop } from './shared/constants';
@@ -31,24 +32,23 @@ export function MealsScreen({
   mealPreview,
   mealTotalsPreview
 }: MealsScreenProps): ReactElement {
+  const t = useT();
   return (
     <View style={styles.panel}>
-      <Text style={styles.panelEyebrow}>Meal builder</Text>
+      <Text style={styles.panelEyebrow}>{t('buildMeal.eyebrow')}</Text>
       <TextInput
         value={mealDraft.name}
         onChangeText={updateMealName}
-        placeholder="Untitled meal"
+        placeholder={t('buildMeal.namePlaceholder')}
         placeholderTextColor={tc.fg_7c8aa5}
         style={styles.mealNameInput}
         autoCapitalize="words"
       />
-      <Text style={styles.panelDetail}>
-        Adjust the draft ingredients, then snap the serving scale to a fixed stop for a fast mobile-friendly preview.
-      </Text>
+      <Text style={styles.panelDetail}>{t('buildMeal.detail')}</Text>
 
       <View style={styles.mealBuilderHeaderRow}>
         <View style={styles.mealServingWrap}>
-          <Text style={styles.mealMetaLabel}>Servings</Text>
+          <Text style={styles.mealMetaLabel}>{t('buildMeal.servings')}</Text>
           <TextInput
             value={String(mealDraft.serving_count)}
             onChangeText={updateMealServings}
@@ -58,15 +58,13 @@ export function MealsScreen({
           />
         </View>
         <View style={styles.mealBuilderHintWrap}>
-          <Text style={styles.mealBuilderHint}>
-            Local draft only until meal persistence lands on the backend contract.
-          </Text>
+          <Text style={styles.mealBuilderHint}>{t('buildMeal.localDraft')}</Text>
         </View>
       </View>
 
       <ScaleStopSelector
-        label="Meal scale"
-        helperText="Fixed stops keep the preview predictable while you edit the draft."
+        label={t('buildMeal.scale')}
+        helperText={t('buildMeal.scaleHint')}
         value={mealScale}
         values={scaleStops}
         onChange={setMealScale}
@@ -74,9 +72,9 @@ export function MealsScreen({
 
       <View style={styles.mealBuilderActionsRow}>
         <Pressable style={styles.inlinePillButton} onPress={resetMealDraft}>
-          <Text style={styles.inlinePillButtonLabel}>Reset draft</Text>
+          <Text style={styles.inlinePillButtonLabel}>{t('buildMeal.reset')}</Text>
         </Pressable>
-        <Text style={styles.mealBuilderHint}>Meal save is still backend-gated, so this stays as a live preview.</Text>
+        <Text style={styles.mealBuilderHint}>{t('buildMeal.backendGated')}</Text>
       </View>
 
       <View style={styles.mealIngredientEditor}>
@@ -85,7 +83,7 @@ export function MealsScreen({
             <View style={styles.foodRowCopy}>
               <Text style={styles.listTitle}>{ingredient.name}</Text>
               <Text style={styles.listCaption}>
-                {ingredient.food_id} · {ingredient.calories_per_100g} kcal / 100g
+                {t('buildMeal.per100', { id: ingredient.food_id, kcal: ingredient.calories_per_100g })}
               </Text>
             </View>
             <View style={styles.mealIngredientInputWrap}>
@@ -103,22 +101,22 @@ export function MealsScreen({
       </View>
 
       <View style={styles.detailCard}>
-        <Text style={styles.recipeMetaLabel}>Scaled preview</Text>
+        <Text style={styles.recipeMetaLabel}>{t('buildMeal.scaledPreview')}</Text>
         {mealPreview.ingredients.map((ingredient) => (
           <View key={ingredient.id} style={styles.listRow}>
             <View>
               <Text style={styles.listTitle}>{ingredient.name}</Text>
-              <Text style={styles.listCaption}>{ingredient.grams} g · {ingredient.food_id}</Text>
+              <Text style={styles.listCaption}>{t('buildMeal.gramsLine', { grams: ingredient.grams, id: ingredient.food_id })}</Text>
             </View>
             <Text style={styles.listMetric}>
-              {Math.round((ingredient.calories_per_100g * ingredient.grams) / 100)} kcal
+              {t('common.kcal', { value: Math.round((ingredient.calories_per_100g * ingredient.grams) / 100) })}
             </Text>
           </View>
         ))}
 
         <View style={styles.metricRow}>
-          <MetricTile label="Meal calories" value={`${mealTotalsPreview.calories} kcal`} />
-          <MetricTile label="Per serving" value={`${mealTotalsPreview.per_serving_calories} kcal`} />
+          <MetricTile label={t('buildMeal.mealCalories')} value={t('common.kcal', { value: mealTotalsPreview.calories })} />
+          <MetricTile label={t('buildMeal.perServing')} value={t('common.kcal', { value: mealTotalsPreview.per_serving_calories })} />
         </View>
       </View>
     </View>

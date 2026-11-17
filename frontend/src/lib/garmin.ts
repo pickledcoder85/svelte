@@ -1,5 +1,9 @@
 /** Garmin sync status in plain words, and when the app should sync on its own. */
+import { translatorFor } from '../i18n/dictionaries';
+import type { TFunction } from '../i18n/translate';
 import type { GarminStatus } from '../types';
+
+const ENGLISH = translatorFor('en');
 
 /** Opening the app syncs when the last good sync is older than this. */
 export const GARMIN_STALE_MINUTES = 15;
@@ -24,37 +28,38 @@ export function garminSyncIsStale(status: GarminStatus | null, now: Date): boole
   return latest.length === 0 || Math.min(...latest) >= GARMIN_STALE_MINUTES;
 }
 
-export function agoText(minutes: number): string {
+export function agoText(minutes: number, t: TFunction = ENGLISH): string {
   if (minutes < 1) {
-    return 'just now';
+    return t('garmin.justNow');
   }
   if (minutes < 60) {
-    return `${Math.floor(minutes)} min ago`;
+    return t('garmin.minutesAgo', { count: Math.floor(minutes) });
   }
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return `${hours} hr ago`;
+    return t('garmin.hoursAgo', { count: hours });
   }
   const days = Math.floor(hours / 24);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
+  return t('garmin.daysAgo', { count: days });
 }
 
-export function garminStatusText(status: GarminStatus | null, now: Date): string {
+/** The Garmin line in Settings; the server's own error text is shown as it comes. */
+export function garminStatusText(status: GarminStatus | null, now: Date, t: TFunction = ENGLISH): string {
   if (!status) {
-    return 'Checking…';
+    return t('garmin.checking');
   }
   if (!status.configured) {
-    return 'Not connected. Add a Garmin personal API key on the server to turn it on.';
+    return t('garmin.notConnected');
   }
   const success = minutesSince(status.last_success_at, now);
   if (status.last_status === 'error') {
-    const when = success === null ? 'Never synced.' : `Last synced ${agoText(success)}.`;
-    return `Sync failed: ${status.last_error ?? 'unknown error'} ${when}`;
+    const when = success === null ? t('garmin.neverSynced') : t('garmin.lastSynced', { ago: agoText(success, t) });
+    return t('garmin.failed', { error: status.last_error ?? t('garmin.unknownError'), when });
   }
   if (success === null) {
-    return 'Not synced yet.';
+    return t('garmin.notYet');
   }
-  return `Last synced ${agoText(success)}.`;
+  return t('garmin.lastSynced', { ago: agoText(success, t) });
 }
 
 export function workoutSourceLabel(source: string | null | undefined): string | null {

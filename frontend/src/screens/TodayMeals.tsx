@@ -2,7 +2,7 @@ import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { formatNumber, useT } from '../i18n';
-import type { MealGroup } from '../lib/meal-slots';
+import { plannedMealLabel, type MealGroup } from '../lib/meal-slots';
 import type { FoodLogEntry, FoodLogSummary, MealPlanDay, MealPlanSlot } from '../types';
 import { styles } from './shared/styles';
 
@@ -193,10 +193,4 @@ export function TodayMeals({
       ))}
     </View>
   );
-}
-
-/** A planned meal's label in the app's language ("Breakfast" is stored in English). */
-function plannedMealLabel(label: string, t: ReturnType<typeof useT>): string {
-  const key = label.trim().toLowerCase();
-  return key === 'breakfast' || key === 'lunch' || key === 'dinner' || key === 'snack' ? t(`meals.slots.${key}`) : label;
 }

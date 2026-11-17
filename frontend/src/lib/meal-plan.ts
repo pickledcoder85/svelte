@@ -1,8 +1,9 @@
+import { translatorFor } from '../i18n/dictionaries';
+import { formatDate, type TFunction } from '../i18n/translate';
 import { localDateKey } from './dates';
 import type { MealPlanDay } from '../types';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const ENGLISH = translatorFor('en');
 
 function parsePlanDate(planDate: string): Date | null {
   const parsed = new Date(`${planDate}T00:00:00`);
@@ -55,9 +56,10 @@ export function selectMealPlanDay(days: MealPlanDay[], selectedDate: string | nu
   return days[0] ?? null;
 }
 
-export function formatMealPlanCardDate(planDate: string | undefined): string {
+/** "Mar 30" ("30 de mar."); "Unscheduled" without a date. */
+export function formatMealPlanCardDate(planDate: string | undefined, t: TFunction = ENGLISH): string {
   if (!planDate) {
-    return 'Unscheduled';
+    return t('mealPlan.unscheduled');
   }
 
   const parsed = parsePlanDate(planDate);
@@ -65,18 +67,19 @@ export function formatMealPlanCardDate(planDate: string | undefined): string {
     return planDate;
   }
 
-  return `${MONTHS[parsed.getMonth()]} ${parsed.getDate()}`;
+  return formatDate(parsed, { month: 'short', day: 'numeric' }, t.locale);
 }
 
-export function formatMealPlanCardWeekday(planDate: string | undefined): string {
+/** "Mon" ("lun"); "Planned" without a date. */
+export function formatMealPlanCardWeekday(planDate: string | undefined, t: TFunction = ENGLISH): string {
   if (!planDate) {
-    return 'Planned';
+    return t('mealPlan.planned');
   }
 
   const parsed = parsePlanDate(planDate);
   if (!parsed) {
-    return 'Planned';
+    return t('mealPlan.planned');
   }
 
-  return WEEKDAYS[parsed.getDay()];
+  return formatDate(parsed, { weekday: 'short' }, t.locale);
 }

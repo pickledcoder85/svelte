@@ -30,13 +30,14 @@ export function describeOutput(output: IngestionOutput): string {
   return output.id;
 }
 
-export function formatCreatedAt(value: string): string {
+/** "Nov 17, 3:05 PM" in `locale` (the device's when not given). */
+export function formatCreatedAt(value: string, locale?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return date.toLocaleString([], {
+  return date.toLocaleString(locale ?? [], {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',

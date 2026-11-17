@@ -2,6 +2,7 @@ import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MetricTile } from '../components/MetricTile';
+import { useT } from '../i18n';
 import { formatCompletionTimeLabel, formatHomeDateLabel } from '../lib/app-format';
 import { defaultCooldownTitle, defaultWarmupTitle } from '../lib/planned-workouts';
 import { tc } from '../theme/palette';
@@ -68,26 +69,25 @@ export function WorkoutPlanScreen({
   removePlannedExerciseEntry,
   togglePlannedExerciseCompletion
 }: WorkoutPlanScreenProps): ReactElement {
+  const t = useT();
   return (
     <>
       <View style={styles.panel}>
-        <Text style={styles.panelEyebrow}>Planned exercise</Text>
-        <Text style={styles.panelTitle}>Plan a workout for the selected Home date</Text>
-        <Text style={styles.panelDetail}>
-          Save a future or same-day training session so Home can show planned movement separately from completed tracker logs.
-        </Text>
+        <Text style={styles.panelEyebrow}>{t('workoutPlan.eyebrow')}</Text>
+        <Text style={styles.panelTitle}>{t('workoutPlan.title')}</Text>
+        <Text style={styles.panelDetail}>{t('workoutPlan.detail')}</Text>
 
         <View style={styles.inlinePillRow}>
-          <Text style={styles.inlinePillText}>Planning for {formatHomeDateLabel(selectedHomeDate, todayKey)}</Text>
+          <Text style={styles.inlinePillText}>{t('workoutPlan.planningFor', { date: formatHomeDateLabel(selectedHomeDate, todayKey, t) })}</Text>
         </View>
 
         {plannedExerciseEditingId ? (
           <View style={styles.searchRow}>
             <View style={styles.inlinePillRow}>
-              <Text style={styles.inlinePillText}>Editing planned session</Text>
+              <Text style={styles.inlinePillText}>{t('workoutPlan.editing')}</Text>
             </View>
             <Pressable style={styles.inlinePillButton} onPress={resetPlannedExerciseDrafts}>
-              <Text style={styles.inlinePillButtonLabel}>Cancel edit</Text>
+              <Text style={styles.inlinePillButtonLabel}>{t('workoutPlan.cancelEdit')}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -105,9 +105,9 @@ export function WorkoutPlanScreen({
                 }}
               >
                 <Image source={preset.image} style={styles.exercisePresetImage} resizeMode="contain" />
-                <Text style={styles.exercisePresetLabel}>{preset.label}</Text>
+                <Text style={styles.exercisePresetLabel}>{t(`workoutPlan.presets.${preset.id}`)}</Text>
                 <Text style={styles.exercisePresetMeta}>
-                  {preset.minutes} min · est. {preset.calories} kcal
+                  {t('workoutPlan.presetMeta', { minutes: preset.minutes, calories: preset.calories })}
                 </Text>
               </Pressable>
             );
@@ -118,14 +118,14 @@ export function WorkoutPlanScreen({
           <TextInput
             value={plannedExerciseTitleDraft}
             onChangeText={setPlannedExerciseTitleDraft}
-            placeholder="Swim, walk, lift..."
+            placeholder={t('workoutPlan.titlePlaceholder')}
             placeholderTextColor={tc.fg_7c8aa5}
             style={styles.searchInput}
             autoCorrect={false}
           />
           <Pressable style={styles.primaryButton} onPress={() => void addPlannedExerciseEntry()}>
             <Text style={styles.primaryButtonLabel}>
-              {plannedExerciseSaving ? 'Saving...' : plannedExerciseEditingId ? 'Update plan' : 'Plan exercise'}
+              {plannedExerciseSaving ? t('workoutPlan.saving') : plannedExerciseEditingId ? t('workoutPlan.update') : t('workoutPlan.plan')}
             </Text>
           </Pressable>
         </View>
@@ -134,15 +134,15 @@ export function WorkoutPlanScreen({
           <TextInput
             value={plannedExerciseMinutesDraft}
             onChangeText={setPlannedExerciseMinutesDraft}
-            placeholder="Main set minutes"
+            placeholder={t('workoutPlan.minutesPlaceholder')}
             placeholderTextColor={tc.fg_7c8aa5}
             style={styles.searchInput}
             keyboardType="numeric"
             autoCorrect={false}
           />
           <View style={styles.metricTileCompact}>
-            <Text style={styles.metricLabel}>Estimated burn</Text>
-            <Text style={styles.metricValue}>{estimatedPlannedExerciseCalories} kcal</Text>
+            <Text style={styles.metricLabel}>{t('workoutPlan.estimatedBurn')}</Text>
+            <Text style={styles.metricValue}>{t('common.kcal', { value: estimatedPlannedExerciseCalories })}</Text>
           </View>
         </View>
 
@@ -152,7 +152,7 @@ export function WorkoutPlanScreen({
             onPress={() => setPlannedExerciseWarmupEnabled((current) => !current)}
           >
             <Text style={[styles.inlinePillButtonLabel, plannedExerciseWarmupEnabled ? styles.inlinePillButtonLabelComplete : null]}>
-              {plannedExerciseWarmupEnabled ? 'Remove warmup' : 'Add warmup'}
+              {plannedExerciseWarmupEnabled ? t('workoutPlan.removeWarmup') : t('workoutPlan.addWarmup')}
             </Text>
           </Pressable>
           <Pressable
@@ -160,7 +160,7 @@ export function WorkoutPlanScreen({
             onPress={() => setPlannedExerciseCooldownEnabled((current) => !current)}
           >
             <Text style={[styles.inlinePillButtonLabel, plannedExerciseCooldownEnabled ? styles.inlinePillButtonLabelComplete : null]}>
-              {plannedExerciseCooldownEnabled ? 'Remove cooldown' : 'Add cooldown'}
+              {plannedExerciseCooldownEnabled ? t('workoutPlan.removeCooldown') : t('workoutPlan.addCooldown')}
             </Text>
           </Pressable>
         </View>
@@ -170,7 +170,7 @@ export function WorkoutPlanScreen({
             <TextInput
               value={plannedExerciseWarmupMinutesDraft}
               onChangeText={setPlannedExerciseWarmupMinutesDraft}
-              placeholder="Warmup minutes"
+              placeholder={t('workoutPlan.warmupPlaceholder')}
               placeholderTextColor={tc.fg_7c8aa5}
               style={styles.searchInput}
               keyboardType="numeric"
@@ -187,7 +187,7 @@ export function WorkoutPlanScreen({
             <TextInput
               value={plannedExerciseCooldownMinutesDraft}
               onChangeText={setPlannedExerciseCooldownMinutesDraft}
-              placeholder="Cooldown minutes"
+              placeholder={t('workoutPlan.cooldownPlaceholder')}
               placeholderTextColor={tc.fg_7c8aa5}
               style={styles.searchInput}
               keyboardType="numeric"
@@ -200,8 +200,8 @@ export function WorkoutPlanScreen({
         ) : null}
 
         <View style={styles.metricRow}>
-          <MetricTile label="Minutes" value={`${plannedExerciseMinutesDraft} min`} compact />
-          <MetricTile label="Estimated burn" value={`${estimatedPlannedExerciseCalories} kcal`} compact />
+          <MetricTile label={t('workoutPlan.minutes')} value={t('common.minutes', { minutes: plannedExerciseMinutesDraft })} compact />
+          <MetricTile label={t('workoutPlan.estimatedBurn')} value={t('common.kcal', { value: estimatedPlannedExerciseCalories })} compact />
         </View>
 
         <View style={styles.foodList}>
@@ -211,7 +211,9 @@ export function WorkoutPlanScreen({
                 <View style={styles.foodRowCopy}>
                   <Text style={styles.listTitle}>{entry.title}</Text>
                   <Text style={styles.listCaption}>
-                    {formatHomeDateLabel(entry.planned_on, todayKey)} · {entry.duration_minutes} min · {entry.intensity} · {entry.completed_at ? `Completed ${formatCompletionTimeLabel(entry.completed_at)}` : entry.planned_at}
+                    {formatHomeDateLabel(entry.planned_on, todayKey, t)} · {t('common.minutes', { minutes: entry.duration_minutes })} ·{' '}
+                    {t(`workoutPlan.intensity.${entry.intensity}`)} ·{' '}
+                    {entry.completed_at ? t('workoutPlan.completed', { time: formatCompletionTimeLabel(entry.completed_at, t) }) : entry.planned_at}
                   </Text>
                   {plannedWorkoutSessions.find((session) => session.id === entry.id)?.blocks.length ? (
                     <Text style={styles.listCaption}>
@@ -223,14 +225,14 @@ export function WorkoutPlanScreen({
                   ) : null}
                 </View>
                 <View style={styles.listRowActions}>
-                  <Text style={styles.listMetric}>{entry.calories_burned} kcal</Text>
+                  <Text style={styles.listMetric}>{t('common.kcal', { value: entry.calories_burned })}</Text>
                   <View style={styles.listActionRow}>
                     <Pressable
                       style={styles.inlinePillButton}
                       onPress={() => beginPlannedExerciseEdit(entry)}
                       disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
                     >
-                      <Text style={styles.inlinePillButtonLabel}>Edit</Text>
+                      <Text style={styles.inlinePillButtonLabel}>{t('workoutPlan.edit')}</Text>
                     </Pressable>
                     <Pressable
                       style={styles.inlinePillButton}
@@ -238,7 +240,7 @@ export function WorkoutPlanScreen({
                       disabled={plannedExerciseDeletingId === entry.id || plannedExerciseUpdatingId === entry.id}
                     >
                       <Text style={styles.inlinePillButtonLabel}>
-                        {plannedExerciseDeletingId === entry.id ? 'Deleting...' : 'Delete'}
+                        {plannedExerciseDeletingId === entry.id ? t('workoutPlan.deleting') : t('workoutPlan.delete')}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -248,10 +250,10 @@ export function WorkoutPlanScreen({
                     >
                       <Text style={[styles.inlinePillButtonLabel, entry.completed_at ? styles.inlinePillButtonLabelComplete : null]}>
                         {plannedExerciseUpdatingId === entry.id
-                          ? 'Saving...'
+                          ? t('workoutPlan.saving')
                           : entry.completed_at
-                            ? 'Undo'
-                            : 'Complete'}
+                            ? t('workoutPlan.undo')
+                            : t('workoutPlan.complete')}
                       </Text>
                     </Pressable>
                   </View>
@@ -260,10 +262,8 @@ export function WorkoutPlanScreen({
             ))
           ) : (
             <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>No planned sessions yet</Text>
-              <Text style={styles.detailSubtitle}>
-                Add a workout above to populate Home with future planned exercise.
-              </Text>
+              <Text style={styles.detailTitle}>{t('workoutPlan.emptyTitle')}</Text>
+              <Text style={styles.detailSubtitle}>{t('workoutPlan.emptyHint')}</Text>
             </View>
           )}
         </View>

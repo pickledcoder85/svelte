@@ -1,3 +1,4 @@
+import type { TFunction } from '../i18n/translate';
 import { tc } from '../theme/palette';
 import type { FoodLogSummary, MealInput, PlannedExerciseEntry } from '../types';
 import { localDateKey } from './dates';
@@ -45,28 +46,29 @@ export function createEmptyMealDraft(): MealInput {
   };
 }
 
-export function formatHomeDateLabel(value: string, todayKey: string): string {
+/** "Today · Tue, Nov 17", or the date; in `t`'s language when given one (else the device's). */
+export function formatHomeDateLabel(value: string, todayKey: string, t?: TFunction): string {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  const base = date.toLocaleDateString([], {
+  const base = date.toLocaleDateString(t ? t.locale : [], {
     weekday: 'short',
     month: 'short',
     day: 'numeric'
   });
   if (value === todayKey) {
-    return `Today · ${base}`;
+    return t ? t('day.today', { date: base }) : `Today · ${base}`;
   }
   return base;
 }
 
-export function formatCompletionTimeLabel(value: string): string {
+export function formatCompletionTimeLabel(value: string, t?: TFunction): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toLocaleString([], {
+  return date.toLocaleString(t ? t.locale : [], {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',

@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useT } from '../../i18n';
+import { formatNumber, useT } from '../../i18n';
 import { groupByMeal } from '../../lib/meal-slots';
 import { historyDayLabel, type DayPoint } from '../../lib/trends';
 import { tc } from '../../theme/palette';
@@ -28,8 +28,8 @@ export function DayHistory({
   onDeleteFood(log: FoodLogSummary, entry: FoodLogEntry): Promise<void>;
   onOpenWorkout(id: string): void;
 }) {
-  // Meal names are shared with Today; the rest of Trends is translated in pass 2.
   const t = useT();
+  const number = (value: number) => formatNumber(value, undefined, t.locale);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -62,12 +62,12 @@ export function DayHistory({
               onPress={() => toggle(day.date)}
               accessibilityRole="button"
               accessibilityState={{ expanded }}
-              accessibilityLabel={`${historyDayLabel(day.date, today)}: ${day.eaten} of ${day.allowance} kcal`}
+              accessibilityLabel={t('trends.day.a11y', { day: historyDayLabel(day.date, today, t), eaten: day.eaten, allowance: day.allowance })}
             >
               <View style={styles.headerTop}>
-                <Text style={styles.dayLabel}>{historyDayLabel(day.date, today)}</Text>
+                <Text style={styles.dayLabel}>{historyDayLabel(day.date, today, t)}</Text>
                 <Text style={[styles.dayValue, over && styles.over]}>
-                  {day.logged ? `${day.eaten.toLocaleString('en-US')} / ${day.allowance.toLocaleString('en-US')} kcal` : 'Nothing logged'}
+                  {day.logged ? t('trends.day.value', { eaten: number(day.eaten), allowance: number(day.allowance) }) : t('trends.day.nothingLogged')}
                 </Text>
                 <Text style={styles.chevron}>{expanded ? '▴' : '▾'}</Text>
               </View>
@@ -79,8 +79,8 @@ export function DayHistory({
               {workouts.length > 0 || day.logged ? (
                 <Text style={styles.meta}>
                   {[
-                    day.logged ? `P ${day.macros.protein}g · C ${day.macros.carbs}g · F ${day.macros.fat}g` : null,
-                    workouts.length > 0 ? `${workouts.length} workout${workouts.length === 1 ? '' : 's'} · ${day.workoutCalories} kcal` : null
+                    day.logged ? t('common.macrosGrams', { ...day.macros }) : null,
+                    workouts.length > 0 ? t('trends.day.workouts', { count: workouts.length, kcal: day.workoutCalories }) : null
                   ]
                     .filter(Boolean)
                     .join('   ')}
@@ -95,7 +95,7 @@ export function DayHistory({
                       <View key={group.slot} style={styles.group}>
                         <View style={styles.groupHeader}>
                           <Text style={styles.groupLabel}>{group.label}</Text>
-                          <Text style={styles.groupLabel}>{group.calories.toLocaleString('en-US')} kcal</Text>
+                          <Text style={styles.groupLabel}>{t('common.kcal', { value: number(group.calories) })}</Text>
                         </View>
                         {group.entries.map((entry) => {
                           const key = `${day.date}:${entry.id}`;
@@ -118,9 +118,9 @@ export function DayHistory({
                                   void onDeleteFood(log, entry).finally(() => setBusy(null));
                                 }}
                                 accessibilityRole="button"
-                                accessibilityLabel={confirm === key ? `Confirm deleting ${entry.food_name}` : `Delete ${entry.food_name}`}
+                                accessibilityLabel={t(confirm === key ? 'common.confirmDeleteItem' : 'common.deleteItem', { name: entry.food_name })}
                               >
-                                <Text style={[styles.removeLabel, confirm === key && styles.removeConfirmLabel]}>{confirm === key ? 'Delete?' : '✕'}</Text>
+                                <Text style={[styles.removeLabel, confirm === key && styles.removeConfirmLabel]}>{confirm === key ? t('common.deleteConfirm') : '✕'}</Text>
                               </Pressable>
                             </View>
                           );
@@ -130,7 +130,7 @@ export function DayHistory({
                   : null}
                 {workouts.length > 0 ? (
                   <View style={styles.group}>
-                    <Text style={styles.groupLabel}>Workouts</Text>
+                    <Text style={styles.groupLabel}>{t('trends.day.workoutsTitle')}</Text>
                     {workouts.map((entry) => (
                       <Pressable key={entry.id} style={styles.row} onPress={() => onOpenWorkout(entry.id)} accessibilityRole="button">
                         <Text style={styles.rowName} numberOfLines={1}>
@@ -138,7 +138,7 @@ export function DayHistory({
                           {entry.source === 'garmin' ? ' · Garmin' : ''}
                         </Text>
                         <Text style={styles.rowValue}>
-                          {entry.duration_minutes} min · {entry.calories_burned} kcal ›
+                          {t('trends.day.workoutRow', { minutes: entry.duration_minutes, kcal: entry.calories_burned })}
                         </Text>
                       </Pressable>
                     ))}

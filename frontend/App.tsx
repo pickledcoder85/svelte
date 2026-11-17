@@ -1783,14 +1783,19 @@ function RelishApp(): ReactElement {
     const days = HORIZON_DAYS[weightHorizon];
     const from = last ? { date: last.date, weight: last.trend } : null;
     const shortDate = (date: string) =>
-      new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        ...(date.slice(0, 4) !== todayKey.slice(0, 4) ? { year: 'numeric' as const } : {})
-      });
+      formatDate(
+        new Date(`${date}T00:00:00`),
+        {
+          month: 'short',
+          day: 'numeric',
+          ...(date.slice(0, 4) !== todayKey.slice(0, 4) ? { year: 'numeric' as const } : {})
+        },
+        t.locale
+      );
+    const number = (value: number) => formatNumber(value, undefined, t.locale);
     const signed = (lbs: number) => {
       const value = toUnit(lbs);
-      return `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value)}`;
+      return `${value > 0 ? '+' : value < 0 ? '−' : '±'}${number(Math.abs(value))}`;
     };
     const direction = profile?.goal_type ?? null;
     const lines: string[] = [];
@@ -1799,28 +1804,34 @@ function RelishApp(): ReactElement {
       const ahead = Math.max(0, Math.round((Date.parse(`${horizonEnd}T00:00:00Z`) - Date.parse(`${from.date}T00:00:00Z`)) / 86400000));
       const reach = goalDate(from, trendRate, goal, direction);
       lines.push(
-        `At your current trend: ${toUnit(from.weight + (trendRate * ahead) / 7)} ${trendUnit} by ${shortDate(horizonEnd)}` +
-          (goal !== null ? ` · goal ${reach ? (reach <= todayKey ? 'reached' : `by ${shortDate(reach)}`) : 'not at this rate'}` : '')
+        t('trends.atTrend', { weight: number(toUnit(from.weight + (trendRate * ahead) / 7)), unit: trendUnit, date: shortDate(horizonEnd) }) +
+          (goal !== null
+            ? reach
+              ? reach <= todayKey
+                ? t('trends.goalReached')
+                : t('trends.goalBy', { date: shortDate(reach) })
+              : t('trends.goalNotAtRate')
+            : '')
       );
     } else if (from) {
       const reach = paceRate !== null ? goalDate(from, paceRate, goal, direction) : null;
-      lines.push(`Weigh in for about a week to see where your trend is heading${reach ? ` · at your planned pace, goal by ${shortDate(reach)}` : ''}`);
+      lines.push(t('trends.weighWeek') + (reach ? t('trends.plannedGoalBy', { date: shortDate(reach) }) : ''));
     }
     const status = paceStatus(trendRate, paceRate);
     if (status && trendRate !== null && paceRate !== null) {
-      const rates = `${signed(trendRate)} vs ${signed(paceRate)} ${trendUnit} a week`;
+      const rates = t('trends.rates', { trend: signed(trendRate), pace: signed(paceRate), unit: trendUnit });
       lines.push(
         status === 'on'
-          ? `On pace (${rates})`
+          ? t('trends.onPace', { rates })
           : status === 'ahead'
-            ? `Ahead of pace (${rates})`
+            ? t('trends.ahead', { rates })
             : status === 'behind'
-              ? `Behind pace (${rates})`
-              : `Drifting ${signed(trendRate)} ${trendUnit} a week (planned: steady)`
+              ? t('trends.behind', { rates })
+              : t('trends.drifting', { rate: signed(trendRate), unit: trendUnit })
       );
     }
     return { trendRate, paceRate, days, lines, status };
-  }, [trendWeightPoints, dailyHomeTargets.calorieTarget, profile?.tdee_calories, profile?.target_weight_lbs, profile?.goal_type, weightHorizon, trendUnit, todayKey]);
+  }, [trendWeightPoints, dailyHomeTargets.calorieTarget, profile?.tdee_calories, profile?.target_weight_lbs, profile?.goal_type, weightHorizon, trendUnit, todayKey, t]);
   const homeOpenPlannedMeals = useMemo(
     () => (homeMealPlanDay ? homeMealPlanDay.slots.filter((slot) => !homeMealPlanEatenSlots[slot.id]) : []),
     [homeMealPlanDay, homeMealPlanEatenSlots]
@@ -2514,7 +2525,7 @@ function RelishApp(): ReactElement {
       setProfile(reset);
       setProfileGoals([]); // the server deleted them; setup seeds the new one
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : 'Unable to reset the profile.');
+      setSettingsError(error instanceof Error ? error.message : t('settings.messages.resetError'));
     } finally {
       setProfileResetting(false);
     }
@@ -2536,12 +2547,10 @@ function RelishApp(): ReactElement {
       setOnboardingCalorieFloorDraft(choice);
       setProfileGoals(await fetchUserGoals(foodSessionToken));
       setFloorMessage(
-        choice === 'off'
-          ? 'Calorie floor turned off. Your daily targets were recalculated.'
-          : 'Recommended minimum turned on. Your daily targets were recalculated.'
+        choice === 'off' ? t('settings.messages.floorOff') : t('settings.messages.floorOn')
       );
     } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to change the calorie floor.');
+      setFloorMessage(error instanceof Error ? error.message : t('settings.messages.floorError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2587,10 +2596,10 @@ function RelishApp(): ReactElement {
       if (announce) {
         const linked = result.matched ?? 0;
         const parts = [
-          added > 0 ? `Added ${added} workout${added === 1 ? '' : 's'} from Garmin.` : '',
-          linked > 0 ? `Linked ${linked} to workout${linked === 1 ? '' : 's'} you'd already logged.` : ''
+          added > 0 ? t('settings.garminSync.added', { count: added }) : '',
+          linked > 0 ? t('settings.garminSync.linked', { count: linked }) : ''
         ].filter(Boolean);
-        setGarminNote(parts.length > 0 ? parts.join(' ') : 'No new workouts.');
+        setGarminNote(parts.length > 0 ? parts.join(' ') : t('settings.garminSync.none'));
       }
     } catch (error) {
       if (garminTokenRef.current !== token) {
@@ -2605,7 +2614,7 @@ function RelishApp(): ReactElement {
         // Keep the last known status.
       }
       if (announce) {
-        setGarminNote(error instanceof Error ? error.message : 'Garmin sync failed.');
+        setGarminNote(error instanceof Error ? error.message : t('settings.garminSync.failed'));
       }
     } finally {
       garminSyncingRef.current = false;
@@ -2646,7 +2655,7 @@ function RelishApp(): ReactElement {
         )
       );
     } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to change the water goal.');
+      setFloorMessage(error instanceof Error ? error.message : t('settings.messages.waterError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2727,12 +2736,10 @@ function RelishApp(): ReactElement {
       );
       setProfile(updated);
       setFloorMessage(
-        share === 0
-          ? 'Workouts no longer add to your daily allowance.'
-          : `${share}% of the calories from workouts you log now add to that day's allowance.`
+        share === 0 ? t('settings.messages.shareOff') : t('settings.messages.shareOn', { percent: share })
       );
     } catch (error) {
-      setFloorMessage(error instanceof Error ? error.message : 'Unable to change workout calories.');
+      setFloorMessage(error instanceof Error ? error.message : t('settings.messages.shareError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2759,9 +2766,9 @@ function RelishApp(): ReactElement {
       setProfileDisplayNameDraft(updated.display_name ?? '');
       setProfileTimezoneDraft(updated.timezone);
       setProfileUnitsDraft(updated.units);
-      setSettingsMessage('Settings saved.');
+      setSettingsMessage(t('settings.messages.saved'));
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : 'Unable to save settings.');
+      setSettingsError(error instanceof Error ? error.message : t('settings.messages.saveError'));
     } finally {
       setSettingsSaving(false);
     }
@@ -2774,8 +2781,8 @@ function RelishApp(): ReactElement {
 
     if (missingOtherAllergy(onboardingAllergySelectionsDraft, onboardingAllergyOtherDraft)) {
       setProfileTone('checking');
-      setProfileStatus('Could not save profile settings');
-      setProfileError('Type the other food to avoid, or turn off Other.');
+      setProfileStatus(t('profile.status.saveFailed'));
+      setProfileError(t('profile.status.otherAllergy'));
       return;
     }
 
@@ -2798,8 +2805,8 @@ function RelishApp(): ReactElement {
       (target_weight_lbs !== null && (!Number.isFinite(target_weight_lbs) || target_weight_lbs <= 0))
     ) {
       setProfileTone('checking');
-      setProfileStatus('Could not save profile settings');
-      setProfileError('Enter a valid age, height, weight, and optional target weight before saving.');
+      setProfileStatus(t('profile.status.saveFailed'));
+      setProfileError(t('profile.status.invalid'));
       return;
     }
 
@@ -2830,7 +2837,7 @@ function RelishApp(): ReactElement {
 
     setProfileSaving(true);
     setProfileTone('checking');
-    setProfileStatus('Saving profile and recalculating targets');
+    setProfileStatus(t('profile.status.saving'));
     setProfileError(null);
 
     try {
@@ -2847,11 +2854,11 @@ function RelishApp(): ReactElement {
         applyProfileDrafts(updated, goals);
       }
       setProfileTone('live');
-      setProfileStatus('Profile and targets saved');
+      setProfileStatus(t('profile.status.saved'));
     } catch (error) {
       setProfileTone('checking');
-      setProfileStatus('Could not save profile settings');
-      setProfileError(error instanceof Error ? error.message : 'Unable to save profile settings.');
+      setProfileStatus(t('profile.status.saveFailed'));
+      setProfileError(error instanceof Error ? error.message : t('profile.status.saveError'));
     } finally {
       setProfileSaving(false);
     }
@@ -3095,7 +3102,7 @@ function RelishApp(): ReactElement {
 
     setGoalSaving(true);
     setProfileTone('checking');
-    setProfileStatus('Saving new goal');
+    setProfileStatus(t('profile.status.savingGoal'));
     setProfileError(null);
 
     try {
@@ -3117,7 +3124,7 @@ function RelishApp(): ReactElement {
         setProfileGoals((current) => [saved, ...current]);
       }
       setProfileTone('live');
-      setProfileStatus('Goal saved');
+      setProfileStatus(t('profile.status.goalSaved'));
       setGoalEffectiveAtDraft(localDateKey());
       setGoalCaloriesDraft('2100');
       setGoalProteinDraft('180');
@@ -3126,8 +3133,8 @@ function RelishApp(): ReactElement {
       setGoalWeightDraft('178.5');
     } catch (error) {
       setProfileTone('checking');
-      setProfileStatus('Could not save goal');
-      setProfileError(error instanceof Error ? error.message : 'Unable to save goal.');
+      setProfileStatus(t('profile.status.goalFailed'));
+      setProfileError(error instanceof Error ? error.message : t('profile.status.goalError'));
     } finally {
       setGoalSaving(false);
     }

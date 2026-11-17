@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatGrams, planDates, shoppingAmount, shoppingList, stepCount, stepForDay, stepNote } from './meal-plan-builder';
+import { translatorFor } from '../i18n/dictionaries';
+import { formatGrams, planDates, shoppingAmount, shoppingList, stepCount, stepForDay, stepNote, weekdayLabel } from './meal-plan-builder';
 
 describe('meal plan builder', () => {
   it('picks the dates', () => {
@@ -45,12 +46,31 @@ describe('shopping list counts', () => {
       { times: 2, items: [{ name: 'Sweet potato', grams: 75, role: 'carb', count: 0.5, unit: 'medium sweet potato', unit_plural: 'medium sweet potatoes' }] }
     ]);
     const protein = list.find((group) => group.role === 'protein')!.items;
-    expect(protein.map(shoppingAmount)).toEqual(['13 large eggs (650 g)', '40 g']);
+    expect(protein.map((item) => shoppingAmount(item))).toEqual(['13 large eggs (650 g)', '40 g']);
     const carbs = list.find((group) => group.role === 'carb')!.items;
     expect(carbs.map((item) => `${item.name}: ${shoppingAmount(item)}`)).toEqual(['Oats: 300 g', 'Sweet potato: 1 medium sweet potato (150 g)']);
   });
 
   it('rounds half items up to whole ones to buy', () => {
     expect(shoppingAmount({ name: 'Avocado', grams: 225, role: 'fat', count: 1.5, unit: 'avocado', unit_plural: 'avocados' })).toBe('2 avocados (225 g)');
+  });
+});
+
+describe('meal plan builder in Spanish', () => {
+  const es = translatorFor('es');
+
+  it('labels groups and formats amounts in the display language', () => {
+    const list = shoppingList([{ times: 1, items: [{ name: 'Rice', grams: 100, role: 'carb' }] }], es);
+    expect(list[0].label).toBe('Harinas y granos');
+    expect(formatGrams(1200, 'es-CO')).toBe('1,2 kg');
+    expect(shoppingAmount({ name: 'Eggs', grams: 1250, role: 'protein', count: 3, unit: 'egg', unit_plural: 'eggs' }, es)).toBe('3 eggs (1,3 kg)');
+    // Gus's step note is part of the request, so it stays English.
+    expect(stepNote('rotate', 0, 2)).toBe('meal 1 of 2 in a rotation');
+  });
+
+  it('names weekdays in the display language', () => {
+    expect(weekdayLabel(0, translatorFor('en'))).toBe('Sun');
+    expect(weekdayLabel(6, translatorFor('en'))).toBe('Sat');
+    expect(weekdayLabel(3, es)).toBe('mié');
   });
 });

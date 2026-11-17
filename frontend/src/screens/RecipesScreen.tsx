@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 
 import { MetricTile } from '../components/MetricTile';
 import { ScaleStopSelector } from '../components/ScaleStopSelector';
+import { useT } from '../i18n';
 import { toneColor } from '../lib/app-format';
 import { mealTotals, round1 } from '../lib/nutrition';
 import { tc } from '../theme/palette';
@@ -55,13 +56,12 @@ export function RecipesScreen({
   recipeScale,
   setRecipeScale
 }: RecipesScreenProps): ReactElement {
+  const t = useT();
   return (
     <View style={styles.panel}>
-      <Text style={styles.panelEyebrow}>Recipes</Text>
-      <Text style={styles.panelTitle}>Recipe library and import review</Text>
-      <Text style={styles.panelDetail}>
-        Browse the full recipe catalog in alphabetical order, narrow it with fuzzy search, and open each recipe inline to review the details.
-      </Text>
+      <Text style={styles.panelEyebrow}>{t('recipes.eyebrow')}</Text>
+      <Text style={styles.panelTitle}>{t('recipes.title')}</Text>
+      <Text style={styles.panelDetail}>{t('recipes.detail')}</Text>
 
       <View style={[styles.inlineStatus, { borderColor: toneColor(recipeTone) }]}>
         <Text style={styles.inlineStatusLabel}>{recipeStatus}</Text>
@@ -74,12 +74,10 @@ export function RecipesScreen({
       </View>
 
       <View style={styles.recipeImportCard}>
-        <Text style={styles.recipeMetaLabel}>Import review</Text>
+        <Text style={styles.recipeMetaLabel}>{t('recipes.importReview')}</Text>
         <View style={styles.detailCard}>
-          <Text style={styles.detailTitle}>No live recipe import selected</Text>
-          <Text style={styles.detailSubtitle}>
-            Imported recipes will appear here after a real text, PDF, or image upload is submitted.
-          </Text>
+          <Text style={styles.detailTitle}>{t('recipes.noImportTitle')}</Text>
+          <Text style={styles.detailSubtitle}>{t('recipes.noImportDetail')}</Text>
         </View>
       </View>
 
@@ -88,7 +86,7 @@ export function RecipesScreen({
           <TextInput
             value={recipeSearchTerm}
             onChangeText={setRecipeSearchTerm}
-            placeholder="Find oats, chicken, parfait..."
+            placeholder={t('recipes.placeholder')}
             placeholderTextColor={tc.fg_7c8aa5}
             style={styles.searchInput}
             autoCapitalize="none"
@@ -99,14 +97,12 @@ export function RecipesScreen({
         {recipeLoading ? (
           <View style={styles.detailCard}>
             <ActivityIndicator size="small" color={tc.fg_17324d} />
-            <Text style={styles.detailSubtitle}>Fetching recipes...</Text>
+            <Text style={styles.detailSubtitle}>{t('recipes.fetching')}</Text>
           </View>
         ) : filteredRecipeCatalog.length === 0 ? (
           <View style={styles.detailCard}>
-            <Text style={styles.detailTitle}>No recipe matches yet</Text>
-            <Text style={styles.detailSubtitle}>
-              Try another title or ingredient term to narrow the recipe list.
-            </Text>
+            <Text style={styles.detailTitle}>{t('recipes.noMatchTitle')}</Text>
+            <Text style={styles.detailSubtitle}>{t('recipes.noMatchDetail')}</Text>
           </View>
         ) : (
           <View style={styles.foodList}>
@@ -143,16 +139,16 @@ export function RecipesScreen({
                           disabled={saving}
                         >
                           <Text style={styles.recipeStarButtonLabel}>
-                            {saving ? 'Saving...' : recipe.favorite ? '★' : '☆'}
+                            {saving ? t('recipes.saving') : recipe.favorite ? '★' : '☆'}
                           </Text>
                         </Pressable>
                       </View>
                       <Text style={styles.listCaption}>
-                        {recipe.steps.length} steps · {recipe.ingredients.length} ingredients · {recipe.assets.length} assets
+                        {t('recipes.counts', { steps: recipe.steps.length, ingredients: recipe.ingredients.length, assets: recipe.assets.length })}
                       </Text>
                     </View>
                     <View style={styles.recipeAccordionMeta}>
-                      <Text style={styles.listMetric}>{recipe.default_yield} servings</Text>
+                      <Text style={styles.listMetric}>{t('recipes.servings', { count: recipe.default_yield })}</Text>
                       <Text style={styles.recipeAccordionCaret}>{active ? '▲' : '▼'}</Text>
                     </View>
                   </Pressable>
@@ -162,7 +158,7 @@ export function RecipesScreen({
                       {recipeDetailLoading && selectedRecipe?.id === recipe.id ? (
                         <View style={styles.recipeDetailLoading}>
                           <ActivityIndicator size="small" color={tc.fg_17324d} />
-                          <Text style={styles.detailSubtitle}>Loading recipe detail...</Text>
+                          <Text style={styles.detailSubtitle}>{t('recipes.loadingDetail')}</Text>
                         </View>
                       ) : (
                         <>
@@ -172,15 +168,19 @@ export function RecipesScreen({
                                 <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
                               </View>
                               <Text style={styles.detailSubtitle}>
-                                {detailRecipe.steps.length} steps · {detailRecipe.ingredients.length} ingredients ·{' '}
-                                {detailRecipe.assets.length} assets · {detailRecipe.default_yield} servings
+                                {t('recipes.counts', {
+                                  steps: detailRecipe.steps.length,
+                                  ingredients: detailRecipe.ingredients.length,
+                                  assets: detailRecipe.assets.length
+                                })}{' '}
+                                · {t('recipes.servings', { count: detailRecipe.default_yield })}
                               </Text>
                             </View>
                           </View>
 
                           <ScaleStopSelector
-                            label="Recipe scale"
-                            helperText="The fixed stops keep the serving preview readable while you step through the accordion."
+                            label={t('recipes.scale')}
+                            helperText={t('recipes.scaleHint')}
                             value={recipeScale}
                             values={scaleStops}
                             onChange={setRecipeScale}
@@ -188,19 +188,19 @@ export function RecipesScreen({
 
                           <View style={styles.metricRow}>
                             <MetricTile
-                              label="Scaled yield"
-                              value={`${round1(detailRecipe.default_yield * recipeScale)} servings`}
+                              label={t('recipes.scaledYield')}
+                              value={t('recipes.servings', { count: round1(detailRecipe.default_yield * recipeScale) })}
                             />
-                            <MetricTile label="Recipe calories" value={`${scaledTotals.calories} kcal`} />
+                            <MetricTile label={t('recipes.recipeCalories')} value={t('common.kcal', { value: scaledTotals.calories })} />
                             <MetricTile
-                              label="Per serving"
-                              value={`${scaledTotals.per_serving_calories} kcal`}
+                              label={t('recipes.perServing')}
+                              value={t('common.kcal', { value: scaledTotals.per_serving_calories })}
                             />
                           </View>
 
                           {detailRecipe.steps.length > 0 ? (
                             <View style={styles.recipeMetaBlock}>
-                              <Text style={styles.recipeMetaLabel}>Steps</Text>
+                              <Text style={styles.recipeMetaLabel}>{t('recipes.steps')}</Text>
                               {detailRecipe.steps.map((step, index) => (
                                 <Text key={`${detailRecipe.id}-step-${index}`} style={styles.recipeStep}>
                                   {index + 1}. {step}
@@ -211,7 +211,7 @@ export function RecipesScreen({
 
                           {scaledRecipe.ingredients.length > 0 ? (
                             <View style={styles.recipeMetaBlock}>
-                              <Text style={styles.recipeMetaLabel}>Ingredients</Text>
+                              <Text style={styles.recipeMetaLabel}>{t('recipes.ingredients')}</Text>
                               {scaledRecipe.ingredients.map((ingredient) => (
                                 <Text key={`${detailRecipe.id}-${ingredient.id}`} style={styles.recipeMetaItem}>
                                   {ingredient.name} · {ingredient.grams} g
@@ -221,13 +221,13 @@ export function RecipesScreen({
                           ) : null}
 
                           <View style={styles.recipeMetaBlock}>
-                            <Text style={styles.recipeMetaLabel}>Assets</Text>
+                            <Text style={styles.recipeMetaLabel}>{t('recipes.assets')}</Text>
                             {detailRecipe.assets.length === 0 ? (
-                              <Text style={styles.recipeMetaItem}>No imported assets attached yet.</Text>
+                              <Text style={styles.recipeMetaItem}>{t('recipes.noAssets')}</Text>
                             ) : (
                               detailRecipe.assets.map((asset, index) => (
                                 <Text key={`${detailRecipe.id}-asset-${index}`} style={styles.recipeMetaItem}>
-                                  {asset.kind.toUpperCase()} asset {asset.url ? 'linked' : 'embedded'}
+                                  {t(asset.url ? 'recipes.assetLinked' : 'recipes.assetEmbedded', { kind: asset.kind.toUpperCase() })}
                                 </Text>
                               ))
                             )}
@@ -244,15 +244,11 @@ export function RecipesScreen({
       </View>
 
       <View style={styles.recipeSecondaryCard}>
-        <Text style={styles.panelEyebrow}>Import and scale</Text>
-        <Text style={styles.panelDetail}>
-          Text, PDF, and image ingestion will appear here once the import composer is wired in.
-        </Text>
+        <Text style={styles.panelEyebrow}>{t('recipes.importScale')}</Text>
+        <Text style={styles.panelDetail}>{t('recipes.importScaleDetail')}</Text>
         <View style={styles.detailCard}>
-          <Text style={styles.detailTitle}>No live import composer yet</Text>
-          <Text style={styles.detailSubtitle}>
-            Imported recipes will show up here after a real text, PDF, or image submission.
-          </Text>
+          <Text style={styles.detailTitle}>{t('recipes.noComposerTitle')}</Text>
+          <Text style={styles.detailSubtitle}>{t('recipes.noComposerDetail')}</Text>
         </View>
       </View>
     </View>
