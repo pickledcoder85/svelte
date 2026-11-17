@@ -1,5 +1,5 @@
 import { tc } from './src/theme/palette';
-import { APPEARANCE_OPTIONS, setAppearance, startAppearance, useAppearance } from './src/theme/appearance';
+import { startAppearance, useAppearance } from './src/theme/appearance';
 import { StatusBar } from 'expo-status-bar';
 import { Ribeye_400Regular, useFonts as useRibeyeFonts } from '@expo-google-fonts/ribeye';
 import type { ReactElement } from 'react';
@@ -75,7 +75,6 @@ import {
 import {
   buildDailyTargetSummary,
   DEFAULT_WORKOUT_CALORIES_SHARE,
-  WORKOUT_CALORIE_SHARES,
   type WorkoutCaloriesShare
 } from './src/lib/daily-home';
 import { buildCalorieBudget } from './src/lib/calorie-budget';
@@ -87,11 +86,7 @@ import { SuggestMealSheet } from './src/components/SuggestMealSheet';
 import { CreateMealPlan } from './src/components/CreateMealPlan';
 import { defaultMealSlot } from './src/lib/meal-slots';
 import { MEAL_STYLES, styleForSplit, type MealBlockKey, type MealStyleId } from './src/lib/meal-split';
-import { CalorieBars } from './src/components/trends/CalorieBars';
-import { DayHistory } from './src/components/trends/DayHistory';
-import { MacroBars } from './src/components/trends/MacroBars';
 import { fatShareFor } from './src/lib/macro-allowance';
-import { WeightTrendChart } from './src/components/trends/WeightTrendChart';
 import {
   buildDaySeries,
   calorieSummary,
@@ -101,9 +96,7 @@ import {
   paceStatus,
   plannedWeeklyChange,
   projectableRate,
-  PROJECTION_HORIZONS,
   rangeStart,
-  TREND_RANGES,
   weeklyRate,
   weightTrend,
   type ProjectionHorizon,
@@ -115,14 +108,12 @@ import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
 import { WaterRow } from './src/components/WaterRow';
-import { RemindersSettings } from './src/components/RemindersSettings';
 import { ShoppingListsSheet } from './src/components/ShoppingListsSheet';
 import { flushTicks as flushShoppingTicks, pendingCount as pendingShoppingTicks } from './src/lib/shopping-queue';
-import { WaterBars } from './src/components/trends/WaterBars';
-import { DEFAULT_WATER_GOAL_ML, GLASS_ML, volumeLabel, WATER_GOAL_GLASSES, waterDays, waterForDay } from './src/lib/water';
+import { DEFAULT_WATER_GOAL_ML, waterDays, waterForDay } from './src/lib/water';
 import { groupByMeal } from './src/lib/meal-slots';
 import { buildWorkoutDetail } from './src/lib/workout-detail';
-import { garminStatusText, garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
+import { garminSyncIsStale, workoutSourceLabel } from './src/lib/garmin';
 import { APP_TABS, subTabsForSection, tabForSection, type AppTabId } from './src/lib/app-shell';
 import { ActionSheet } from './src/components/ActionSheet';
 import { SubTabs } from './src/components/SubTabs';
@@ -146,7 +137,6 @@ import { ChoiceSheet } from './src/components/ChoiceSheet';
 import { ActivityCaption, ActivityEnergyBars, ActivitySlider } from './src/components/ActivityLevel';
 import { formatAllergySelection, missingOtherAllergy, parseAllergySelection, type AllergyChoice } from './src/lib/allergies';
 import { maintenanceForLevel } from './src/lib/activity-level';
-import appConfig from './app.json';
 import { FieldGroup, PickerField } from './src/components/FormField';
 import { PickerSheet } from './src/components/PickerSheet';
 import {
@@ -187,7 +177,6 @@ import {
   formatApproximateDate,
   formatCalories,
   formatWeeklyRate,
-  goalLabel,
   isPaceForGoal,
   caloriesToMoveMore,
   needsFloorWarning,
@@ -240,7 +229,6 @@ import {
   demoWeightEntries
 } from './src/mock-data';
 import { LaunchSplash } from './src/components/LaunchSplash';
-import { MetricTile } from './src/components/MetricTile';
 import {
   createEmptyFoodLog,
   createEmptyMealDraft,
@@ -278,7 +266,10 @@ import { IngestionScreen } from './src/screens/IngestionScreen';
 import { MealPlanScreen } from './src/screens/MealPlanScreen';
 import { MealPrepScreen } from './src/screens/MealPrepScreen';
 import { MealsScreen } from './src/screens/MealsScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 import { RecipesScreen } from './src/screens/RecipesScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { TrendsScreen } from './src/screens/TrendsScreen';
 import { WorkoutPlanScreen } from './src/screens/WorkoutPlanScreen';
 
 // Colour variables and the light/dark choice, before the first render.
@@ -4634,542 +4625,84 @@ export default function App(): ReactElement {
         )}
 
         {section === 'trends' && (
-          <View style={styles.dashboardStack}>
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Trends</Text>
-                <View style={styles.trendRangeRow} accessibilityRole="tablist">
-                  {TREND_RANGES.map((range) => (
-                    <Pressable
-                      key={range}
-                      style={[styles.trendRange, trendRange === range && styles.trendRangeActive]}
-                      onPress={() => setTrendRange(range)}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: trendRange === range }}
-                    >
-                      <Text style={[styles.trendRangeLabel, trendRange === range && styles.trendRangeLabelActive]}>{range}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              {trendsError ? <Text style={styles.settingsError}>{trendsError}</Text> : null}
-            </View>
-
-            {/* Weight: weigh-ins and the smoothed trend, with the goal. */}
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Weight</Text>
-                <Text style={styles.trendHeadline}>
-                  {trendWeight.latest !== null ? `${trendWeight.latest} ${trendUnit}` : '—'}
-                </Text>
-              </View>
-              <Text style={styles.todayHint}>
-                {[
-                  trendWeight.rate !== null
-                    ? `Trend ${trendWeight.rate > 0 ? '+' : trendWeight.rate < 0 ? '−' : '±'}${Math.abs(trendWeight.rate)} ${trendUnit} a week`
-                    : 'Weigh in a few more days to see your weekly trend',
-                  trendWeight.toGoal !== null ? `${trendWeight.toGoal} ${trendUnit} to goal` : null
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-              <WeightTrendChart
-                points={trendWeightPoints}
-                start={trendStart}
-                end={todayKey}
-                goal={profile?.target_weight_lbs ?? null}
-                unit={trendUnit}
-                toUnit={(lbs) => (trendUnit === 'kg' ? Math.round(lbs * 0.45359237 * 10) / 10 : lbs)}
-                projection={{ days: trendProjection.days, trendRate: trendProjection.trendRate, paceRate: trendProjection.paceRate }}
-              />
-              <View style={styles.trendProjectionRow}>
-                <Text style={styles.trendProjectionLabel}>Projection</Text>
-                <View style={styles.trendRangeRow} accessibilityRole="tablist">
-                  {PROJECTION_HORIZONS.map((horizon) => (
-                    <Pressable
-                      key={horizon}
-                      style={[styles.trendRange, weightHorizon === horizon && styles.trendRangeActive]}
-                      onPress={() => setWeightHorizon(horizon)}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: weightHorizon === horizon }}
-                      accessibilityLabel={`Project ${horizon.replace('M', '')} month${horizon === '1M' ? '' : 's'} ahead`}
-                    >
-                      <Text style={[styles.trendRangeLabel, weightHorizon === horizon && styles.trendRangeLabelActive]}>{horizon}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              {trendProjection.lines.map((line, index) => (
-                <Text
-                  key={line}
-                  style={[
-                    index === 0 ? styles.trendProjectionText : styles.trendPaceText,
-                    index > 0 && trendProjection.status === 'on' && styles.trendPaceGood,
-                    index > 0 && (trendProjection.status === 'behind' || trendProjection.status === 'drifting') && styles.trendPaceWarn
-                  ]}
-                >
-                  {line}
-                </Text>
-              ))}
-            </View>
-
-            {/* Calories: each day against its allowance. */}
-            <View style={styles.homeSection}>
-              <View style={styles.todaySectionHeader}>
-                <Text style={styles.detailTitle}>Calories</Text>
-                <Text style={styles.trendHeadline}>
-                  {trendCalories.loggedDays > 0 ? `${trendCalories.averageEaten.toLocaleString('en-US')} avg` : '—'}
-                </Text>
-              </View>
-              <Text style={styles.todayHint}>
-                {trendCalories.loggedDays > 0
-                  ? `${trendCalories.loggedDays} of ${trendDays.length} days logged · allowance avg ${trendCalories.averageAllowance.toLocaleString('en-US')} · ${trendCalories.daysOnTarget} on target${trendCalories.daysOver ? ` · ${trendCalories.daysOver} over` : ''}`
-                  : 'Nothing logged in this range yet.'}
-              </Text>
-              <CalorieBars days={trendDays} />
-            </View>
-
-            {/* Macros: each day above or below its target. */}
-            <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>Macros</Text>
-              <Text style={styles.todayHint}>Each day’s bar is its target (bigger on workout days), filled with what you ate. Tap a day for its grams and %.</Text>
-              {(['protein', 'carbs', 'fat'] as const).map((macro) => (
-                <MacroBars key={macro} macro={macro} days={trendMacroDays[macro]} baseTarget={dailyHomeTargets.macroTargets[macro]} today={todayKey} />
-              ))}
-            </View>
-
-            {/* Water: each day against the goal. */}
-            <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>Water</Text>
-              <WaterBars
-                days={trendWaterDays}
-                goalMl={profile?.water_goal_ml ?? DEFAULT_WATER_GOAL_ML}
-                metric={profile?.units === 'metric'}
-                today={todayKey}
-              />
-            </View>
-
-            {/* History: every day in the range, newest first. */}
-            <View style={styles.homeSection}>
-              <Text style={styles.detailTitle}>History</Text>
-              <DayHistory
-                days={[...trendDays].reverse()}
-                logs={trendLogs}
-                exercise={exerciseEntries}
-                today={todayKey}
-                onDeleteFood={deleteTrendFood}
-                onOpenWorkout={setWorkoutDetailId}
-              />
-            </View>
-          </View>
+          <TrendsScreen
+            trendRange={trendRange}
+            setTrendRange={setTrendRange}
+            trendsError={trendsError}
+            trendWeight={trendWeight}
+            trendUnit={trendUnit}
+            trendWeightPoints={trendWeightPoints}
+            trendStart={trendStart}
+            todayKey={todayKey}
+            profile={profile}
+            trendProjection={trendProjection}
+            weightHorizon={weightHorizon}
+            setWeightHorizon={setWeightHorizon}
+            trendCalories={trendCalories}
+            trendDays={trendDays}
+            trendMacroDays={trendMacroDays}
+            dailyHomeTargets={dailyHomeTargets}
+            trendWaterDays={trendWaterDays}
+            trendLogs={trendLogs}
+            exerciseEntries={exerciseEntries}
+            deleteTrendFood={deleteTrendFood}
+            setWorkoutDetailId={setWorkoutDetailId}
+          />
         )}
 
         {section === 'profile' && (
-          <>
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <View>
-                  <Text style={styles.panelEyebrow}>Profile</Text>
-                  <Text style={styles.panelTitle}>Your body and goals</Text>
-                </View>
-                <Text style={styles.panelDetail}>Update your weight, body stats, and goal here; your daily targets recalculate when you save. Units, time zone, and your name are in Settings.</Text>
-              </View>
-
-              <View style={[styles.inlineStatus, { borderColor: toneColor(profileTone) }]}>
-                <Text style={styles.inlineStatusLabel}>{profileStatus}</Text>
-                {profileError ? <Text style={styles.inlineStatusDetail}>{profileError}</Text> : null}
-              </View>
-
-              {profile ? (
-                <View style={styles.detailCard}>
-                  <Text style={styles.detailTitle}>Body and goal</Text>
-
-                  <View style={styles.profileFieldStack}>
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Sex</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(['female', 'male'] as const).map((option) => {
-                          const active = onboardingSexDraft === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingSexDraft(option)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {option === 'male' ? 'Male' : 'Female'}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Age</Text>
-                        <TextInput
-                          value={onboardingAgeDraft}
-                          onChangeText={setOnboardingAgeDraft}
-                          keyboardType="numeric"
-                          placeholder="34"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Current weight, lb</Text>
-                        <TextInput
-                          value={onboardingCurrentWeightDraft}
-                          onChangeText={setOnboardingCurrentWeightDraft}
-                          keyboardType="decimal-pad"
-                          placeholder="180"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Height, ft</Text>
-                        <TextInput
-                          value={onboardingHeightFeetDraft}
-                          onChangeText={setOnboardingHeightFeetDraft}
-                          keyboardType="numeric"
-                          placeholder="5"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Height, in</Text>
-                        <TextInput
-                          value={onboardingHeightInchesDraft}
-                          onChangeText={setOnboardingHeightInchesDraft}
-                          keyboardType="numeric"
-                          placeholder="10"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Goal</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(['lose', 'maintain', 'gain'] as const).map((option) => {
-                          const active = onboardingGoalTypeDraft === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingGoalTypeDraft(option)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {goalLabel(option)}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>{onboardingGoalTypeDraft === 'maintain' ? 'Focus' : 'Pace'}</Text>
-                      <View style={styles.profileToggleRow}>
-                        {(onboardingGoalTypeDraft ? PACE_OPTIONS[onboardingGoalTypeDraft] : []).map((option) => {
-                          const active = onboardingGoalPaceDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingGoalPaceDraft(option.id)}
-                              accessibilityRole="radio"
-                              accessibilityState={{ checked: active }}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                {option.title}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileFieldRow}>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
-                        <TextInput
-                          value={onboardingTargetWeightDraft}
-                          onChangeText={setOnboardingTargetWeightDraft}
-                          keyboardType="decimal-pad"
-                          placeholder="170"
-                          placeholderTextColor={tc.fg_7c8aa5}
-                          style={styles.profileFieldInput}
-                        />
-                      </View>
-                      <View style={styles.profileFieldHalf}>
-                        <Text style={styles.profileFieldLabel}>Activity level</Text>
-                        <View style={styles.profileToggleRow}>
-                          {(['sedentary', 'light', 'moderate', 'very_active', 'extra_active'] as const).map((option) => {
-                            const active = onboardingActivityLevelDraft === option;
-                            return (
-                              <Pressable
-                                key={option}
-                                style={[styles.profileToggle, active && styles.profileToggleActive]}
-                                onPress={() => setOnboardingActivityLevelDraft(option)}
-                              >
-                                <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>
-                                  {option === 'very_active'
-                                    ? 'Very active'
-                                    : option === 'extra_active'
-                                      ? 'Extra active'
-                                      : option === 'sedentary'
-                                        ? 'Sedentary'
-                                        : option === 'light'
-                                          ? 'Light'
-                                          : 'Moderate'}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>How you eat</Text>
-                      <View style={styles.profileToggleRow}>
-                        {dietaryPatternOptions.map((option) => {
-                          const active = onboardingDietaryPatternDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingDietaryPatternDraft(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Nutrition style</Text>
-                      <View style={styles.profileToggleRow}>
-                        {nutritionStyleOptions.map((option) => {
-                          const active = onboardingNutritionStyleDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingNutritionStyleDraft(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Meal balance</Text>
-                      <View style={styles.profileToggleRow}>
-                        {MEAL_STYLES.map((option) => {
-                          const active = onboardingMealStyleDraft === option.id;
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => setOnboardingMealStyleDraft(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.label}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.profileField}>
-                      <Text style={styles.profileFieldLabel}>Avoid</Text>
-                      <View style={styles.profileToggleRow}>
-                        {allergyOptions.map((option) => {
-                          const active = onboardingAllergySelectionsDraft.includes(option.id);
-                          return (
-                            <Pressable
-                              key={option.id}
-                              style={[styles.profileToggle, active && styles.profileToggleActive]}
-                              onPress={() => toggleOnboardingAllergy(option.id)}
-                            >
-                              <Text style={[styles.profileToggleLabel, active && styles.profileToggleLabelActive]}>{option.title}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                      {onboardingAllergySelectionsDraft.includes('other') ? (
-                        <TextInput
-                          value={onboardingAllergyOtherDraft}
-                          onChangeText={setOnboardingAllergyOtherDraft}
-                          placeholder="For example sesame or soy"
-                          placeholderTextColor={tc.fg_9aa6b8}
-                          style={styles.settingsInput}
-                        />
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <Pressable
-                    style={styles.primaryButton}
-                    onPress={() => void saveProfileSettings()}
-                    disabled={profileSaving}
-                  >
-                    <Text style={styles.primaryButtonLabel}>
-                      {profileSaving ? 'Saving...' : 'Save profile and recalculate targets'}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Goals</Text>
-              <Text style={styles.panelTitle}>Target management</Text>
-              <Text style={styles.panelDetail}>The profile form above now drives the active targets. Manual goal entries remain available below for temporary overrides or experiments.</Text>
-
-              {latestProfileGoal ? (
-                <View style={styles.detailCard}>
-                  <View style={styles.recipeRowTitleWrap}>
-                    <View>
-                      <Text style={styles.panelEyebrow}>Active target</Text>
-                      <Text style={styles.detailTitle}>Latest generated target block</Text>
-                    </View>
-                    <Text style={styles.detailSubtitle}>{latestProfileGoal.effective_at}</Text>
-                  </View>
-                  <View style={styles.metricRow}>
-                    <MetricTile label="Calories" value={`${latestProfileGoal.calorie_goal} kcal`} />
-                    <MetricTile label="Protein" value={`${latestProfileGoal.protein_goal} g`} />
-                    <MetricTile label="Carbs" value={`${latestProfileGoal.carbs_goal} g`} />
-                    <MetricTile label="Fat" value={`${latestProfileGoal.fat_goal} g`} />
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={styles.foodList}>
-                {profileGoals.length > 0 ? (
-                  profileGoals.map((goal, index) => (
-                    <View key={goal.id} style={styles.goalCard}>
-                      <View style={styles.recipeRowTitleWrap}>
-                        <Text style={styles.listTitle}>
-                          Goal {profileGoals.length - index}
-                        </Text>
-                        <Text style={styles.listCaption}>{goal.effective_at}</Text>
-                      </View>
-                      <View style={styles.goalMetaRow}>
-                        <Text style={styles.goalMetaChip}>{goal.calorie_goal} kcal</Text>
-                        <Text style={styles.goalMetaChip}>{goal.protein_goal}P</Text>
-                        <Text style={styles.goalMetaChip}>{goal.carbs_goal}C</Text>
-                        <Text style={styles.goalMetaChip}>{goal.fat_goal}F</Text>
-                        {goal.target_weight_lbs !== null ? (
-                          <Text style={styles.goalMetaChip}>{goal.target_weight_lbs} lb</Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.detailCard}>
-                    <Text style={styles.detailTitle}>No goals saved yet</Text>
-                    <Text style={styles.detailSubtitle}>Create a starting target block below to populate this list.</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.profileFieldStack}>
-                <View style={styles.profileField}>
-                  <Text style={styles.profileFieldLabel}>Effective date</Text>
-                  <TextInput
-                    value={goalEffectiveAtDraft}
-                    onChangeText={setGoalEffectiveAtDraft}
-                    placeholder="2026-03-30"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-
-                <View style={styles.profileFieldRow}>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Calories</Text>
-                    <TextInput
-                      value={goalCaloriesDraft}
-                      onChangeText={setGoalCaloriesDraft}
-                      placeholder="2100"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Protein</Text>
-                    <TextInput
-                      value={goalProteinDraft}
-                      onChangeText={setGoalProteinDraft}
-                      placeholder="180"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.profileFieldRow}>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Carbs</Text>
-                    <TextInput
-                      value={goalCarbsDraft}
-                      onChangeText={setGoalCarbsDraft}
-                      placeholder="190"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                  <View style={styles.profileFieldHalf}>
-                    <Text style={styles.profileFieldLabel}>Fat</Text>
-                    <TextInput
-                      value={goalFatDraft}
-                      onChangeText={setGoalFatDraft}
-                      placeholder="60"
-                      placeholderTextColor={tc.fg_7c8aa5}
-                      keyboardType="numeric"
-                      style={styles.profileFieldInput}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.profileField}>
-                  <Text style={styles.profileFieldLabel}>Target weight, lb</Text>
-                  <TextInput
-                    value={goalWeightDraft}
-                    onChangeText={setGoalWeightDraft}
-                    placeholder="178.5"
-                    placeholderTextColor={tc.fg_7c8aa5}
-                    keyboardType="numeric"
-                    style={styles.profileFieldInput}
-                  />
-                </View>
-
-                <Pressable
-                  style={styles.primaryButton}
-                  onPress={() => void addGoal()}
-                  disabled={goalSaving}
-                >
-                  <Text style={styles.primaryButtonLabel}>{goalSaving ? 'Saving...' : 'Add goal'}</Text>
-                </Pressable>
-              </View>
-            </View>
-
-          </>
+          <ProfileScreen
+            profileTone={profileTone}
+            profileStatus={profileStatus}
+            profileError={profileError}
+            profile={profile}
+            onboardingSexDraft={onboardingSexDraft}
+            setOnboardingSexDraft={setOnboardingSexDraft}
+            onboardingAgeDraft={onboardingAgeDraft}
+            setOnboardingAgeDraft={setOnboardingAgeDraft}
+            onboardingCurrentWeightDraft={onboardingCurrentWeightDraft}
+            setOnboardingCurrentWeightDraft={setOnboardingCurrentWeightDraft}
+            onboardingHeightFeetDraft={onboardingHeightFeetDraft}
+            setOnboardingHeightFeetDraft={setOnboardingHeightFeetDraft}
+            onboardingHeightInchesDraft={onboardingHeightInchesDraft}
+            setOnboardingHeightInchesDraft={setOnboardingHeightInchesDraft}
+            onboardingGoalTypeDraft={onboardingGoalTypeDraft}
+            setOnboardingGoalTypeDraft={setOnboardingGoalTypeDraft}
+            onboardingGoalPaceDraft={onboardingGoalPaceDraft}
+            setOnboardingGoalPaceDraft={setOnboardingGoalPaceDraft}
+            onboardingTargetWeightDraft={onboardingTargetWeightDraft}
+            setOnboardingTargetWeightDraft={setOnboardingTargetWeightDraft}
+            onboardingActivityLevelDraft={onboardingActivityLevelDraft}
+            setOnboardingActivityLevelDraft={setOnboardingActivityLevelDraft}
+            onboardingDietaryPatternDraft={onboardingDietaryPatternDraft}
+            setOnboardingDietaryPatternDraft={setOnboardingDietaryPatternDraft}
+            onboardingNutritionStyleDraft={onboardingNutritionStyleDraft}
+            setOnboardingNutritionStyleDraft={setOnboardingNutritionStyleDraft}
+            onboardingMealStyleDraft={onboardingMealStyleDraft}
+            setOnboardingMealStyleDraft={setOnboardingMealStyleDraft}
+            onboardingAllergySelectionsDraft={onboardingAllergySelectionsDraft}
+            toggleOnboardingAllergy={toggleOnboardingAllergy}
+            onboardingAllergyOtherDraft={onboardingAllergyOtherDraft}
+            setOnboardingAllergyOtherDraft={setOnboardingAllergyOtherDraft}
+            saveProfileSettings={saveProfileSettings}
+            profileSaving={profileSaving}
+            latestProfileGoal={latestProfileGoal}
+            profileGoals={profileGoals}
+            goalEffectiveAtDraft={goalEffectiveAtDraft}
+            setGoalEffectiveAtDraft={setGoalEffectiveAtDraft}
+            goalCaloriesDraft={goalCaloriesDraft}
+            setGoalCaloriesDraft={setGoalCaloriesDraft}
+            goalProteinDraft={goalProteinDraft}
+            setGoalProteinDraft={setGoalProteinDraft}
+            goalCarbsDraft={goalCarbsDraft}
+            setGoalCarbsDraft={setGoalCarbsDraft}
+            goalFatDraft={goalFatDraft}
+            setGoalFatDraft={setGoalFatDraft}
+            goalWeightDraft={goalWeightDraft}
+            setGoalWeightDraft={setGoalWeightDraft}
+            addGoal={addGoal}
+            goalSaving={goalSaving}
+          />
         )}
 
         {section === 'workout-plan' && (
@@ -5248,291 +4781,35 @@ export default function App(): ReactElement {
         )}
 
         {section === 'settings' && (
-          <>
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Settings</Text>
-              <Text style={styles.panelTitle}>Account</Text>
-              {settingsMessage ? <Text style={styles.settingsMessage}>{settingsMessage}</Text> : null}
-              {settingsError ? <Text style={styles.settingsError}>{settingsError}</Text> : null}
-              <FieldGroup label="Name">
-                <TextInput
-                  value={profileDisplayNameDraft}
-                  onChangeText={setProfileDisplayNameDraft}
-                  placeholder="Your name"
-                  placeholderTextColor={tc.fg_9aa6b8}
-                  style={styles.settingsInput}
-                  autoCorrect={false}
-                />
-              </FieldGroup>
-              <FieldGroup label="Signed in as">
-                <View style={styles.settingsReadOnly}>
-                  <Text style={styles.settingsValue}>{profile?.email ?? '—'}</Text>
-                  <Text style={styles.settingsHint}>
-                    {isOwnerSession ? 'Through Tailscale on this device. No password needed.' : 'Local session'}
-                  </Text>
-                </View>
-              </FieldGroup>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Settings</Text>
-              <Text style={styles.panelTitle}>Preferences</Text>
-              <FieldGroup label="Appearance">
-                <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Appearance">
-                  {APPEARANCE_OPTIONS.map((option) => {
-                    const active = appearance.preference === option.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                        onPress={() => setAppearance(option.id)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: active }}
-                      >
-                        <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                <Text style={styles.settingsHint}>
-                  {appearance.preference === 'system'
-                    ? `Follows your iPhone (${appearance.scheme === 'dark' ? 'dark' : 'light'} right now). Saved on this device.`
-                    : 'Saved on this device. Applies right away.'}
-                </Text>
-              </FieldGroup>
-              <FieldGroup label="Units">
-                <View style={styles.setupSegmentRow} accessibilityRole="radiogroup">
-                  {(
-                    [
-                      { id: 'imperial' as const, label: 'lb · ft/in' },
-                      { id: 'metric' as const, label: 'kg · cm' }
-                    ]
-                  ).map((option) => {
-                    const active = profileUnitsDraft === option.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                        onPress={() => setProfileUnitsDraft(option.id)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: active }}
-                      >
-                        <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </FieldGroup>
-              <FieldGroup label="Time zone">
-                <TextInput
-                  value={profileTimezoneDraft}
-                  onChangeText={setProfileTimezoneDraft}
-                  placeholder="America/New_York"
-                  placeholderTextColor={tc.fg_9aa6b8}
-                  style={styles.settingsInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {deviceTimeZone() && deviceTimeZone() !== profileTimezoneDraft ? (
-                  <Pressable onPress={() => setProfileTimezoneDraft(deviceTimeZone() as string)} accessibilityRole="button">
-                    <Text style={styles.settingsLink}>Use this iPhone's time zone ({deviceTimeZone()})</Text>
-                  </Pressable>
-                ) : null}
-              </FieldGroup>
-              <Pressable
-                style={[styles.primaryButton, (settingsSaving || !profile) && styles.buttonDisabled]}
-                onPress={() => void saveSettings()}
-                disabled={settingsSaving || !profile}
-                accessibilityRole="button"
-              >
-                <Text style={styles.primaryButtonLabel}>{settingsSaving ? 'Saving…' : 'Save settings'}</Text>
-              </Pressable>
-            </View>
-
-            {profile?.setup_complete ? (
-              <View style={styles.panel}>
-                <Text style={styles.panelEyebrow}>Settings</Text>
-                <Text style={styles.panelTitle}>Nutrition</Text>
-                {floorMessage ? <Text style={styles.settingsMessage}>{floorMessage}</Text> : null}
-                <FieldGroup label="Calorie floor">
-                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Calorie floor">
-                    {(
-                      [
-                        { id: 'recommended' as const, label: 'Recommended' },
-                        { id: 'off' as const, label: 'Off' }
-                      ]
-                    ).map((option) => {
-                      const active = (profile.calorie_floor ?? 'recommended') === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                          onPress={() => {
-                            if (active || settingsSaving) {
-                              return;
-                            }
-                            if (option.id === 'off') {
-                              setSettingsFloorWarning(true);
-                            } else {
-                              void applyCalorieFloor('recommended');
-                            }
-                          }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{option.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.settingsHint}>
-                    {(profile.calorie_floor ?? 'recommended') === 'off'
-                      ? 'Off: your daily target is used as calculated, even below the recommended minimum.'
-                      : `Your daily target never goes below ${profile.sex === 'male' ? '1,500' : '1,200'} kcal, the minimum dietitians recommend for ${profile.sex === 'male' ? 'men' : 'women'}.`}
-                  </Text>
-                </FieldGroup>
-                <FieldGroup label="Water goal">
-                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Water goal">
-                    {WATER_GOAL_GLASSES.map((count) => {
-                      const active = (profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML) === count * GLASS_ML;
-                      return (
-                        <Pressable
-                          key={count}
-                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                          onPress={() => {
-                            if (!active && !settingsSaving) {
-                              void applyWaterGoal(count * GLASS_ML);
-                            }
-                          }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                          accessibilityLabel={`${count} glasses`}
-                        >
-                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>{count}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.settingsHint}>
-                    {`Glasses of ${volumeLabel(GLASS_ML, profile.units === 'metric')} a day: ${volumeLabel(profile.water_goal_ml ?? DEFAULT_WATER_GOAL_ML, profile.units === 'metric')}. 8 glasses (${volumeLabel(8 * GLASS_ML, profile.units === 'metric')}) is a common goal; food and other drinks count toward what you need too.`}
-                  </Text>
-                </FieldGroup>
-                <FieldGroup label="Water reminders">
-                  {foodSessionToken ? <RemindersSettings accessToken={foodSessionToken} /> : null}
-                </FieldGroup>
-                <FieldGroup label="Workout calories">
-                  <View style={styles.setupSegmentRow} accessibilityRole="radiogroup" accessibilityLabel="Workout calories">
-                    {WORKOUT_CALORIE_SHARES.map((share) => {
-                      const active = (profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === share;
-                      return (
-                        <Pressable
-                          key={share}
-                          style={[styles.setupSegmentChoice, active && styles.setupChoiceCardActive]}
-                          onPress={() => {
-                            if (!active && !settingsSaving) {
-                              void applyWorkoutCaloriesShare(share);
-                            }
-                          }}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: active }}
-                        >
-                          <Text style={[styles.setupSegmentLabel, active && styles.setupChoiceTitleActive]}>
-                            {share === 0 ? 'Off' : `${share}%`}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.settingsHint}>
-                    {(profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE) === 0
-                      ? "Off: workouts you log don't change your daily allowance."
-                      : `${profile.workout_calories_share ?? DEFAULT_WORKOUT_CALORIES_SHARE}% of the calories from each workout you log is added to that day's allowance, so you can eat a bit more and stay on pace. 75% is recommended: watch and app estimates tend to run high, and research suggests a workout raises your day's burn by less than the workout itself.`}
-                  </Text>
-                </FieldGroup>
-                <FieldGroup label="Garmin">
-                  <Text style={styles.settingsHint}>{garminStatusText(garminStatus, new Date())}</Text>
-                  {garminStatus?.configured ? (
-                    <Pressable
-                      style={[styles.secondaryButton, garminSyncing && styles.buttonDisabled]}
-                      onPress={() => {
-                        if (foodSessionToken) {
-                          void runGarminSync(foodSessionToken, true);
-                        }
-                      }}
-                      disabled={garminSyncing}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.secondaryButtonLabel}>{garminSyncing ? 'Syncing…' : 'Sync now'}</Text>
-                    </Pressable>
-                  ) : null}
-                  {garminNote ? <Text style={styles.settingsHint}>{garminNote}</Text> : null}
-                  <Text style={styles.settingsHint}>
-                    Workouts sync every 30 minutes and when you open Relish. Garmin's numbers are kept as recorded. Relish counts the active part: the
-                    watch's total minus your own resting calories for those minutes, so resting calories aren't counted twice.
-                  </Text>
-                </FieldGroup>
-              </View>
-            ) : null}
-
-            {settingsFloorWarning ? (
-              <ChoiceSheet
-                title="Turn off the calorie floor?"
-                primaryLabel="Keep the minimum"
-                primaryDetail="Recommended"
-                secondaryLabel="Turn it off"
-                onPrimary={() => setSettingsFloorWarning(false)}
-                onSecondary={() => {
-                  setSettingsFloorWarning(false);
-                  void applyCalorieFloor('off');
-                }}
-                onDismiss={() => setSettingsFloorWarning(false)}
-              >
-                <Text style={styles.floorWarningText}>
-                  Dietitians generally recommend at least {profile?.sex === 'male' ? '1,500 kcal a day for men' : '1,200 kcal a day for women'}{' '}
-                  unless a doctor is supervising. With the floor off, your target can go below that.
-                </Text>
-                <Text style={styles.floorWarningText}>
-                  Eating less makes it hard to get enough protein, vitamins, and minerals, speeds up muscle loss, and often brings
-                  fatigue and rebound weight gain. Proceed with care.
-                </Text>
-              </ChoiceSheet>
-            ) : null}
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>Start over</Text>
-              <Text style={styles.panelTitle}>Reset profile</Text>
-              <Text style={styles.panelDetail}>
-                Runs setup again from the welcome screen, and clears your goals and meal pattern (the meal-planning guide runs
-                again). Your foods, logged meals and workouts, weigh-ins, and plans are kept. To change your weight or goal, edit
-                the profile above instead.
-              </Text>
-              <Pressable
-                style={[styles.secondaryButton, confirmDeleteKey === 'profile-reset' && styles.resetConfirmButton]}
-                onPress={() => void resetProfile()}
-                disabled={profileResetting}
-                accessibilityRole="button"
-              >
-                <Text
-                  style={[styles.secondaryButtonLabel, confirmDeleteKey === 'profile-reset' && styles.entryDeleteConfirmLabel]}
-                >
-                  {profileResetting
-                    ? 'Resetting…'
-                    : confirmDeleteKey === 'profile-reset'
-                      ? 'Tap again to reset and start setup'
-                      : 'Reset profile'}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.panel}>
-              <Text style={styles.panelEyebrow}>About</Text>
-              <Text style={styles.panelTitle}>Relish {appConfig.expo.version}</Text>
-              <Text style={styles.panelDetail}>
-                Packaged food data from Open Food Facts (openfoodfacts.org), available under the Open Database License (ODbL).
-                Food data from USDA FoodData Central.
-              </Text>
-            </View>
-          </>
+          <SettingsScreen
+            settingsMessage={settingsMessage}
+            settingsError={settingsError}
+            profileDisplayNameDraft={profileDisplayNameDraft}
+            setProfileDisplayNameDraft={setProfileDisplayNameDraft}
+            profile={profile}
+            isOwnerSession={isOwnerSession}
+            appearance={appearance}
+            profileUnitsDraft={profileUnitsDraft}
+            setProfileUnitsDraft={setProfileUnitsDraft}
+            profileTimezoneDraft={profileTimezoneDraft}
+            setProfileTimezoneDraft={setProfileTimezoneDraft}
+            settingsSaving={settingsSaving}
+            saveSettings={saveSettings}
+            floorMessage={floorMessage}
+            setSettingsFloorWarning={setSettingsFloorWarning}
+            applyCalorieFloor={applyCalorieFloor}
+            applyWaterGoal={applyWaterGoal}
+            foodSessionToken={foodSessionToken}
+            applyWorkoutCaloriesShare={applyWorkoutCaloriesShare}
+            garminStatus={garminStatus}
+            garminSyncing={garminSyncing}
+            runGarminSync={runGarminSync}
+            garminNote={garminNote}
+            settingsFloorWarning={settingsFloorWarning}
+            confirmDeleteKey={confirmDeleteKey}
+            resetProfile={resetProfile}
+            profileResetting={profileResetting}
+          />
         )}
 
         {/* Prep sits under the week's meal plan: it serves those meals. */}
