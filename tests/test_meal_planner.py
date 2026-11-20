@@ -129,3 +129,14 @@ def test_planned_meals_show_counted_foods(repository):
     }]))
     slot = next(day for day in repository.list_meal_plan_days("u1") if day["plan_date"] == "2099-11-17")["slots"][0]
     assert [item["quantity_label"] for item in slot["items"]] == ["2 large eggs (100 g)", "60 g"]
+
+
+def test_a_copied_snack_can_be_planned(repository):
+    _onboard(repository)
+    result = create_plan(repository, "u1", CreatePlanRequest(assignments=[{
+        "plan_date": "2099-11-20", "meal": "snack", "title": "Greek yogurt, berries", "calories": 180,
+        "items": [{"name": "Greek yogurt", "grams": 170, "calories": 100, "protein": 17, "carbs": 6, "fat": 0}],
+    }]))
+    assert result.created == 1
+    day = next(day for day in repository.list_meal_plan_days("u1") if day["plan_date"] == "2099-11-20")
+    assert day["slots"][0]["meal_label"] == "Snack"

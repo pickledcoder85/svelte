@@ -348,7 +348,8 @@ export const en = {
   search: {
     title: 'Search foods',
     placeholder: 'Your foods or USDA, e.g. green apple',
-    mostUsed: 'Your foods, most used first',
+    usual: 'Your usual foods',
+    more: 'More in your food bank',
     nothingFound: 'Nothing found. Try fewer words.',
     noSavedFoods: 'No saved foods yet. Search for one.',
     yourFood: 'Your food',
@@ -404,6 +405,36 @@ export const en = {
       error: 'Unable to add these foods.',
       partial: 'Some items were added (marked ✓). The rest failed: {message}'
     }
+  },
+  repeat: {
+    title: '🔁 Repeat a recent meal',
+    menu: 'Repeat a recent meal',
+    menuDetail: 'Log or plan a meal you had',
+    planAgain: 'Add {meal} to a plan',
+    searchPlaceholder: 'Search by food, e.g. oats',
+    searchA11y: 'Search recent meals by food',
+    none: 'No meals logged in the last 30 days yet.',
+    noMatch: 'No recent meal has that food.',
+    times: { one: 'eaten once', other: 'eaten {count} times' },
+    loadError: 'Unable to load recent meals.',
+    back: '‹ Recent meals',
+    today: 'Today',
+    tomorrow: 'Tomorrow',
+    logToday: 'Log it today',
+    logOnDay: 'Log it on {day}',
+    planInstead: '📅 Add to a plan instead',
+    planTitle: '📅 Add to a plan',
+    whichDay: 'Which day?',
+    addToPlan: 'Add to {day}',
+    alreadyPlanned: 'That day already has a {meal} planned.',
+    replace: 'Replace it',
+    keep: 'Keep it',
+    saving: 'Saving…',
+    logged: 'Logged to {meal}.',
+    planned: '{meal} planned for {day}.',
+    keptPlan: 'Kept the meal already planned.',
+    logError: 'Unable to log the meal.',
+    planError: 'Unable to add it to the plan.'
   },
   suggest: {
     voice: {

@@ -41,7 +41,9 @@ from backend.app.services.portions import quantity_label
 
 MealType = Literal["breakfast", "lunch", "dinner"]
 CookingTime = Literal["very_little", "some", "enjoy"]
-LABELS = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner"}
+LABELS = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "snack": "Snack"}
+# Plans made by Gus cover breakfast, lunch, and dinner; a meal copied into a plan can be a snack.
+PlanMeal = Literal["breakfast", "lunch", "dinner", "snack"]
 SHARE_INDEX = {"breakfast": 0, "lunch": 1, "dinner": 2}
 TIME_GUIDANCE = {
     "very_little": "almost no time: sheet-pan, one-pot, or no-cook meals that batch-cook once and keep for days, at most 10 minutes of hands-on work",
@@ -81,7 +83,8 @@ class ProposeResponse(BaseModel):
 
 class PlanItem(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    grams: float = Field(gt=0, le=5000)
+    # 0 for a copied quick-calories item (no weight).
+    grams: float = Field(ge=0, le=5000)
     calories: float = Field(ge=0, le=10000)
     protein: float = Field(ge=0, le=1000)
     carbs: float = Field(ge=0, le=1000)
@@ -95,7 +98,7 @@ class PlanItem(BaseModel):
 
 class PlanAssignment(BaseModel):
     plan_date: date
-    meal: MealType
+    meal: PlanMeal
     title: str = Field(min_length=1, max_length=80)
     calories: float = Field(ge=0, le=10000)
     items: list[PlanItem] = Field(min_length=1, max_length=12)
@@ -285,7 +288,7 @@ def create_plan(repository: SQLiteRepository, user_id: str, payload: CreatePlanR
                         "name": item.name,
                         "quantity_label": quantity_label(
                             item.grams, item.count, (item.unit or "").strip() or None, (item.unit_plural or "").strip() or None
-                        ),
+                        ) if item.grams > 0 else "",
                         "calories": round(item.calories),
                         "macros": {"protein": item.protein, "carbs": item.carbs, "fat": item.fat},
                     }

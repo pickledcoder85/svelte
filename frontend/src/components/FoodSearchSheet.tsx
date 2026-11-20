@@ -100,7 +100,6 @@ export function FoodSearchSheet({
               returnKeyType="search"
               accessibilityLabel={t('search.title')}
             />
-            {!query.trim() ? <Text style={styles.muted}>{t('search.mostUsed')}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
           <ScrollView style={styles.list} contentContainerStyle={styles.listBody} keyboardShouldPersistTaps="handled">
@@ -108,9 +107,11 @@ export function FoodSearchSheet({
             {!loading && results.length === 0 && !error ? (
               <Text style={styles.muted}>{query.trim() ? t('search.nothingFound') : t('search.noSavedFoods')}</Text>
             ) : null}
-            {results.map((food) => (
+            {results.map((food, index) => (
+              <View key={food.id}>
+              {!query.trim() && index === 0 ? <Text style={styles.section}>{t('search.usual')}</Text> : null}
+              {!query.trim() && index === USUAL_COUNT ? <Text style={styles.section}>{t('search.more')}</Text> : null}
               <Pressable
-                key={food.id}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                 onPress={() => setPicked(food)}
                 accessibilityRole="button"
@@ -128,6 +129,7 @@ export function FoodSearchSheet({
                 </View>
                 <Text style={styles.rowCalories}>{t('common.kcal', { value: Math.round(food.calories) })}</Text>
               </Pressable>
+              </View>
             ))}
           </ScrollView>
           <div style={{ height: 'max(12px, env(safe-area-inset-bottom))' }} />
@@ -137,7 +139,11 @@ export function FoodSearchSheet({
   );
 }
 
+/** With nothing typed, the first foods are the user's usual ones (logged often and recently). */
+const USUAL_COUNT = 10;
+
 const styles = StyleSheet.create({
+  section: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 2 },
   root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: tc.backdrop },
   sheet: {

@@ -178,7 +178,10 @@ class FoodsMixin:
 
     @_synchronized
     def list_food_bank(self, user_id: str, query: str = "") -> list[FoodItem]:
-        """The user's bank, most recently used first, optionally filtered by name or brand."""
+        """The user's bank, usual foods first, optionally filtered by name or brand.
+
+        Usual = logged often and recently: the use count, with each use fading by half about every
+        two weeks since the food was last logged. Foods never logged follow, newest first."""
         normalized = query.strip()
         rows = self._connection.execute(
             """
@@ -186,8 +189,10 @@ class FoodsMixin:
             JOIN food_catalog f ON f.id = b.food_id
             WHERE b.user_id = ?
               AND (? = '' OR LOWER(f.name) LIKE LOWER(?) OR LOWER(COALESCE(f.brand, '')) LIKE LOWER(?))
-            -- Used foods first (most recent), then foods only added (newest first).
-            ORDER BY b.last_used_at IS NULL, b.last_used_at DESC, b.added_at DESC, b.rowid DESC
+            -- Usual foods first (often and recently logged), then foods only added (newest first).
+            ORDER BY b.last_used_at IS NULL,
+                     b.use_count / (1.0 + MAX(0.0, julianday('now') - julianday(b.last_used_at)) / 14.0) DESC,
+                     b.last_used_at DESC, b.added_at DESC, b.rowid DESC
             """,
             (user_id, normalized, f"%{normalized}%", f"%{normalized}%"),
         ).fetchall()

@@ -72,6 +72,7 @@ export function TodayScreen(props: TodayScreenProps): ReactElement {
         foodLogError={props.foodLogError}
         setFoodLogError={props.setFoodLogError}
         homeMealGroups={props.homeMealGroups}
+        planMealAgain={props.planMealAgain}
         editingFoodEntryId={props.editingFoodEntryId}
         setEditingFoodEntryId={props.setEditingFoodEntryId}
         editingFoodGramsDraft={props.editingFoodGramsDraft}

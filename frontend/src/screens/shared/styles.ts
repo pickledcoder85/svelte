@@ -763,6 +763,9 @@ export const styles = StyleSheet.create({
   todayMealGroup: { gap: 0, marginTop: 6 },
   todayMealGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6 },
   todayMealGroupLabel: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  todayMealGroupRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  todayMealGroupMore: { paddingHorizontal: 10, paddingVertical: 2, borderRadius: 999 },
+  todayMealGroupMoreLabel: { color: tc.fg_5c6d80, fontSize: 18, fontWeight: '800' },
   todayMealGroupCalories: { color: tc.fg_5c6d80, fontSize: 12, fontWeight: '700' },
   todaySectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   todayAddButton: {

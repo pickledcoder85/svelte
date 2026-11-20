@@ -214,7 +214,9 @@ function summarizeFoodLog(log: ApiFoodLog): FoodLogSummary {
     servings: entry.servings,
     meal_plan_slot_id: entry.meal_plan_slot_id ?? null,
     meal_slot: entry.meal_slot ?? null,
-    quantity_label: entry.quantity_label ?? null
+    quantity_label: entry.quantity_label ?? null,
+    entry_type: entry.entry_type,
+    food_item_id: entry.food_item_id ?? null
   }));
 
   return {
@@ -663,7 +665,7 @@ export async function proposePlanMeals(
 export async function createMealPlan(
   assignments: Array<{
     plan_date: string;
-    meal: 'breakfast' | 'lunch' | 'dinner';
+    meal: 'breakfast' | 'lunch' | 'dinner' | 'snack';
     title: string;
     calories: number;
     on_conflict: 'replace' | 'keep';

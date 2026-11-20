@@ -168,3 +168,19 @@ async def test_a_counted_food_keeps_its_label_until_the_amount_changes(client, r
         user_id=user_id, food_log_id=log["id"], entry_id=entry["id"], grams=150, servings=1.5, calories=300, protein=12, carbs=9, fat=24
     )
     assert repository.list_food_log_entries(log["id"])[-1]["quantity_label"] is None
+
+
+def test_usual_foods_come_first(repository):
+    repository.ensure_user_identity(user_id="u9", email="u9@example.com")
+    for food_id in ("rare", "usual", "new"):
+        _save(repository, food_id, name=f"Food {food_id}")
+    repository.add_to_food_bank(user_id="u9", food_id="new")
+    repository.add_to_food_bank(user_id="u9", food_id="rare", used=True)
+    for _ in range(5):
+        repository.add_to_food_bank(user_id="u9", food_id="usual", used=True)
+    with repository._connection:
+        # "rare" was logged once just now; "usual" five times, a week ago.
+        repository._connection.execute(
+            "UPDATE user_food_bank SET last_used_at = datetime('now', '-7 days') WHERE user_id = 'u9' AND food_id = 'usual'"
+        )
+    assert [food.id for food in repository.list_food_bank("u9")] == ["usual", "rare", "new"]

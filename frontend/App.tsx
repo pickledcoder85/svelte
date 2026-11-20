@@ -113,6 +113,8 @@ import { FoodSearchSheet } from './src/components/FoodSearchSheet';
 import { QuickCaloriesSheet } from './src/components/QuickCaloriesSheet';
 import { AddWorkoutSheet } from './src/components/AddWorkoutSheet';
 import { ShoppingListsSheet } from './src/components/ShoppingListsSheet';
+import { RepeatMealSheet } from './src/components/RepeatMealSheet';
+import { mealFromEntries, type RecentMeal } from './src/lib/recent-meals';
 import { flushTicks as flushShoppingTicks, pendingCount as pendingShoppingTicks } from './src/lib/shopping-queue';
 import { waterDays, waterForDay } from './src/lib/water';
 import { groupByMeal } from './src/lib/meal-slots';
@@ -307,7 +309,9 @@ function RelishApp(): ReactElement {
   const [entryBackendDetail, setEntryBackendDetail] = useState(`Using ${getApiBaseUrl()}`);
   const [section, setSection] = useState<AppSection>('dashboard');
   // Bottom sheets from the tab bar's ＋ and the header avatar.
-  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'add-workout' | 'food-search' | 'quick-calories' | 'shopping-lists' | null>(null);
+  const [openSheet, setOpenSheet] = useState<'account' | 'add-food' | 'add-workout' | 'food-search' | 'quick-calories' | 'shopping-lists' | 'repeat-meal' | null>(null);
+  // Repeat a meal: null opens the recent meals; a meal opens "Add to a plan" for it.
+  const [repeatMeal, setRepeatMeal] = useState<RecentMeal | null>(null);
   // The shopping list to open straight away (after Create a Meal Plan), or null for all lists.
   const [shoppingListId, setShoppingListId] = useState<string | null>(null);
   const [workoutDetailId, setWorkoutDetailId] = useState<string | null>(null);
@@ -3539,6 +3543,12 @@ function RelishApp(): ReactElement {
 
         {section === 'dashboard' && (
           <TodayScreen
+            planMealAgain={(group) => {
+              if (group.slot !== 'other') {
+                setRepeatMeal(mealFromEntries(group.slot, selectedHomeDate, group.entries));
+                setOpenSheet('repeat-meal');
+              }
+            }}
             selectedHomeDate={selectedHomeDate}
             todayKey={todayKey}
             setSelectedHomeDate={setSelectedHomeDate}
@@ -4004,6 +4014,28 @@ function RelishApp(): ReactElement {
         />
       ) : null}
 
+      {openSheet === 'repeat-meal' && foodSessionToken ? (
+        <RepeatMealSheet
+          accessToken={foodSessionToken}
+          today={todayKey}
+          logDate={selectedHomeDate}
+          dayName={homeDayName}
+          existingPlans={mealPlanDays}
+          initialMeal={repeatMeal}
+          onLogged={() => void refreshHomeFoodLog()}
+          onPlanned={() => {
+            const token = foodSessionToken;
+            void fetchMealPlanDays(token)
+              .then(setMealPlanDays)
+              .catch(() => undefined);
+          }}
+          onClose={() => {
+            setOpenSheet(null);
+            setRepeatMeal(null);
+          }}
+        />
+      ) : null}
+
       {openSheet === 'add-food' ? (
         <ActionSheet
           title={selectedHomeDate === todayKey ? t('addFood.titleToday') : t('addFood.title')}
@@ -4035,6 +4067,16 @@ function RelishApp(): ReactElement {
               detail: t('addFood.suggestDetail'),
               icon: '✨',
               onPress: openSuggest
+            },
+            {
+              id: 'repeat',
+              label: t('repeat.menu'),
+              detail: t('repeat.menuDetail'),
+              icon: '🔁',
+              onPress: () => {
+                setRepeatMeal(null);
+                setOpenSheet('repeat-meal');
+              }
             }
           ]}
           onClose={() => setOpenSheet(null)}
