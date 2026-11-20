@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     )
     usda_api_key: str = ""
     openai_api_key: str = ""
+    # Speech to text for "Tell Gus what you have" (OpenAI's recommended file-transcription model).
+    transcribe_model: str = "gpt-transcribe"
     # Garmin Connect personal API key (the owner's own data, pull only). Empty: Garmin is off.
     garmin_personal_api_key: str = ""
     # Sync Garmin every 30 minutes while the app runs (when a key is set).

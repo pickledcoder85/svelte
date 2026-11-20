@@ -621,8 +621,19 @@ export async function logFood(
 }
 
 /** Gus suggests two meals for a block, sized to its share of the day (what's left caps it). */
+/** "Tell Gus what you have": a short recording turned into text (nothing is stored). */
+export async function transcribeSpeech(audioBase64: string, mimeType: string, accessToken: string): Promise<{ text: string }> {
+  return readJson<{ text: string }>(
+    await apiFetch(buildApiUrl('/coach/transcribe'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+      body: JSON.stringify({ audio_base64: audioBase64, mime_type: mimeType })
+    })
+  );
+}
+
 export async function suggestMeal(
-  payload: { log_date: string; block: string; ingredients?: string; image_base64?: string },
+  payload: { log_date: string; block: string; ingredients?: string; ingredients_only?: boolean; image_base64?: string },
   accessToken: string
 ): Promise<SuggestResponse> {
   return readJson<SuggestResponse>(

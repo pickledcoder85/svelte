@@ -406,6 +406,18 @@ export const en = {
     }
   },
   suggest: {
+    voice: {
+      title: 'Tell Gus',
+      detail: 'Say what you have',
+      listening: 'Listening… {time}',
+      done: 'Done talking',
+      transcribing: 'Writing down what you said…',
+      onlyThese: 'Only use these foods',
+      onlyTheseHint: 'Gus picks from these, plus basics like oil, salt, and spices.',
+      micDenied: "Relish can't use the microphone. Allow it in iPhone Settings → Safari → Microphone, or type the foods instead.",
+      unsupported: "This phone can't record here. Type the foods instead.",
+      error: "Gus couldn't hear that. Try again, or type the foods."
+    },
     title: '✨ Gus suggests',
     whichMeal: 'Which meal',
     havePlaceholder: "Anything you'd like to use? (optional) e.g. chicken, rice",
