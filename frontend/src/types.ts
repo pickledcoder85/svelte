@@ -59,6 +59,10 @@ export interface FoodLogEntry {
   meal_slot?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
   /** How it was counted, e.g. "2 large eggs (100 g)"; null for weighed foods. */
   quantity_label?: string | null;
+  /** 'food' (a food by weight or servings) or 'meal' (quick calories or a saved meal). */
+  entry_type?: 'food' | 'meal';
+  /** The food behind a 'food' entry (null for quick calories). */
+  food_item_id?: string | null;
 }
 
 export interface FoodLogSummary {

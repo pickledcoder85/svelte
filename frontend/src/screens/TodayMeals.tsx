@@ -26,6 +26,8 @@ export interface TodayMealsProps {
   setEditingFoodGramsDraft: Dispatch<SetStateAction<string>>;
   saveHomeFoodEntryEdit: (entry: FoodLogEntry) => Promise<void>;
   removeHomeFoodEntry: (entry: FoodLogEntry) => Promise<void>;
+  /** A logged meal's ⋯: add it to a day's plan. */
+  planMealAgain: (group: MealGroup) => void;
 }
 
 export function TodayMeals({
@@ -42,6 +44,7 @@ export function TodayMeals({
   foodLogError,
   setFoodLogError,
   homeMealGroups,
+  planMealAgain,
   editingFoodEntryId,
   setEditingFoodEntryId,
   editingFoodGramsDraft,
@@ -110,7 +113,19 @@ export function TodayMeals({
         <View key={group.slot} style={styles.todayMealGroup}>
           <View style={styles.todayMealGroupHeader}>
             <Text style={styles.todayMealGroupLabel}>{group.label}</Text>
-            <Text style={styles.todayMealGroupCalories}>{t('common.kcal', { value: formatNumber(group.calories, undefined, t.locale) })}</Text>
+            <View style={styles.todayMealGroupRight}>
+              <Text style={styles.todayMealGroupCalories}>{t('common.kcal', { value: formatNumber(group.calories, undefined, t.locale) })}</Text>
+              {group.slot !== 'other' ? (
+                <Pressable
+                  style={styles.todayMealGroupMore}
+                  onPress={() => planMealAgain(group)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('repeat.planAgain', { meal: group.label })}
+                >
+                  <Text style={styles.todayMealGroupMoreLabel}>⋯</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
           {group.entries.map((entry) => {
             const deleteKey = `food:${entry.id}`;

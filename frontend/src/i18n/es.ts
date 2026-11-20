@@ -345,7 +345,8 @@ export const es: Dictionary = {
   search: {
     title: 'Buscar alimentos',
     placeholder: 'Sus alimentos o USDA, p. ej. manzana verde',
-    mostUsed: 'Sus alimentos, los más usados primero',
+    usual: 'Sus alimentos de siempre',
+    more: 'Más en su despensa',
     nothingFound: 'No se encontró nada. Pruebe con menos palabras.',
     noSavedFoods: 'Aún no tiene alimentos guardados. Busque uno.',
     yourFood: 'Su alimento',
@@ -403,6 +404,36 @@ export const es: Dictionary = {
       error: 'No se pudieron agregar estos alimentos.',
       partial: 'Algunos se agregaron (marcados con ✓). El resto falló: {message}'
     }
+  },
+  repeat: {
+    title: '🔁 Repetir una comida reciente',
+    menu: 'Repetir una comida reciente',
+    menuDetail: 'Registrar o planear algo que ya comió',
+    planAgain: 'Agregar {meal} a un plan',
+    searchPlaceholder: 'Buscar por alimento, p. ej. avena',
+    searchA11y: 'Buscar comidas recientes por alimento',
+    none: 'Aún no hay comidas registradas en los últimos 30 días.',
+    noMatch: 'Ninguna comida reciente tiene ese alimento.',
+    times: { one: 'una vez', other: '{count} veces' },
+    loadError: 'No se pudieron cargar las comidas recientes.',
+    back: '‹ Comidas recientes',
+    today: 'Hoy',
+    tomorrow: 'Mañana',
+    logToday: 'Registrar hoy',
+    logOnDay: 'Registrar: {day}',
+    planInstead: '📅 Mejor agregar a un plan',
+    planTitle: '📅 Agregar a un plan',
+    whichDay: '¿Qué día?',
+    addToPlan: 'Agregar a {day}',
+    alreadyPlanned: 'Ese día ya tiene planeado: {meal}.',
+    replace: 'Reemplazar',
+    keep: 'Conservar',
+    saving: 'Guardando…',
+    logged: 'Se registró: {meal}.',
+    planned: 'Se agregó al plan: {meal}, {day}.',
+    keptPlan: 'Se conservó la comida que ya estaba planeada.',
+    logError: 'No se pudo registrar la comida.',
+    planError: 'No se pudo agregar al plan.'
   },
   suggest: {
     voice: {
