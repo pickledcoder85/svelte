@@ -5,11 +5,12 @@
  * meals sized to fit (every ingredient has nutrition data); Log it adds every ingredient to the
  * day by weight, saving any new ones to the food bank.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useT } from '../i18n';
-import { deleteMealPlanSlot, logFood, suggestMeal } from '../lib/api';
+import { deleteMealPlanSlot, logFood, suggestMeal, transcribeSpeech } from '../lib/api';
+import { elapsedLabel, startRecording, voiceSupported, type ActiveRecording } from '../lib/voice-recorder';
 import { addedToDayLabel } from '../lib/meal-slots';
 import { pickPhotoFromCamera, prepareScanPhoto } from '../lib/web-photo';
 import { MEAL_PATTERNS, type MealBlockKey } from '../lib/meal-split';
@@ -41,6 +42,17 @@ export function SuggestMealSheet({
   const blockLabel = (key: string, fallback: string) =>
     MEAL_PATTERNS[5].includes(key as MealBlockKey) ? t(`meals.blocks.${key as MealBlockKey}`) : fallback;
   const [have, setHave] = useState('');
+  // "Tell Gus what you have": only the foods listed (voice turns this on; typed text can too).
+  const [onlyThese, setOnlyThese] = useState(false);
+  const [listening, setListening] = useState<ActiveRecording | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const listenTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (listenTimer.current) {
+      clearInterval(listenTimer.current);
+    }
+  }, []);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SuggestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +75,13 @@ export function SuggestMealSheet({
     loggedItems.current = new Map();
     try {
       const response = await suggestMeal(
-        { log_date: logDate, block, ingredients: have.trim() || undefined, image_base64: imageBase64 },
+        {
+          log_date: logDate,
+          block,
+          ingredients: have.trim() || undefined,
+          ...(onlyThese && have.trim() && !imageBase64 ? { ingredients_only: true } : {}),
+          image_base64: imageBase64
+        },
         accessToken
       );
       if (id === requestId.current) {
@@ -128,6 +146,57 @@ export function SuggestMealSheet({
     }
   }
 
+  /** Started from the tap itself: iOS asks for the microphone then. */
+  async function startVoice() {
+    setError(null);
+    if (!voiceSupported()) {
+      setError(t('suggest.voice.unsupported'));
+      return;
+    }
+    try {
+      const recording = await startRecording(() => void finishVoice(recording));
+      setListening(recording);
+      setElapsed(0);
+      const started = Date.now();
+      listenTimer.current = setInterval(() => setElapsed(Date.now() - started), 250);
+    } catch (micError) {
+      const denied = micError instanceof Error && /denied|not allowed|permission/i.test(`${micError.name} ${micError.message}`);
+      setError(denied ? t('suggest.voice.micDenied') : t('suggest.voice.error'));
+    }
+  }
+
+  function stopTimer() {
+    if (listenTimer.current) {
+      clearInterval(listenTimer.current);
+      listenTimer.current = null;
+    }
+  }
+
+  async function finishVoice(recording: ActiveRecording | null = listening) {
+    if (!recording) {
+      return;
+    }
+    stopTimer();
+    setListening(null);
+    setTranscribing(true);
+    try {
+      const audio = await recording.stop();
+      const { text } = await transcribeSpeech(audio.base64, audio.mimeType, accessToken);
+      setHave((current) => (current.trim() ? `${current.trim()}, ${text}` : text).slice(0, 600));
+      setOnlyThese(true);
+    } catch (voiceError) {
+      setError(voiceError instanceof Error && voiceError.message !== 'cancelled' ? voiceError.message : t('suggest.voice.error'));
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  function cancelVoice() {
+    stopTimer();
+    listening?.cancel();
+    setListening(null);
+  }
+
   /** Opened from the tap itself: iOS only allows the photo camera from a user gesture. */
   async function askWithPhoto() {
     const file = await pickPhotoFromCamera();
@@ -175,10 +244,49 @@ export function SuggestMealSheet({
               onChangeText={setHave}
               placeholder={t('suggest.havePlaceholder')}
               placeholderTextColor={tc.fg_8a97a8}
-              maxLength={300}
+              maxLength={600}
+              multiline={onlyThese}
               accessibilityLabel={t('suggest.haveA11y')}
             />
+            {have.trim() ? (
+              <Pressable
+                style={styles.onlyRow}
+                onPress={() => setOnlyThese((current) => !current)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: onlyThese }}
+              >
+                <Text style={[styles.onlyBox, onlyThese && styles.onlyBoxOn]}>{onlyThese ? '☑' : '☐'}</Text>
+                <View style={styles.onlyCopy}>
+                  <Text style={styles.onlyLabel}>{t('suggest.voice.onlyThese')}</Text>
+                  {onlyThese ? <Text style={styles.onlyHint}>{t('suggest.voice.onlyTheseHint')}</Text> : null}
+                </View>
+              </Pressable>
+            ) : null}
+            {listening ? (
+              <View style={styles.listening} accessibilityLiveRegion="polite">
+                <Text style={styles.listeningText}>🎙️ {t('suggest.voice.listening', { time: elapsedLabel(elapsed) })}</Text>
+                <View style={styles.listeningRow}>
+                  <Pressable style={styles.listeningCancel} onPress={cancelVoice} accessibilityRole="button">
+                    <Text style={styles.listeningCancelLabel}>{t('common.cancel')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.listeningDone} onPress={() => void finishVoice()} accessibilityRole="button">
+                    <Text style={styles.listeningDoneLabel}>{t('suggest.voice.done')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+            {transcribing ? <Text style={styles.thinking}>{t('suggest.voice.transcribing')}</Text> : null}
             <View style={styles.modes}>
+              <Pressable
+                style={[styles.mode, (loading || transcribing || Boolean(listening)) && styles.disabled]}
+                onPress={() => void startVoice()}
+                disabled={loading || transcribing || Boolean(listening)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.modeIcon}>🎙️</Text>
+                <Text style={styles.modeTitle}>{t('suggest.voice.title')}</Text>
+                <Text style={styles.modeDetail}>{t('suggest.voice.detail')}</Text>
+              </Pressable>
               <Pressable style={[styles.mode, loading && styles.disabled]} onPress={() => void askWithPhoto()} disabled={loading} accessibilityRole="button">
                 <Text style={styles.modeIcon}>📷</Text>
                 <Text style={styles.modeTitle}>{t('suggest.photo')}</Text>
@@ -322,7 +430,20 @@ const styles = StyleSheet.create({
   replaceBox: { gap: 8, padding: 10, borderRadius: 12, backgroundColor: tc.bg_fff8ea },
   replaceText: { color: tc.fg_7a4e16, fontSize: 13, lineHeight: 18 },
   actionPrimaryLabel: { color: tc.fg_ffffff, fontSize: 15, fontWeight: '800' },
-  modes: { flexDirection: 'row', gap: 10 },
+  modes: { flexDirection: 'row', gap: 8 },
+  onlyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 2 },
+  onlyBox: { fontSize: 20, color: tc.fg_5c6d80 },
+  onlyBoxOn: { color: tc.fg_0f766e },
+  onlyCopy: { flex: 1, gap: 2 },
+  onlyLabel: { color: tc.fg_132536, fontSize: 15, fontWeight: '700' },
+  onlyHint: { color: tc.fg_5c6d80, fontSize: 13 },
+  listening: { gap: 10, padding: 14, borderRadius: 14, backgroundColor: tc.bg_f3f6fb },
+  listeningText: { color: tc.fg_132536, fontSize: 17, fontWeight: '800' },
+  listeningRow: { flexDirection: 'row', gap: 10 },
+  listeningCancel: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: tc.line_d7dee7 },
+  listeningCancelLabel: { color: tc.fg_132536, fontSize: 15, fontWeight: '700' },
+  listeningDone: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: tc.brand_primary },
+  listeningDoneLabel: { color: tc.fg_ffffff, fontSize: 15, fontWeight: '800' },
   mode: { flex: 1, gap: 2, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: tc.line_d7dee7, backgroundColor: tc.bg_ffffff },
   modePrimary: { backgroundColor: tc.brand_primary, borderColor: tc.brand_primary },
   modeIcon: { fontSize: 22 },

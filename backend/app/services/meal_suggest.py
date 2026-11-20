@@ -56,7 +56,9 @@ ROLES = ("protein", "carb", "veg", "fat", "fruit", "other")
 class SuggestRequest(BaseModel):
     log_date: date
     block: BlockKey
-    ingredients: str | None = Field(default=None, max_length=300)
+    ingredients: str | None = Field(default=None, max_length=600)
+    # "Tell Gus what you have": build only from the foods listed (any subset) plus pantry basics.
+    ingredients_only: bool = False
     # A photo of the fridge, counter, or pantry: Gus suggests from what he can see.
     image_base64: str | None = Field(default=None, max_length=16_000_000)
 
@@ -245,6 +247,7 @@ def suggestion_prompt(
     avoid: list[str] | None = None,
     seen: list[str] | None = None,
     language: str = "en",
+    listed: list[str] | None = None,
 ) -> str:
     """What Gus is asked. Only meal preferences go out: no name, email, or body details."""
     diet = profile.get("dietary_pattern") or "omnivore"
@@ -257,7 +260,7 @@ Target for this meal: about {round(budget.calories)} kcal, {round(budget.protein
 Diet: {diet}. Nutrition style: {style}. Allergies and foods to avoid: {allergies}.
 {("The photo shows the user's fridge, counter, or pantry. First list every food you can clearly see in seen_items. Then build both options ONLY from those foods, plus oil, butter, salt, pepper, spices, water, or vinegar. Never add a food that isn't in the photo." if not seen else "Foods in the user's photo: " + ", ".join(seen) + ". Build both options ONLY from these, plus oil, butter, salt, pepper, spices, water, or vinegar.") if with_photo else ""}
 {"Don't use these (no nutrition data for them): " + ", ".join(sorted(set(avoid))) if avoid else ""}
-{"Ingredients the user has (prefer these, you may add simple staples): " + have if have else ("" if with_photo else "Use common, easy ingredients.")}
+{("Foods the user has: " + ", ".join(listed) + ". Build both options ONLY from these (any subset is fine), plus oil, butter, salt, pepper, spices, water, or vinegar. Never add a food that isn't listed.") if listed else ("Ingredients the user has (prefer these, you may add simple staples): " + have if have else ("" if with_photo else "Use common, easy ingredients."))}
 {"Already planned for later today (don't repeat these): " + "; ".join(f"{meal['label']}: {meal['title']}" for meal in planned) if planned else ""}
 Return JSON only:
 {{{'"seen_items": ["each food you can see"], ' if with_photo else ''}"options": [{{"name": "short appetising name", "why": "one short sentence on why it fits",
@@ -468,6 +471,22 @@ async def _resolve(
     return None
 
 
+_LIST_SPLIT = re.compile(r",|;|\n|\band\b|\by\b|\be\b|\bplus\b|\balso\b|\btambién\b", re.IGNORECASE)
+
+
+def listed_foods(text: str) -> list[str]:
+    """The foods in "I have chicken thighs, rice and some spinach" as separate entries."""
+    lead = re.compile(r"^(i('ve| have)( got)?|i've|we have|there's|there is|got|tengo|hay|me queda[n]?|some|a bit of|half a( bag of)?|un poco de|algo de|media bolsa de)\s+", re.IGNORECASE)
+    foods = []
+    for part in _LIST_SPLIT.split(text or ""):
+        food = part.strip().strip(".").strip()
+        for _ in range(3):
+            food = lead.sub("", food).strip()
+        if food and len(food) <= 60:
+            foods.append(food)
+    return list(dict.fromkeys(foods))[:20]
+
+
 def _photo_filter(options: list[dict[str, Any]], seen: list[str]) -> list[dict[str, Any]]:
     """Photo mode: keep only ingredients that are in the photo (or pantry staples). An option
     left without at least two real foods from the photo is dropped."""
@@ -513,6 +532,7 @@ async def suggest_meals(
     planned = later_planned(all_planned, label)
     planned_here = next((meal for meal in all_planned if meal["label"].lower() == label.lower()), None)
     with_photo = bool(payload.image_base64)
+    listed = listed_foods(payload.ingredients or "") if payload.ingredients_only and not with_photo else []
 
     factory = client_factory or (lambda: httpx.AsyncClient(timeout=6))
     meals: list[SuggestedMeal] = []
@@ -539,6 +559,7 @@ async def suggest_meals(
                 avoid=avoid,
                 seen=seen if _round else None,
                 language=language,
+                listed=listed or None,
             )
             reply = await ask(prompt)
             if with_photo and not seen:
@@ -546,6 +567,8 @@ async def suggest_meals(
             options = _clean_options(reply, language)
             if with_photo:
                 options = _photo_filter(options, seen)
+            elif listed:
+                options = _photo_filter(options, listed)  # only the foods the user said they have
             options = [option for option in options if option["name"] not in {meal.name for meal in meals}]
             if not options:
                 continue

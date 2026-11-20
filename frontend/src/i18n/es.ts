@@ -405,6 +405,18 @@ export const es: Dictionary = {
     }
   },
   suggest: {
+    voice: {
+      title: 'Dígale a Gus',
+      detail: 'Diga qué tiene',
+      listening: 'Escuchando… {time}',
+      done: 'Listo',
+      transcribing: 'Anotando lo que dijo…',
+      onlyThese: 'Usar solo estos alimentos',
+      onlyTheseHint: 'Gus elige entre estos y lo básico, como aceite, sal y especias.',
+      micDenied: 'Relish no puede usar el micrófono. Permítalo en Ajustes del iPhone → Safari → Micrófono, o escriba los alimentos.',
+      unsupported: 'Este teléfono no puede grabar aquí. Escriba los alimentos.',
+      error: 'Gus no pudo escuchar eso. Inténtelo de nuevo o escriba los alimentos.'
+    },
     title: '✨ Gus sugiere',
     whichMeal: 'Qué comida',
     havePlaceholder: '¿Algo que quiera usar? (opcional) p. ej. pollo, arroz',

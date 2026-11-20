@@ -3,6 +3,7 @@ import logging
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from backend.app.config import Settings
 from backend.app.dependencies import get_app_settings, get_repository, get_required_session
@@ -17,6 +18,7 @@ from backend.app.services.meal_planner import (
     propose_meals,
 )
 from backend.app.services.meal_suggest import SuggestRequest, SuggestResponse, suggest_meals
+from backend.app.services.transcribe import TranscribeError, TranscribeNotConfiguredError, decode_audio, transcribe_audio
 from backend.app.services.vision import (
     VisionImageError,
     VisionNotConfiguredError,
@@ -26,6 +28,16 @@ from backend.app.services.vision import (
 )
 
 router = APIRouter(prefix="/coach", tags=["coach"])
+
+
+class TranscribeRequest(BaseModel):
+    # A short recording from the phone (base64); about a minute at most.
+    audio_base64: str = Field(min_length=10, max_length=7_500_000)
+    mime_type: str = Field(min_length=3, max_length=80)
+
+
+class TranscribeResponse(BaseModel):
+    text: str
 logger = logging.getLogger(__name__)
 
 
@@ -104,3 +116,24 @@ async def plan_create(
     """Add the accepted meals to their days (replace or keep meals already planned)."""
     repository.ensure_user_identity(user_id=session.user_id, email=session.email, display_name=session.display_name)
     return create_plan(repository, session.user_id, payload)
+
+
+@router.post("/transcribe", response_model=TranscribeResponse)
+async def transcribe(
+    payload: TranscribeRequest,
+    request: Request,
+    session=Depends(get_required_session),
+    settings: Settings = Depends(get_app_settings),
+) -> TranscribeResponse:
+    """Tell Gus what you have: the recording becomes text (not stored) for the user to check."""
+    try:
+        audio, extension = decode_audio(payload.audio_base64, payload.mime_type)
+        text = await transcribe_audio(settings, audio, extension, payload.mime_type, request_language(request))
+    except TranscribeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except TranscribeNotConfiguredError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except httpx.HTTPError as error:
+        logger.warning("Transcription failed: %s", type(error).__name__)
+        raise HTTPException(status_code=502, detail="Gus couldn't hear that right now. Try again in a moment.") from error
+    return TranscribeResponse(text=text)

@@ -71,6 +71,13 @@ ES: dict[str, str] = {
     "Meal split values must be whole numbers.": "Los porcentajes deben ser números enteros.",
     "The meal split must add up to 100%.": "Los porcentajes deben sumar 100 %.",
     # Gus
+    "That recording format isn't supported. Try again.": "Ese formato de grabación no es compatible. Inténtelo de nuevo.",
+    "The recording could not be read. Try again.": "No se pudo leer la grabación. Inténtelo de nuevo.",
+    "The recording is empty. Try again.": "La grabación está vacía. Inténtelo de nuevo.",
+    "The recording is too long. Keep it under a minute.": "La grabación es muy larga. Que dure menos de un minuto.",
+    "Voice isn't set up on this server.": "La voz no está configurada en este servidor.",
+    "Gus didn't catch anything. Try again a little closer to the phone.": "Gus no entendió nada. Inténtelo de nuevo un poco más cerca del teléfono.",
+    "Gus couldn't hear that right now. Try again in a moment.": "Gus no pudo escuchar eso en este momento. Inténtelo de nuevo en un momento.",
     "Gus couldn't reach his ideas right now. Try again in a moment.":
         "Gus no pudo pensar en ideas en este momento. Inténtelo de nuevo en un momento.",
     "Suggestions are not set up on this server.": "Las sugerencias no están configuradas en este servidor.",
